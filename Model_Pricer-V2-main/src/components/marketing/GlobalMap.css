@@ -1,0 +1,150 @@
+/* From Uiverse.io by SnyDeTreves */ 
+.map-container-wrapper {
+  --city-radius: 1.5rem; /* Slightly smaller for better responsiveness */
+  --city-sign-color-back: #2563EB; /* Matching primary blue */
+  --city-sign-color-font: #fff;
+  --city-pin-size-font: 1.2rem;
+  
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* Container */
+.map-container {
+  border-radius: 1.5rem; /* Matching site rounded-3xl approx */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Tailwind shadow-md */
+  line-height: 1;
+  min-width: 15rem;
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 1.8;
+  background-color: #f8fafc; /* bg-slate-50 */
+  overflow: hidden; /* Ensure SVG doesn't overflow */
+}
+
+/* Map - Background */
+.map-background {
+  border-radius: inherit;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Map - Cities */
+.map-cities {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.map-city {
+  border-radius: var(--city-radius);
+  left: calc(var(--x) * 1% - var(--city-radius));
+  padding: var(--city-radius);
+  position: absolute;
+  top: calc(var(--y) * 1% - var(--city-radius));
+  z-index: 10;
+}
+
+.map-city::after,
+.map-city::before {
+  font-size: var(--city-pin-size-font);
+}
+
+.map-city::before {
+  content: "•";
+  left: calc(50% - (var(--city-pin-size-font) / 4)); /* Centering fix attempt */
+  transform: translateX(-50%);
+  position: absolute;
+  top: calc(50% + 0.1em); 
+  text-align: center;
+  text-shadow: 0 1px 1px #000;
+  color: #333;
+}
+
+.map-city::after {
+  content: "📍";
+  left: 50%;
+  transform: translateX(-50%);
+  position: absolute;
+  top: calc(50% - 0.5em);
+  text-align: center;
+  transition: all 300ms ease-out;
+  z-index: var(--y);
+}
+
+/* Map - Sign */
+.map-city__label {
+  display: none;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 80%; /* Position above pin */
+  position: absolute;
+  text-align: center;
+  width: max-content;
+  z-index: 999;
+  pointer-events: none; /* Prevent flickering on hover */
+}
+
+.map-city__sign {
+  align-items: center;
+  background-color: var(--city-sign-color-back);
+  border-radius: 0.5rem;
+  /* border: 2px solid white; */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  color: var(--city-sign-color-font);
+  column-gap: 0.3em;
+  display: flex;
+  font-weight: 600;
+  font-size: 0.875rem; /* text-sm */
+  justify-content: center;
+  margin: 0 auto;
+  padding: 0.4em 0.8em;
+  white-space: nowrap;
+}
+
+.map-city__sign::before {
+  content: attr(data-icon);
+  font-size: 1.1em;
+}
+
+/************/
+/* Tracking */
+/************/
+
+/* Map - Cities */
+.map-city:hover::after {
+  transform: translate(-50%, -0.5em); /* Keep centered and move up */
+}
+
+/* Map - Sign */
+.map-city:hover .map-city__label {
+  animation: fadein 300ms forwards ease-out;
+  display: block;
+}
+
+.map-city:hover .map-city__sign.anim::before {
+  animation-duration: 500ms;
+  animation-fill-mode: forwards;
+}
+
+/**************/
+/* Animations */
+/**************/
+
+@keyframes fadein {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

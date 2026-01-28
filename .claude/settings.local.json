@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp list:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(npm search:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__brave-search__brave_web_search",
+      "mcp__context7__query-docs",
+      "Bash(claude:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

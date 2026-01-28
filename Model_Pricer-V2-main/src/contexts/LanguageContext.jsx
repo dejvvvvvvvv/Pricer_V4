@@ -1,0 +1,574 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+const LanguageContext = createContext();
+
+export const useLanguage = () => {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error('useLanguage must be used within LanguageProvider');
+  }
+  return context;
+};
+
+export const LanguageProvider = ({ children }) => {
+  const [language, setLanguage] = useState(() => {
+    // Load from localStorage or default to Czech
+    return localStorage.getItem('language') || 'cs';
+  });
+
+  useEffect(() => {
+    // Save to localStorage when language changes
+    localStorage.setItem('language', language);
+  }, [language]);
+
+  const toggleLanguage = () => {
+    setLanguage(prev => prev === 'cs' ? 'en' : 'cs');
+  };
+
+  const value = {
+    language,
+    setLanguage,
+    toggleLanguage,
+    t: (key) => translations[language][key] || key
+  };
+
+  return (
+    <LanguageContext.Provider value={value}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+// Translation dictionary
+const translations = {
+  cs: {
+    // Header
+    'nav.home': 'Home',
+    'nav.demo': 'Demo kalkulačky',
+    'nav.pricing': 'Ceník',
+    'nav.support': 'Podpora',
+    'nav.admin': 'Admin',
+    'nav.login': 'Přihlásit se',
+    'nav.register': 'Začít zdarma',
+    'nav.account': 'Účet',
+    'nav.logout': 'Odhlásit se',
+
+    // Home Page
+    'home.hero.title': 'Automatická kalkulačka cen 3D tisku jako služba',
+    'home.hero.subtitle': 'Nech zákazníky nahrát model a získat okamžitou cenu – bez instalace sliceru, bez ručního nacenění.',
+    'home.hero.cta.primary': 'Vyzkoušet zdarma',
+    'home.hero.cta.secondary': 'Podívat se na demo',
+    'home.hero.note': 'Bez instalace sliceru, bez ručního nacenění. Jen vložíš widget na svůj web.',
+
+    'home.trust.main': 'Vhodné pro 3D tiskárny na zakázku, studia i malé e-shopy',
+    'home.trust.sub': 'Už žádné ruční přepočty, Excel tabulky a odhady „od oka".',
+
+    'home.how.title': 'Jak ModelPricer funguje v praxi',
+    'home.how.subtitle': 'Pár minut nastavení a můžeš začít nabízet automatické kalkulace',
+    'home.how.step1.title': 'Nastavíš ceny a parametry',
+    'home.how.step1.desc': 'V admin panelu si nastavíš ceny materiálů, hodinovou sazbu a případné poplatky.',
+    'home.how.step2.title': 'Vložíš widget na svůj web',
+    'home.how.step2.desc': 'Zkopíruješ jednoduchý kód a vložíš ho na svůj web – žádná složitá instalace.',
+    'home.how.step3.title': 'Zákazník nahraje model',
+    'home.how.step3.desc': 'Tvůj zákazník nahraje STL soubor přímo na tvém webu a vybere parametry tisku.',
+    'home.how.step4.title': 'ModelPricer spočítá cenu',
+    'home.how.step4.desc': 'Náš systém automaticky slicuje model a vypočítá přesnou cenu podle tvého nastavení.',
+
+    'home.features.title': 'Klíčové funkce pro tvůj 3D tisk',
+    'home.features.slicer.title': 'Přesné výpočty z PrusaSliceru',
+    'home.features.slicer.desc': 'Používáme skutečný PrusaSlicer pro přesný výpočet času tisku, hmotnosti materiálu a počtu vrstev.',
+    'home.features.pricing.title': 'Vlastní ceny a poplatky',
+    'home.features.pricing.desc': 'Nastav si ceny za gram materiálu, hodinovou sazbu a libovolné poplatky (montáž, lakování, energie).',
+    'home.features.presets.title': 'Presety kvality tisku',
+    'home.features.presets.desc': 'Nabídni zákazníkům různé úrovně kvality – od rychlého tisku po vysoké detaily.',
+    'home.features.limits.title': 'Limity velikosti modelu',
+    'home.features.limits.desc': 'Nastav maximální rozměry podle své tiskárny – systém automaticky odmítne příliš velké modely.',
+    'home.features.branding.title': 'Branding a vzhled widgetu',
+    'home.features.branding.desc': 'Přizpůsob si barvy, logo a fonty kalkulačky tak, aby ladila s tvým webem.',
+    'home.features.cart.title': 'Připravené pro propojení s košíkem',
+    'home.features.cart.desc': 'Kalkulačka může předat objednávku přímo do tvého e-shopu nebo systému.',
+
+    'home.demo.title': 'Podívej se, jak může kalkulačka vypadat na tvém webu',
+    'home.demo.subtitle': 'Toto je pouze ukázka – skutečná kalkulačka bude mít tvé barvy a logo',
+    'home.demo.cta': 'Chci vlastní kalkulačku',
+
+    'home.pricing.title': 'Jednoduché měsíční předplatné',
+    'home.pricing.subtitle': 'Začni s jedním tarifem a rozšiřuj podle potřeby. Bez skrytých poplatků.',
+    'home.pricing.cta': 'Zobrazit ceník',
+
+    'home.audience.title': 'Pro koho je ModelPricer ideální',
+    'home.audience.printers.title': 'Lokální 3D tiskárny',
+    'home.audience.printers.desc': 'Nabízíš tisk na zakázku? Ulehči si práci automatickou kalkulací a získej více objednávek díky okamžité ceně.',
+    'home.audience.studios.title': 'Studia a designéři',
+    'home.audience.studios.desc': 'Vytváříš prototypy nebo produkty? Dej klientům možnost si sami spočítat cenu a urychli celý proces.',
+    'home.audience.shops.title': 'Majitelé e-shopů',
+    'home.audience.shops.desc': 'Prodáváš 3D tiskové služby online? Integrace kalkulačky ti ušetří čas a zvýší konverze.',
+
+    'home.faq.title': 'Často se ptáte',
+    'home.faq.q1': 'Potřebuju mít vlastní server nebo instalovat PrusaSlicer?',
+    'home.faq.a1': 'Ne. PrusaSlicer běží na našem serveru, takže nemusíš nic instalovat ani spravovat. Stačí si vytvořit účet a nastavit ceny.',
+    'home.faq.q2': 'Můžu používat vlastní ceny a poplatky?',
+    'home.faq.a2': 'Ano. V administraci si nastavíš ceny za gram materiálu, hodinovou sazbu a jakékoliv další poplatky (montáž, lakování, energie, atd.).',
+    'home.faq.q3': 'Co když je model větší než moje tiskárna?',
+    'home.faq.a3': 'V adminu nastavíš maximální rozměry podle své tiskárny. Systém automaticky odmítne modely, které jsou příliš velké.',
+    'home.faq.more': 'Zobrazit všechny otázky →',
+
+    // Footer
+    'footer.description': 'SaaS pro nacenění 3D tisku',
+    'footer.nav.title': 'Navigace',
+    'footer.legal.title': 'Právní',
+    'footer.legal.privacy': 'Zásady ochrany osobních údajů',
+    'footer.legal.terms': 'Obchodní podmínky',
+    'footer.copyright': '© 2025 ModelPricer. Všechna práva vyhrazena.',
+
+    // Pricing Page
+    'pricing.hero.title': 'Jednoduché a transparentní ceny',
+    'pricing.hero.subtitle': 'Začni zdarma a rozšiřuj podle potřeby. Bez skrytých poplatků.',
+    'pricing.plan.starter': 'Starter',
+    'pricing.plan.professional': 'Professional',
+    'pricing.plan.enterprise': 'Enterprise',
+    'pricing.monthly': 'měsíčně',
+    'pricing.custom': 'Na míru',
+    'pricing.popular': 'Nejoblíbenější',
+
+    // Support Page
+    'support.hero.title': 'Jak vám můžeme pomoci?',
+    'support.hero.subtitle': 'Najděte odpovědi na nejčastější otázky nebo nás kontaktujte',
+    'support.search.placeholder': 'Hledat v nápovědě...',
+    'support.contact.title': 'Nenašli jste odpověď?',
+    'support.contact.subtitle': 'Náš tým je tu pro vás. Kontaktujte nás a my vám pomůžeme.',
+
+
+    // Admin Navigation
+    'admin.dashboard': 'Dashboard',
+    'admin.branding': 'Branding',
+    'admin.pricing': 'Pricing',
+    'admin.fees': 'Fees',
+    'admin.parameters': 'Parameters',
+    'admin.presets': 'Presets',
+    'admin.orders': 'Orders',
+    'admin.teamAccess': 'Team & Access',
+    'admin.analytics': 'Analytics',
+    'admin.widget': 'Widget Code',
+
+    // Admin Dashboard
+    'admin.dashboard.title': 'Dashboard',
+    'admin.dashboard.subtitle': 'Přehled nastavení kalkulačky',
+    'admin.dashboard.refresh': 'Obnovit',
+    'admin.dashboard.stats.materials': 'Aktivní materiály',
+    'admin.dashboard.stats.fees': 'Aktivní poplatky',
+    'admin.dashboard.stats.timeRate': 'Hodinová sazba',
+    'admin.dashboard.stats.presets': 'Presety',
+    'admin.dashboard.activity': 'Nedávná aktivita',
+    'admin.dashboard.quickActions': 'Rychlé akce',
+    'admin.dashboard.addMaterial': 'Přidat materiál',
+    'admin.dashboard.addFee': 'Přidat poplatek',
+    'admin.dashboard.uploadPreset': 'Nahrát preset',
+
+    // Admin Branding
+    'admin.branding.title': 'Branding',
+    'admin.branding.subtitle': 'Přizpůsobte vzhled kalkulačky',
+    'admin.branding.businessInfo': 'Informace o firmě',
+    'admin.branding.businessName': 'Název firmy:',
+    'admin.branding.businessNamePlaceholder': 'Např. 3DtiskOndra',
+    'admin.branding.businessNameHelp': 'Tento název se zobrazí v kalkulačce',
+    'admin.branding.tagline': 'Slogan (volitelné):',
+    'admin.branding.taglinePlaceholder': 'Např. Profesionální 3D tisk na míru',
+    'admin.branding.logo': 'Logo',
+    'admin.branding.dragDrop': 'Přetáhněte logo sem',
+    'admin.branding.orClick': 'nebo klikněte pro výběr',
+    'admin.branding.recommended': 'Doporučeno: 200x200px, průhledné PNG',
+    'admin.branding.chooseFile': 'Vybrat soubor',
+    'admin.branding.removeLogo': 'Odebrat logo',
+    'admin.branding.colorScheme': 'Barevné schéma',
+    'admin.branding.primaryColor': 'Primární barva:',
+    'admin.branding.primaryColorHelp': 'Používá se pro tlačítka, zvýraznění a akcenty',
+    'admin.branding.secondaryColor': 'Sekundární barva:',
+    'admin.branding.secondaryColorHelp': 'Používá se pro zprávy o úspěchu a zvýraznění',
+    'admin.branding.backgroundColor': 'Barva pozadí:',
+    'admin.branding.backgroundColorHelp': 'Pozadí kalkulačky',
+    'admin.branding.presets': 'Předvolby:',
+    'admin.branding.typography': 'Typografie',
+    'admin.branding.fontFamily': 'Rodina písma:',
+    'admin.branding.calculatorSettings': 'Nastavení kalkulačky',
+    'admin.branding.showLogo': 'Zobrazit logo v kalkulačce',
+    'admin.branding.showBusinessName': 'Zobrazit název firmy',
+    'admin.branding.showTagline': 'Zobrazit slogan',
+    'admin.branding.showPoweredBy': 'Zobrazit "Powered by Commun Printing" odznak',
+    'admin.branding.cornerRadius': 'Zaoblení rohů:',
+    'admin.branding.livePreview': 'Živý náhled',
+    'admin.branding.uploadModel': 'Nahrát model:',
+    'admin.branding.material': 'Materiál:',
+    'admin.branding.calculatePrice': 'Vypočítat cenu',
+
+    // Admin Pricing
+    'admin.pricing.title': 'Pricing',
+    'admin.pricing.subtitle': 'Spravujte ceny materiálů a hodinovou sazbu',
+    'admin.pricing.materials': 'Materiály',
+    'admin.pricing.addMaterial': 'Přidat materiál',
+    'admin.pricing.materialName': 'Název materiálu',
+    'admin.pricing.pricePerGram': 'Cena za gram',
+    'admin.pricing.color': 'Barva',
+    'admin.pricing.active': 'Aktivní',
+    'admin.pricing.actions': 'Akce',
+    'admin.pricing.timeRate': 'Hodinová sazba',
+    'admin.pricing.timeRateDesc': 'Cena za hodinu tisku',
+    'admin.pricing.perHour': 'Kč/hod',
+
+    // Admin Fees
+    'admin.fees.title': 'Fees',
+    'admin.fees.subtitle': 'Spravujte další poplatky a příplatky',
+    'admin.fees.addFee': 'Přidat poplatek',
+    'admin.fees.feeName': 'Název poplatku',
+    'admin.fees.feeType': 'Typ',
+    'admin.fees.amount': 'Částka',
+    'admin.fees.typeFixed': 'Pevná částka',
+    'admin.fees.typePercent': 'Procenta',
+    'admin.fees.description': 'Popis',
+
+    // Admin Parameters
+    'admin.parameters.title': 'Parameters',
+    'admin.parameters.subtitle': 'Nastavte parametry slicování a limity',
+    'admin.parameters.slicingSettings': 'Nastavení slicování',
+    'admin.parameters.layerHeight': 'Výška vrstvy',
+    'admin.parameters.infillDensity': 'Hustota výplně',
+    'admin.parameters.wallThickness': 'Tloušťka stěny',
+    'admin.parameters.printSpeed': 'Rychlost tisku',
+    'admin.parameters.buildVolume': 'Objem tisku',
+    'admin.parameters.maxWidth': 'Max. šířka',
+    'admin.parameters.maxDepth': 'Max. hloubka',
+    'admin.parameters.maxHeight': 'Max. výška',
+    'admin.parameters.advanced': 'Pokročilé nastavení',
+    'admin.parameters.supportMaterial': 'Podpůrný materiál',
+    'admin.parameters.bedAdhesion': 'Přilnavost k podložce',
+
+    // Admin Presets
+    'admin.presets.title': 'Presets',
+    'admin.presets.subtitle': 'Spravujte profily konfigurace PrusaSlicer',
+    'admin.presets.uploadNew': 'Nahrát nový preset',
+    'admin.presets.dragDrop': 'Přetáhněte .ini soubor sem',
+    'admin.presets.orClick': 'nebo klikněte pro výběr',
+    'admin.presets.existing': 'Existující presety',
+    'admin.presets.uploaded': 'Nahráno',
+    'admin.presets.size': 'Velikost',
+    'admin.presets.default': 'Výchozí',
+    'admin.presets.setDefault': 'Nastavit jako výchozí',
+
+    // Admin Orders
+    'admin.orders.title': 'Orders',
+    'admin.orders.subtitle': 'Historie slicování a správa objednávek',
+    'admin.orders.filters': 'Filtry',
+    'admin.orders.search': 'Hledat podle názvu souboru...',
+    'admin.orders.dateRange': 'Časové období',
+    'admin.orders.clear': 'Vymazat',
+    'admin.orders.history': 'Historie objednávek',
+    'admin.orders.material': 'Materiál',
+    'admin.orders.time': 'Čas',
+    'admin.orders.viewDetails': 'Zobrazit detaily',
+    'admin.orders.previous': 'Předchozí',
+    'admin.orders.next': 'Další',
+    'admin.orders.page': 'Strana',
+    'admin.orders.of': 'z',
+
+    // Admin Widget
+    'admin.widget.title': 'Widget Code',
+    'admin.widget.subtitle': 'Vložte kalkulačku na váš web',
+    'admin.widget.configuration': 'Konfigurace',
+    'admin.widget.widgetType': 'Typ widgetu:',
+    'admin.widget.fullCalculator': 'Plná kalkulačka',
+    'admin.widget.priceOnly': 'Pouze cena',
+    'admin.widget.theme': 'Téma:',
+    'admin.widget.light': 'Světlé',
+    'admin.widget.dark': 'Tmavé',
+    'admin.widget.auto': 'Automatické',
+    'admin.widget.primaryColor': 'Primární barva:',
+    'admin.widget.width': 'Šířka:',
+    'admin.widget.widthAuto': 'Automatická',
+    'admin.widget.widthFixed': 'Pevná:',
+    'admin.widget.preview': 'Náhled',
+    'admin.widget.embedCode': 'Kód pro vložení',
+    'admin.widget.copyCode': 'Kopírovat kód',
+    'admin.widget.copied': 'Zkopírováno!',
+    'admin.widget.instructions': 'Instrukce',
+    'admin.widget.step1': 'Zkopírujte kód pro vložení výše',
+    'admin.widget.step2': 'Vložte ho do HTML vašeho webu',
+    'admin.widget.step3': 'Kalkulačka se zobrazí automaticky',
+    'admin.widget.docs': 'Kompletní dokumentace →',
+
+    // Common
+    'common.save': 'Uložit změny',
+    'common.saving': 'Ukládání...',
+    'common.cancel': 'Zrušit',
+    'common.reset': 'Obnovit výchozí',
+    'common.upload': 'Nahrát',
+    'common.download': 'Stáhnout',
+    'common.delete': 'Smazat',
+    'common.edit': 'Upravit',
+    'common.add': 'Přidat',
+  },
+  en: {
+    // Header
+    'nav.home': 'Home',
+    'nav.demo': 'Demo Calculator',
+    'nav.pricing': 'Pricing',
+    'nav.support': 'Support',
+    'nav.admin': 'Admin',
+    'nav.login': 'Sign In',
+    'nav.register': 'Get Started Free',
+    'nav.account': 'Account',
+    'nav.logout': 'Sign Out',
+
+    // Home Page
+    'home.hero.title': 'Automatic 3D Print Pricing Calculator as a Service',
+    'home.hero.subtitle': 'Let customers upload models and get instant quotes – no slicer installation, no manual pricing.',
+    'home.hero.cta.primary': 'Try for Free',
+    'home.hero.cta.secondary': 'View Demo',
+    'home.hero.note': 'No slicer installation, no manual pricing. Just embed the widget on your website.',
+
+    'home.trust.main': 'Perfect for custom 3D printing services, studios, and small e-shops',
+    'home.trust.sub': 'No more manual calculations, Excel spreadsheets, and rough estimates.',
+
+    'home.how.title': 'How ModelPricer Works in Practice',
+    'home.how.subtitle': 'A few minutes of setup and you can start offering automatic quotes',
+    'home.how.step1.title': 'Set Prices and Parameters',
+    'home.how.step1.desc': 'Configure material prices, hourly rates, and optional fees in the admin panel.',
+    'home.how.step2.title': 'Embed Widget on Your Site',
+    'home.how.step2.desc': 'Copy simple code and paste it on your website – no complex installation.',
+    'home.how.step3.title': 'Customer Uploads Model',
+    'home.how.step3.desc': 'Your customer uploads an STL file directly on your website and selects print parameters.',
+    'home.how.step4.title': 'ModelPricer Calculates Price',
+    'home.how.step4.desc': 'Our system automatically slices the model and calculates precise pricing based on your settings.',
+
+    'home.features.title': 'Key Features for Your 3D Printing',
+    'home.features.slicer.title': 'Accurate Calculations from PrusaSlicer',
+    'home.features.slicer.desc': 'We use real PrusaSlicer for precise calculation of print time, material weight, and layer count.',
+    'home.features.pricing.title': 'Custom Prices and Fees',
+    'home.features.pricing.desc': 'Set prices per gram of material, hourly rates, and any fees (assembly, painting, energy).',
+    'home.features.presets.title': 'Print Quality Presets',
+    'home.features.presets.desc': 'Offer customers different quality levels – from fast printing to high detail.',
+    'home.features.limits.title': 'Model Size Limits',
+    'home.features.limits.desc': 'Set maximum dimensions based on your printer – system automatically rejects oversized models.',
+    'home.features.branding.title': 'Branding and Widget Appearance',
+    'home.features.branding.desc': 'Customize colors, logo, and fonts to match your website.',
+    'home.features.cart.title': 'Ready for Cart Integration',
+    'home.features.cart.desc': 'Calculator can pass orders directly to your e-shop or system.',
+
+    'home.demo.title': 'See How the Calculator Can Look on Your Website',
+    'home.demo.subtitle': 'This is just a preview – the actual calculator will have your colors and logo',
+    'home.demo.cta': 'I Want My Own Calculator',
+
+    'home.pricing.title': 'Simple Monthly Subscription',
+    'home.pricing.subtitle': 'Start with one plan and scale as needed. No hidden fees.',
+    'home.pricing.cta': 'View Pricing',
+
+    'home.audience.title': 'Who is ModelPricer Perfect For',
+    'home.audience.printers.title': 'Local 3D Print Shops',
+    'home.audience.printers.desc': 'Offering custom printing? Simplify your work with automatic quotes and get more orders with instant pricing.',
+    'home.audience.studios.title': 'Studios and Designers',
+    'home.audience.studios.desc': 'Creating prototypes or products? Let clients calculate prices themselves and speed up the process.',
+    'home.audience.shops.title': 'E-shop Owners',
+    'home.audience.shops.desc': 'Selling 3D printing services online? Calculator integration saves time and increases conversions.',
+
+    'home.faq.title': 'Frequently Asked Questions',
+    'home.faq.q1': 'Do I need my own server or install PrusaSlicer?',
+    'home.faq.a1': 'No. PrusaSlicer runs on our server, so you don\'t need to install or manage anything. Just create an account and set prices.',
+    'home.faq.q2': 'Can I use custom prices and fees?',
+    'home.faq.a2': 'Yes. In the admin panel, you can set prices per gram of material, hourly rates, and any additional fees (assembly, painting, energy, etc.).',
+    'home.faq.q3': 'What if the model is larger than my printer?',
+    'home.faq.a3': 'In the admin panel, you set maximum dimensions based on your printer. The system automatically rejects models that are too large.',
+    'home.faq.more': 'View All Questions →',
+
+    // Footer
+    'footer.description': 'SaaS for 3D Print Pricing',
+    'footer.nav.title': 'Navigation',
+    'footer.legal.title': 'Legal',
+    'footer.legal.privacy': 'Privacy Policy',
+    'footer.legal.terms': 'Terms of Service',
+    'footer.copyright': '© 2025 ModelPricer. All rights reserved.',
+
+    // Pricing Page
+    'pricing.hero.title': 'Simple and Transparent Pricing',
+    'pricing.hero.subtitle': 'Start free and scale as you grow. No hidden fees.',
+    'pricing.plan.starter': 'Starter',
+    'pricing.plan.professional': 'Professional',
+    'pricing.plan.enterprise': 'Enterprise',
+    'pricing.monthly': 'monthly',
+    'pricing.custom': 'Custom',
+    'pricing.popular': 'Most Popular',
+
+    // Support Page
+    'support.hero.title': 'How Can We Help You?',
+    'support.hero.subtitle': 'Find answers to common questions or contact us',
+    'support.search.placeholder': 'Search help...',
+    'support.contact.title': 'Didn\'t Find an Answer?',
+    'support.contact.subtitle': 'Our team is here for you. Contact us and we\'ll help.',
+
+
+    // Admin Navigation
+    'admin.dashboard': 'Dashboard',
+    'admin.branding': 'Branding',
+    'admin.pricing': 'Pricing',
+    'admin.fees': 'Fees',
+    'admin.parameters': 'Parameters',
+    'admin.presets': 'Presets',
+    'admin.orders': 'Orders',
+    'admin.teamAccess': 'Team & Access',
+    'admin.analytics': 'Analytics',
+    'admin.widget': 'Widget Code',
+
+    // Admin Dashboard
+    'admin.dashboard.title': 'Dashboard',
+    'admin.dashboard.subtitle': 'Calculator settings overview',
+    'admin.dashboard.refresh': 'Refresh',
+    'admin.dashboard.stats.materials': 'Active Materials',
+    'admin.dashboard.stats.fees': 'Active Fees',
+    'admin.dashboard.stats.timeRate': 'Time Rate',
+    'admin.dashboard.stats.presets': 'Presets',
+    'admin.dashboard.activity': 'Recent Activity',
+    'admin.dashboard.quickActions': 'Quick Actions',
+    'admin.dashboard.addMaterial': 'Add Material',
+    'admin.dashboard.addFee': 'Add Fee',
+    'admin.dashboard.uploadPreset': 'Upload Preset',
+
+    // Admin Branding
+    'admin.branding.title': 'Branding',
+    'admin.branding.subtitle': 'Customize your calculator appearance',
+    'admin.branding.businessInfo': 'Business Information',
+    'admin.branding.businessName': 'Business Name:',
+    'admin.branding.businessNamePlaceholder': 'E.g. 3DPrintShop',
+    'admin.branding.businessNameHelp': 'This name will appear in your calculator',
+    'admin.branding.tagline': 'Tagline (optional):',
+    'admin.branding.taglinePlaceholder': 'E.g. Professional 3D printing services',
+    'admin.branding.logo': 'Logo',
+    'admin.branding.dragDrop': 'Drag & drop logo here',
+    'admin.branding.orClick': 'or click to browse',
+    'admin.branding.recommended': 'Recommended: 200x200px, transparent PNG',
+    'admin.branding.chooseFile': 'Choose File',
+    'admin.branding.removeLogo': 'Remove Logo',
+    'admin.branding.colorScheme': 'Color Scheme',
+    'admin.branding.primaryColor': 'Primary Color:',
+    'admin.branding.primaryColorHelp': 'Used for buttons, highlights, and accents',
+    'admin.branding.secondaryColor': 'Secondary Color:',
+    'admin.branding.secondaryColorHelp': 'Used for success messages and highlights',
+    'admin.branding.backgroundColor': 'Background Color:',
+    'admin.branding.backgroundColorHelp': 'Calculator background',
+    'admin.branding.presets': 'Presets:',
+    'admin.branding.typography': 'Typography',
+    'admin.branding.fontFamily': 'Font Family:',
+    'admin.branding.calculatorSettings': 'Calculator Settings',
+    'admin.branding.showLogo': 'Show logo in calculator',
+    'admin.branding.showBusinessName': 'Show business name',
+    'admin.branding.showTagline': 'Show tagline',
+    'admin.branding.showPoweredBy': 'Show "Powered by Commun Printing" badge',
+    'admin.branding.cornerRadius': 'Corner Radius:',
+    'admin.branding.livePreview': 'Live Preview',
+    'admin.branding.uploadModel': 'Upload model:',
+    'admin.branding.material': 'Material:',
+    'admin.branding.calculatePrice': 'Calculate Price',
+
+    // Admin Pricing
+    'admin.pricing.title': 'Pricing',
+    'admin.pricing.subtitle': 'Manage material prices and hourly rate',
+    'admin.pricing.materials': 'Materials',
+    'admin.pricing.addMaterial': 'Add Material',
+    'admin.pricing.materialName': 'Material Name',
+    'admin.pricing.pricePerGram': 'Price per Gram',
+    'admin.pricing.color': 'Color',
+    'admin.pricing.active': 'Active',
+    'admin.pricing.actions': 'Actions',
+    'admin.pricing.timeRate': 'Time Rate',
+    'admin.pricing.timeRateDesc': 'Price per hour of printing',
+    'admin.pricing.perHour': 'CZK/hour',
+
+    // Admin Fees
+    'admin.fees.title': 'Fees',
+    'admin.fees.subtitle': 'Manage additional fees and surcharges',
+    'admin.fees.addFee': 'Add Fee',
+    'admin.fees.feeName': 'Fee Name',
+    'admin.fees.feeType': 'Type',
+    'admin.fees.amount': 'Amount',
+    'admin.fees.typeFixed': 'Fixed Amount',
+    'admin.fees.typePercent': 'Percentage',
+    'admin.fees.description': 'Description',
+
+    // Admin Parameters
+    'admin.parameters.title': 'Parameters',
+    'admin.parameters.subtitle': 'Configure slicing parameters and limits',
+    'admin.parameters.slicingSettings': 'Slicing Settings',
+    'admin.parameters.layerHeight': 'Layer Height',
+    'admin.parameters.infillDensity': 'Infill Density',
+    'admin.parameters.wallThickness': 'Wall Thickness',
+    'admin.parameters.printSpeed': 'Print Speed',
+    'admin.parameters.buildVolume': 'Build Volume',
+    'admin.parameters.maxWidth': 'Max Width',
+    'admin.parameters.maxDepth': 'Max Depth',
+    'admin.parameters.maxHeight': 'Max Height',
+    'admin.parameters.advanced': 'Advanced Settings',
+    'admin.parameters.supportMaterial': 'Support Material',
+    'admin.parameters.bedAdhesion': 'Bed Adhesion',
+
+    // Admin Presets
+    'admin.presets.title': 'Presets',
+    'admin.presets.subtitle': 'Manage PrusaSlicer configuration profiles',
+    'admin.presets.uploadNew': 'Upload New Preset',
+    'admin.presets.dragDrop': 'Drag & drop .ini file here',
+    'admin.presets.orClick': 'or click to browse',
+    'admin.presets.existing': 'Existing Presets',
+    'admin.presets.uploaded': 'Uploaded',
+    'admin.presets.size': 'Size',
+    'admin.presets.default': 'Default',
+    'admin.presets.setDefault': 'Set as Default',
+
+    // Admin Orders
+    'admin.orders.title': 'Orders',
+    'admin.orders.subtitle': 'Slicing history and order management',
+    'admin.orders.filters': 'Filters',
+    'admin.orders.search': 'Search by filename...',
+    'admin.orders.dateRange': 'Date Range',
+    'admin.orders.clear': 'Clear',
+    'admin.orders.history': 'Order History',
+    'admin.orders.material': 'Material',
+    'admin.orders.time': 'Time',
+    'admin.orders.viewDetails': 'View Details',
+    'admin.orders.previous': 'Previous',
+    'admin.orders.next': 'Next',
+    'admin.orders.page': 'Page',
+    'admin.orders.of': 'of',
+
+    // Admin Widget
+    'admin.widget.title': 'Widget Code',
+    'admin.widget.subtitle': 'Embed calculator on your website',
+    'admin.widget.configuration': 'Configuration',
+    'admin.widget.widgetType': 'Widget Type:',
+    'admin.widget.fullCalculator': 'Full Calculator',
+    'admin.widget.priceOnly': 'Price Only',
+    'admin.widget.theme': 'Theme:',
+    'admin.widget.light': 'Light',
+    'admin.widget.dark': 'Dark',
+    'admin.widget.auto': 'Auto',
+    'admin.widget.primaryColor': 'Primary Color:',
+    'admin.widget.width': 'Width:',
+    'admin.widget.widthAuto': 'Auto',
+    'admin.widget.widthFixed': 'Fixed:',
+    'admin.widget.preview': 'Preview',
+    'admin.widget.embedCode': 'Embed Code',
+    'admin.widget.copyCode': 'Copy Code',
+    'admin.widget.copied': 'Copied!',
+    'admin.widget.instructions': 'Instructions',
+    'admin.widget.step1': 'Copy the embed code above',
+    'admin.widget.step2': 'Paste it into your website\'s HTML',
+    'admin.widget.step3': 'The calculator will appear automatically',
+    'admin.widget.docs': 'Full documentation →',
+
+    // Common
+    'common.save': 'Save Changes',
+    'common.saving': 'Saving...',
+    'common.cancel': 'Cancel',
+    'common.reset': 'Reset to Defaults',
+    'common.upload': 'Upload',
+    'common.download': 'Download',
+    'common.delete': 'Delete',
+    'common.edit': 'Edit',
+    'common.add': 'Add',
+  }
+};

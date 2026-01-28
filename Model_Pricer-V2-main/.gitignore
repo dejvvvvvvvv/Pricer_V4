@@ -1,0 +1,23 @@
+.DS_Store
+node_modules
+.idea
+package-lock.json
+/build
+.vscode/
+.idea/
+vite.config.*s.*
+# env
+*.env
+*.env.*
+.env
+.env.*
+.env.local
+.env.production
+
+# MCP config (may contain API keys)
+.mcp.json
+# build
+dist/
+build/
+coverage/
+*.log

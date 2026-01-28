@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Umožní komukoli vytvořit nového uživatele (zaregistrovat se)
+    match /users/{userId} {
+      allow create: if request.auth != null;
+      allow read: if true;
+      allow write: if request.auth.uid == userId;
+      allow delete: if request.auth.uid == userId;
+    }
+
+    // Povolí čtení a zápis pro přihlášené uživatele (pro ostatní kolekce)
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
