@@ -138,6 +138,29 @@ export function resetBrandingToDefaults(tenantId) {
   return defaults;
 }
 
+/**
+ * Default widget theme configuration.
+ */
+export function getDefaultWidgetTheme() {
+  return {
+    backgroundColor: '#FFFFFF',
+    cardColor: '#F9FAFB',
+    headerColor: '#1F2937',
+    textColor: '#374151',
+    mutedColor: '#6B7280',
+    buttonPrimaryColor: '#2563EB',
+    buttonTextColor: '#FFFFFF',
+    buttonHoverColor: '#1D4ED8',
+    inputBgColor: '#FFFFFF',
+    inputBorderColor: '#D1D5DB',
+    inputFocusColor: '#2563EB',
+    summaryBgColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    cornerRadius: 12,
+  };
+}
+
 export function getWidgets(tenantId) {
   const stored = lsGet(KEY.widgets(tenantId), null);
   if (stored && Array.isArray(stored)) return stored;
@@ -157,6 +180,7 @@ export function getWidgets(tenantId) {
       widthPx: 800,
       localeDefault: 'cs',
       configProfileId: null,
+      themeConfig: getDefaultWidgetTheme(),
       domains: [],
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -200,6 +224,7 @@ export function createWidget(tenantId, input) {
     widthPx: typeof input?.widthPx === 'number' ? input.widthPx : 800,
     localeDefault: input?.localeDefault || 'cs',
     configProfileId: input?.configProfileId ?? null,
+    themeConfig: input?.themeConfig ?? getDefaultWidgetTheme(),
     domains: [],
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -372,4 +397,44 @@ export function isDomainAllowedByWhitelist(hostname, domains) {
     if (d.allowSubdomains && host.endsWith(`.${d.domain}`)) return true;
   }
   return false;
+}
+
+/**
+ * Get widget by its public ID (for public widget route).
+ * Searches all tenants (for demo; in production this would be a server lookup).
+ */
+export function getWidgetByPublicId(publicWidgetId) {
+  if (!publicWidgetId) return null;
+
+  // In demo mode, we need to scan all known tenants
+  // This is simplified - in production, the server would handle this lookup
+  const allKeys = Object.keys(localStorage).filter((k) => k.startsWith('modelpricer_widgets__'));
+
+  for (const key of allKeys) {
+    const tenantId = key.replace('modelpricer_widgets__', '');
+    const widgets = getWidgets(tenantId);
+    const match = widgets.find((w) => w.publicId === publicWidgetId);
+    if (match) {
+      return { widget: match, tenantId };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Update widget theme configuration.
+ */
+export function updateWidgetTheme(tenantId, widgetId, themeConfig) {
+  const current = getWidgets(tenantId);
+  const widget = current.find((w) => w.id === widgetId);
+  if (!widget) return null;
+
+  const mergedTheme = {
+    ...getDefaultWidgetTheme(),
+    ...(widget.themeConfig || {}),
+    ...themeConfig,
+  };
+
+  return updateWidget(tenantId, widgetId, { themeConfig: mergedTheme });
 }

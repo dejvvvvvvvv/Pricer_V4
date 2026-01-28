@@ -22,21 +22,32 @@ import AdminParameters from './pages/admin/AdminParameters';
 import AdminPresets from './pages/admin/AdminPresets';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminWidget from './pages/admin/AdminWidget';
+import AdminWidgetBuilder from './pages/admin/AdminWidgetBuilder';
 import AdminTeamAccess from './pages/admin/AdminTeamAccess';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import InviteAccept from './pages/InviteAccept';
+import WidgetPublicPage from './pages/widget-public/WidgetPublicPage';
 
 
 export default function Routes() {
   return (
     <BrowserRouter>
-      <SmoothScroll />
-      <ScrollToTop />
-      <Header />
-      <main>
-        <RouterRoutes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+      <RouterRoutes>
+        {/* Public Widget Route - no Header/Footer (embeddable) */}
+        <Route path="/w/:publicWidgetId" element={<WidgetPublicPage />} />
+
+        {/* Main app with Header/Footer */}
+        <Route
+          path="*"
+          element={
+            <>
+              <SmoothScroll />
+              <ScrollToTop />
+              <Header />
+              <main>
+                <RouterRoutes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
           {/* veřejné */}
           <Route path="/" element={<Home />} />
@@ -64,15 +75,20 @@ export default function Routes() {
             <Route path="presets/*" element={<AdminPresets />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="widget" element={<AdminWidget />} />
+            <Route path="widget/builder/:id" element={<AdminWidgetBuilder />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="team" element={<AdminTeamAccess />} />
           </Route>
 
-          {/* 404 */}
-          <Route path="*" element={<NotFound />} />
-        </RouterRoutes>
-      </main>
-      <Footer />
+                  {/* 404 */}
+                  <Route path="*" element={<NotFound />} />
+                </RouterRoutes>
+              </main>
+              <Footer />
+            </>
+          }
+        />
+      </RouterRoutes>
     </BrowserRouter>
   );
 }

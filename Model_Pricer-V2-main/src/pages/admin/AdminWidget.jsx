@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { getTenantId } from '../../utils/adminTenantStorage';
 
 import {
   // branding + plan
@@ -22,8 +23,6 @@ import {
   deleteWidgetDomain,
   validateDomainInput,
 } from '../../utils/adminBrandingWidgetStorage';
-
-const TENANT_ID = 'test-customer-1'; // TODO: nahradit skutečným tenantem z auth/context
 
 // Pozn.: Varianta A = localStorage (demo). Později (Varianta B) se jen vymění helper za API.
 
@@ -150,9 +149,10 @@ const AdminWidget = () => {
   };
 
   const refresh = () => {
-    const p = getPlanFeatures(TENANT_ID);
-    const b = getBranding(TENANT_ID);
-    const w = getWidgets(TENANT_ID);
+    const tenantId = getTenantId();
+    const p = getPlanFeatures(tenantId);
+    const b = getBranding(tenantId);
+    const w = getWidgets(tenantId);
 
     setPlan(p);
     setBranding(b);
@@ -270,7 +270,7 @@ const AdminWidget = () => {
         configProfileId: editor.configProfileId ?? null,
       };
 
-      updateWidget(TENANT_ID, editor.id, payload);
+      updateWidget(getTenantId(), editor.id, payload);
       showToast('Uloženo');
       refresh();
     } catch (e) {
@@ -306,7 +306,7 @@ const AdminWidget = () => {
         return;
       }
 
-      const widget = createWidget(TENANT_ID, {
+      const widget = createWidget(getTenantId(), {
         name,
         type: createType,
       });
@@ -315,7 +315,7 @@ const AdminWidget = () => {
       showToast('Widget vytvořen');
 
       // refresh + select new
-      const w = getWidgets(TENANT_ID);
+      const w = getWidgets(getTenantId());
       setWidgets(w);
       setSelectedId(widget.id);
       setEditor(deepClone(widget));
@@ -334,9 +334,9 @@ const AdminWidget = () => {
         showToast(`Limit tarifu: max. ${maxWidgets} widget(y).`, 'err');
         return;
       }
-      const dupe = duplicateWidget(TENANT_ID, id);
+      const dupe = duplicateWidget(getTenantId(), id);
       showToast('Zduplikováno');
-      const w = getWidgets(TENANT_ID);
+      const w = getWidgets(getTenantId());
       setWidgets(w);
       setSelectedId(dupe.id);
     } catch (e) {
@@ -347,7 +347,7 @@ const AdminWidget = () => {
 
   const onToggleEnabled = (id) => {
     try {
-      toggleWidgetStatus(TENANT_ID, id);
+      toggleWidgetStatus(getTenantId(), id);
       showToast('Změněno');
       refresh();
     } catch (e) {
@@ -362,7 +362,7 @@ const AdminWidget = () => {
     if (!ok) return;
 
     try {
-      deleteWidget(TENANT_ID, id);
+      deleteWidget(getTenantId(), id);
       showToast('Smazáno');
       refresh();
     } catch (e) {

@@ -1,0 +1,110 @@
+/* From Uiverse.io by AlimurtuzaCodes (adapted)
+   Scoped via CSS Modules to avoid collisions.
+*/
+
+.btn {
+  --btn-width: 13em;
+  --btn-height: 4.25em;
+  --btn-gap: 12px;
+  --btn-font-size: medium;
+
+  border: none;
+  width: var(--btn-width);
+  height: var(--btn-height);
+  border-radius: 3em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--btn-gap);
+  background: #1C1A1C;
+  cursor: pointer;
+  transition: all 450ms ease-in-out;
+  max-width: 100%;
+}
+
+.sizeTop {
+  /* ~20% smaller than default */
+  --btn-width: 10.4em;
+  --btn-height: 3.4em;
+  --btn-font-size: 0.95rem;
+  --btn-gap: 10px;
+}
+
+.sizeCompact {
+  /* ~35% smaller than default */
+  --btn-width: 8.5em;
+  --btn-height: 2.8em;
+  --btn-font-size: 0.9rem;
+  --btn-gap: 9px;
+}
+
+.sparkle {
+  fill: #AAAAAA;
+  transition: all 800ms ease;
+}
+
+.text {
+  font-weight: 600;
+  color: #AAAAAA;
+  font-size: var(--btn-font-size);
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: linear-gradient(0deg, #A47CF3, #683FEA);
+  box-shadow: inset 0px 1px 0px 0px rgba(255, 255, 255, 0.4),
+    inset 0px -4px 0px 0px rgba(0, 0, 0, 0.2),
+    0px 0px 0px 4px rgba(255, 255, 255, 0.2),
+    0px 0px 180px 0px #9917FF;
+  transform: translateY(-2px);
+}
+
+.btn:hover .text {
+  color: white;
+}
+
+.btn:hover .sparkle {
+  fill: white;
+  transform: scale(1.2);
+}
+
+/* Themed button uses CSS variables from widget theme */
+.btn.themed {
+  background: var(--widget-btn-bg, #1C1A1C);
+}
+
+.btn.themed:hover {
+  background: var(--widget-btn-hover, var(--widget-btn-bg, #1C1A1C));
+  box-shadow: inset 0px 1px 0px 0px rgba(255, 255, 255, 0.4),
+    inset 0px -4px 0px 0px rgba(0, 0, 0, 0.2),
+    0px 0px 0px 4px rgba(255, 255, 255, 0.2);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn:disabled:hover {
+  background: #1C1A1C;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn:disabled:hover .text {
+  color: #AAAAAA;
+}
+
+.btn:disabled:hover .sparkle {
+  fill: #AAAAAA;
+  transform: none;
+}
+
+@media (max-width: 640px) {
+  .btn {
+    width: 100%;
+    height: var(--btn-height);
+  }
+}
