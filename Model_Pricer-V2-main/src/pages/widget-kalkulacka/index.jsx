@@ -118,10 +118,6 @@ const WidgetKalkulacka = ({
     },
   } : null, [builderMode]);
 
-  const displayStep = (builderMode && forceStep) ? forceStep : currentStep;
-  const displayFiles = (builderMode && forceStep >= 2) ? [BUILDER_MOCK.file] : uploadedFiles;
-  const displaySelected = (builderMode && forceStep >= 2) ? BUILDER_MOCK.file : selectedFile;
-
   // Apply CSS variables to container
   useEffect(() => {
     if (containerRef.current) {
@@ -165,6 +161,10 @@ const WidgetKalkulacka = ({
   const selectedFile = selectedFileId
     ? (uploadedFiles.find(f => f.id === selectedFileId) || null)
     : null;
+
+  const displayStep = (builderMode && forceStep) ? forceStep : currentStep;
+  const displayFiles = (builderMode && forceStep >= 2) ? [BUILDER_MOCK.file] : uploadedFiles;
+  const displaySelected = (builderMode && forceStep >= 2) ? BUILDER_MOCK.file : selectedFile;
 
   const updateModelStatus = useCallback((modelId, newProps) => {
     setUploadedFiles(prevFiles =>
