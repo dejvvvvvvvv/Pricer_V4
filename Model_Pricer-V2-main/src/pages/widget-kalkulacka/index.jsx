@@ -11,11 +11,29 @@ import PrintConfiguration from './components/PrintConfiguration';
 import PricingCalculator from './components/PricingCalculator';
 import GenerateButton from './components/GenerateButton';
 import ErrorBoundary from './components/ErrorBoundary';
+import WidgetHeader from './components/WidgetHeader';
+import WidgetStepper from './components/WidgetStepper';
+import WidgetFooter from './components/WidgetFooter';
 import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { themeToCssVars, getDefaultWidgetTheme } from '../../utils/widgetThemeStorage';
+
+/**
+ * Get target origin for postMessage.
+ * Uses document.referrer when embedded in iframe, falls back to '*' for direct access.
+ */
+function getTargetOrigin() {
+  try {
+    if (document.referrer) {
+      return new URL(document.referrer).origin;
+    }
+  } catch {
+    // Invalid referrer URL
+  }
+  return '*';
+}
 
 // Default config is used for newly uploaded models
 const DEFAULT_PRINT_CONFIG = {
@@ -34,6 +52,10 @@ const DEFAULT_PRINT_CONFIG = {
  * - theme: Theme configuration object (optional, defaults to standard theme)
  * - builderMode: If true, enables click-to-style interactions
  * - onElementSelect: Callback when element is clicked in builder mode
+ * - onElementHover: Callback (elementId | null) on hover/leave in builder mode
+ * - selectedElementId: Currently selected element ID for visual highlight
+ * - hoveredElementId: Currently hovered element ID for visual highlight
+ * - onTextEditStart: Callback (elementId) on double-click for inline text editing
  * - embedded: If true, removes navigation elements for iframe embedding
  * - publicWidgetId: Public ID for postMessage events
  * - onQuoteCalculated: Callback when quote is calculated
@@ -41,8 +63,14 @@ const DEFAULT_PRINT_CONFIG = {
 const WidgetKalkulacka = ({
   theme = null,
   builderMode = false,
+  forceStep = null,
   onElementSelect,
+  onElementHover,
+  selectedElementId = null,
+  hoveredElementId = null,
+  onTextEditStart,
   embedded = false,
+  showHeader = null,
   publicWidgetId = null,
   onQuoteCalculated,
 }) => {
@@ -79,6 +107,21 @@ const WidgetKalkulacka = ({
   const effectiveTheme = theme || getDefaultWidgetTheme();
   const cssVars = useMemo(() => themeToCssVars(effectiveTheme), [effectiveTheme]);
 
+  // Builder mode: mock data for step preview
+  const BUILDER_MOCK = useMemo(() => builderMode ? {
+    file: {
+      id: 'mock-1',
+      name: 'ukazka.stl',
+      size: 1024000,
+      status: 'completed',
+      result: { totalPrice: 245, currency: 'CZK' },
+    },
+  } : null, [builderMode]);
+
+  const displayStep = (builderMode && forceStep) ? forceStep : currentStep;
+  const displayFiles = (builderMode && forceStep >= 2) ? [BUILDER_MOCK.file] : uploadedFiles;
+  const displaySelected = (builderMode && forceStep >= 2) ? BUILDER_MOCK.file : selectedFile;
+
   // Apply CSS variables to container
   useEffect(() => {
     if (containerRef.current) {
@@ -98,7 +141,7 @@ const WidgetKalkulacka = ({
         type: 'MODELPRICER_RESIZE',
         publicWidgetId,
         height,
-      }, '*');
+      }, getTargetOrigin());
     };
 
     // Initial + on resize
@@ -116,7 +159,7 @@ const WidgetKalkulacka = ({
     window.parent.postMessage({
       type: 'MODELPRICER_WIDGET_READY',
       publicWidgetId,
-    }, '*');
+    }, getTargetOrigin());
   }, [embedded, publicWidgetId]);
 
   const selectedFile = selectedFileId
@@ -328,7 +371,19 @@ const WidgetKalkulacka = ({
 
       if (currentStep < 3) setCurrentStep(3);
 
-      // Notify parent via postMessage
+      // PostMessage: price calculated
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'MODELPRICER_PRICE_CALCULATED',
+          publicWidgetId,
+          data: {
+            total: res?.totalPrice ?? res?.price ?? null,
+            currency: 'CZK',
+          },
+        }, getTargetOrigin());
+      }
+
+      // Notify parent via callback
       if (embedded && onQuoteCalculated) {
         onQuoteCalculated(res);
       }
@@ -337,6 +392,18 @@ const WidgetKalkulacka = ({
         status: 'failed',
         error: String(err?.message || err),
       });
+
+      // PostMessage: error
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'MODELPRICER_ERROR',
+          publicWidgetId,
+          data: {
+            message: err?.message || 'Unknown error',
+            code: 'SLICING_ERROR',
+          },
+        }, getTargetOrigin());
+      }
     }
   }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetId, embedded, onQuoteCalculated]);
 
@@ -384,11 +451,35 @@ const WidgetKalkulacka = ({
             result: res,
             error: null,
           });
+
+          // PostMessage: price calculated (batch)
+          if (embedded && window.parent !== window) {
+            window.parent.postMessage({
+              type: 'MODELPRICER_PRICE_CALCULATED',
+              publicWidgetId,
+              data: {
+                total: res?.totalPrice ?? res?.price ?? null,
+                currency: 'CZK',
+              },
+            }, getTargetOrigin());
+          }
         } catch (err) {
           updateModelStatus(fileItem.id, {
             status: 'failed',
             error: String(err?.message || err),
           });
+
+          // PostMessage: error (batch)
+          if (embedded && window.parent !== window) {
+            window.parent.postMessage({
+              type: 'MODELPRICER_ERROR',
+              publicWidgetId,
+              data: {
+                message: err?.message || 'Unknown error',
+                code: 'SLICING_ERROR',
+              },
+            }, getTargetOrigin());
+          }
         } finally {
           done += 1;
           setBatchProgress(prev => ({ ...prev, done }));
@@ -397,7 +488,7 @@ const WidgetKalkulacka = ({
     } finally {
       setSliceAllProcessing(false);
     }
-  }, [currentStep, selectedPresetId, updateModelStatus]);
+  }, [currentStep, selectedPresetId, updateModelStatus, embedded, publicWidgetId]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0) return;
@@ -474,12 +565,6 @@ const WidgetKalkulacka = ({
 
   const currentConfig = selectedFile ? (printConfigs[selectedFile.id] || {}) : {};
 
-  const steps = [
-    { id: 1, title: 'Nahrani souboru', icon: 'Upload' },
-    { id: 2, title: 'Konfigurace', icon: 'Settings' },
-    { id: 3, title: 'Cena', icon: 'Calculator' }
-  ];
-
   const statusTooltips = {
     pending: 'Ceka na zpracovani',
     processing: 'Vypocet...',
@@ -490,23 +575,93 @@ const WidgetKalkulacka = ({
   const hasFailedModels = uploadedFiles.some(f => f.status === 'failed');
   const hasMultipleModels = uploadedFiles.length > 1;
 
-  // Wrapper for builder mode - click to select element
+  // Wrapper for builder mode - click to select element, hover/selection highlights
   const StyleableWrapper = ({ children, elementId, className = '' }) => {
     if (!builderMode) return children;
+
+    const isSelected = selectedElementId === elementId;
+    const isHovered = hoveredElementId === elementId;
+
+    const wrapperStyle = {
+      position: 'relative',
+      cursor: 'pointer',
+      outline: isSelected
+        ? '2px solid #3B82F6'
+        : isHovered
+          ? '2px dashed rgba(59, 130, 246, 0.5)'
+          : '2px solid transparent',
+      outlineOffset: '2px',
+      borderRadius: '4px',
+      transition: 'outline 150ms ease',
+    };
+
+    const handleStyle = (pos) => ({
+      position: 'absolute',
+      width: 8,
+      height: 8,
+      background: '#3B82F6',
+      border: '1px solid #FFFFFF',
+      borderRadius: 2,
+      pointerEvents: 'none',
+      zIndex: 10,
+      ...pos,
+    });
 
     return (
       <div
         className={`widget-styleable ${className}`}
         data-element-id={elementId}
+        style={wrapperStyle}
         onClick={(e) => {
           e.stopPropagation();
           onElementSelect?.(elementId);
         }}
-        style={{ cursor: 'pointer', outline: '2px dashed transparent' }}
-        onMouseEnter={(e) => { e.currentTarget.style.outline = '2px dashed #3B82F6'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.outline = '2px dashed transparent'; }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onTextEditStart?.(elementId);
+        }}
+        onMouseEnter={() => {
+          onElementHover?.(elementId);
+        }}
+        onMouseLeave={() => {
+          onElementHover?.(null);
+        }}
       >
         {children}
+
+        {/* Hover tooltip */}
+        {isHovered && !isSelected && (
+          <div
+            style={{
+              position: 'absolute',
+              top: -2,
+              right: -2,
+              transform: 'translateY(-100%)',
+              background: '#1F2937',
+              color: '#FFFFFF',
+              fontSize: 11,
+              lineHeight: '16px',
+              padding: '2px 8px',
+              borderRadius: 4,
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              zIndex: 20,
+              fontWeight: 500,
+            }}
+          >
+            Klikni pro editaci
+          </div>
+        )}
+
+        {/* Selection corner handles */}
+        {isSelected && (
+          <>
+            <div style={handleStyle({ top: -4, left: -4 })} />
+            <div style={handleStyle({ top: -4, right: -4 })} />
+            <div style={handleStyle({ bottom: -4, left: -4 })} />
+            <div style={handleStyle({ bottom: -4, right: -4 })} />
+          </>
+        )}
       </div>
     );
   };
@@ -533,76 +688,47 @@ const WidgetKalkulacka = ({
       />
 
       <div className="max-w-5xl mx-auto px-4 py-6">
-        {/* Header - hidden in embedded mode */}
-        {!embedded && (
+        {/* Header - hidden in embedded mode unless showHeader explicitly true */}
+        {(showHeader === true || !embedded) && (
           <StyleableWrapper elementId="header">
-            <div className="mb-6">
-              <h1
-                className="text-2xl font-bold mb-2"
-                style={{ color: 'var(--widget-header, #1F2937)' }}
-              >
-                3D Tisk Kalkulacka
-              </h1>
-              <p style={{ color: 'var(--widget-muted, #6B7280)' }}>
-                Nahrajte 3D model a okamzite zjistete cenu tisku.
-              </p>
-            </div>
+            <WidgetHeader
+              title={effectiveTheme.textHeaderTitle || 'Kalkulacka 3D tisku'}
+              tagline={effectiveTheme.textHeaderTagline}
+              taglineVisible={effectiveTheme.headerTaglineVisible}
+              alignment={effectiveTheme.headerAlignment}
+              builderMode={builderMode}
+              elementId="header"
+              onElementSelect={onElementSelect}
+            />
           </StyleableWrapper>
         )}
 
         {/* Steps indicator */}
         <StyleableWrapper elementId="steps">
-          <div className="mb-6">
-            <div className="flex items-center justify-between max-w-md">
-              {steps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
-                  <div className="flex flex-col items-center">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors"
-                      style={{
-                        backgroundColor: currentStep >= step.id ? 'var(--widget-btn-primary, #2563EB)' : 'transparent',
-                        borderColor: currentStep >= step.id ? 'var(--widget-btn-primary, #2563EB)' : 'var(--widget-border, #E5E7EB)',
-                        color: currentStep >= step.id ? 'var(--widget-btn-text, #FFFFFF)' : 'var(--widget-muted, #6B7280)',
-                      }}
-                    >
-                      <Icon name={step.icon} size={18} />
-                    </div>
-                    <span
-                      className="mt-1 text-xs font-medium"
-                      style={{ color: currentStep >= step.id ? 'var(--widget-text, #374151)' : 'var(--widget-muted, #6B7280)' }}
-                    >
-                      {step.title}
-                    </span>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div
-                      className="w-12 h-0.5 mx-2"
-                      style={{
-                        backgroundColor: currentStep > step.id ? 'var(--widget-btn-primary, #2563EB)' : 'var(--widget-border, #E5E7EB)'
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <WidgetStepper
+            currentStep={displayStep}
+            stepperProgressVisible={effectiveTheme.stepperProgressVisible}
+            builderMode={builderMode}
+            elementId="steps"
+            onElementSelect={onElementSelect}
+          />
         </StyleableWrapper>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - Upload & Config */}
           <div className="lg:col-span-2 space-y-6">
-            {uploadedFiles.length === 0 && currentStep === 1 && (
+            {displayFiles.length === 0 && displayStep === 1 && (
               <StyleableWrapper elementId="upload">
                 <FileUploadZone onFilesUploaded={handleFilesUploaded} theme={effectiveTheme} />
               </StyleableWrapper>
             )}
 
-            {uploadedFiles.length > 0 && (
+            {displayFiles.length > 0 && (
               <StyleableWrapper elementId="config">
-                <div className={selectedFile ? 'block' : 'hidden'}>
+                <div className={displaySelected ? 'block' : 'hidden'}>
                   <PrintConfiguration
-                    key={selectedFile ? selectedFile.id : 'empty'}
-                    selectedFile={selectedFile}
+                    key={displaySelected ? displaySelected.id : 'empty'}
+                    selectedFile={displaySelected}
                     onConfigChange={handleConfigChange}
                     initialConfig={currentConfig}
                     availablePresets={availablePresets}
@@ -627,7 +753,7 @@ const WidgetKalkulacka = ({
           {/* Right column - Preview & Price */}
           <div className="space-y-4">
             {/* CTA buttons */}
-            {uploadedFiles.length > 0 && selectedFile && (
+            {displayFiles.length > 0 && displaySelected && (
               <StyleableWrapper elementId="cta">
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex flex-wrap items-center justify-center gap-3">
@@ -685,7 +811,7 @@ const WidgetKalkulacka = ({
             </StyleableWrapper>
 
             {/* Pricing Calculator */}
-            {uploadedFiles.length > 0 && (
+            {displayFiles.length > 0 && (
               <StyleableWrapper elementId="pricing">
                 <PricingCalculator
                   selectedFile={selectedFile}
@@ -704,7 +830,7 @@ const WidgetKalkulacka = ({
             )}
 
             {/* File list */}
-            {uploadedFiles.length > 0 && (
+            {displayFiles.length > 0 && (
               <StyleableWrapper elementId="filelist">
                 <div
                   className="rounded-xl p-4"
@@ -753,6 +879,14 @@ const WidgetKalkulacka = ({
             )}
           </div>
         </div>
+
+        {/* Footer */}
+        <WidgetFooter
+          showPoweredBy={true}
+          builderMode={builderMode}
+          elementId="footer"
+          onElementSelect={onElementSelect}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getTenantId } from '../../utils/adminTenantStorage';
@@ -24,9 +25,14 @@ import {
   validateDomainInput,
 } from '../../utils/adminBrandingWidgetStorage';
 
-// Pozn.: Varianta A = localStorage (demo). Později (Varianta B) se jen vymění helper za API.
+import WidgetConfigTab from './components/WidgetConfigTab';
+import WidgetEmbedTab from './components/WidgetEmbedTab';
+import WidgetDomainsTab from './components/WidgetDomainsTab';
+import WidgetSettingsTab from './components/WidgetSettingsTab';
 
-const EMBED_SCRIPT_URL = 'https://commun-printing.com/widget.js';
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
@@ -38,87 +44,24 @@ const toNullableHex = (val) => {
   return isValidHex(v) ? v.toUpperCase() : v;
 };
 
-const buildEmbedCode = (widget) => {
-  if (!widget) return '';
+const TABS = [
+  { id: 'config', label: 'Konfigurace', icon: 'Settings' },
+  { id: 'embed', label: 'Embed kod', icon: 'Code' },
+  { id: 'domains', label: 'Domeny', icon: 'Globe' },
+  { id: 'settings', label: 'Nastaveni', icon: 'Cog' },
+];
 
-  const typeAttr = widget.type === 'price_only' ? 'price_only' : 'full_calculator';
-  const themeAttr = widget.themeMode || 'auto';
-
-  const attrs = [
-    `data-widget=\"${widget.publicId}\"`,
-    `data-type=\"${typeAttr}\"`,
-    `data-theme=\"${themeAttr}\"`,
-    widget.primaryColorOverride ? `data-color=\"${widget.primaryColorOverride}\"` : null,
-    widget.widthMode === 'fixed' && widget.widthPx ? `data-width=\"${widget.widthPx}\"` : null,
-    widget.localeDefault ? `data-locale=\"${widget.localeDefault}\"` : null,
-  ].filter(Boolean);
-
-  return `<!-- ModelPricer Widget (instance: ${widget.name || widget.publicId}) -->\n` +
-    `<script src=\"${EMBED_SCRIPT_URL}\" async></script>\n` +
-    `<div id=\"3d-print-calculator\"\n  ${attrs.join('\n  ')}\n></div>`;
-};
-
-const WidgetPreview = ({ branding, widget }) => {
-  const effectivePrimary = widget?.primaryColorOverride || branding?.colors?.primaryColor || '#2563EB';
-  const effectiveFont = branding?.typography?.fontFamily || 'Inter';
-  const radius = branding?.widgetUI?.borderRadiusPx ?? 12;
-  const showLogo = branding?.widgetUI?.showLogo ?? true;
-  const showCompanyName = branding?.widgetUI?.showCompanyName ?? true;
-  const showSlogan = branding?.widgetUI?.showSlogan ?? true;
-  const showPoweredBy = branding?.widgetUI?.showPoweredBy ?? true;
-
-  const isDisabled = widget?.status === 'disabled';
-
-  return (
-    <div className="previewShell" style={{ fontFamily: effectiveFont }}>
-      <div className="previewCard" style={{ borderRadius: radius }}>
-        <div className="previewHeader">
-          <div className="brandLeft">
-            {showLogo ? (
-              <div className="logoBox" style={{ borderRadius: Math.min(radius, 10), borderColor: effectivePrimary }}>
-                <Icon name="Cube" size={18} color={effectivePrimary} />
-              </div>
-            ) : null}
-            <div className="brandText">
-              {showCompanyName ? (
-                <div className="companyName">{branding?.companyName || 'Vaše firma'}</div>
-              ) : null}
-              {showSlogan ? (
-                <div className="slogan">{branding?.slogan || '3D tisk na zakázku'}</div>
-              ) : null}
-            </div>
-          </div>
-          <span className={`badge ${isDisabled ? 'badgeDisabled' : 'badgeOk'}`}>{isDisabled ? 'Disabled' : 'Live'}</span>
-        </div>
-
-        <div className="previewBody">
-          <div className="fakeRow">
-            <div className="fakeInput" style={{ borderRadius: radius }}>Nahrát model (STL/OBJ)…</div>
-            <div className="fakeSelect" style={{ borderRadius: radius }}>Materiál</div>
-          </div>
-          <button className="fakeButton" style={{ background: effectivePrimary, borderRadius: radius }}>
-            Vypočítat cenu
-          </button>
-        </div>
-
-        {showPoweredBy ? (
-          <div className="poweredBy">
-            Powered by <strong>ModelPricer</strong>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-};
+/* ------------------------------------------------------------------ */
+/*  Main Component                                                     */
+/* ------------------------------------------------------------------ */
 
 const AdminWidget = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
 
   const [plan, setPlan] = useState(null);
-  const [branding, setBranding] = useState(null);
-
   const [widgets, setWidgets] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
@@ -130,44 +73,43 @@ const AdminWidget = () => {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const [activeTab, setActiveTab] = useState('config');
+
   // create modal
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createType, setCreateType] = useState('full_calculator');
-
-  // domain input
-  const [domainInput, setDomainInput] = useState('');
-  const [allowSubdomains, setAllowSubdomains] = useState(true);
-  const [domainError, setDomainError] = useState(null);
+  const [createError, setCreateError] = useState('');
 
   const toastTimer = useRef(null);
 
+  /* ---- toast ---- */
   const showToast = (msg, kind = 'ok') => {
     setToast({ msg, kind });
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2500);
   };
 
+  /* ---- data loading ---- */
   const refresh = () => {
     const tenantId = getTenantId();
     const p = getPlanFeatures(tenantId);
-    const b = getBranding(tenantId);
     const w = getWidgets(tenantId);
 
     setPlan(p);
-    setBranding(b);
     setWidgets(w);
 
-    // auto-select
-    const nextSelected = selectedId && w.find(x => x.id === selectedId) ? selectedId : (w[0]?.id ?? null);
+    const nextSelected =
+      selectedId && w.find((x) => x.id === selectedId)
+        ? selectedId
+        : w[0]?.id ?? null;
     setSelectedId(nextSelected);
 
-    // keep editor consistent
     if (nextSelected) {
-      const ww = w.find(x => x.id === nextSelected);
+      const ww = w.find((x) => x.id === nextSelected);
       setEditor(deepClone(ww));
       setEditorBase(deepClone(ww));
-      setDomains(getWidgetDomains(ww.id));
+      setDomains(getWidgetDomains(getTenantId(), ww.id));
     } else {
       setEditor(null);
       setEditorBase(null);
@@ -187,13 +129,15 @@ const AdminWidget = () => {
 
   useEffect(() => {
     if (!selectedId) return;
-    const w = widgets.find(x => x.id === selectedId);
+    const w = widgets.find((x) => x.id === selectedId);
     if (!w) return;
     setEditor(deepClone(w));
     setEditorBase(deepClone(w));
-    setDomains(getWidgetDomains(w.id));
+    setDomains(getWidgetDomains(getTenantId(), w.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
+  /* ---- dirty tracking ---- */
   const isDirty = useMemo(() => {
     if (!editor || !editorBase) return false;
     return JSON.stringify(editor) !== JSON.stringify(editorBase);
@@ -209,37 +153,28 @@ const AdminWidget = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
+  /* ---- plan limits ---- */
   const maxWidgets = plan?.features?.max_widget_instances ?? 1;
   const canUseWhitelist = plan?.features?.can_use_domain_whitelist ?? true;
-
   const canCreateMore = widgets.length < maxWidgets;
 
-  const selectWidget = (id) => {
-    if (id === selectedId) return;
-    if (isDirty) {
-      const ok = window.confirm('Máš neuložené změny. Opravdu chceš přepnout widget bez uložení?');
-      if (!ok) return;
-    }
-    setSelectedId(id);
-  };
-
+  /* ---- validation ---- */
   const validateEditor = () => {
     const errors = {};
     if (!editor) return errors;
 
     if (!editor.name || String(editor.name).trim().length < 2) {
-      errors.name = 'Zadej název (min. 2 znaky).';
+      errors.name = 'Zadej nazev (min. 2 znaky).';
     }
 
-    // primaryColorOverride can be null/empty or valid hex
     if (editor.primaryColorOverride && !isValidHex(editor.primaryColorOverride)) {
-      errors.primaryColorOverride = 'Barva musí být ve formátu #RRGGBB.';
+      errors.primaryColorOverride = 'Barva musi byt ve formatu #RRGGBB.';
     }
 
     if (editor.widthMode === 'fixed') {
       const v = Number(editor.widthPx);
       if (!Number.isFinite(v) || v <= 0) {
-        errors.widthPx = 'Zadej šířku > 0.';
+        errors.widthPx = 'Zadej sirku > 0.';
       }
     }
 
@@ -249,10 +184,26 @@ const AdminWidget = () => {
   const errors = useMemo(validateEditor, [editor]);
   const canSave = isDirty && Object.keys(errors).length === 0 && !saving;
 
+  /* ---- CRUD callbacks ---- */
+
+  const selectWidget = (id) => {
+    if (id === selectedId) return;
+    if (isDirty) {
+      const ok = window.confirm('Mas neulozene zmeny. Opravdu chces prepnout widget bez ulozeni?');
+      if (!ok) return;
+    }
+    setSelectedId(id);
+    setActiveTab('config');
+  };
+
+  const onEditorChange = (patch) => {
+    setEditor((prev) => ({ ...prev, ...patch }));
+  };
+
   const onSave = async () => {
     if (!editor) return;
     if (Object.keys(errors).length > 0) {
-      showToast('Oprav chyby ve formuláři.', 'err');
+      showToast('Oprav chyby ve formulari.', 'err');
       return;
     }
 
@@ -271,11 +222,11 @@ const AdminWidget = () => {
       };
 
       updateWidget(getTenantId(), editor.id, payload);
-      showToast('Uloženo');
+      showToast('Ulozeno');
       refresh();
     } catch (e) {
       console.error(e);
-      showToast('Uložení se nezdařilo.', 'err');
+      showToast('Ulozeni se nezdarilo.', 'err');
     } finally {
       setSaving(false);
     }
@@ -283,7 +234,7 @@ const AdminWidget = () => {
 
   const onResetEditor = () => {
     if (!editorBase) return;
-    const ok = window.confirm('Vrátit neuložené změny do posledního uloženého stavu?');
+    const ok = window.confirm('Vratit neulozene zmeny do posledniho ulozeneho stavu?');
     if (!ok) return;
     setEditor(deepClone(editorBase));
   };
@@ -291,6 +242,7 @@ const AdminWidget = () => {
   const onCreate = () => {
     setCreateName('');
     setCreateType('full_calculator');
+    setCreateError('');
     setCreateOpen(true);
   };
 
@@ -298,7 +250,7 @@ const AdminWidget = () => {
     try {
       const name = String(createName || '').trim();
       if (name.length < 2) {
-        showToast('Zadej název (min. 2 znaky).', 'err');
+        setCreateError('Zadej nazev (min. 2 znaky).');
         return;
       }
       if (!canCreateMore) {
@@ -312,19 +264,18 @@ const AdminWidget = () => {
       });
 
       setCreateOpen(false);
-      showToast('Widget vytvořen');
+      showToast('Widget vytvoren');
 
-      // refresh + select new
       const w = getWidgets(getTenantId());
       setWidgets(w);
       setSelectedId(widget.id);
       setEditor(deepClone(widget));
       setEditorBase(deepClone(widget));
-      setDomains(getWidgetDomains(widget.id));
-
+      setDomains(getWidgetDomains(getTenantId(), widget.id));
+      setActiveTab('config');
     } catch (e) {
       console.error(e);
-      showToast('Nelze vytvořit widget (limit tarifu nebo chyba).', 'err');
+      showToast('Nelze vytvorit widget (limit tarifu nebo chyba).', 'err');
     }
   };
 
@@ -335,524 +286,416 @@ const AdminWidget = () => {
         return;
       }
       const dupe = duplicateWidget(getTenantId(), id);
-      showToast('Zduplikováno');
+      showToast('Zduplikovano');
       const w = getWidgets(getTenantId());
       setWidgets(w);
       setSelectedId(dupe.id);
     } catch (e) {
       console.error(e);
-      showToast('Duplicace se nezdařila.', 'err');
+      showToast('Duplikace se nezdarila.', 'err');
     }
   };
 
   const onToggleEnabled = (id) => {
     try {
       toggleWidgetStatus(getTenantId(), id);
-      showToast('Změněno');
+      showToast('Zmeneno');
       refresh();
     } catch (e) {
       console.error(e);
-      showToast('Změna stavu se nezdařila.', 'err');
+      showToast('Zmena stavu se nezdarila.', 'err');
     }
   };
 
   const onDelete = (id) => {
-    const w = widgets.find(x => x.id === id);
-    const ok = window.confirm(`Smazat widget "${w?.name || id}"?`);
-    if (!ok) return;
-
     try {
       deleteWidget(getTenantId(), id);
-      showToast('Smazáno');
+      showToast('Smazano');
       refresh();
     } catch (e) {
       console.error(e);
-      showToast('Smazání se nezdařilo.', 'err');
+      showToast('Smazani se nezdarilo.', 'err');
     }
   };
 
   const onCopyEmbed = async (widget) => {
     try {
-      const code = buildEmbedCode(widget);
+      const origin = window.location.origin;
+      const code =
+        `<!-- ModelPricer Widget: ${widget.name || widget.publicId} -->\n` +
+        `<iframe\n  src="${origin}/w/${widget.publicId}"\n  style="width: 100%; border: none; min-height: 600px;"\n  title="3D Print Calculator"\n  allow="clipboard-write"\n></iframe>`;
       await navigator.clipboard.writeText(code);
-      showToast('Embed kód zkopírován');
-    } catch (e) {
-      console.error(e);
-      // fallback
-      try {
-        const el = document.createElement('textarea');
-        el.value = buildEmbedCode(widget);
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-        showToast('Embed kód zkopírován');
-      } catch {
-        showToast('Nelze kopírovat do schránky.', 'err');
-      }
+      showToast('Embed kod zkopirovany');
+    } catch {
+      showToast('Nelze kopirovat do schranky.', 'err');
     }
   };
 
-  const onAddDomain = () => {
+  /* ---- domain callbacks ---- */
+
+  const onAddDomain = (domainInput, allowSubdomains) => {
     if (!editor) return;
 
     const candidate = String(domainInput || '').trim();
     const res = validateDomainInput(candidate);
 
     if (!res.ok) {
-      setDomainError(res.error || 'Neplatná doména');
-      return;
+      throw new Error(res.error || 'Neplatna domena');
     }
 
-    try {
-      addWidgetDomain(editor.id, res.domain, allowSubdomains);
-      setDomainInput('');
-      setAllowSubdomains(true);
-      setDomainError(null);
-      setDomains(getWidgetDomains(editor.id));
-      showToast('Doména přidána');
-    } catch (e) {
-      console.error(e);
-      showToast('Doménu nelze přidat (duplicitní nebo chyba).', 'err');
-    }
+    addWidgetDomain(getTenantId(), editor.id, res.host || candidate, allowSubdomains);
+    setDomains(getWidgetDomains(getTenantId(), editor.id));
+    showToast('Domena pridana');
   };
 
   const onToggleDomain = (domainId, enabled) => {
     try {
-      toggleWidgetDomain(domainId, enabled);
-      setDomains(getWidgetDomains(editor.id));
+      toggleWidgetDomain(getTenantId(), editor.id, domainId, enabled);
+      setDomains(getWidgetDomains(getTenantId(), editor.id));
     } catch (e) {
       console.error(e);
-      showToast('Změna domény se nezdařila.', 'err');
+      showToast('Zmena domeny se nezdarila.', 'err');
     }
   };
 
   const onDeleteDomain = (domainId) => {
-    const d = domains.find(x => x.id === domainId);
-    const ok = window.confirm(`Smazat doménu ${d?.domain || ''}?`);
+    const d = domains.find((x) => x.id === domainId);
+    const ok = window.confirm(`Smazat domenu ${d?.domain || ''}?`);
     if (!ok) return;
 
     try {
-      deleteWidgetDomain(domainId);
-      setDomains(getWidgetDomains(editor.id));
-      showToast('Doména smazána');
+      deleteWidgetDomain(getTenantId(), editor.id, domainId);
+      setDomains(getWidgetDomains(getTenantId(), editor.id));
+      showToast('Domena smazana');
     } catch (e) {
       console.error(e);
-      showToast('Smazání domény se nezdařilo.', 'err');
+      showToast('Smazani domeny se nezdarilo.', 'err');
     }
   };
 
+  /* ---- Render ---- */
+
   if (loading) {
     return (
-      <div className="admin-page">
-        <div className="loading">Loading...</div>
+      <div className="aw-page">
+        <div className="aw-loading">Nacitam...</div>
       </div>
     );
   }
 
-  const selectedWidget = widgets.find(w => w.id === selectedId) || null;
-  const embedCode = buildEmbedCode(editor || selectedWidget);
+  const selectedWidget = widgets.find((w) => w.id === selectedId) || null;
 
   return (
-    <div className="admin-page">
-      <div className="admin-page-header">
+    <div className="aw-page">
+      {/* Top bar */}
+      <div className="aw-topbar">
         <div>
-          <h1>{t('admin.widget.title') || 'Widget'}</h1>
-          <p className="subtitle">Widget instances, embed kód a whitelist domén (Varianta A – demo bez backendu)</p>
+          <h1 className="aw-heading">Widget Code</h1>
+          <p className="aw-subtitle">
+            Sprava widget instanci, embed kod a whitelist domen
+          </p>
         </div>
-
-        <div className="header-actions">
-          <div className="planInfo">
-            <div className="planName">Tarif: <strong>{plan?.planName || 'Starter'}</strong></div>
-            <div className="planCaps">Widgety: {widgets.length}/{maxWidgets}</div>
+        <div className="aw-topbar-actions">
+          <div className="aw-plan-info">
+            <span className="aw-plan-count">
+              {widgets.length}/{maxWidgets} widgetu
+            </span>
           </div>
-
-          <button className="btn-secondary" onClick={refresh} title="Obnovit">
-            <Icon name="RefreshCw" size={18} />
-            Obnovit
-          </button>
-
-          <button className="btn-primary" onClick={onCreate} disabled={!canCreateMore}>
+          <button className="aw-btn aw-btn-primary" onClick={onCreate} disabled={!canCreateMore}>
             <Icon name="Plus" size={18} />
-            Vytvořit widget
+            Vytvorit widget
           </button>
         </div>
       </div>
 
-      {/* dirty banner */}
+      {/* Dirty banner */}
       {isDirty ? (
-        <div className="dirtyBanner">
-          <Icon name="AlertTriangle" size={18} />
-          <span>Máš neuložené změny v editoru widgetu.</span>
-          <div className="dirtyActions">
-            <button className="btn-secondary" onClick={onResetEditor}>
-              Vrátit změny
+        <div className="aw-dirty-banner">
+          <div className="aw-dirty-left">
+            <Icon name="AlertTriangle" size={18} />
+            <span>Neulozene zmeny v konfiguraci widgetu.</span>
+          </div>
+          <div className="aw-dirty-actions">
+            <button className="aw-btn aw-btn-secondary" onClick={onResetEditor}>
+              Zahodit
             </button>
-            <button className="btn-primary" onClick={onSave} disabled={!canSave}>
-              <Icon name="Save" size={18} />
-              Uložit změny
+            <button className="aw-btn aw-btn-primary" onClick={onSave} disabled={!canSave}>
+              <Icon name="Save" size={16} />
+              Ulozit
             </button>
           </div>
         </div>
       ) : null}
 
-      <div className="layout">
-        {/* LEFT: widget list */}
-        <div className="leftPanel">
-          <div className="panelTitle">Widget instances</div>
-
+      {/* 2-column layout */}
+      <div className="aw-layout">
+        {/* LEFT: Widget cards */}
+        <div className="aw-left">
           {!canCreateMore ? (
-            <div className="limitBox">
-              <Icon name="Lock" size={18} />
+            <div className="aw-limit-box">
+              <Icon name="Lock" size={16} />
               <div>
-                <div><strong>Dosažen limit tarifu</strong></div>
-                <div className="muted">Maximálně {maxWidgets} widget(y). Pro další widgety bude potřeba vyšší tarif.</div>
+                <strong>Limit tarifu</strong>
+                <div className="aw-muted">Max. {maxWidgets} widget(y).</div>
               </div>
             </div>
           ) : null}
 
-          <div className="widgetList">
+          <div className="aw-card-list">
             {widgets.map((w) => {
               const isActive = w.status !== 'disabled';
               const isSelected = w.id === selectedId;
-              const domainCount = getWidgetDomains(w.id).filter(d => d.isActive).length;
+              const barColor = isActive
+                ? (w.primaryColorOverride || '#2563EB')
+                : '#9ca3af';
 
               return (
-                <div key={w.id} className={`widgetCard ${isSelected ? 'selected' : ''}`} onClick={() => selectWidget(w.id)}>
-                  <div className="widgetCardTop">
-                    <div className="widgetNameRow">
-                      <div className="widgetName">{w.name}</div>
-                      <span className={`badge ${isActive ? 'badgeOk' : 'badgeDisabled'}`}>{isActive ? 'Active' : 'Disabled'}</span>
+                <div
+                  key={w.id}
+                  className={`aw-widget-card ${isSelected ? 'aw-card-selected' : ''}`}
+                  onClick={() => selectWidget(w.id)}
+                >
+                  {/* Color bar */}
+                  <div
+                    className="aw-card-bar"
+                    style={{ backgroundColor: barColor }}
+                  />
+
+                  <div className="aw-card-body">
+                    <div className="aw-card-top">
+                      <div className="aw-card-name">{w.name}</div>
+                      <span
+                        className={`aw-badge ${isActive ? 'aw-badge-active' : 'aw-badge-inactive'}`}
+                      >
+                        {isActive ? 'Aktivni' : 'Neaktivni'}
+                      </span>
                     </div>
 
-                    <div className="widgetMeta">
-                      <span className="metaItem">
-                        <Icon name={w.type === 'price_only' ? 'DollarSign' : 'Calculator'} size={14} />
-                        {w.type === 'price_only' ? 'Price-only' : 'Full'}
-                      </span>
-                      <span className="metaItem">
-                        <Icon name="Globe" size={14} />
-                        {domainCount} domén
-                      </span>
+                    <div className="aw-card-id">{w.publicId}</div>
+
+                    <div
+                      className="aw-card-actions"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        className="aw-icon-btn"
+                        title="Otevrit Builder"
+                        onClick={() => navigate(`/admin/widget/builder/${w.id}`)}
+                      >
+                        <Icon name="Palette" size={15} />
+                      </button>
+                      <button
+                        className="aw-icon-btn"
+                        title="Kopirovat embed"
+                        onClick={() => onCopyEmbed(w)}
+                      >
+                        <Icon name="Copy" size={15} />
+                      </button>
+                      <button
+                        className="aw-icon-btn"
+                        title="Duplikovat"
+                        onClick={() => onDuplicate(w.id)}
+                        disabled={!canCreateMore}
+                      >
+                        <Icon name="CopyPlus" size={15} />
+                      </button>
+                      <button
+                        className="aw-icon-btn aw-icon-btn-danger"
+                        title="Smazat"
+                        onClick={() => onDelete(w.id)}
+                      >
+                        <Icon name="Trash2" size={15} />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="widgetCardActions" onClick={(e) => e.stopPropagation()}>
-                    <button className="iconBtn" title="Kopírovat embed" onClick={() => onCopyEmbed(w)}>
-                      <Icon name="Copy" size={16} />
-                    </button>
-                    <button className="iconBtn" title="Duplikovat" onClick={() => onDuplicate(w.id)} disabled={!canCreateMore}>
-                      <Icon name="CopyPlus" size={16} />
-                    </button>
-                    <button className="iconBtn" title={isActive ? 'Disable' : 'Enable'} onClick={() => onToggleEnabled(w.id)}>
-                      <Icon name={isActive ? 'PauseCircle' : 'PlayCircle'} size={16} />
-                    </button>
-                    <button className="iconBtn danger" title="Smazat" onClick={() => onDelete(w.id)}>
-                      <Icon name="Trash2" size={16} />
-                    </button>
-                  </div>
-
-                  <div className="widgetPublicId">{w.publicId}</div>
                 </div>
               );
             })}
 
             {widgets.length === 0 ? (
-              <div className="emptyState">
-                <Icon name="Info" size={20} />
+              <div className="aw-empty-state">
+                <Icon name="Box" size={24} />
                 <div>
-                  <div><strong>Zatím nemáš žádný widget</strong></div>
-                  <div className="muted">Vytvoř si první widget a zkopíruj embed kód.</div>
+                  <div style={{ fontWeight: 700 }}>Zatim zadny widget</div>
+                  <div className="aw-muted">
+                    Vytvorte si prvni widget a zkopirujte embed kod.
+                  </div>
                 </div>
               </div>
             ) : null}
           </div>
         </div>
 
-        {/* RIGHT: editor */}
-        <div className="rightPanel">
-          {!editor ? (
-            <div className="emptyEditor">
-              <Icon name="Pointer" size={20} />
-              Vyber widget vlevo.
+        {/* RIGHT: Detail with tabs */}
+        <div className="aw-right">
+          {!selectedWidget ? (
+            <div className="aw-empty-detail">
+              <Icon name="MousePointerClick" size={24} />
+              <span>Vyberte widget vlevo</span>
             </div>
           ) : (
             <>
-              <div className="panelTitle">Editor: {editor.name}</div>
-
-              <div className="grid2">
-                <div className="card">
-                  <div className="cardHeader">
-                    <div>
-                      <div className="cardTitle">Konfigurace widgetu</div>
-                      <div className="muted">Tyto hodnoty jsou per-widget (ne globální branding).</div>
-                    </div>
-                    <div className="cardHeaderRight">
-                      <button className="btn-secondary" onClick={onResetEditor} disabled={!isDirty}>
-                        Reset
-                      </button>
-                      <button className="btn-primary" onClick={onSave} disabled={!canSave}>
-                        <Icon name="Save" size={18} />
-                        Uložit
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="form">
-                    <div className="formRow">
-                      <label>Název</label>
-                      <input
-                        className={`input ${errors.name ? 'inputError' : ''}`}
-                        value={editor.name || ''}
-                        onChange={(e) => setEditor(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Např. Homepage"
-                      />
-                      {errors.name ? <div className="errorText">{errors.name}</div> : null}
-                    </div>
-
-                    <div className="formRow">
-                      <label>Typ</label>
-                      <select
-                        className="input"
-                        value={editor.type}
-                        onChange={(e) => setEditor(prev => ({ ...prev, type: e.target.value }))}
-                      >
-                        <option value="full_calculator">Full calculator</option>
-                        <option value="price_only">Price only</option>
-                      </select>
-                    </div>
-
-                    <div className="formRow">
-                      <label>Theme</label>
-                      <select
-                        className="input"
-                        value={editor.themeMode}
-                        onChange={(e) => setEditor(prev => ({ ...prev, themeMode: e.target.value }))}
-                      >
-                        <option value="auto">Auto</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                      </select>
-                    </div>
-
-                    <div className="formRow">
-                      <label>Primary color (override)</label>
-                      <input
-                        className={`input ${errors.primaryColorOverride ? 'inputError' : ''}`}
-                        value={editor.primaryColorOverride || ''}
-                        onChange={(e) => setEditor(prev => ({ ...prev, primaryColorOverride: e.target.value }))}
-                        placeholder="#2563EB (prázdné = z Brandingu)"
-                      />
-                      {errors.primaryColorOverride ? <div className="errorText">{errors.primaryColorOverride}</div> : null}
-                    </div>
-
-                    <div className="formRow">
-                      <label>Šířka</label>
-                      <div className="rowInline">
-                        <select
-                          className="input"
-                          value={editor.widthMode}
-                          onChange={(e) => setEditor(prev => ({ ...prev, widthMode: e.target.value }))}
-                        >
-                          <option value="auto">Auto</option>
-                          <option value="fixed">Fixed</option>
-                        </select>
-                        <input
-                          className={`input ${errors.widthPx ? 'inputError' : ''}`}
-                          style={{ width: 140 }}
-                          type="number"
-                          min={0}
-                          value={editor.widthMode === 'fixed' ? (editor.widthPx ?? '') : ''}
-                          onChange={(e) => setEditor(prev => ({ ...prev, widthPx: e.target.value }))}
-                          placeholder="px"
-                          disabled={editor.widthMode !== 'fixed'}
-                        />
-                      </div>
-                      {errors.widthPx ? <div className="errorText">{errors.widthPx}</div> : null}
-                    </div>
-
-                    <div className="formRow">
-                      <label>Locale</label>
-                      <select
-                        className="input"
-                        value={editor.localeDefault || 'cs'}
-                        onChange={(e) => setEditor(prev => ({ ...prev, localeDefault: e.target.value }))}
-                      >
-                        <option value="cs">cs</option>
-                        <option value="en">en</option>
-                      </select>
-                    </div>
-
-                    <div className="formRow">
-                      <label>Konfigurační profil</label>
-                      <select className="input" value={editor.configProfileId || ''} disabled>
-                        <option value="">(brzy) Použít tenant default</option>
-                      </select>
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        Později: různé profily (Pricing/Fees/Params) pro různé widgety.
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-
-                <div className="card">
-                  <div className="cardHeader">
-                    <div>
-                      <div className="cardTitle">Preview</div>
-                      <div className="muted">Náhled bere branding + per-widget override.</div>
-                    </div>
-                  </div>
-                  <WidgetPreview branding={branding} widget={editor} />
-                </div>
+              {/* Tab bar */}
+              <div className="aw-tabs" role="tablist" aria-label="Widget konfigurace">
+                {TABS.map((tab, idx) => (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    id={`aw-tab-${tab.id}`}
+                    aria-selected={activeTab === tab.id}
+                    aria-controls={`aw-tabpanel-${tab.id}`}
+                    className={`aw-tab ${activeTab === tab.id ? 'aw-tab-active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        const next = TABS[(idx + 1) % TABS.length];
+                        setActiveTab(next.id);
+                        document.getElementById(`aw-tab-${next.id}`)?.focus();
+                      } else if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        const prev = TABS[(idx - 1 + TABS.length) % TABS.length];
+                        setActiveTab(prev.id);
+                        document.getElementById(`aw-tab-${prev.id}`)?.focus();
+                      }
+                    }}
+                  >
+                    <Icon name={tab.icon} size={16} />
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
-              <div className="grid2">
-                <div className="card">
-                  <div className="cardHeader">
-                    <div>
-                      <div className="cardTitle">Embed code</div>
-                      <div className="muted">Použij tento snippet na svém webu.</div>
-                    </div>
-                    <button className="btn-secondary" onClick={() => onCopyEmbed(editor)}>
-                      <Icon name="Copy" size={18} />
-                      Copy
+              {/* Save bar (visible on config tab) */}
+              {activeTab === 'config' ? (
+                <div className="aw-save-bar">
+                  <div className="aw-save-title">
+                    <Icon name="FileEdit" size={18} />
+                    {editor?.name || selectedWidget.name}
+                  </div>
+                  <div className="aw-save-actions">
+                    <button
+                      className="aw-btn aw-btn-secondary"
+                      onClick={onResetEditor}
+                      disabled={!isDirty}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      className="aw-btn aw-btn-primary"
+                      onClick={onSave}
+                      disabled={!canSave}
+                    >
+                      <Icon name="Save" size={16} />
+                      Ulozit
                     </button>
                   </div>
-
-                  <textarea className="code" readOnly value={embedCode} />
-
-                  <div className="muted" style={{ marginTop: 10 }}>
-                    Pozn.: data-atributy jsou override; finální config má mít server jako source of truth (Varianta B).
-                  </div>
                 </div>
+              ) : null}
 
-                <div className="card">
-                  <div className="cardHeader">
-                    <div>
-                      <div className="cardTitle">Povolené domény</div>
-                      <div className="muted">Whitelist domén pro bezpečný embed (blokuje použití jinde).</div>
-                    </div>
-                    {!canUseWhitelist ? (
-                      <span className="badge badgeDisabled">Nedostupné v tarifu</span>
-                    ) : null}
-                  </div>
+              {/* Tab content */}
+              <div className="aw-tab-content" role="tabpanel" id={`aw-tabpanel-${activeTab}`} aria-labelledby={`aw-tab-${activeTab}`}>
+                {activeTab === 'config' ? (
+                  <WidgetConfigTab
+                    editor={editor}
+                    errors={errors}
+                    onEditorChange={onEditorChange}
+                  />
+                ) : null}
 
-                  {!canUseWhitelist ? (
-                    <div className="limitBox" style={{ marginTop: 10 }}>
-                      <Icon name="Lock" size={18} />
-                      <div className="muted">Whitelist domén není dostupný v aktuálním tarifu.</div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="domainAdd">
-                        <input
-                          className={`input ${domainError ? 'inputError' : ''}`}
-                          value={domainInput}
-                          onChange={(e) => { setDomainInput(e.target.value); setDomainError(null); }}
-                          placeholder="example.com"
-                        />
-                        <label className="check">
-                          <input
-                            type="checkbox"
-                            checked={allowSubdomains}
-                            onChange={(e) => setAllowSubdomains(e.target.checked)}
-                          />
-                          Povolit subdomény
-                        </label>
-                        <button className="btn-primary" onClick={onAddDomain}>
-                          Přidat
-                        </button>
-                      </div>
-                      {domainError ? <div className="errorText">{domainError}</div> : null}
+                {activeTab === 'embed' ? (
+                  <WidgetEmbedTab widget={selectedWidget} />
+                ) : null}
 
-                      <div className="domainList">
-                        {domains.length === 0 ? (
-                          <div className="muted" style={{ padding: 8 }}>
-                            Zatím žádná doména. Pro demo můžeš přidat např. <code>localhost</code>.
-                          </div>
-                        ) : null}
+                {activeTab === 'domains' ? (
+                  <WidgetDomainsTab
+                    domains={domains}
+                    canUseWhitelist={canUseWhitelist}
+                    onAddDomain={onAddDomain}
+                    onToggleDomain={onToggleDomain}
+                    onDeleteDomain={onDeleteDomain}
+                  />
+                ) : null}
 
-                        {domains.map((d) => (
-                          <div key={d.id} className="domainRow">
-                            <div className="domainMain">
-                              <div className="domainName">
-                                {d.domain}
-                                {d.allowSubdomains ? <span className="chip">*.{d.domain}</span> : null}
-                              </div>
-                              <div className="muted">{d.isActive ? 'Active' : 'Disabled'}</div>
-                            </div>
-
-                            <div className="domainActions">
-                              <label className="toggle">
-                                <input
-                                  type="checkbox"
-                                  checked={!!d.isActive}
-                                  onChange={(e) => onToggleDomain(d.id, e.target.checked)}
-                                />
-                                <span />
-                              </label>
-                              <button className="iconBtn danger" title="Smazat" onClick={() => onDeleteDomain(d.id)}>
-                                <Icon name="Trash2" size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-
-                </div>
+                {activeTab === 'settings' ? (
+                  <WidgetSettingsTab
+                    widget={selectedWidget}
+                    canCreateMore={canCreateMore}
+                    onToggleEnabled={onToggleEnabled}
+                    onDuplicate={onDuplicate}
+                    onDelete={onDelete}
+                    onNavigateBuilder={(id) => navigate(`/admin/widget/builder/${id}`)}
+                  />
+                ) : null}
               </div>
-
             </>
           )}
         </div>
       </div>
 
-      {/* toast */}
+      {/* Toast */}
       {toast ? (
-        <div className={`toast ${toast.kind === 'err' ? 'toastErr' : 'toastOk'}`}>
-          {toast.kind === 'err' ? <Icon name="XCircle" size={18} /> : <Icon name="CheckCircle" size={18} />}
+        <div className={`aw-toast ${toast.kind === 'err' ? 'aw-toast-err' : 'aw-toast-ok'}`}>
+          {toast.kind === 'err' ? (
+            <Icon name="XCircle" size={18} />
+          ) : (
+            <Icon name="CheckCircle" size={18} />
+          )}
           <span>{toast.msg}</span>
         </div>
       ) : null}
 
-      {/* create modal */}
+      {/* Create modal */}
       {createOpen ? (
-        <div className="modalOverlay" onClick={() => setCreateOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modalHeader">
-              <div className="modalTitle">Vytvořit nový widget</div>
-              <button className="iconBtn" onClick={() => setCreateOpen(false)}>
+        <div className="aw-overlay" onClick={() => setCreateOpen(false)}>
+          <div className="aw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="aw-modal-header">
+              <div className="aw-modal-title">Vytvorit novy widget</div>
+              <button className="aw-icon-btn" onClick={() => setCreateOpen(false)}>
                 <Icon name="X" size={16} />
               </button>
             </div>
 
-            <div className="modalBody">
-              <div className="formRow">
-                <label>Název</label>
-                <input className="input" value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="Např. Homepage" />
+            <div className="aw-modal-body">
+              <div className="aw-form-row">
+                <label className="aw-label">Nazev</label>
+                <input
+                  className={`aw-input${createError ? ' aw-input-error' : ''}`}
+                  value={createName}
+                  onChange={(e) => { const v = e.target.value; setCreateName(v); if (v.trim().length >= 2) setCreateError(''); }}
+                  placeholder="Napr. Homepage"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmCreate();
+                  }}
+                  autoFocus
+                />
+                {createError && (
+                  <div role="alert" style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>
+                    {createError}
+                  </div>
+                )}
               </div>
 
-              <div className="formRow">
-                <label>Typ</label>
-                <select className="input" value={createType} onChange={(e) => setCreateType(e.target.value)}>
-                  <option value="full_calculator">Full calculator</option>
-                  <option value="price_only">Price only</option>
+              <div className="aw-form-row">
+                <label className="aw-label">Typ</label>
+                <select
+                  className="aw-input"
+                  value={createType}
+                  onChange={(e) => setCreateType(e.target.value)}
+                >
+                  <option value="full_calculator">Full Calculator</option>
+                  <option value="price_only">Price Only</option>
                 </select>
-              </div>
-
-              <div className="muted" style={{ marginTop: 6 }}>
-                Po vytvoření se widget automaticky otevře v editoru a vygeneruje se embed kód.
               </div>
             </div>
 
-            <div className="modalFooter">
-              <button className="btn-secondary" onClick={() => setCreateOpen(false)}>Zrušit</button>
-              <button className="btn-primary" onClick={confirmCreate}>
-                <Icon name="Plus" size={18} />
-                Vytvořit
+            <div className="aw-modal-footer">
+              <button className="aw-btn aw-btn-secondary" onClick={() => setCreateOpen(false)}>
+                Zrusit
+              </button>
+              <button className="aw-btn aw-btn-primary" onClick={confirmCreate}>
+                <Icon name="Plus" size={16} />
+                Vytvorit
               </button>
             </div>
           </div>
@@ -860,10 +703,22 @@ const AdminWidget = () => {
       ) : null}
 
       <style>{`
-        .admin-page { padding: 20px; }
-        .loading { padding: 40px; text-align: center; }
+        /* ============================================================= */
+        /*  AdminWidget — aw-* scoped styles                             */
+        /* ============================================================= */
 
-        .admin-page-header {
+        .aw-page {
+          padding: 20px;
+        }
+
+        .aw-loading {
+          padding: 40px;
+          text-align: center;
+          color: #6b7280;
+        }
+
+        /* ---- Top bar ---- */
+        .aw-topbar {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -871,124 +726,170 @@ const AdminWidget = () => {
           margin-bottom: 16px;
         }
 
-        .subtitle { color: #6b7280; margin-top: 6px; }
+        .aw-heading {
+          font-size: 22px;
+          font-weight: 800;
+          margin: 0;
+          color: #111827;
+        }
 
-        .header-actions { display: flex; gap: 10px; align-items: center; }
-        .planInfo { text-align: right; margin-right: 8px; }
-        .planName { font-size: 13px; color: #111827; }
-        .planCaps { font-size: 12px; color: #6b7280; }
+        .aw-subtitle {
+          color: #6b7280;
+          margin: 4px 0 0 0;
+          font-size: 14px;
+        }
 
-        .btn-primary, .btn-secondary {
+        .aw-topbar-actions {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .aw-plan-info {
+          text-align: right;
+        }
+
+        .aw-plan-count {
+          font-size: 13px;
+          color: #6b7280;
+          font-weight: 600;
+        }
+
+        /* ---- Buttons ---- */
+        .aw-btn {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          padding: 10px 14px;
+          gap: 6px;
+          padding: 8px 14px;
           border-radius: 8px;
           cursor: pointer;
           font-weight: 600;
+          font-size: 13px;
           border: 1px solid transparent;
+          transition: all 0.15s;
+        }
+
+        .aw-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .aw-btn-primary {
           background: #2563eb;
           color: white;
         }
-
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .btn-secondary {
-          background: white;
-          color: #111827;
-          border-color: #e5e7eb;
+        .aw-btn-primary:hover:not(:disabled) {
+          background: #1d4ed8;
         }
 
-        .dirtyBanner {
+        .aw-btn-secondary {
+          background: white;
+          color: #374151;
+          border-color: #e5e7eb;
+        }
+        .aw-btn-secondary:hover:not(:disabled) {
+          background: #f9fafb;
+        }
+
+        .aw-btn-danger {
+          background: #fee2e2;
+          color: #b91c1c;
+          border-color: #fecaca;
+        }
+        .aw-btn-danger:hover:not(:disabled) {
+          background: #fecaca;
+        }
+
+        .aw-btn-success {
+          background: #dcfce7;
+          color: #166534;
+          border-color: #bbf7d0;
+        }
+
+        .aw-btn-large {
+          padding: 12px 20px;
+          font-size: 14px;
+        }
+
+        /* ---- Icon buttons ---- */
+        .aw-icon-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: white;
+          cursor: pointer;
+          transition: all 0.15s;
+          color: #374151;
+        }
+        .aw-icon-btn:hover {
+          background: #f3f4f6;
+        }
+        .aw-icon-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .aw-icon-btn-danger {
+          border-color: #fecaca;
+          color: #b91c1c;
+        }
+        .aw-icon-btn-danger:hover {
+          background: #fef2f2;
+        }
+
+        /* ---- Dirty banner ---- */
+        .aw-dirty-banner {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          padding: 12px;
+          padding: 10px 14px;
           border: 1px solid #fde68a;
           background: #fffbeb;
           border-radius: 10px;
           margin-bottom: 14px;
         }
 
-        .dirtyActions { display: flex; gap: 10px; }
+        .aw-dirty-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #92400e;
+          font-weight: 600;
+          font-size: 13px;
+        }
 
-        .layout {
+        .aw-dirty-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        /* ---- 2-column layout ---- */
+        .aw-layout {
           display: grid;
-          grid-template-columns: 360px 1fr;
+          grid-template-columns: 340px 1fr;
           gap: 16px;
           align-items: start;
         }
 
-        @media (max-width: 1100px) {
-          .layout { grid-template-columns: 1fr; }
-          .planInfo { display: none; }
+        @media (max-width: 1024px) {
+          .aw-layout {
+            grid-template-columns: 1fr;
+          }
         }
 
-        .leftPanel, .rightPanel {
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 12px;
-        }
-
-        .panelTitle {
-          font-weight: 800;
-          margin-bottom: 10px;
-        }
-
-        .widgetList { display: flex; flex-direction: column; gap: 10px; }
-
-        .widgetCard {
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 10px;
-          cursor: pointer;
-          transition: box-shadow 0.2s, border-color 0.2s;
-        }
-
-        .widgetCard:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
-        .widgetCard.selected { border-color: #93c5fd; box-shadow: 0 6px 18px rgba(37,99,235,0.12); }
-
-        .widgetCardTop { display: flex; flex-direction: column; gap: 6px; }
-
-        .widgetNameRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-        .widgetName { font-weight: 800; }
-
-        .widgetMeta { display: flex; gap: 12px; color: #6b7280; font-size: 12px; }
-        .metaItem { display: inline-flex; gap: 6px; align-items: center; }
-
-        .widgetCardActions {
+        /* ---- Left column ---- */
+        .aw-left {
           display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-          margin-top: 8px;
+          flex-direction: column;
+          gap: 10px;
         }
 
-        .widgetPublicId { margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #6b7280; }
-
-        .iconBtn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 34px;
-          height: 34px;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-          background: white;
-          cursor: pointer;
-        }
-
-        .iconBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .iconBtn:hover { background: #f9fafb; }
-        .iconBtn.danger { border-color: #fecaca; color: #b91c1c; }
-        .iconBtn.danger:hover { background: #fef2f2; }
-
-        .badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-        .badgeOk { background: #dcfce7; color: #166534; }
-        .badgeDisabled { background: #fee2e2; color: #991b1b; }
-
-        .limitBox {
+        .aw-limit-box {
           display: flex;
           gap: 10px;
           align-items: flex-start;
@@ -996,231 +897,609 @@ const AdminWidget = () => {
           border-radius: 10px;
           border: 1px solid #e5e7eb;
           background: #f9fafb;
-          margin-bottom: 10px;
+          font-size: 13px;
         }
 
-        .muted { color: #6b7280; font-size: 12px; }
-
-        .emptyState {
+        .aw-card-list {
           display: flex;
-          gap: 10px;
-          padding: 10px;
-          border: 1px dashed #e5e7eb;
-          border-radius: 12px;
-          color: #6b7280;
+          flex-direction: column;
+          gap: 8px;
         }
 
-        .emptyEditor {
-          padding: 22px;
+        /* ---- Widget card ---- */
+        .aw-widget-card {
           display: flex;
-          gap: 10px;
-          align-items: center;
-          color: #6b7280;
-        }
-
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-        @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
-
-        .card {
           border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 12px;
+          border-radius: 10px;
+          overflow: hidden;
+          cursor: pointer;
+          transition: all 0.15s;
           background: white;
         }
+        .aw-widget-card:hover {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+          border-color: #d1d5db;
+        }
 
-        .cardHeader {
+        .aw-card-selected {
+          border-color: #93c5fd;
+          box-shadow: 0 4px 16px rgba(37,99,235,0.1);
+        }
+
+        .aw-card-bar {
+          width: 4px;
+          flex-shrink: 0;
+        }
+
+        .aw-card-body {
+          flex: 1;
+          padding: 10px 12px;
+          min-width: 0;
+        }
+
+        .aw-card-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 4px;
+        }
+
+        .aw-card-name {
+          font-weight: 700;
+          font-size: 14px;
+          color: #111827;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .aw-badge {
+          padding: 2px 8px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .aw-badge-active {
+          background: #dcfce7;
+          color: #166534;
+        }
+
+        .aw-badge-inactive {
+          background: #f3f4f6;
+          color: #6b7280;
+        }
+
+        .aw-card-id {
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 11px;
+          color: #9ca3af;
+          margin-bottom: 6px;
+        }
+
+        .aw-card-actions {
+          display: flex;
+          gap: 4px;
+        }
+
+        /* ---- Right column ---- */
+        .aw-right {
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          overflow: hidden;
+          min-height: 400px;
+        }
+
+        .aw-empty-detail {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 60px 20px;
+          color: #9ca3af;
+          font-size: 15px;
+        }
+
+        /* ---- Tabs ---- */
+        .aw-tabs {
+          display: flex;
+          border-bottom: 1px solid #e5e7eb;
+          background: #fafbfc;
+          overflow-x: auto;
+        }
+
+        .aw-tab {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 12px 12px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #6b7280;
+          background: transparent;
+          border: none;
+          border-bottom: 2px solid transparent;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s;
+          flex: 1 1 0%;
+          justify-content: center;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .aw-tab:hover {
+          color: #374151;
+          background: #f3f4f6;
+        }
+
+        .aw-tab-active {
+          color: #2563eb;
+          border-bottom-color: #2563eb;
+        }
+        .aw-tab-active:hover {
+          color: #2563eb;
+          background: transparent;
+        }
+
+        /* ---- Save bar ---- */
+        .aw-save-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 10px 16px;
+          border-bottom: 1px solid #e5e7eb;
+          background: #fafbfc;
+        }
+
+        .aw-save-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 700;
+          font-size: 14px;
+          color: #111827;
+        }
+
+        .aw-save-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        /* ---- Tab content ---- */
+        .aw-tab-content {
+          padding: 16px;
+        }
+
+        /* ---- Form elements ---- */
+        .aw-form-row {
+          margin-bottom: 14px;
+        }
+
+        .aw-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 700;
+          margin-bottom: 6px;
+          color: #374151;
+        }
+
+        .aw-input {
+          width: 100%;
+          padding: 9px 12px;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          outline: none;
+          font-size: 13px;
+          transition: all 0.15s;
+          background: white;
+          color: #111827;
+          box-sizing: border-box;
+        }
+
+        .aw-input:focus {
+          border-color: #93c5fd;
+          box-shadow: 0 0 0 3px rgba(147,197,253,0.3);
+        }
+
+        .aw-input-error {
+          border-color: #fca5a5;
+          box-shadow: 0 0 0 3px rgba(252,165,165,0.2);
+        }
+
+        .aw-input:disabled {
+          background: #f9fafb;
+          color: #9ca3af;
+          cursor: not-allowed;
+        }
+
+        .aw-color-row {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .aw-color-picker {
+          width: 40px;
+          height: 38px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 2px;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+
+        .aw-inline-row {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .aw-error-text {
+          color: #b91c1c;
+          font-size: 12px;
+          margin-top: 4px;
+        }
+
+        .aw-muted {
+          color: #6b7280;
+          font-size: 12px;
+        }
+
+        /* ---- Config tab ---- */
+        .aw-config-tab {
+          max-width: 520px;
+        }
+
+        /* ---- Embed tab ---- */
+        .aw-embed-tab {}
+
+        .aw-embed-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 10px;
-          margin-bottom: 10px;
+          gap: 12px;
+          margin-bottom: 12px;
         }
 
-        .cardTitle { font-weight: 800; }
+        .aw-embed-title {
+          font-weight: 700;
+          font-size: 14px;
+          color: #111827;
+          margin-bottom: 2px;
+        }
 
-        .cardHeaderRight { display: flex; gap: 10px; }
-
-        .form { display: flex; flex-direction: column; gap: 12px; }
-
-        .formRow label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-
-        .input {
+        .aw-code-area {
           width: 100%;
-          padding: 10px;
+          min-height: 200px;
           border-radius: 10px;
-          border: 1px solid #e5e7eb;
-          outline: none;
-        }
-
-        .input:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147,197,253,0.35); }
-        .inputError { border-color: #fca5a5; box-shadow: 0 0 0 3px rgba(252,165,165,0.25); }
-
-        .rowInline { display: flex; gap: 10px; align-items: center; }
-
-        .errorText { color: #b91c1c; font-size: 12px; margin-top: 6px; }
-
-        .code {
-          width: 100%;
-          min-height: 160px;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
-          padding: 10px;
+          border: 1px solid #1e293b;
+          padding: 12px;
           font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
           font-size: 12px;
-          background: #0b1220;
-          color: #e5e7eb;
+          line-height: 1.6;
+          background: #0f172a;
+          color: #e2e8f0;
           white-space: pre;
+          resize: vertical;
+          box-sizing: border-box;
         }
 
-        /* domain */
-        .domainAdd { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; margin-top: 8px; }
-        @media (max-width: 900px) { .domainAdd { grid-template-columns: 1fr; } }
+        .aw-embed-instructions {
+          display: flex;
+          gap: 8px;
+          align-items: flex-start;
+          margin-top: 12px;
+          padding: 10px;
+          background: #f0f9ff;
+          border: 1px solid #bae6fd;
+          border-radius: 8px;
+          font-size: 12px;
+          color: #0c4a6e;
+          line-height: 1.5;
+        }
 
-        .check { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; color: #111827; }
+        /* ---- Domains tab ---- */
+        .aw-domains-tab {}
 
-        .domainList { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .aw-domain-add-form {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-wrap: wrap;
+          margin-bottom: 8px;
+        }
 
-        .domainRow {
+        .aw-domain-add-form .aw-input {
+          flex: 1;
+          min-width: 160px;
+        }
+
+        .aw-check-label {
+          display: inline-flex;
+          gap: 6px;
+          align-items: center;
+          font-size: 12px;
+          color: #374151;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+
+        .aw-domain-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-top: 12px;
+        }
+
+        .aw-domain-row {
           display: flex;
           justify-content: space-between;
+          align-items: center;
           gap: 10px;
           border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 10px;
+          border-radius: 10px;
+          padding: 10px 12px;
         }
 
-        .domainName { font-weight: 800; }
-        .chip { margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #eff6ff; color: #1d4ed8; }
+        .aw-domain-info {}
 
-        .domainActions { display: flex; gap: 10px; align-items: center; }
+        .aw-domain-name {
+          font-weight: 700;
+          font-size: 13px;
+          color: #111827;
+        }
 
-        /* toggle */
-        .toggle { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
-        .toggle input { display: none; }
-        .toggle span {
-          width: 44px;
-          height: 24px;
+        .aw-domain-chip {
+          margin-left: 8px;
+          padding: 2px 8px;
           border-radius: 999px;
-          background: #e5e7eb;
+          font-size: 11px;
+          font-weight: 600;
+          background: #eff6ff;
+          color: #1d4ed8;
+        }
+
+        .aw-domain-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .aw-empty-domains {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          padding: 14px;
+          border: 1px dashed #d1d5db;
+          border-radius: 10px;
+          color: #6b7280;
+          font-size: 13px;
+        }
+
+        /* ---- Toggle ---- */
+        .aw-toggle {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          cursor: pointer;
+        }
+        .aw-toggle input {
+          display: none;
+        }
+        .aw-toggle span {
+          width: 42px;
+          height: 22px;
+          border-radius: 999px;
+          background: #d1d5db;
           position: relative;
           transition: background 0.2s;
         }
-        .toggle span::after {
+        .aw-toggle span::after {
           content: '';
-          width: 18px;
-          height: 18px;
+          width: 16px;
+          height: 16px;
           border-radius: 999px;
           background: white;
           position: absolute;
           top: 3px;
           left: 3px;
           transition: transform 0.2s;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.15);
         }
-        .toggle input:checked + span { background: #2563eb; }
-        .toggle input:checked + span::after { transform: translateX(20px); }
+        .aw-toggle input:checked + span {
+          background: #2563eb;
+        }
+        .aw-toggle input:checked + span::after {
+          transform: translateX(20px);
+        }
 
-        /* preview */
-        .previewShell { padding: 4px; }
-        .previewCard {
-          border: 1px solid #e5e7eb;
-          background: #f9fafb;
-          overflow: hidden;
+        .aw-toggle-large span {
+          width: 48px;
+          height: 26px;
         }
-        .previewHeader {
+        .aw-toggle-large span::after {
+          width: 20px;
+          height: 20px;
+        }
+        .aw-toggle-large input:checked + span::after {
+          transform: translateX(22px);
+        }
+
+        /* ---- Settings tab ---- */
+        .aw-settings-tab {
           display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+
+        .aw-settings-section {
+          padding: 16px 0;
+          border-bottom: 1px solid #f3f4f6;
+        }
+        .aw-settings-section:last-child {
+          border-bottom: none;
+        }
+
+        .aw-settings-danger {
+          margin-top: 8px;
+          padding: 16px;
+          border: 1px solid #fecaca;
+          border-radius: 10px;
+          background: #fef2f2;
+        }
+
+        .aw-settings-row {
+          display: flex;
+          align-items: center;
           justify-content: space-between;
-          align-items: center;
-          padding: 10px;
-          background: white;
-          border-bottom: 1px solid #e5e7eb;
+          gap: 16px;
+          margin-bottom: 8px;
         }
-        .brandLeft { display: flex; gap: 10px; align-items: center; }
-        .logoBox {
-          width: 34px;
-          height: 34px;
+
+        .aw-settings-label {
+          font-weight: 700;
+          font-size: 14px;
+          color: #111827;
+          margin-bottom: 4px;
+        }
+
+        .aw-status-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .aw-status-active { color: #166534; }
+        .aw-status-disabled { color: #6b7280; }
+
+        .aw-status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        .aw-dot-green {
+          background: #22c55e;
+          box-shadow: 0 0 6px rgba(34,197,94,0.4);
+        }
+        .aw-dot-grey { background: #9ca3af; }
+
+        .aw-delete-confirm {
           display: flex;
           align-items: center;
-          justify-content: center;
-          border: 1px solid;
-          background: white;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
         }
-        .companyName { font-weight: 900; font-size: 13px; }
-        .slogan { font-size: 12px; color: #6b7280; }
 
-        .previewBody { padding: 12px; }
-        .fakeRow { display: grid; grid-template-columns: 1fr 150px; gap: 10px; }
-        .fakeInput, .fakeSelect {
-          background: white;
-          border: 1px solid #e5e7eb;
-          padding: 10px;
-          font-size: 12px;
+        /* ---- Empty state ---- */
+        .aw-empty-state {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          padding: 20px 16px;
+          border: 1px dashed #d1d5db;
+          border-radius: 10px;
           color: #6b7280;
         }
-        .fakeButton {
-          margin-top: 12px;
-          width: 100%;
-          padding: 12px;
-          border: none;
-          color: white;
-          font-weight: 800;
-          cursor: pointer;
-        }
-        .poweredBy { padding: 10px; font-size: 12px; color: #6b7280; text-align: center; }
 
-        /* toast */
-        .toast {
+        /* ---- Toast ---- */
+        .aw-toast {
           position: fixed;
           right: 18px;
           bottom: 18px;
           display: flex;
-          gap: 10px;
+          gap: 8px;
           align-items: center;
-          padding: 12px 14px;
-          border-radius: 12px;
+          padding: 10px 14px;
+          border-radius: 10px;
           border: 1px solid #e5e7eb;
           background: white;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
           z-index: 9999;
-          font-weight: 700;
+          font-weight: 600;
+          font-size: 13px;
         }
-        .toastOk { border-color: #bbf7d0; }
-        .toastErr { border-color: #fecaca; }
+        .aw-toast-ok { border-color: #bbf7d0; }
+        .aw-toast-err { border-color: #fecaca; }
 
-        /* modal */
-        .modalOverlay {
+        /* ---- Modal ---- */
+        .aw-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.4);
+          background: rgba(0,0,0,0.35);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 9998;
           padding: 16px;
         }
-        .modal {
-          width: 520px;
+
+        .aw-modal {
+          width: 480px;
           max-width: 100%;
           background: white;
-          border-radius: 14px;
+          border-radius: 12px;
           border: 1px solid #e5e7eb;
           overflow: hidden;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.15);
         }
-        .modalHeader {
+
+        .aw-modal-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px;
+          padding: 14px 16px;
           border-bottom: 1px solid #e5e7eb;
         }
-        .modalTitle { font-weight: 900; }
-        .modalBody { padding: 12px; }
-        .modalFooter {
-          padding: 12px;
+
+        .aw-modal-title {
+          font-weight: 800;
+          font-size: 15px;
+        }
+
+        .aw-modal-body {
+          padding: 16px;
+        }
+
+        .aw-modal-footer {
+          padding: 12px 16px;
           border-top: 1px solid #e5e7eb;
           display: flex;
           justify-content: flex-end;
-          gap: 10px;
+          gap: 8px;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 1024px) {
+          .aw-topbar {
+            flex-direction: column;
+          }
+          .aw-topbar-actions {
+            width: 100%;
+            justify-content: flex-end;
+          }
+          .aw-tab {
+            padding: 10px 12px;
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .aw-page { padding: 12px; }
+          .aw-card-actions { flex-wrap: wrap; }
+          .aw-domain-add-form { flex-direction: column; }
+          .aw-domain-add-form .aw-input { min-width: 0; }
+          .aw-delete-confirm { flex-direction: column; align-items: flex-start; }
         }
       `}</style>
     </div>

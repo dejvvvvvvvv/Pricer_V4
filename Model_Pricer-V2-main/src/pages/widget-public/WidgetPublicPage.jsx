@@ -1,12 +1,28 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import WidgetKalkulacka from '../widget-kalkulacka';
+import WidgetSkeleton from '../widget-kalkulacka/components/WidgetSkeleton';
 import {
   getWidgetByPublicId,
   getBranding,
   isDomainAllowedByWhitelist,
   getDefaultWidgetTheme,
 } from '../../utils/adminBrandingWidgetStorage';
+
+/**
+ * Get target origin for postMessage.
+ * Uses document.referrer when embedded in iframe, falls back to '*' for direct access.
+ */
+function getTargetOrigin() {
+  try {
+    if (document.referrer) {
+      return new URL(document.referrer).origin;
+    }
+  } catch {
+    // Invalid referrer URL
+  }
+  return '*';
+}
 
 /**
  * Public widget page - serves the embeddable calculator.
@@ -151,7 +167,7 @@ const WidgetPublicPage = () => {
         type: 'MODELPRICER_QUOTE_CREATED',
         publicWidgetId,
         quote: quoteData,
-      }, '*');
+      }, getTargetOrigin());
     } catch (e) {
       console.error('[WidgetPublicPage] postMessage error:', e);
     }
@@ -159,14 +175,7 @@ const WidgetPublicPage = () => {
 
   // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Nacitam kalkulacku...</p>
-        </div>
-      </div>
-    );
+    return <WidgetSkeleton />;
   }
 
   // Error state
@@ -206,6 +215,7 @@ const WidgetPublicPage = () => {
     <WidgetKalkulacka
       theme={effectiveTheme}
       embedded={true}
+      showHeader={true}
       publicWidgetId={publicWidgetId}
       onQuoteCalculated={handleQuoteCalculated}
     />

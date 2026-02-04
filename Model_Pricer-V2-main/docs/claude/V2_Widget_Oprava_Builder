@@ -1,0 +1,721 @@
+WIDGET BUILDER V3 - KOMPLETNI PLAN OPRAV
+
+ Zdroj: docs/claude/Report_Testu_Widget_Builderu_V1.md
+ Scope: Oprava vsech nalezenych chyb P0/P1/P2 + stabilizace + testovaci plan
+ Pocet fazi: 7 (6 implementacnich + 1 testovaci)
+
+ ---
+ PREHLED CHYB DLE PRIORITY
+ ID: P0-1
+ Priorita: KRITICKA
+ Popis: Builder preview ukazuje jen krok 1
+ Root Cause (overeno v kodu): WidgetKalkulacka renderuje config/pricing jen kdyz uploadedFiles.length > 0 - v      
+   builderu zadne soubory nejsou
+ ────────────────────────────────────────
+ ID: P0-2
+ Priorita: KRITICKA
+ Popis: Chybi tlacitko full-size preview
+ Root Cause (overeno v kodu): BuilderTopBar.jsx nema zadne preview tlacitko
+ ────────────────────────────────────────
+ ID: P1-1
+ Priorita: VYSOKA
+ Popis: Quick Themes nefunguji
+ Root Cause (overeno v kodu): GlobalTab.jsx:112-120 vola onUpdateProperty() 56x ve smycce - stale closure v        
+   updateThemeProperty (line 157)
+ ────────────────────────────────────────
+ ID: P1-2
+ Priorita: VYSOKA
+ Popis: Color palette kliky nefunguji
+ Root Cause (overeno v kodu): BuilderColorPicker.jsx:394 pouziva background: 'transparent' (CSS shorthand)
+   konflikty s backgroundColor: hex
+ ────────────────────────────────────────
+ ID: P1-3
+ Priorita: VYSOKA
+ Popis: Widget Header chybi na public strance
+ Root Cause (overeno v kodu): WidgetKalkulacka:675 skryva header kdyz embedded=true, WidgetPublicPage:217 predava  
+   embedded={true}
+ ────────────────────────────────────────
+ ID: P1-4
+ Priorita: VYSOKA
+ Popis: Undo/Redo nefunguje
+ Root Cause (overeno v kodu): Keyboard handler bez capture phase (line 248), Quick Theme vytvari 56 undo zaznamu   
+ ────────────────────────────────────────
+ ID: P2-1
+ Priorita: NIZKA
+ Popis: Chybi toast pri validaci nazvu widgetu
+ Root Cause (overeno v kodu): CreateWidgetModal nema vizualni chybovou zpravu
+ ────────────────────────────────────────
+ ID: P2-2
+ Priorita: NIZKA
+ Popis: Tab "Nastaveni" oriznuty
+ Root Cause (overeno v kodu): Tab bar padding prilis siroky pro 4 taby
+ ---
+ FAZE 1: P0 KRITICKE OPRAVY - Step Switcher + Preview Button
+
+ Cil: Zpristupnit vsech 3 kroku kalkulacky v builder preview a pridat tlacitko pro fullsize nahled.
+
+ Task 1A: Step Switcher v BuilderTopBar
+
+ Agent: mp-admin-ui
+ Soubor: src/pages/admin/builder/components/BuilderTopBar.jsx
+
+ Zmeny:
+ 1. Pridat nove props: previewStep (number 1-3), onPreviewStepChange (fn), publicWidgetId (string)
+ 2. Import ikon: Upload, Settings, DollarSign, ExternalLink z lucide-react
+ 3. V centerSection za deviceGroup pridat oddelovac (1px vertical divider) a stepGroup:
+   - 3 tlacitka (Upload/Konfigurace/Souhrn) se stylem identiKym jako deviceButton/deviceButtonActive
+   - Aktivni krok = modre pozadi (pouzit stejny styl deviceButtonActive)
+ 4. Pridat novy styl stepGroup (kopie deviceGroup) a centerDivider (vertikalni cara 1x20px)
+
+ Task 1B: Preview tlacitko v BuilderTopBar
+
+ Agent: mp-admin-ui (stejny soubor jako 1A)
+ Soubor: src/pages/admin/builder/components/BuilderTopBar.jsx
+
+ Zmeny:
+ 1. V rightSection pred Undo tlacitko pridat "Nahled" button
+ 2. onClick={() => publicWidgetId && window.open('/w/' + publicWidgetId, '_blank')}
+ 3. Ikona ExternalLink (14px) + text "Nahled"
+ 4. Disabled kdyz !publicWidgetId
+
+ Task 1C: Propojeni stavu v BuilderPage
+
+ Agent: mp-admin-ui
+ Soubor: src/pages/admin/builder/BuilderPage.jsx
+
+ Zmeny:
+ 1. Pridat state: const [previewStep, setPreviewStep] = useState(1);
+ 2. Predat do <BuilderTopBar>:
+ previewStep={previewStep}
+ onPreviewStepChange={setPreviewStep}
+ publicWidgetId={builder.widget?.publicId}
+ 3. Predat do <WidgetKalkulacka>: forceStep={previewStep}
+
+ Task 1D: forceStep prop v WidgetKalkulacka
+
+ Agent: mp-frontend-react
+ Soubor: src/pages/widget-kalkulacka/index.jsx
+
+ Root cause (overeny radky):
+ - Radek 703: {uploadedFiles.length === 0 && currentStep === 1 && ( → upload zona
+ - Radek 709: {uploadedFiles.length > 0 && ( → config
+ - Radek 739: {uploadedFiles.length > 0 && selectedFile && ( → CTA
+ - Radek 797: {uploadedFiles.length > 0 && ( → pricing
+
+ Zmeny:
+ 1. Pridat prop forceStep = null do destrukturingu (radek 63-74)
+ 2. Pridat mock data konstantu pro builder mode:
+ const BUILDER_MOCK = {
+   file: { id: 'mock-1', name: 'ukazka.stl', size: 1024000, status: 'completed',
+           result: { totalPrice: 245, currency: 'CZK' } }
+ };
+ 3. Pridatderivedne promenne:
+ const displayStep = (builderMode && forceStep) ? forceStep : currentStep;
+ const displayFiles = (builderMode && forceStep >= 2) ? [BUILDER_MOCK.file] : uploadedFiles;
+ const displaySelected = (builderMode && forceStep >= 2) ? BUILDER_MOCK.file : selectedFile;
+ 4. Nahradit v renderovacich podminkach:
+   - currentStep → displayStep
+   - uploadedFiles → displayFiles (jen v podminkach zobrazeni, NE v handlerech)
+   - selectedFile → displaySelected (jen v podminkach zobrazeni)
+ 5. KRITICKE: Vsechny mock data za if (builderMode) guardem, normalni rezim NESMIL byt dotceny
+
+ Verifikace Faze 1:
+
+ - Builder: Step switcher se zobrazi vedle device switcheru
+ - Builder: Klik na krok 2 → preview ukazuje config sekci
+ - Builder: Klik na krok 3 → preview ukazuje pricing sekci
+ - Builder: "Nahled" tlacitko otvira /w/:publicId v novem tabu
+ - Builder: Device switching stale funguje nezavisle na step switching
+ - npm run build bez chyb
+
+ ---
+ FAZE 2: P1-1 + P1-2 OPRAVY - Quick Themes + Color Picker
+
+ Cil: Opravit aplikaci temat a klikani na paletu barev.
+
+ Task 2A: Bulk theme aplikace (Quick Themes fix)
+
+ Agent: mp-admin-ui
+
+ Soubory:
+ - src/pages/admin/builder/hooks/useUndoRedo.js
+ - src/pages/admin/builder/hooks/useBuilderState.js
+ - src/pages/admin/builder/BuilderPage.jsx
+ - src/pages/admin/builder/components/tabs/GlobalTab.jsx
+
+ Root cause (overeno):
+ GlobalTab.jsx:112-120 vola onUpdateProperty(key, val) 56x ve smycce.
+ useBuilderState.js:156-158 ma closure pres theme:
+ const updateThemeProperty = useCallback(
+   (key, value) => {
+     setThemeState({ ...theme, [key]: value }); // theme je stale pri batched calls!
+   },
+   [theme, setThemeState],
+ );
+ Kazde volani pouziva stary theme z closure → jen posledni property se skutecne aplikuje.
+
+ Zmeny v useBuilderState.js:
+ 1. Pridat novou metodu setThemeBulk:
+ const setThemeBulk = useCallback(
+   (newTheme) => {
+     setThemeState(newTheme); // single undo entry for entire theme
+   },
+   [setThemeState],
+ );
+ 2. Exportovat v return objektu: setThemeBulk
+
+ Zmeny v BuilderPage.jsx:
+ 1. Predat do <GlobalTab>: onApplyBulkTheme={builder.setThemeBulk}
+
+ Zmeny v GlobalTab.jsx:
+ 1. Pridat prop onApplyBulkTheme (radek 90)
+ 2. Prepsat handleApplyQuickTheme (radek 112-120):
+ function handleApplyQuickTheme(themeEntry) {
+   if (!themeEntry || !themeEntry.theme) return;
+   if (onApplyBulkTheme) {
+     onApplyBulkTheme(themeEntry.theme);
+   } else {
+     // fallback (neefektivni, ale funkcni)
+     for (const [key, val] of Object.entries(themeEntry.theme)) {
+       onUpdateProperty(key, val);
+     }
+   }
+ }
+
+ Task 2B: Color Palette fix
+
+ Agent: mp-admin-ui
+ Soubor: src/pages/admin/builder/components/BuilderColorPicker.jsx
+
+ Root cause (overeno):
+ Radek 394: background: 'transparent' (CSS shorthand) koliduje s inline backgroundColor: hex.
+ CSS shorthand background resetuje VSECHNY background sub-properties vcetne background-color.
+ Pri renderovani: element.style.background = 'transparent' nastavuje background-color: transparent,
+ nasledne element.style.backgroundColor = hex BY MEL prepsat, ale v nekterych prohlizecich to nefunguje
+ spolehlive.
+
+ Zmeny:
+ 1. Radek 394: zmenit background: 'transparent' na backgroundColor: 'transparent'
+ swatchCircle: {
+   // ...
+   backgroundColor: 'transparent', // BYLO: background: 'transparent'
+   // ...
+ },
+ 2. Pridat WebkitAppearance: 'none' pro spolehlivejsi zobrazeni na WebKit
+
+ Verifikace Faze 2:
+
+ - GlobalTab: Klik "Modern Dark" → vsechny barvy v preview se zmeni
+ - GlobalTab: Dropdown trigger ukazuje "Modern Dark" (ne "Vlastni")
+ - GlobalTab: Klik na jiny theme → preview se aktualizuje
+ - Color Picker: Palette kruzky zobrazuji spravne barvy
+ - Color Picker: Klik na kruzek → HEX input se aktualizuje
+ - Color Picker: Klik "Pouzit" → barva se aplikuje do preview
+ - npm run build bez chyb
+
+ ---
+ FAZE 3: P1-3 + P1-4 OPRAVY - Widget Header + Undo/Redo
+
+ Cil: Zobrazit header na public strance a opravit undo/redo.
+
+ Task 3A: Widget Header na public strance
+
+ Agent: mp-widget-embed
+
+ Soubory:
+ - src/pages/widget-kalkulacka/index.jsx
+ - src/pages/widget-public/WidgetPublicPage.jsx
+
+ Root cause (overeno):
+ - index.jsx:675: {!embedded && ( → header skryty kdyz embedded=true
+ - WidgetPublicPage.jsx:217: embedded={true} → public stranka skryje header
+
+ Zmeny v index.jsx:
+ 1. Pridat prop showHeader = null do destrukturingu (radek 63-74)
+ 2. Zmenit podmInku na radku 675:
+ {(showHeader === true || !embedded) && (
+ 2. Logika: Header se zobrazi kdyz showHeader je explicitne true NEBO kdyz neni embedded.
+ Zpetna kompatibilita: iframe embed s embedded={true} bez showHeader → header skryty (soucasne chovani).
+
+ Zmeny v WidgetPublicPage.jsx:
+ 1. Radek 215-221: pridat showHeader={true}:
+ <WidgetKalkulacka
+   theme={effectiveTheme}
+   embedded={true}
+   showHeader={true}
+   publicWidgetId={publicWidgetId}
+   onQuoteCalculated={handleQuoteCalculated}
+ />
+
+ Task 3B: Undo/Redo oprava
+
+ Agent: mp-admin-ui
+
+ Soubory:
+ - src/pages/admin/builder/hooks/useBuilderState.js
+ - src/pages/admin/builder/hooks/useUndoRedo.js
+
+ Root cause (overeno):
+ 1. Keyboard handler (useBuilderState.js:248): window.addEventListener('keydown', handleKeyDown) bez capture phase 
+ → Ctrl+Z muze byt zachyceno jinym elementem drive
+ 2. Chybi e.stopPropagation() → event "probubla" a zpusobi nezadane akce
+ 3. Quick Theme (56 volani) vytvari 56 undo zaznamu → undo vrati jen 1 property (viz Faze 2 fix)
+
+ Zmeny v useBuilderState.js (radek 211-252):
+ 1. Pridat e.stopPropagation() ke vsem vetvim:
+ if (isCtrlOrMeta && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+   e.preventDefault();
+   e.stopPropagation();
+   undo();
+   return;
+ }
+ 2. Zmenit addEventListener na capture phase:
+ window.addEventListener('keydown', handleKeyDown, true);  // capture
+ return () => window.removeEventListener('keydown', handleKeyDown, true);
+ 3. Pridat case-insensitive kontrolu pro Ctrl+Shift+Z (radek 229):
+ if (isCtrlOrMeta && e.shiftKey && (e.key === 'Z' || e.key === 'z')) {
+
+ Verifikace Faze 3:
+
+ - /w/:publicWidgetId primo v prohlizeci → header VIDITELNY s nadpisem a tagline
+ - Widget embed pres iframe (embedded={true}, bez showHeader) → header SKRYTY
+ - Builder: Zmena barvy → klik Undo tlacitko → barva se vrati
+ - Builder: Zmena barvy → Ctrl+Z → barva se vrati (ne prepnuti elementu)
+ - Builder: Aplikace Quick Theme (po Fazi 2) → 1x Ctrl+Z → cele tema se vrati
+ - Builder: Ctrl+Y / Ctrl+Shift+Z → redo funguje
+ - npm run build bez chyb
+
+ ---
+ FAZE 4: P2 DROBNE OPRAVY - Toast Validace + Tab Bar
+
+ Cil: Opravit drobne UX problemy.
+
+ Task 4A: Validacni chyba v CreateWidgetModal
+
+ Agent: mp-admin-ui
+ Soubor: src/pages/admin/AdminWidget.jsx
+
+ Root cause:
+ showToast() je volano, ale toast se zobrazuje ZA modalnim oknem (z-index problem), nebo je prilis kratky (2500ms) 
+  a uzivatel si ho nevsimne.
+
+ Zmeny:
+ 1. Pridat inline validacni chybu PRIMO do modalu (ne toast):
+ const [createError, setCreateError] = useState('');
+ 2. V confirmCreate(): misto showToast(...) nastavit setCreateError('Zadej nazev (min. 2 znaky).')
+ 3. Resetovat chybu pri zmene nazvu: onChange -> setCreateError('')
+ 4. Zobrazit cerveny text pod polem nazvu v modalu:
+ {createError && (
+   <div style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>{createError}</div>
+ )}
+
+ Task 4B: Tab bar overflow
+
+ Agent: mp-admin-ui
+ Soubor: src/pages/admin/AdminWidget.jsx
+
+ Root cause:
+ 4 taby s padding: 12px 16px jsou prilis siroke pro pravy sloupec.
+
+ Zmeny:
+ 1. Upravit .aw-tab styl:
+   - padding: 12px 12px (misto 12px 16px)
+   - Pridat min-width: 0 a overflow: hidden a text-overflow: ellipsis
+ 2. Alternativne: flex: 1 1 0% pro rovnomerne rozlozeni
+
+ Verifikace Faze 4:
+
+ - Modal: Zadani 1-znakoveho nazvu → cervena chybova hlaska pod polem
+ - Modal: Zadani 2+ znaku → chyba zmizi, widget se vytvori
+ - Admin: Vsechny 4 taby (Konfigurace, Embed kod, Domeny, Nastaveni) viditelne na 1024px
+ - npm run build bez chyb
+
+ ---
+ FAZE 5: STABILIZACE - Save Toast + Debounce
+
+ Cil: Pridat chybejici feedback pri ukladani a optimalizovat slider aktualizace.
+
+ Task 5A: Toast pri ukladani v Builderu
+
+ Agent: mp-admin-ui
+
+ Soubory:
+ - src/pages/admin/builder/hooks/useBuilderState.js
+ - src/pages/admin/builder/BuilderPage.jsx
+
+ Zmeny v useBuilderState.js:
+ 1. Zmenit save() na async s navratovou hodnotou:
+ const save = useCallback(async () => {
+   if (!widget || !tenantId) return { ok: false };
+   setSaving(true);
+   try {
+     // ... existujici logika ...
+     return { ok: true };
+   } catch (err) {
+     console.error('[useBuilderState] save failed:', err);
+     return { ok: false, error: err.message || 'Ulozeni se nezdarilo' };
+   } finally {
+     setSaving(false);
+   }
+ }, [...]);
+
+ Zmeny v BuilderPage.jsx:
+ 1. Pridat toast state:
+ const [toast, setToast] = useState(null);
+ 2. Wrapper pro save:
+ const handleSave = async () => {
+   const result = await builder.save();
+   setToast(result.ok
+     ? { text: 'Ulozeno', kind: 'ok' }
+     : { text: result.error || 'Chyba', kind: 'err' });
+   setTimeout(() => setToast(null), 2500);
+ };
+ 3. Predat onSave={handleSave} do <BuilderTopBar>
+ 4. Pridat toast komponentu na konec gridu
+
+ Task 5B: Debounce pro slidery
+
+ Agent: mp-admin-ui
+
+ Soubory:
+ - src/pages/admin/builder/hooks/useUndoRedo.js
+ - src/pages/admin/builder/hooks/useBuilderState.js
+
+ Zmeny v useUndoRedo.js:
+ 1. Pridat metodu setWithoutHistory:
+ const setWithoutHistory = useCallback((newState) => {
+   setCurrent(typeof newState === 'function' ? newState : () => newState);
+ }, []);
+ 2. Exportovat: setWithoutHistory
+
+ Zmeny v useBuilderState.js:
+ 1. Pridat debounced verzi updateThemeProperty:
+ const debounceRef = useRef(null);
+
+ const updateThemePropertyDebounced = useCallback(
+   (key, value, ms = 300) => {
+     // Okamzita vizualni aktualizace (bez undo zaznamu)
+     undoRedo.setWithoutHistory(prev => ({ ...prev, [key]: value }));
+     // Debounced undo zaznam
+     clearTimeout(debounceRef.current);
+     debounceRef.current = setTimeout(() => {
+       setThemeState({ ...theme, [key]: value });
+     }, ms);
+   },
+   [theme, setThemeState, undoRedo.setWithoutHistory],
+ );
+ 2. Exportovat updateThemePropertyDebounced v return
+
+ Verifikace Faze 5:
+
+ - Builder: Save → zeleny toast "Ulozeno"
+ - Builder: Simulace chyby save → cerveny toast
+ - Builder: Tahani slideru (corner radius) → preview se aktualizuje plynule
+ - Builder: Po pusteni slideru → 1x Undo vrati na pred-drag hodnotu
+ - npm run build bez chyb
+
+ ---
+ FAZE 6: CODE REVIEW + SECURITY AUDIT
+
+ Cil: Overit kvalitu kodu a bezpecnost pred testovanim.
+
+ Task 6A: Code Review
+
+ Agent: mp-code-reviewer
+
+ Scope:
+ - Vsechny zmenene soubory z Fazi 1-5
+ - Kontrola: prop threading, stale closures, zpetna kompatibilita
+ - Kontrola: zadne hardcoded tenantId, spravne importy (default vs named)
+ - Kontrola: inline styly konzistentni s builder-tokens.css
+
+ Task 6B: Security Review
+
+ Agent: mp-security-reviewer
+
+ Scope:
+ - PostMessage eventy: origin validace v WidgetPublicPage + WidgetKalkulacka
+ - Domain whitelist: isDomainAllowedByWhitelist logika
+ - XSS: builder mode mock data nesmil obsahovat user input
+ - localStorage: tenant isolation spravna
+
+ Task 6C: Build Verifikace
+
+ Agent: mp-test-runner
+
+ Akce:
+ 1. npm run build → 0 chyb
+ 2. Kontrola importu/exportu (default vs named)
+ 3. Kontrola lint warningu
+
+ Task 6D: Accessibility Audit
+
+ Agent: mp-a11y
+
+ Scope:
+ - Step switcher: aria-label, aria-pressed na tlacitkach
+ - Preview tlacitko: aria-label
+ - Toast zpravy: role="alert" nebo role="status"
+ - Modal validacni text: role="alert"
+
+ Pozn: Tasky 6A, 6B, 6C, 6D mohou bezet PARALELNE (ruzne soubory, read-only).
+
+ ---
+ FAZE 7: TESTOVACI PLAN
+
+ Cil: Generovat a spustit kompletni testovaci plan pro manualni overeni v Chrome.
+
+ Task 7A: Browser Test Plan
+
+ Agent: mp-browser-test-planner
+
+ Test matice:
+ #: 1
+ Bug ID: P0-1
+ Scenar: Step 2 v builderu
+ Kroky: Builder → klik Step 2
+ Ocekavany vysledek: Preview ukazuje config sekci s mock daty
+ ────────────────────────────────────────
+ #: 2
+ Bug ID: P0-1
+ Scenar: Step 3 v builderu
+ Kroky: Builder → klik Step 3
+ Ocekavany vysledek: Preview ukazuje pricing s mock cenami
+ ────────────────────────────────────────
+ #: 3
+ Bug ID: P0-1
+ Scenar: Step 1 (zpet)
+ Kroky: Builder → klik Step 1
+ Ocekavany vysledek: Preview ukazuje upload zonu
+ ────────────────────────────────────────
+ #: 4
+ Bug ID: P0-2
+ Scenar: Preview tlacitko
+ Kroky: Builder → klik "Nahled"
+ Ocekavany vysledek: Novy tab s /w/:publicId
+ ────────────────────────────────────────
+ #: 5
+ Bug ID: P1-1
+ Scenar: Quick Theme Modern Dark
+ Kroky: GlobalTab → vyber Modern Dark
+ Ocekavany vysledek: Vsechny barvy tmave, dropdown ukazuje "Modern Dark"
+ ────────────────────────────────────────
+ #: 6
+ Bug ID: P1-1
+ Scenar: Quick Theme Clean Light
+ Kroky: GlobalTab → vyber Clean Light
+ Ocekavany vysledek: Vsechny barvy svetle zelene
+ ────────────────────────────────────────
+ #: 7
+ Bug ID: P1-1
+ Scenar: Quick Theme undo
+ Kroky: Po aplikaci tematu → Ctrl+Z
+ Ocekavany vysledek: Cele tema se vrati jednim krokem
+ ────────────────────────────────────────
+ #: 8
+ Bug ID: P1-2
+ Scenar: Color palette klik
+ Kroky: Color picker → klik modry kruzek
+ Ocekavany vysledek: HEX vstup ukazuje #3B82F6, gradient se posune
+ ────────────────────────────────────────
+ #: 9
+ Bug ID: P1-2
+ Scenar: Color palette apply
+ Kroky: Po kliku na paletu → "Pouzit"
+ Ocekavany vysledek: Barva se aplikuje do preview
+ ────────────────────────────────────────
+ #: 10
+ Bug ID: P1-3
+ Scenar: Public stranka header
+ Kroky: Otevrit /w/:publicWidgetId
+ Ocekavany vysledek: Header s nadpisem a tagline VIDITELNY
+ ────────────────────────────────────────
+ #: 11
+ Bug ID: P1-3
+ Scenar: Iframe bez headeru
+ Kroky: Embed widget v iframe
+ Ocekavany vysledek: Header NENI viditelny
+ ────────────────────────────────────────
+ #: 12
+ Bug ID: P1-4
+ Scenar: Undo tlacitko
+ Kroky: Zmena barvy → klik Undo
+ Ocekavany vysledek: Barva se vrati
+ ────────────────────────────────────────
+ #: 13
+ Bug ID: P1-4
+ Scenar: Ctrl+Z undo
+ Kroky: Zmena barvy → Ctrl+Z
+ Ocekavany vysledek: Barva se vrati, zadne prepnuti elementu
+ ────────────────────────────────────────
+ #: 14
+ Bug ID: P1-4
+ Scenar: Ctrl+Y redo
+ Kroky: Po undo → Ctrl+Y
+ Ocekavany vysledek: Zmena se vrati zpet
+ ────────────────────────────────────────
+ #: 15
+ Bug ID: P2-1
+ Scenar: Validace nazvu
+ Kroky: Modal → 1 znak "A" → Vytvorit
+ Ocekavany vysledek: Cerveny text "Zadej nazev (min. 2 znaky)" v modalu
+ ────────────────────────────────────────
+ #: 16
+ Bug ID: P2-2
+ Scenar: Tab bar
+ Kroky: Admin widget stranka
+ Ocekavany vysledek: Vsechny 4 taby viditelne
+ ────────────────────────────────────────
+ #: 17
+ Bug ID: SAVE
+ Scenar: Builder save
+ Kroky: Zmena + Ulozit
+ Ocekavany vysledek: Toast "Ulozeno", isDirty=false
+ ────────────────────────────────────────
+ #: 18
+ Bug ID: PERSIST
+ Scenar: F5 po save
+ Kroky: Save → F5
+ Ocekavany vysledek: Zmeny pretrvaji
+ ────────────────────────────────────────
+ #: 19
+ Bug ID: DEVICE
+ Scenar: Device switch + step
+ Kroky: Mobile → Step 2
+ Ocekavany vysledek: Spravne zobrazeni na 375px
+ ────────────────────────────────────────
+ #: 20
+ Bug ID: RESET
+ Scenar: Resetovat
+ Kroky: Zmeny → Resetovat
+ Ocekavany vysledek: Puvodni stav obnoven
+ Task 7B: E2E Smoke Test
+
+ Agent: mp-e2e-playwright
+
+ Kriticke user flows:
+ 1. Admin → Vytvoreni widgetu → Otevreni builderu → Zmena barvy → Save → F5 → Overeni
+ 2. Admin → Quick Theme → Save → Public stranka → Overeni temat
+ 3. Builder → Step switching (1→2→3→1) → Device switching → Save
+ 4. Public stranka → Deaktivace → Error state → Reaktivace → Funkcni
+
+ ---
+ DIAGRAM PARALELNICH PRACI
+
+ FAZE 1 (P0 Kriticke)
+   |-- 1A+1B: mp-admin-ui (BuilderTopBar.jsx)     ← PARALELNE
+   |-- 1D: mp-frontend-react (index.jsx)           ← PARALELNE
+   |-- 1C: mp-admin-ui (BuilderPage.jsx)           ← PO 1A+1B a 1D
+
+ FAZE 2 (P1-1, P1-2)
+   |-- 2A: mp-admin-ui (useBuilderState, GlobalTab, BuilderPage)  ← PARALELNE
+   |-- 2B: mp-admin-ui (BuilderColorPicker.jsx)                    ← PARALELNE
+
+ FAZE 3 (P1-3, P1-4)
+   |-- 3A: mp-widget-embed (WidgetPublicPage, index.jsx)  ← PARALELNE
+   |-- 3B: mp-admin-ui (useBuilderState, useUndoRedo)     ← PARALELNE
+
+ FAZE 4 (P2-1, P2-2)
+   |-- 4A+4B: mp-admin-ui (AdminWidget.jsx)  ← SEKVENCNE (stejny soubor)
+
+ FAZE 5 (Stabilizace)
+   |-- 5A: mp-admin-ui (useBuilderState, BuilderPage)   ← SEKVENCNE
+   |-- 5B: mp-admin-ui (useUndoRedo, useBuilderState)   ← PO 5A (prekryv souboru)
+
+ FAZE 6 (Review)
+   |-- 6A: mp-code-reviewer    ← PARALELNE
+   |-- 6B: mp-security-reviewer ← PARALELNE
+   |-- 6C: mp-test-runner       ← PARALELNE
+   |-- 6D: mp-a11y              ← PARALELNE
+
+ FAZE 7 (Testy)
+   |-- 7A: mp-browser-test-planner  ← PARALELNE
+   |-- 7B: mp-e2e-playwright        ← PARALELNE
+
+ ---
+ KOMPLETNI SEZNAM SOUBORU K UPRAVE
+ #: 1
+ Soubor: src/pages/admin/builder/components/BuilderTopBar.jsx
+ Faze: 1
+ Agent: mp-admin-ui
+ ────────────────────────────────────────
+ #: 2
+ Soubor: src/pages/admin/builder/BuilderPage.jsx
+ Faze: 1, 2, 5
+ Agent: mp-admin-ui
+ ────────────────────────────────────────
+ #: 3
+ Soubor: src/pages/widget-kalkulacka/index.jsx
+ Faze: 1, 3
+ Agent: mp-frontend-react, mp-widget-embed
+ ────────────────────────────────────────
+ #: 4
+ Soubor: src/pages/admin/builder/hooks/useBuilderState.js
+ Faze: 2, 3, 5
+ Agent: mp-admin-ui
+ ────────────────────────────────────────
+ #: 5
+ Soubor: src/pages/admin/builder/hooks/useUndoRedo.js
+ Faze: 3, 5
+ Agent: mp-admin-ui
+ ────────────────────────────────────────
+ #: 6
+ Soubor: src/pages/admin/builder/components/tabs/GlobalTab.jsx
+ Faze: 2
+ Agent: mp-admin-ui
+ ────────────────────────────────────────
+ #: 7
+ Soubor: src/pages/admin/builder/components/BuilderColorPicker.jsx
+ Faze: 2
+ Agent: mp-admin-ui
+ ────────────────────────────────────────
+ #: 8
+ Soubor: src/pages/widget-public/WidgetPublicPage.jsx
+ Faze: 3
+ Agent: mp-widget-embed
+ ────────────────────────────────────────
+ #: 9
+ Soubor: src/pages/admin/AdminWidget.jsx
+ Faze: 4
+ Agent: mp-admin-ui
+ ---
+ EXISTUJICI FUNKCE K ZNOVU-POUZITI (ne vytvarej nove!)
+ Funkce: getDefaultWidgetTheme()
+ Soubor: src/utils/widgetThemeStorage.js
+ Ucel: Default 56-property theme
+ ────────────────────────────────────────
+ Funkce: themeToCssVars(theme)
+ Soubor: src/utils/widgetThemeStorage.js
+ Ucel: Theme → CSS variables
+ ────────────────────────────────────────
+ Funkce: getTenantId()
+ Soubor: src/utils/adminTenantStorage.js
+ Ucel: Ziskani tenant ID
+ ────────────────────────────────────────
+ Funkce: getWidgets(tenantId)
+ Soubor: src/utils/adminBrandingWidgetStorage.js
+ Ucel: Seznam widgetu
+ ────────────────────────────────────────
+ Funkce: updateWidget(tenantId, widgetId, patch)
+ Soubor: src/utils/adminBrandingWidgetStorage.js
+ Ucel: Update widgetu
+ ────────────────────────────────────────
+ Funkce: QUICK_THEMES
+ Soubor: src/pages/admin/builder/config/quickThemes.js
+ Ucel: Prednastavena temata
+ ────────────────────────────────────────
+ Funkce: CUSTOM_THEME_ID
+ Soubor: src/pages/admin/builder/config/quickThemes.js
+ Ucel: ID pro vlastni tema
+ ---
+ POZNAMKA: STORAGE INKONZISTENCE (NEOPRAVOVAT V TOMTO PLANU)
+
+ adminBrandingWidgetStorage.js pouziva modelpricer_widgets__${tenantId} (podtrzitka)
+ zatimco ostatni moduly modelpricer:${tenantId}:namespace (dvojtecky).
+ Zmena by rozbila existujici data - planovano pro budouci migraci.
+
+ ---
+ PRVNI KROK IMPLEMENTACE
+
+ 1. Ulozit tento plan take do: docs/claude/V2_Widget_Oprava_Builder.md
+ 2. Zacit Fazi 1

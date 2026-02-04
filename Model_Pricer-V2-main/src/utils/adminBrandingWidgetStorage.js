@@ -4,6 +4,10 @@
 // - Uses localStorage as the source of truth so Admin UI works without backend.
 // - Shapes mirror the spec so later you can swap these helpers for real API calls.
 
+// Single source of truth for widget theme defaults — re-exported for backward compatibility.
+import { getDefaultWidgetTheme } from './widgetThemeStorage';
+export { getDefaultWidgetTheme };
+
 const KEY = {
   branding: (tenantId) => `modelpricer_branding__${tenantId}`,
   widgets: (tenantId) => `modelpricer_widgets__${tenantId}`,
@@ -138,28 +142,7 @@ export function resetBrandingToDefaults(tenantId) {
   return defaults;
 }
 
-/**
- * Default widget theme configuration.
- */
-export function getDefaultWidgetTheme() {
-  return {
-    backgroundColor: '#FFFFFF',
-    cardColor: '#F9FAFB',
-    headerColor: '#1F2937',
-    textColor: '#374151',
-    mutedColor: '#6B7280',
-    buttonPrimaryColor: '#2563EB',
-    buttonTextColor: '#FFFFFF',
-    buttonHoverColor: '#1D4ED8',
-    inputBgColor: '#FFFFFF',
-    inputBorderColor: '#D1D5DB',
-    inputFocusColor: '#2563EB',
-    summaryBgColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
-    fontFamily: 'Inter, system-ui, sans-serif',
-    cornerRadius: 12,
-  };
-}
+// getDefaultWidgetTheme is imported and re-exported from widgetThemeStorage.js (top of file).
 
 export function getWidgets(tenantId) {
   const stored = lsGet(KEY.widgets(tenantId), null);

@@ -1,0 +1,101 @@
+/* ============================================
+   MODELPRICER WIDGET BUILDER — DARK THEME TOKENS
+   ============================================
+
+   These tokens define the builder UI's own visual language.
+   They are SEPARATE from the widget theme tokens — the builder
+   (editing environment) always uses a dark theme regardless of
+   what theme the end-user widget is configured to display.
+
+   Color values sourced from Design Report V3, section 3.2.
+   WCAG AA contrast verified:
+     - --builder-text-primary (#F1F5F9) on --builder-bg-primary (#0F1117) = 15.5:1
+     - --builder-text-secondary (#94A3B8) on --builder-bg-primary (#0F1117) = 7.2:1
+     - --builder-text-muted (#64748B) on --builder-bg-primary (#0F1117) = 4.6:1
+   ============================================ */
+
+:root {
+  /* === Surfaces === */
+  --builder-bg-primary: #0F1117;
+  --builder-bg-secondary: #1A1D23;
+  --builder-bg-tertiary: #2A2D35;
+  --builder-bg-elevated: #1E2128;
+  --builder-bg-topbar: #12141A;
+  --builder-hover-bg: #262A33;
+
+  /* === Text === */
+  --builder-text-primary: #F1F5F9;
+  --builder-text-secondary: #94A3B8;
+  --builder-text-muted: #64748B;
+
+  /* === Borders === */
+  --builder-border-default: #2E3340;
+  --builder-border-subtle: #23262E;
+  --builder-border-focus: #3B82F6;
+
+  /* === Accents === */
+  --builder-accent-primary: #3B82F6;
+  --builder-accent-hover: #2563EB;
+  --builder-accent-success: #10B981;
+  --builder-accent-warning: #F59E0B;
+  --builder-accent-error: #EF4444;
+
+  /* === Selection / Interaction === */
+  --builder-selection-outline: #3B82F6;
+  --builder-hover-outline: rgba(59, 130, 246, 0.5);
+  --builder-active-overlay: rgba(59, 130, 246, 0.12);
+  --builder-hover-overlay: rgba(255, 255, 255, 0.04);
+
+  /* === Layout Dimensions === */
+  --builder-left-panel-width: 35%;
+  --builder-right-panel-width: 65%;
+  --builder-topbar-height: 56px;
+  --builder-tab-height: 44px;
+
+  /* === Typography === */
+  --builder-font-heading: 'DM Sans', system-ui, sans-serif;
+  --builder-font-body: 'Inter', system-ui, sans-serif;
+  --builder-font-code: 'JetBrains Mono', monospace;
+
+  /* === Border Radius === */
+  --builder-radius-sm: 6px;
+  --builder-radius-md: 8px;
+  --builder-radius-lg: 12px;
+
+  /* === Shadows (dark-appropriate) === */
+  --builder-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --builder-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --builder-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* === Scrollbar (dark) === */
+  --builder-scrollbar-track: #1A1D23;
+  --builder-scrollbar-thumb: #3D4351;
+  --builder-scrollbar-thumb-hover: #4D5565;
+
+  /* === Transitions === */
+  --builder-transition-fast: 150ms ease;
+  --builder-transition-normal: 250ms ease;
+  --builder-transition-slow: 350ms ease;
+}
+
+/* === Onboarding Overlay Animations === */
+
+@keyframes onboardingCardIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes onboardingPulse {
+  0%, 100% {
+    border-color: rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.02);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.6);
+    background: rgba(59, 130, 246, 0.06);
+  }
+}

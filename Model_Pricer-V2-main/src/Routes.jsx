@@ -36,6 +36,9 @@ export default function Routes() {
         {/* Public Widget Route - no Header/Footer (embeddable) */}
         <Route path="/w/:publicWidgetId" element={<WidgetPublicPage />} />
 
+        {/* Widget Builder - fullscreen, no admin sidebar / Header / Footer */}
+        <Route path="/admin/widget/builder/:id" element={<AdminWidgetBuilder />} />
+
         {/* Main app with Header/Footer */}
         <Route
           path="*"
@@ -75,7 +78,7 @@ export default function Routes() {
             <Route path="presets/*" element={<AdminPresets />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="widget" element={<AdminWidget />} />
-            <Route path="widget/builder/:id" element={<AdminWidgetBuilder />} />
+            {/* widget/builder/:id moved to top-level for fullscreen builder */}
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="team" element={<AdminTeamAccess />} />
           </Route>

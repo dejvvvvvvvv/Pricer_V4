@@ -34,9 +34,12 @@ function lsSet(key, value) {
 /**
  * Default theme configuration for widget.
  * These values are used when no custom theme is set.
+ * Total: 56 properties (15 original + 41 new for Widget Builder V3).
  */
 export function getDefaultWidgetTheme() {
   return {
+    // === ORIGINAL 15 PROPERTIES ===
+
     // Background colors
     backgroundColor: '#FFFFFF',
     cardColor: '#F9FAFB',
@@ -67,6 +70,73 @@ export function getDefaultWidgetTheme() {
 
     // Dimensions
     cornerRadius: 12,
+
+    // === NEW PROPERTIES (Widget Builder V3) ===
+
+    // Header
+    headerBgColor: '#FFFFFF',
+    headerLogoSize: 48,
+    headerPadding: 16,
+    headerAlignment: 'left',
+    headerTaglineVisible: true,
+
+    // Upload zone
+    uploadBgColor: '#FAFBFC',
+    uploadBorderColor: '#E2E8F0',
+    uploadBorderHoverColor: '#3B82F6',
+    uploadIconColor: '#94A3B8',
+    uploadBorderStyle: 'dashed',
+
+    // Stepper
+    stepperActiveColor: '#3B82F6',
+    stepperCompletedColor: '#10B981',
+    stepperInactiveColor: '#E5E7EB',
+    stepperProgressVisible: true,
+
+    // Config panel
+    configBgColor: '#FFFFFF',
+    configLabelColor: '#374151',
+
+    // Fees section
+    feesBgColor: '#F9FAFB',
+    feesCheckboxColor: '#3B82F6',
+
+    // Price summary
+    summaryHeaderColor: '#1F2937',
+    summaryDividerColor: '#E5E7EB',
+    summaryTotalBgColor: '#EFF6FF',
+    summaryTotalFontSize: 20,
+
+    // CTA button
+    buttonBorderRadius: 8,
+    buttonPaddingY: 12,
+    buttonFontSize: 16,
+    buttonShadow: 'none',
+
+    // Footer
+    footerBgColor: 'transparent',
+    footerTextColor: '#94A3B8',
+    footerLinkColor: '#3B82F6',
+
+    // Typography (extended)
+    headingFontFamily: '"DM Sans", system-ui, sans-serif',
+    codeFontFamily: '"JetBrains Mono", monospace',
+
+    // Effects
+    cardShadow: 'subtle',
+    globalPadding: 24,
+
+    // Loading skeleton
+    skeletonBaseColor: '#E5E7EB',
+    skeletonShineColor: '#F3F4F6',
+
+    // Editable texts
+    textHeaderTitle: '3D Tisk Kalkulacka',
+    textHeaderTagline: 'Nahrajte 3D model a zjistete cenu tisku.',
+    textUploadTitle: 'Nahrajte 3D model',
+    textUploadDescription: 'Pretahnete STL nebo OBJ soubory',
+    textUploadButton: 'Vybrat soubor',
+    textCtaButton: 'Spocitat cenu',
 
     // Metadata
     updatedAt: new Date().toISOString(),
@@ -125,6 +195,7 @@ export function themeToCssVars(theme) {
   const t = theme || getDefaultWidgetTheme();
 
   return {
+    // === Original 15 CSS vars ===
     '--widget-bg': t.backgroundColor,
     '--widget-card': t.cardColor,
     '--widget-header': t.headerColor,
@@ -140,6 +211,61 @@ export function themeToCssVars(theme) {
     '--widget-border': t.borderColor,
     '--widget-font': t.fontFamily,
     '--widget-radius': `${t.cornerRadius}px`,
+
+    // === New CSS vars (Widget Builder V3) ===
+
+    // Header
+    '--widget-header-bg': t.headerBgColor,
+    '--widget-header-logo-size': `${t.headerLogoSize}px`,
+    '--widget-header-padding': `${t.headerPadding}px`,
+    '--widget-header-align': t.headerAlignment,
+
+    // Upload zone
+    '--widget-upload-bg': t.uploadBgColor,
+    '--widget-upload-border': t.uploadBorderColor,
+    '--widget-upload-border-hover': t.uploadBorderHoverColor,
+    '--widget-upload-icon': t.uploadIconColor,
+    '--widget-upload-border-style': t.uploadBorderStyle,
+
+    // Stepper
+    '--widget-stepper-active': t.stepperActiveColor,
+    '--widget-stepper-completed': t.stepperCompletedColor,
+    '--widget-stepper-inactive': t.stepperInactiveColor,
+
+    // Config panel
+    '--widget-config-bg': t.configBgColor,
+    '--widget-config-label': t.configLabelColor,
+
+    // Fees section
+    '--widget-fees-bg': t.feesBgColor,
+    '--widget-fees-checkbox': t.feesCheckboxColor,
+
+    // Price summary
+    '--widget-summary-header': t.summaryHeaderColor,
+    '--widget-summary-divider': t.summaryDividerColor,
+    '--widget-summary-total-bg': t.summaryTotalBgColor,
+    '--widget-summary-total-size': `${t.summaryTotalFontSize}px`,
+
+    // CTA button
+    '--widget-btn-radius': `${t.buttonBorderRadius}px`,
+    '--widget-btn-padding-y': `${t.buttonPaddingY}px`,
+    '--widget-btn-font-size': `${t.buttonFontSize}px`,
+
+    // Footer
+    '--widget-footer-bg': t.footerBgColor,
+    '--widget-footer-text': t.footerTextColor,
+    '--widget-footer-link': t.footerLinkColor,
+
+    // Typography (extended)
+    '--widget-heading-font': t.headingFontFamily,
+    '--widget-code-font': t.codeFontFamily,
+
+    // Effects
+    '--widget-global-padding': `${t.globalPadding}px`,
+
+    // Loading skeleton
+    '--widget-skeleton-base': t.skeletonBaseColor,
+    '--widget-skeleton-shine': t.skeletonShineColor,
   };
 }
 
@@ -178,6 +304,7 @@ export function isValidHex(color) {
  * Defines which properties are editable and their types.
  */
 export const THEME_PROPERTIES = [
+  // === Original 15 properties ===
   { key: 'backgroundColor', label: 'Pozadi', type: 'color', category: 'background' },
   { key: 'cardColor', label: 'Karta (pozadi)', type: 'color', category: 'background' },
   { key: 'headerColor', label: 'Nadpis', type: 'color', category: 'text' },
@@ -193,6 +320,73 @@ export const THEME_PROPERTIES = [
   { key: 'borderColor', label: 'Ramecky', type: 'color', category: 'border' },
   { key: 'fontFamily', label: 'Pismo', type: 'font', category: 'typography' },
   { key: 'cornerRadius', label: 'Zaobleni rohu', type: 'number', min: 0, max: 24, unit: 'px', category: 'dimensions' },
+
+  // === New properties (Widget Builder V3) ===
+
+  // Header
+  { key: 'headerBgColor', label: 'Pozadi hlavicky', type: 'color', category: 'header' },
+  { key: 'headerLogoSize', label: 'Velikost loga', type: 'number', min: 24, max: 80, unit: 'px', category: 'header' },
+  { key: 'headerPadding', label: 'Padding hlavicky', type: 'number', min: 0, max: 48, unit: 'px', category: 'header' },
+  { key: 'headerAlignment', label: 'Zarovnani', type: 'select', options: ['left', 'center'], category: 'header' },
+  { key: 'headerTaglineVisible', label: 'Zobrazit tagline', type: 'boolean', category: 'header' },
+
+  // Upload zone
+  { key: 'uploadBgColor', label: 'Pozadi', type: 'color', category: 'upload' },
+  { key: 'uploadBorderColor', label: 'Ramecek', type: 'color', category: 'upload' },
+  { key: 'uploadBorderHoverColor', label: 'Ramecek (hover)', type: 'color', category: 'upload' },
+  { key: 'uploadIconColor', label: 'Barva ikony', type: 'color', category: 'upload' },
+  { key: 'uploadBorderStyle', label: 'Styl ramecku', type: 'select', options: ['solid', 'dashed', 'dotted'], category: 'upload' },
+
+  // Stepper
+  { key: 'stepperActiveColor', label: 'Aktivni krok', type: 'color', category: 'stepper' },
+  { key: 'stepperCompletedColor', label: 'Dokonceny krok', type: 'color', category: 'stepper' },
+  { key: 'stepperInactiveColor', label: 'Neaktivni krok', type: 'color', category: 'stepper' },
+  { key: 'stepperProgressVisible', label: 'Progress bar', type: 'boolean', category: 'stepper' },
+
+  // Config panel
+  { key: 'configBgColor', label: 'Pozadi', type: 'color', category: 'config' },
+  { key: 'configLabelColor', label: 'Barva labelu', type: 'color', category: 'config' },
+
+  // Fees section
+  { key: 'feesBgColor', label: 'Pozadi', type: 'color', category: 'fees' },
+  { key: 'feesCheckboxColor', label: 'Barva checkboxu', type: 'color', category: 'fees' },
+
+  // Price summary
+  { key: 'summaryHeaderColor', label: 'Nadpis souhrnu', type: 'color', category: 'summary' },
+  { key: 'summaryDividerColor', label: 'Oddelovaci cara', type: 'color', category: 'summary' },
+  { key: 'summaryTotalBgColor', label: 'Zvyrazneni celkem', type: 'color', category: 'summary' },
+  { key: 'summaryTotalFontSize', label: 'Velikost celkem', type: 'number', min: 14, max: 32, unit: 'px', category: 'summary' },
+
+  // CTA button
+  { key: 'buttonBorderRadius', label: 'Zaobleni', type: 'number', min: 0, max: 24, unit: 'px', category: 'cta' },
+  { key: 'buttonPaddingY', label: 'Vertikalni padding', type: 'number', min: 4, max: 24, unit: 'px', category: 'cta' },
+  { key: 'buttonFontSize', label: 'Velikost textu', type: 'number', min: 12, max: 24, unit: 'px', category: 'cta' },
+  { key: 'buttonShadow', label: 'Stin', type: 'select', options: ['none', 'subtle', 'medium', 'strong'], category: 'cta' },
+
+  // Footer
+  { key: 'footerBgColor', label: 'Pozadi', type: 'color', category: 'footer' },
+  { key: 'footerTextColor', label: 'Barva textu', type: 'color', category: 'footer' },
+  { key: 'footerLinkColor', label: 'Barva odkazu', type: 'color', category: 'footer' },
+
+  // Typography (extended)
+  { key: 'headingFontFamily', label: 'Font nadpisu', type: 'font', category: 'typography' },
+  { key: 'codeFontFamily', label: 'Font kodu', type: 'font', category: 'typography' },
+
+  // Effects
+  { key: 'cardShadow', label: 'Stin karet', type: 'select', options: ['none', 'subtle', 'medium', 'strong'], category: 'shadow' },
+  { key: 'globalPadding', label: 'Globalni padding', type: 'number', min: 8, max: 48, unit: 'px', category: 'dimensions' },
+
+  // Loading skeleton
+  { key: 'skeletonBaseColor', label: 'Zaklad', type: 'color', category: 'skeleton' },
+  { key: 'skeletonShineColor', label: 'Shimmer', type: 'color', category: 'skeleton' },
+
+  // Editable text content
+  { key: 'textHeaderTitle', label: 'Nadpis hlavicky', type: 'text', category: 'text-content' },
+  { key: 'textHeaderTagline', label: 'Tagline', type: 'text', category: 'text-content' },
+  { key: 'textUploadTitle', label: 'Nadpis uploadu', type: 'text', category: 'text-content' },
+  { key: 'textUploadDescription', label: 'Popis uploadu', type: 'text', category: 'text-content' },
+  { key: 'textUploadButton', label: 'Tlacitko upload', type: 'text', category: 'text-content' },
+  { key: 'textCtaButton', label: 'CTA tlacitko', type: 'text', category: 'text-content' },
 ];
 
 /**
@@ -209,4 +403,5 @@ export const FONT_OPTIONS = [
   { value: 'Nunito, sans-serif', label: 'Nunito' },
   { value: 'Poppins, sans-serif', label: 'Poppins' },
   { value: '"DM Sans", sans-serif', label: 'DM Sans' },
+  { value: '"JetBrains Mono", monospace', label: 'JetBrains Mono' },
 ];
