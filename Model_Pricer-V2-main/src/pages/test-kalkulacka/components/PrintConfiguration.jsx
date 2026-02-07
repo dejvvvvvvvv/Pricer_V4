@@ -24,6 +24,7 @@ const PrintConfiguration = ({
   onPresetChange,
   presetsLoading = false,
   presetsError = null,
+  onPresetsRetry,
 }) => {
   const { language } = useLanguage();
 
@@ -317,10 +318,18 @@ const PrintConfiguration = ({
           {presetUi.label}
         </h3>
 
-        {/* Error / no presets banners */}
+        {/* Error / no presets banners — Bug 3 fix: retry button */}
         {presetsError && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {presetUi.failed}
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center justify-between">
+            <span>{presetUi.failed}</span>
+            {onPresetsRetry && (
+              <button
+                onClick={onPresetsRetry}
+                className="ml-3 text-xs font-medium px-3 py-1 rounded bg-red-100 hover:bg-red-200 text-red-800 transition-colors"
+              >
+                {language === 'en' ? 'Retry' : 'Zkusit znovu'}
+              </button>
+            )}
           </div>
         )}
 
@@ -659,7 +668,16 @@ const PrintConfiguration = ({
           </div>
         )}
 
-        {selectedFile?.status === 'completed' && selectedFile?.result && (
+        {selectedFile?.status === 'completed' && selectedFile?.result && (() => {
+          // Bug 4 fix: safe number helper
+          const safeN = (v, fallback = 0) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+          const res = selectedFile.result;
+          const timeSeconds = safeN(res.time, 0);
+          const materialG = safeN(res.material, 0);
+          const layers = safeN(res.layers, 0);
+          const price = safeN(res.price, 0);
+
+          return (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center">
@@ -667,7 +685,7 @@ const PrintConfiguration = ({
                   <Icon name="Clock" size={20} className="text-primary" />
                 </div>
                 <p className="text-sm font-medium text-foreground">
-                  {Math.round(selectedFile.result.time / 3600)}h {Math.round((selectedFile.result.time % 3600) / 60)}min
+                  {timeSeconds > 0 ? `${Math.round(timeSeconds / 3600)}h ${Math.round((timeSeconds % 3600) / 60)}min` : '—'}
                 </p>
                 <p className="text-xs text-muted-foreground">Doba tisku</p>
               </div>
@@ -676,7 +694,7 @@ const PrintConfiguration = ({
                 <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Icon name="Weight" size={20} className="text-success" />
                 </div>
-                <p className="text-sm font-medium text-foreground">{Math.round(selectedFile.result.material)}g</p>
+                <p className="text-sm font-medium text-foreground">{materialG > 0 ? `${Math.round(materialG)}g` : '—'}</p>
                 <p className="text-xs text-muted-foreground">Hmotnost</p>
               </div>
 
@@ -684,7 +702,7 @@ const PrintConfiguration = ({
                 <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Icon name="Layers" size={20} className="text-warning" />
                 </div>
-                <p className="text-sm font-medium text-foreground">{selectedFile.result.layers}</p>
+                <p className="text-sm font-medium text-foreground">{layers > 0 ? layers : '—'}</p>
                 <p className="text-xs text-muted-foreground">Vrstvy</p>
               </div>
 
@@ -702,24 +720,25 @@ const PrintConfiguration = ({
               </div>
             </div>
 
-            {selectedFile.result.pricing && (
+            {res.pricing && Array.isArray(res.pricing?.breakdown) && (
               <div className="mt-4 pt-4 border-t border-border">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-foreground">Cena za tisk:</span>
-                  <span className="text-lg font-bold text-primary">{Math.round(selectedFile.result.price)} Kč</span>
+                  <span className="text-lg font-bold text-primary">{price > 0 ? `${Math.round(price)} Kč` : '—'}</span>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  {selectedFile.result.pricing.breakdown.map((item, idx) => (
+                  {res.pricing.breakdown.map((item, idx) => (
                     <div key={idx} className="flex justify-between">
-                      <span>{item.label}:</span>
-                      <span>{Math.round(item.amount)} Kč</span>
+                      <span>{item?.label ?? ''}:</span>
+                      <span>{Number.isFinite(Number(item?.amount)) ? `${Math.round(Number(item.amount))} Kč` : '—'}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
           </>
-        )}
+          );
+        })()}
 
         {(!selectedFile?.result && selectedFile?.status !== 'processing' && selectedFile?.status !== 'failed') && (
           <div className="text-center py-4 text-muted-foreground text-sm">

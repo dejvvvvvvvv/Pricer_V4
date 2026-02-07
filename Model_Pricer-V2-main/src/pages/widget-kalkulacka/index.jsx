@@ -99,7 +99,7 @@ const WidgetKalkulacka = ({
   // Widget presets
   const [availablePresets, setAvailablePresets] = useState([]);
   const [defaultPresetId, setDefaultPresetId] = useState(null);
-  const [selectedPresetId, setSelectedPresetId] = useState(null);
+  const [selectedPresetIds, setSelectedPresetIds] = useState({});
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetsError, setPresetsError] = useState(null);
 
@@ -107,8 +107,8 @@ const WidgetKalkulacka = ({
   const effectiveTheme = theme || getDefaultWidgetTheme();
   const cssVars = useMemo(() => themeToCssVars(effectiveTheme), [effectiveTheme]);
 
-  // Builder mode: mock data for step preview
-  const BUILDER_MOCK = useMemo(() => builderMode ? {
+  // Builder mode: mock data for step preview — stable ref to avoid remounts
+  const builderMockRef = useRef({
     file: {
       id: 'mock-1',
       name: 'ukazka.stl',
@@ -116,15 +116,16 @@ const WidgetKalkulacka = ({
       status: 'completed',
       result: { totalPrice: 245, currency: 'CZK' },
     },
-  } : null, [builderMode]);
+  });
+  const BUILDER_MOCK = builderMode ? builderMockRef.current : null;
 
   // Apply CSS variables to container
   useEffect(() => {
-    if (containerRef.current) {
-      Object.entries(cssVars).forEach(([key, value]) => {
-        containerRef.current.style.setProperty(key, value);
-      });
-    }
+    const container = containerRef.current;
+    if (!container) return;
+    Object.entries(cssVars).forEach(([key, value]) => {
+      container.style.setProperty(key, value);
+    });
   }, [cssVars]);
 
   // PostMessage resize notification
@@ -277,46 +278,57 @@ const WidgetKalkulacka = ({
     if (!exists) setSelectedFileId(uploadedFiles[0].id);
   }, [uploadedFiles, selectedFileId]);
 
-  // Load presets
-  useEffect(() => {
-    let cancelled = false;
+  // Load presets — callable for retry
+  const cancelledRef = useRef(false);
 
-    const loadPresets = async () => {
-      setPresetsLoading(true);
-      setPresetsError(null);
-      try {
-        const res = await fetchWidgetPresets();
-        if (cancelled) return;
+  const loadPresets = useCallback(async () => {
+    setPresetsLoading(true);
+    setPresetsError(null);
+    cancelledRef.current = false;
+    try {
+      const res = await fetchWidgetPresets();
+      if (cancelledRef.current) return;
 
-        if (!res?.ok) {
-          throw new Error(res?.message || 'Failed to load presets');
-        }
-
-        const payload = res.data || {};
-        const presets = Array.isArray(payload?.presets) ? payload.presets : [];
-        const defId = typeof payload?.defaultPresetId === 'string' && payload.defaultPresetId ? payload.defaultPresetId : null;
-
-        setAvailablePresets(presets);
-        setDefaultPresetId(defId);
-
-        const preselected = (defId && presets.some(p => p?.id === defId))
-          ? defId
-          : (presets?.[0]?.id || null);
-
-        setSelectedPresetId(preselected);
-      } catch (e) {
-        if (cancelled) return;
-        setAvailablePresets([]);
-        setDefaultPresetId(null);
-        setSelectedPresetId(null);
-        setPresetsError(e || new Error('Failed to load presets'));
-      } finally {
-        if (!cancelled) setPresetsLoading(false);
+      if (!res?.ok) {
+        throw new Error(res?.message || 'Failed to load presets');
       }
-    };
 
+      const payload = res.data || {};
+      const presets = Array.isArray(payload?.presets) ? payload.presets : [];
+      const defId = typeof payload?.defaultPresetId === 'string' && payload.defaultPresetId ? payload.defaultPresetId : null;
+
+      setAvailablePresets(presets);
+      setDefaultPresetId(defId);
+
+      const preselected = (defId && presets.some(p => p?.id === defId))
+        ? defId
+        : (presets?.[0]?.id || null);
+
+      // Assign default preset to all existing models that don't have one
+      if (preselected) {
+        setSelectedPresetIds(prev => {
+          const next = { ...prev };
+          for (const f of uploadedFiles) {
+            if (!next[f.id]) next[f.id] = preselected;
+          }
+          if (!next.__default) next.__default = preselected;
+          return next;
+        });
+      }
+    } catch (e) {
+      if (cancelledRef.current) return;
+      setAvailablePresets([]);
+      setDefaultPresetId(null);
+      setPresetsError(e || new Error('Failed to load presets'));
+    } finally {
+      if (!cancelledRef.current) setPresetsLoading(false);
+    }
+  }, [uploadedFiles]);
+
+  useEffect(() => {
+    cancelledRef.current = false;
     loadPresets();
-    return () => { cancelled = true; };
+    return () => { cancelledRef.current = true; };
   }, []);
 
   // Ensure config exists for selected file
@@ -347,19 +359,20 @@ const WidgetKalkulacka = ({
     try {
       updateModelStatus(selectedFile.id, { status: 'processing', error: null });
 
+      const filePresetId = selectedPresetIds[selectedFile.id] || selectedPresetIds.__default || null;
       const trySliceWithFallback = async (presetId) => {
         try {
           return await sliceModelLocal(selectedFile.file, { presetId });
         } catch (e) {
           if (presetId) {
-            setSelectedPresetId(null);
+            setSelectedPresetIds(prev => ({ ...prev, [selectedFile.id]: null }));
             return await sliceModelLocal(selectedFile.file, { presetId: null });
           }
           throw e;
         }
       };
 
-      const res = await trySliceWithFallback(selectedPresetId);
+      const res = await trySliceWithFallback(filePresetId);
       const ok = (res?.ok ?? res?.success ?? true);
       if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
 
@@ -405,12 +418,10 @@ const WidgetKalkulacka = ({
         }, getTargetOrigin());
       }
     }
-  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetId, embedded, onQuoteCalculated]);
+  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, embedded, onQuoteCalculated]);
 
   const runBatchSlice = useCallback(async (targets, mode) => {
     if (!Array.isArray(targets) || targets.length === 0) return;
-
-    let effectivePresetId = selectedPresetId;
 
     setSliceAllProcessing(true);
     setBatchProgress({ mode, done: 0, total: targets.length });
@@ -429,20 +440,20 @@ const WidgetKalkulacka = ({
         try {
           updateModelStatus(fileItem.id, { status: 'processing', error: null });
 
+          const filePresetId = selectedPresetIds[fileItem.id] || selectedPresetIds.__default || null;
           const trySliceWithFallback = async (presetId) => {
             try {
               return await sliceModelLocal(fileItem.file, { presetId });
             } catch (e) {
               if (presetId) {
-                effectivePresetId = null;
-                setSelectedPresetId(null);
+                setSelectedPresetIds(prev => ({ ...prev, [fileItem.id]: null }));
                 return await sliceModelLocal(fileItem.file, { presetId: null });
               }
               throw e;
             }
           };
 
-          const res = await trySliceWithFallback(effectivePresetId);
+          const res = await trySliceWithFallback(filePresetId);
           const ok = (res?.ok ?? res?.success ?? true);
           if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
 
@@ -488,7 +499,7 @@ const WidgetKalkulacka = ({
     } finally {
       setSliceAllProcessing(false);
     }
-  }, [currentStep, selectedPresetId, updateModelStatus, embedded, publicWidgetId]);
+  }, [currentStep, selectedPresetIds, updateModelStatus, embedded, publicWidgetId]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0) return;
@@ -723,20 +734,21 @@ const WidgetKalkulacka = ({
               </StyleableWrapper>
             )}
 
-            {displayFiles.length > 0 && (
+            {displayFiles.length > 0 && displaySelected && (
               <StyleableWrapper elementId="config">
-                <div className={displaySelected ? 'block' : 'hidden'}>
+                <div>
                   <PrintConfiguration
-                    key={displaySelected ? displaySelected.id : 'empty'}
+                    key={displaySelected.id}
                     selectedFile={displaySelected}
                     onConfigChange={handleConfigChange}
                     initialConfig={currentConfig}
                     availablePresets={availablePresets}
                     defaultPresetId={defaultPresetId}
-                    selectedPresetId={selectedPresetId}
-                    onPresetChange={setSelectedPresetId}
+                    selectedPresetId={selectedPresetIds[selectedFileId] || selectedPresetIds.__default || null}
+                    onPresetChange={(presetId) => setSelectedPresetIds(prev => ({ ...prev, [selectedFileId]: presetId }))}
                     presetsLoading={presetsLoading}
                     presetsError={presetsError}
+                    onPresetsRetry={loadPresets}
                     pricingConfig={pricingConfig}
                     feesConfig={feesConfig}
                     feeSelections={feeSelections}

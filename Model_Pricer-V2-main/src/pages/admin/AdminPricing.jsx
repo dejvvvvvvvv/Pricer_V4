@@ -280,6 +280,10 @@ const AdminPricing = () => {
   const [defaultMaterialKey, setDefaultMaterialKey] = useState('pla');
   // Advanced rules + time rate
   const [rules, setRules] = useState(deepClone(DEFAULT_RULES));
+  // S05: Volume discounts
+  const [volumeDiscounts, setVolumeDiscounts] = useState({
+    enabled: false, mode: 'percent', scope: 'per_model', tiers: [],
+  });
   // Preview panel state
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [preview, setPreview] = useState(deepClone(DEFAULT_PREVIEW));
@@ -604,9 +608,12 @@ const AdminPricing = () => {
       timeRate: clampMin0(rules.rate_per_hour),
       tenant_pricing: { ...rules },
 
+      // S05: Volume discounts
+      volume_discounts: volumeDiscounts,
+
       updated_at: new Date().toISOString(),
     };
-  }, [materials, rules, defaultMaterialKey]);
+  }, [materials, rules, defaultMaterialKey, volumeDiscounts]);
 
   const dirty = useMemo(() => {
     if (!savedSnapshot) return touched;
@@ -943,6 +950,15 @@ const AdminPricing = () => {
       setMaterials(mats);
       setRules(nextRules);
       setDefaultMaterialKey(String(defKey || 'pla').toLowerCase());
+      // S05: load volume discounts
+      if (loaded?.volume_discounts && typeof loaded.volume_discounts === 'object') {
+        setVolumeDiscounts({
+          enabled: !!loaded.volume_discounts.enabled,
+          mode: loaded.volume_discounts.mode || 'percent',
+          scope: loaded.volume_discounts.scope || 'per_model',
+          tiers: Array.isArray(loaded.volume_discounts.tiers) ? loaded.volume_discounts.tiers : [],
+        });
+      }
       setPreview(deepClone(DEFAULT_PREVIEW));
       setSavedSnapshot(JSON.stringify({ ...normalized, updated_at: undefined }));
       setTouched(false);
@@ -1638,6 +1654,184 @@ const AdminPricing = () => {
             </p>
           </div>
         </div>
+
+          {/* S05: Volume Discounts */}
+          <div className="admin-card">
+            <div className="card-header">
+              <div>
+                <h2>{language === 'cs' ? 'Množstevní slevy' : 'Volume Discounts'}</h2>
+                <p className="card-description">
+                  {language === 'cs'
+                    ? 'Nastavte slevy na základě objednaného množství.'
+                    : 'Configure discounts based on ordered quantity.'}
+                </p>
+              </div>
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={volumeDiscounts.enabled}
+                  onChange={(e) => {
+                    setVolumeDiscounts(prev => ({ ...prev, enabled: e.target.checked }));
+                    setTouched(true);
+                  }}
+                />
+                <span>{volumeDiscounts.enabled
+                  ? (language === 'cs' ? 'Zapnuto' : 'Enabled')
+                  : (language === 'cs' ? 'Vypnuto' : 'Disabled')}</span>
+              </label>
+            </div>
+
+            {volumeDiscounts.enabled && (
+              <div style={{ padding: '16px 0' }}>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="field-label" style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+                      {language === 'cs' ? 'Typ slevy' : 'Discount mode'}
+                    </label>
+                    <select
+                      value={volumeDiscounts.mode}
+                      onChange={(e) => {
+                        setVolumeDiscounts(prev => ({ ...prev, mode: e.target.value }));
+                        setTouched(true);
+                      }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px' }}
+                    >
+                      <option value="percent">{language === 'cs' ? 'Procentní sleva' : 'Percentage discount'}</option>
+                      <option value="fixed_price">{language === 'cs' ? 'Fixní cena za kus' : 'Fixed price per piece'}</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="field-label" style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+                      {language === 'cs' ? 'Rozsah' : 'Scope'}
+                    </label>
+                    <select
+                      value={volumeDiscounts.scope}
+                      onChange={(e) => {
+                        setVolumeDiscounts(prev => ({ ...prev, scope: e.target.value }));
+                        setTouched(true);
+                      }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px' }}
+                    >
+                      <option value="per_model">{language === 'cs' ? 'Za model (ks jednoho modelu)' : 'Per model (qty of single model)'}</option>
+                      <option value="per_order">{language === 'cs' ? 'Za objednávku (celkový ks)' : 'Per order (total qty)'}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Tiers table */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #eee' }}>
+                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600 }}>
+                        {language === 'cs' ? 'Od (ks)' : 'Min qty'}
+                      </th>
+                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600 }}>
+                        {volumeDiscounts.mode === 'percent'
+                          ? (language === 'cs' ? 'Sleva (%)' : 'Discount (%)')
+                          : (language === 'cs' ? 'Cena/ks (Kč)' : 'Price/pc (CZK)')}
+                      </th>
+                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600 }}>
+                        {language === 'cs' ? 'Popis' : 'Label'}
+                      </th>
+                      <th style={{ width: '60px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {volumeDiscounts.tiers.map((tier, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <td style={{ padding: '6px 8px' }}>
+                          <input
+                            type="number"
+                            min="1"
+                            value={tier.min_qty}
+                            onChange={(e) => {
+                              const newTiers = [...volumeDiscounts.tiers];
+                              newTiers[idx] = { ...newTiers[idx], min_qty: Math.max(1, parseInt(e.target.value) || 1) };
+                              newTiers.sort((a, b) => a.min_qty - b.min_qty);
+                              setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
+                              setTouched(true);
+                            }}
+                            style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ddd' }}
+                          />
+                        </td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step={volumeDiscounts.mode === 'percent' ? '1' : '0.01'}
+                            value={tier.value}
+                            onChange={(e) => {
+                              const newTiers = [...volumeDiscounts.tiers];
+                              newTiers[idx] = { ...newTiers[idx], value: parseFloat(e.target.value) || 0 };
+                              setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
+                              setTouched(true);
+                            }}
+                            style={{ width: '100px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ddd' }}
+                          />
+                        </td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <input
+                            type="text"
+                            value={tier.label || ''}
+                            placeholder={language === 'cs' ? 'Nepovinný popis' : 'Optional label'}
+                            onChange={(e) => {
+                              const newTiers = [...volumeDiscounts.tiers];
+                              newTiers[idx] = { ...newTiers[idx], label: e.target.value };
+                              setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
+                              setTouched(true);
+                            }}
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ddd' }}
+                          />
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <button
+                            className="btn-secondary"
+                            onClick={() => {
+                              const newTiers = volumeDiscounts.tiers.filter((_, i) => i !== idx);
+                              setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
+                              setTouched(true);
+                            }}
+                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                          >
+                            <Icon name="Trash2" size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    const lastQty = volumeDiscounts.tiers.length > 0
+                      ? volumeDiscounts.tiers[volumeDiscounts.tiers.length - 1].min_qty + 5
+                      : 5;
+                    const newTier = { min_qty: lastQty, value: volumeDiscounts.mode === 'percent' ? 5 : 0, label: '' };
+                    const newTiers = [...volumeDiscounts.tiers, newTier].sort((a, b) => a.min_qty - b.min_qty);
+                    setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
+                    setTouched(true);
+                  }}
+                  style={{ marginTop: '12px' }}
+                >
+                  <Icon name="Plus" size={16} />
+                  {language === 'cs' ? 'Přidat tier' : 'Add tier'}
+                </button>
+
+                {volumeDiscounts.tiers.length > 0 && (
+                  <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', fontSize: '13px', color: '#6b7280' }}>
+                    <strong>{language === 'cs' ? 'Příklad:' : 'Example:'}</strong>{' '}
+                    {volumeDiscounts.tiers.map((t, i) => (
+                      <span key={i}>
+                        {t.min_qty}+ ks = {volumeDiscounts.mode === 'percent' ? `-${t.value}%` : `${t.value} Kč/ks`}
+                        {i < volumeDiscounts.tiers.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
         {/* RIGHT: Preview panel */}
         <div className="preview">

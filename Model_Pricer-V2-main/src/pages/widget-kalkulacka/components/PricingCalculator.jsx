@@ -177,6 +177,26 @@ export default function PricingCalculator({
                 <MiniRow label="Cas tisku" value={formatCzk(quote.simple.time)} theme={theme} />
                 <MiniRow label="Sluzby" value={formatSignedCzk(quote.simple.services)} theme={theme} />
                 <MiniRow label="Sleva" value={formatSignedCzk(quote.simple.discount)} theme={theme} />
+                {quote.flags?.volume_discount_applied && quote.volumeDiscount && (
+                  <div className="px-2 py-1.5 rounded-md" style={{ backgroundColor: '#10B98110', border: '1px solid #10B98130' }}>
+                    <MiniRow
+                      label={`Mnozstevni sleva (${quote.volumeDiscount.mode === 'percent' ? '%' : 'fixni'})`}
+                      value={`- ${formatCzk(quote.volumeDiscount.totalSavings)}`}
+                      theme={theme}
+                    />
+                    {quote.volumeDiscount.details
+                      .filter((d) => d.applied && d.tier)
+                      .slice(0, 3)
+                      .map((d) => (
+                        <p key={d.modelId} className="text-[11px] mt-0.5" style={{ color: '#10B981' }}>
+                          {d.tier.min_qty}+ ks: {quote.volumeDiscount.mode === 'percent'
+                            ? `−${d.tier.value}%`
+                            : `${formatCzk(d.tier.value)}/ks`}
+                          {d.tier.label ? ` (${d.tier.label})` : ''}
+                        </p>
+                      ))}
+                  </div>
+                )}
                 <div className="pt-2 border-t" style={{ borderColor: 'var(--widget-border, #E5E7EB)' }} />
                 <MiniRow label="Celkem" value={formatCzk(quote.total)} emphasize theme={theme} />
               </div>

@@ -9,11 +9,14 @@ import PrintConfiguration from './components/PrintConfiguration';
 import PricingCalculator from './components/PricingCalculator';
 import GenerateButton from './components/GenerateButton';
 import ErrorBoundary from './components/ErrorBoundary';
+import CheckoutForm from './components/CheckoutForm';
+import OrderConfirmation from './components/OrderConfirmation';
 import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
+import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
 
 // Default config is used for newly uploaded models (so switching between models does not
 // accidentally reset already-sliced results when a config entry is missing).
@@ -84,9 +87,13 @@ const TestKalkulacka = () => {
   // Widget slicing presets (loaded from backend)
   const [availablePresets, setAvailablePresets] = useState([]);
   const [defaultPresetId, setDefaultPresetId] = useState(null);
-  const [selectedPresetId, setSelectedPresetId] = useState(null);
+  // Bug 2 fix: per-model preset selection (keyed by fileId)
+  const [selectedPresetIds, setSelectedPresetIds] = useState({});
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetsError, setPresetsError] = useState(null);
+
+  // S02: Checkout state
+  const [lastOrderResult, setLastOrderResult] = useState(null);
 
   const selectedFile = selectedFileId
     ? (uploadedFiles.find(f => f.id === selectedFileId) || null)
@@ -161,7 +168,54 @@ const TestKalkulacka = () => {
     [updateModelStatus]
   );
 
-  const handleConfigChange = useCallback((newConfig) => {
+  // Bug 1 fix: auto-recalculation when config changes
+  const doRecalc = useCallback((fileId) => {
+    const file = uploadedFiles.find(f => f.id === fileId);
+    if (!file?.file) return;
+    if (file.status === 'processing') return;
+
+    const presetId = selectedPresetIds[fileId] ?? null;
+
+    updateModelStatus(fileId, { status: 'processing', error: null });
+
+    const trySliceWithFallback = async (pid) => {
+      try {
+        return await sliceModelLocal(file.file, { presetId: pid });
+      } catch (e) {
+        if (pid) {
+          console.warn('[test-kalkulacka] Auto-recalc failed with presetId, retrying without:', pid, e);
+          setSelectedPresetIds(prev => ({ ...prev, [fileId]: null }));
+          return await sliceModelLocal(file.file, { presetId: null });
+        }
+        throw e;
+      }
+    };
+
+    trySliceWithFallback(presetId)
+      .then(res => {
+        const ok = (res?.ok ?? res?.success ?? true);
+        if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
+        updateModelStatus(fileId, { status: 'completed', result: res, error: null });
+      })
+      .catch(err => {
+        console.error('[test-kalkulacka] Auto-recalc failed:', err);
+        const classified = parseSlicerError(err);
+        updateModelStatus(fileId, {
+          status: 'failed',
+          error: classified.userMessage,
+          errorCategory: classified.category,
+          errorSeverity: classified.severity,
+          errorRaw: classified.raw,
+        });
+      });
+  }, [uploadedFiles, selectedPresetIds, updateModelStatus]);
+
+  const { trigger: triggerRecalc, triggerSlider: triggerRecalcSlider, cancel: cancelRecalc } = useDebouncedRecalculation(doRecalc);
+
+  // Cancel pending recalc on unmount
+  useEffect(() => cancelRecalc, [cancelRecalc]);
+
+  const handleConfigChange = useCallback((newConfig, { isSlider } = {}) => {
     if (selectedFileId === null) return;
 
     setPrintConfigs(prev => {
@@ -182,16 +236,24 @@ const TestKalkulacka = () => {
 
       if (changed) {
         updateModelStatus(selectedFileId, { status: 'pending', result: null, error: null });
+        // Bug 1 fix: trigger auto-recalculation after debounce
+        if (isSlider) {
+          triggerRecalcSlider(selectedFileId);
+        } else {
+          triggerRecalc(selectedFileId);
+        }
       }
 
       return { ...prev, [selectedFileId]: newConfig };
     });
-  }, [selectedFileId, updateModelStatus]);
+  }, [selectedFileId, updateModelStatus, triggerRecalc, triggerRecalcSlider]);
 
   const steps = [
     { id: 1, title: 'Nahrání souborů', icon: 'Upload', description: 'Nahrajte 3D modely' },
     { id: 2, title: 'Konfigurace', icon: 'Settings', description: 'Nastavte parametry tisku' },
-    { id: 3, title: 'Kontrola a cena', icon: 'Calculator', description: 'Zkontrolujte objednávku' }
+    { id: 3, title: 'Kontrola a cena', icon: 'Calculator', description: 'Zkontrolujte objednávku' },
+    { id: 4, title: 'Objednávka', icon: 'ShoppingCart', description: 'Vyplňte kontaktní údaje' },
+    { id: 5, title: 'Potvrzení', icon: 'CheckCircle', description: 'Objednávka odeslána' },
   ];
 
   useEffect(() => {
@@ -204,49 +266,60 @@ const TestKalkulacka = () => {
     if (!exists) setSelectedFileId(uploadedFiles[0].id);
   }, [uploadedFiles, selectedFileId]);
 
-  // Load widget presets once on calculator mount.
-  useEffect(() => {
-    let cancelled = false;
+  // Bug 3 fix: Extract preset loading into callable function with retry support
+  const cancelledRef = useRef(false);
 
-    const loadPresets = async () => {
-      setPresetsLoading(true);
-      setPresetsError(null);
-      try {
-        const res = await fetchWidgetPresets();
-        if (cancelled) return;
+  const loadPresets = useCallback(async () => {
+    setPresetsLoading(true);
+    setPresetsError(null);
+    try {
+      const res = await fetchWidgetPresets();
+      if (cancelledRef.current) return;
 
-        if (!res?.ok) {
-          throw new Error(res?.message || 'Failed to load presets');
-        }
-
-        const payload = res.data || {};
-        const presets = Array.isArray(payload?.presets) ? payload.presets : [];
-        const defId = typeof payload?.defaultPresetId === 'string' && payload.defaultPresetId ? payload.defaultPresetId : null;
-
-        setAvailablePresets(presets);
-        setDefaultPresetId(defId);
-
-        // Preselect default preset if present; otherwise pick the first available preset.
-        const preselected = (defId && presets.some(p => p?.id === defId))
-          ? defId
-          : (presets?.[0]?.id || null);
-
-        setSelectedPresetId(preselected);
-      } catch (e) {
-        if (cancelled) return;
-        setAvailablePresets([]);
-        setDefaultPresetId(null);
-        setSelectedPresetId(null);
-        setPresetsError(e || new Error('Failed to load presets'));
-      } finally {
-        if (!cancelled) setPresetsLoading(false);
+      if (!res?.ok) {
+        throw new Error(res?.message || 'Failed to load presets');
       }
-    };
 
+      const payload = res.data || {};
+      const presets = Array.isArray(payload?.presets) ? payload.presets : [];
+      const defId = typeof payload?.defaultPresetId === 'string' && payload.defaultPresetId ? payload.defaultPresetId : null;
+
+      setAvailablePresets(presets);
+      setDefaultPresetId(defId);
+
+      // Preselect default preset for all current models that don't have one yet
+      const preselected = (defId && presets.some(p => p?.id === defId))
+        ? defId
+        : (presets?.[0]?.id || null);
+
+      if (preselected) {
+        setSelectedPresetIds(prev => {
+          const next = { ...prev };
+          // Only set for models that don't have a preset yet
+          for (const f of uploadedFiles) {
+            if (next[f.id] == null) next[f.id] = preselected;
+          }
+          // Also set a default for future models
+          next.__default = preselected;
+          return next;
+        });
+      }
+    } catch (e) {
+      if (cancelledRef.current) return;
+      setAvailablePresets([]);
+      setDefaultPresetId(null);
+      setPresetsError(e || new Error('Failed to load presets'));
+    } finally {
+      if (!cancelledRef.current) setPresetsLoading(false);
+    }
+  }, [uploadedFiles]);
+
+  // Load presets on mount
+  useEffect(() => {
+    cancelledRef.current = false;
     loadPresets();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelledRef.current = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -275,26 +348,29 @@ const TestKalkulacka = () => {
     const cfg = printConfigs[selectedFile.id] || {};
     if (selectedFile.status === 'processing') return;
 
+    // Bug 2 fix: use per-model preset
+    const presetId = selectedPresetIds[selectedFile.id] ?? null;
+
     try {
       updateModelStatus(selectedFile.id, { status: 'processing', error: null });
 
       console.log('[test-kalkulacka] Slicing (local) file:', selectedFile.name, 'config:', cfg);
 
-      const trySliceWithFallback = async (presetId) => {
+      const trySliceWithFallback = async (pid) => {
         try {
-          return await sliceModelLocal(selectedFile.file, { presetId });
+          return await sliceModelLocal(selectedFile.file, { presetId: pid });
         } catch (e) {
           // Fallback: if preset-based slicing fails, drop presetId and retry once.
-          if (presetId) {
-            console.warn('[test-kalkulacka] Slice failed with presetId, retrying without presetId:', presetId, e);
-            setSelectedPresetId(null);
+          if (pid) {
+            console.warn('[test-kalkulacka] Slice failed with presetId, retrying without presetId:', pid, e);
+            setSelectedPresetIds(prev => ({ ...prev, [selectedFile.id]: null }));
             return await sliceModelLocal(selectedFile.file, { presetId: null });
           }
           throw e;
         }
       };
 
-      const res = await trySliceWithFallback(selectedPresetId);
+      const res = await trySliceWithFallback(presetId);
       const ok = (res?.ok ?? res?.success ?? true);
       if (!ok) throw new Error(res?.error || res?.message || 'Slicování selhalo');
 
@@ -322,13 +398,10 @@ const TestKalkulacka = () => {
         errorRaw: classified.raw,
       });
     }
-  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetId]);
+  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds]);
 
   const runBatchSlice = useCallback(async (targets, mode) => {
     if (!Array.isArray(targets) || targets.length === 0) return;
-
-    // Use a mutable local so we can downgrade to no-preset mid-batch if backend rejects a preset.
-    let effectivePresetId = selectedPresetId;
 
     setSliceAllProcessing(true);
     setBatchProgress({ mode, done: 0, total: targets.length });
@@ -344,6 +417,9 @@ const TestKalkulacka = () => {
           continue;
         }
 
+        // Bug 2 fix: use per-model preset
+        let effectivePresetId = selectedPresetIds[fileItem.id] ?? null;
+
         try {
           updateModelStatus(fileItem.id, { status: 'processing', error: null });
           console.log('[test-kalkulacka] Batch slicing (local):', fileItem.name);
@@ -355,7 +431,7 @@ const TestKalkulacka = () => {
               if (presetId) {
                 console.warn('[test-kalkulacka] Batch slice failed with presetId, retrying without presetId:', presetId, e);
                 effectivePresetId = null;
-                setSelectedPresetId(null);
+                setSelectedPresetIds(prev => ({ ...prev, [fileItem.id]: null }));
                 return await sliceModelLocal(fileItem.file, { presetId: null });
               }
               throw e;
@@ -394,7 +470,7 @@ const TestKalkulacka = () => {
     } finally {
       setSliceAllProcessing(false);
     }
-  }, [currentStep, selectedPresetId, updateModelStatus]);
+  }, [currentStep, selectedPresetIds, updateModelStatus]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0) return;
@@ -446,6 +522,13 @@ const TestKalkulacka = () => {
         ...prev,
         [newId]: { ...DEFAULT_PRINT_CONFIG },
       })));
+
+      // Bug 2 fix: assign default preset to new model
+      setSelectedPresetIds(prev => {
+        if (prev[newId] != null) return prev;
+        const defPreset = prev.__default ?? defaultPresetId ?? (availablePresets?.[0]?.id || null);
+        return { ...prev, [newId]: defPreset };
+      });
     }
   };
 
@@ -455,7 +538,9 @@ const TestKalkulacka = () => {
     setUploadedFiles([]);
     setSelectedFileId(null);
     setPrintConfigs({});
+    setSelectedPresetIds(prev => ({ __default: prev.__default }));
     setCurrentStep(1);
+    setLastOrderResult(null);
   };
 
   const handleFileDelete = (fileToDelete) => {
@@ -466,6 +551,13 @@ const TestKalkulacka = () => {
     setUploadedFiles(newUploadedFiles);
     setPrintConfigs(newPrintConfigs);
 
+    // Bug 2 fix: clean up per-model preset
+    setSelectedPresetIds(prev => {
+      const next = { ...prev };
+      delete next[fileToDelete.id];
+      return next;
+    });
+
     if (selectedFileId !== null && selectedFileId === fileToDelete.id) {
       setSelectedFileId(newUploadedFiles.length > 0 ? newUploadedFiles[0].id : null);
     }
@@ -475,18 +567,23 @@ const TestKalkulacka = () => {
   };
 
   const handleNextStep = () => {
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+    if (currentStep < 5) setCurrentStep(currentStep + 1);
   };
 
   const handlePrevStep = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const handleProceedToCheckout = async () => {
-    setIsProcessing(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    navigate('/printer-catalog', { state: { uploadedFiles, printConfigs, fromUpload: true } });
-  };
+  // S02: Called when checkout form is submitted successfully
+  const handleCheckoutComplete = useCallback((orderResult) => {
+    setLastOrderResult(orderResult);
+    setCurrentStep(5);
+  }, []);
+
+  // S02: Called from confirmation page to start fresh
+  const handleStartNewOrder = useCallback(() => {
+    handleResetUpload();
+  }, []);
 
   const currentConfig = selectedFile ? (printConfigs[selectedFile.id] || {}) : {};
 
@@ -495,6 +592,8 @@ const TestKalkulacka = () => {
       case 1: return uploadedFiles.length > 0;
       case 2: return !!currentConfig && !!selectedFile;
       case 3: return uploadedFiles.every(f => f.status === 'completed');
+      case 4: return false; // Checkout form handles its own submit
+      case 5: return false; // Confirmation, no further step
       default: return false;
     }
   };
@@ -626,6 +725,29 @@ const TestKalkulacka = () => {
             </div>
           </div>
 
+          {/* S02: Checkout step (step 4) */}
+          {currentStep === 4 && (
+            <CheckoutForm
+              uploadedFiles={uploadedFiles}
+              printConfigs={printConfigs}
+              pricingConfig={pricingConfig}
+              feesConfig={feesConfig}
+              feeSelections={feeSelections}
+              onComplete={handleCheckoutComplete}
+              onBack={() => setCurrentStep(3)}
+            />
+          )}
+
+          {/* S02: Confirmation step (step 5) */}
+          {currentStep === 5 && lastOrderResult && (
+            <OrderConfirmation
+              order={lastOrderResult}
+              onStartNew={handleStartNewOrder}
+            />
+          )}
+
+          {/* Main grid — visible on steps 1-3 */}
+          {currentStep <= 3 && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               {uploadedFiles.length === 0 && currentStep === 1 && (
@@ -643,10 +765,11 @@ const TestKalkulacka = () => {
                       initialConfig={currentConfig}
                       availablePresets={availablePresets}
                       defaultPresetId={defaultPresetId}
-                      selectedPresetId={selectedPresetId}
-                      onPresetChange={setSelectedPresetId}
+                      selectedPresetId={selectedPresetIds[selectedFileId] ?? null}
+                      onPresetChange={(presetId) => setSelectedPresetIds(prev => ({ ...prev, [selectedFileId]: presetId }))}
                       presetsLoading={presetsLoading}
                       presetsError={presetsError}
+                      onPresetsRetry={loadPresets}
                       pricingConfig={pricingConfig}
                       feesConfig={feesConfig}
                       feeSelections={feeSelections}
@@ -745,42 +868,45 @@ const TestKalkulacka = () => {
               )}
             </div>
           </div>
+          )}
 
-          <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
-            <Button
-              variant="outline"
-              onClick={handlePrevStep}
-              disabled={currentStep === 1}
-              iconName="ChevronLeft"
-              iconPosition="left"
-            >
-              Zpět
-            </Button>
-            <div className="flex items-center space-x-4">
-              {currentStep < 3 ? (
-                <Button
-                  variant="default"
-                  onClick={handleNextStep}
-                  disabled={!canProceed()}
-                  iconName="ChevronRight"
-                  iconPosition="right"
-                >
-                  Pokračovat
-                </Button>
-              ) : (
-                <Button
-                  variant="default"
-                  onClick={handleProceedToCheckout}
-                  disabled={!canProceed() || isProcessing}
-                  loading={isProcessing}
-                  iconName="ArrowRight"
-                  iconPosition="right"
-                >
-                  {isProcessing ? 'Zpracovávám...' : 'Přejít k výběru tiskárny'}
-                </Button>
-              )}
+          {/* Bottom navigation — hidden on step 5 (confirmation) */}
+          {currentStep < 5 && (
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+              <Button
+                variant="outline"
+                onClick={handlePrevStep}
+                disabled={currentStep === 1}
+                iconName="ChevronLeft"
+                iconPosition="left"
+              >
+                Zpět
+              </Button>
+              <div className="flex items-center space-x-4">
+                {currentStep < 3 ? (
+                  <Button
+                    variant="default"
+                    onClick={handleNextStep}
+                    disabled={!canProceed()}
+                    iconName="ChevronRight"
+                    iconPosition="right"
+                  >
+                    Pokračovat
+                  </Button>
+                ) : currentStep === 3 ? (
+                  <Button
+                    variant="default"
+                    onClick={() => setCurrentStep(4)}
+                    disabled={!canProceed()}
+                    iconName="ShoppingCart"
+                    iconPosition="right"
+                  >
+                    Přejít k objednávce
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

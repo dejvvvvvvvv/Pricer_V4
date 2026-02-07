@@ -26,6 +26,7 @@ import ElementsTab from './components/tabs/ElementsTab';
 import GlobalTab from './components/tabs/GlobalTab';
 
 import WidgetKalkulacka from '@/pages/widget-kalkulacka';
+import ErrorBoundary from '@/pages/widget-kalkulacka/components/ErrorBoundary';
 
 import './styles/builder-tokens.css';
 
@@ -194,17 +195,19 @@ export default function BuilderPage() {
         <BuilderRightPanel>
           <DevicePreviewFrame deviceMode={builder.deviceMode}>
             <div style={themeVars}>
-              <WidgetKalkulacka
-                theme={builder.theme}
-                builderMode={true}
-                forceStep={previewStep}
-                onElementSelect={builder.selectElement}
-                onElementHover={builder.hoverElement}
-                selectedElementId={builder.selectedElementId}
-                hoveredElementId={builder.hoveredElementId}
-                onTextEditStart={builder.setEditingTextId}
-                embedded={false}
-              />
+              <ErrorBoundary>
+                <WidgetKalkulacka
+                  theme={builder.theme}
+                  builderMode={true}
+                  forceStep={previewStep}
+                  onElementSelect={builder.selectElement}
+                  onElementHover={builder.hoverElement}
+                  selectedElementId={builder.selectedElementId}
+                  hoveredElementId={builder.hoveredElementId}
+                  onTextEditStart={builder.setEditingTextId}
+                  embedded={false}
+                />
+              </ErrorBoundary>
             </div>
           </DevicePreviewFrame>
         </BuilderRightPanel>

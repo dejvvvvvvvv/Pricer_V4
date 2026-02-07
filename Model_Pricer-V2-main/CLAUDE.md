@@ -339,10 +339,14 @@ Navod krok za krokem: `docs/claude/MCP_SETUP_VSCODE.md`.
 
 ---
 
-## 11) Specialni pravidla pro pripravovany widget (MP_WIDGET_CALC_BUILDER_v1)
+## 11) Specialni pravidla pro test-kalkulacka a widget
 
-- **NESMIS menit** `/src/pages/test-kalkulacka/*`.
-- Widget bude duplikat (napr. `/src/pages/widget-kalkulacka/*`) + verejna route `/w/:publicWidgetId`.
+### 11.1 test-kalkulacka
+- Zmeny v `/src/pages/test-kalkulacka/*` jsou POVOLENY, ale MUSI byt zdokumentovany v `docs/claude/Planovane_Implementace/Dokum-uprav-test-kalkulacka.md`.
+- Po zmenach test-kalkulacky aktualizuj widget-kalkulacku aby odpovidal (pokud je relevatni).
+
+### 11.2 Widget
+- Widget je duplikat (napr. `/src/pages/widget-kalkulacka/*`) + verejna route `/w/:publicWidgetId`.
 - Bezpecnost P0: domain whitelist + postMessage origin validace.
 
 ---

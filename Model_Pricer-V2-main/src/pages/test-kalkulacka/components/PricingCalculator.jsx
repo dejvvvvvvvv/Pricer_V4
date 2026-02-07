@@ -220,6 +220,25 @@ export default function PricingCalculator({
                 <MiniRow label="Čas tisku" value={formatCzk(quote.simple.time)} />
                 <MiniRow label="Služby" value={formatSignedCzk(quote.simple.services)} />
                 <MiniRow label="Sleva" value={formatSignedCzk(quote.simple.discount)} />
+                {quote.flags?.volume_discount_applied && quote.volumeDiscount && (
+                  <div className="px-2 py-1.5 rounded-md bg-green-50 border border-green-200">
+                    <MiniRow
+                      label={`Množstevní sleva (${quote.volumeDiscount.mode === 'percent' ? '%' : 'fixní'})`}
+                      value={`- ${formatCzk(quote.volumeDiscount.totalSavings)}`}
+                    />
+                    {quote.volumeDiscount.details
+                      .filter((d) => d.applied && d.tier)
+                      .slice(0, 3)
+                      .map((d) => (
+                        <p key={d.modelId} className="text-[11px] text-green-700 mt-0.5">
+                          {d.tier.min_qty}+ ks: {quote.volumeDiscount.mode === 'percent'
+                            ? `−${d.tier.value}%`
+                            : `${formatCzk(d.tier.value)}/ks`}
+                          {d.tier.label ? ` (${d.tier.label})` : ''}
+                        </p>
+                      ))}
+                  </div>
+                )}
                 <MiniRow label="Markup" value={formatSignedCzk(quote.simple.markup)} />
                 <div className="pt-2 border-t border-border" />
                 <MiniRow label="Celkem" value={formatCzk(quote.total)} emphasize />
@@ -322,6 +341,9 @@ export default function PricingCalculator({
               <summary className="cursor-pointer select-none text-sm font-semibold">Order totals (raw)</summary>
               <div className="mt-3 space-y-1 text-xs">
                 <MiniRow label="modelsTotal" value={formatCzk(quote.totals.modelsTotal)} />
+                {quote.totals.volumeDiscountTotal > 0 && (
+                  <MiniRow label="volumeDiscountTotal" value={`- ${formatCzk(quote.totals.volumeDiscountTotal)}`} />
+                )}
                 <MiniRow label="orderFeesTotal" value={formatSignedCzk(quote.totals.orderFeesTotal)} />
                 <MiniRow label="subtotalBeforeMarkup" value={formatCzk(quote.totals.subtotalBeforeMarkup)} />
                 <MiniRow label="markupAmount" value={formatSignedCzk(quote.totals.markupAmount)} />

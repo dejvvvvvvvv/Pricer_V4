@@ -317,6 +317,25 @@ export function normalizePricingConfigV3(input) {
 
   const materialPrices = buildMaterialPricesFromMaterials(materials);
 
+  // S05: Volume discounts (backward compatible — missing field = disabled)
+  const volume_discounts = isObj(src.volume_discounts)
+    ? {
+        enabled: parseBool(src.volume_discounts.enabled, false),
+        mode: ['percent', 'fixed_price'].includes(src.volume_discounts.mode) ? src.volume_discounts.mode : 'percent',
+        scope: ['per_model', 'per_order'].includes(src.volume_discounts.scope) ? src.volume_discounts.scope : 'per_model',
+        tiers: Array.isArray(src.volume_discounts.tiers)
+          ? src.volume_discounts.tiers
+              .filter(t => t && safeNum(t.min_qty, 0) >= 1)
+              .map(t => ({
+                min_qty: Math.max(1, Math.floor(safeNum(t.min_qty, 1))),
+                value: safeNum(t.value, 0),
+                label: t.label ? String(t.label).trim() : undefined,
+              }))
+              .sort((a, b) => a.min_qty - b.min_qty)
+          : [],
+      }
+    : { enabled: false, mode: 'percent', scope: 'per_model', tiers: [] };
+
   const normalized = {
     ...src,
     schema_version: safeNum(src.schema_version ?? src.schemaVersion, SCHEMA_VERSION),
@@ -327,6 +346,9 @@ export function normalizePricingConfigV3(input) {
     materialPrices: isObj(src.materialPrices) ? { ...src.materialPrices, ...materialPrices } : materialPrices,
     timeRate: clampMin0(src.timeRate ?? tenant_pricing.rate_per_hour),
     tenant_pricing,
+
+    // S05: Volume discounts
+    volume_discounts,
 
     updated_at: String(src.updated_at || src.updatedAt || nowIso()),
   };

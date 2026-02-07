@@ -662,6 +662,69 @@ export function calculateOrderQuote({
 
   const modelsTotal = Object.values(modelTotalsById).reduce((a, b) => a + safeNum(b, 0), 0);
 
+  // --- Volume Discounts (S05)
+  const volumeConfig = pc.volume_discounts && typeof pc.volume_discounts === 'object' ? pc.volume_discounts : null;
+  const volumeEnabled = !!volumeConfig?.enabled;
+  let volumeDiscountTotal = 0;
+  const volumeDiscountDetails = [];
+
+  if (volumeEnabled && Array.isArray(volumeConfig?.tiers) && volumeConfig.tiers.length > 0) {
+    // Sort tiers descending by min_qty for matching
+    const sortedTiers = [...volumeConfig.tiers]
+      .filter(t => t && safeNum(t.min_qty, 0) >= 1)
+      .sort((a, b) => safeNum(b.min_qty, 0) - safeNum(a.min_qty, 0));
+
+    const scope = volumeConfig.scope || 'per_model';
+    const mode = volumeConfig.mode || 'percent';
+
+    // For per_order scope, total quantity across all models
+    const totalOrderQty = modelResults.reduce((sum, m) => sum + safeNum(m.quantity, 1), 0);
+
+    for (const model of modelResults) {
+      const qty = scope === 'per_order' ? totalOrderQty : safeNum(model.quantity, 1);
+      const matchingTier = sortedTiers.find(t => qty >= safeNum(t.min_qty, 0));
+
+      if (!matchingTier) {
+        volumeDiscountDetails.push({ modelId: model.id, applied: false, savings: 0 });
+        continue;
+      }
+
+      const originalPerPiece = model.totals.subtotalAfterPerModelRounding / safeNum(model.quantity, 1);
+      let discountedPerPiece = originalPerPiece;
+      let savings = 0;
+
+      if (mode === 'percent') {
+        const pct = safeNum(matchingTier.value, 0);
+        discountedPerPiece = originalPerPiece * (1 - pct / 100);
+        savings = (originalPerPiece - discountedPerPiece) * safeNum(model.quantity, 1);
+      } else if (mode === 'fixed_price') {
+        discountedPerPiece = safeNum(matchingTier.value, originalPerPiece);
+        savings = Math.max(0, (originalPerPiece - discountedPerPiece) * safeNum(model.quantity, 1));
+      }
+
+      volumeDiscountTotal += savings;
+
+      // Adjust model total
+      const newModelTotal = modelTotalsById[model.id] - savings;
+      modelTotalsById[model.id] = Math.max(0, newModelTotal);
+
+      volumeDiscountDetails.push({
+        modelId: model.id,
+        applied: true,
+        tier: { min_qty: matchingTier.min_qty, value: matchingTier.value, label: matchingTier.label },
+        originalPerPiece,
+        discountedPerPiece,
+        savings,
+      });
+    }
+
+    // Subtract from discountsNegative (negative number)
+    discountsNegative -= volumeDiscountTotal;
+  }
+
+  // Recompute modelsTotal after volume discounts
+  const modelsTotalAfterVolume = Object.values(modelTotalsById).reduce((a, b) => a + safeNum(b, 0), 0);
+
   // --- ORDER fees
   const orderFeeRows = [];
   let orderNonPercentTotal = 0;
@@ -896,7 +959,7 @@ for (const fee of fees) {
   else discountsNegative += orderFeesTotal;
 
   // --- Markup (order-level)
-  const subtotalBeforeMarkup = modelsTotal + orderFeesTotal;
+  const subtotalBeforeMarkup = modelsTotalAfterVolume + orderFeesTotal;
   let markupAmount = 0;
 
   if (markup.enabled && markup.mode && markup.mode !== 'off') {
@@ -939,7 +1002,8 @@ for (const fee of fees) {
     totals: {
       material: materialTotal,
       time: timeTotal,
-      modelsTotal,
+      modelsTotal: modelsTotalAfterVolume,
+      volumeDiscountTotal,
       orderFeesTotal,
       subtotalBeforeMarkup,
       markupAmount,
@@ -950,15 +1014,23 @@ for (const fee of fees) {
       material: materialTotal,
       time: timeTotal,
       services: servicesPositive,
-      discount: discountsNegative, // negative number
+      discount: discountsNegative, // negative number (includes volume discount)
       markup: markupAmount,
     },
     models: modelResults,
     orderFees: orderFeeRows,
+    volumeDiscount: volumeEnabled ? {
+      enabled: true,
+      mode: volumeConfig.mode,
+      scope: volumeConfig.scope,
+      totalSavings: volumeDiscountTotal,
+      details: volumeDiscountDetails,
+    } : null,
     flags: {
       min_order_total_applied: minOrderApplied,
       rounding_final_applied: roundingAppliedFinal,
       clamped_to_zero: clampedToZero,
+      volume_discount_applied: volumeDiscountTotal > 0,
     },
   };
 }

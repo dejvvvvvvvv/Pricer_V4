@@ -34,7 +34,12 @@
       "WebFetch(domain:help.prusa3d.com)",
       "WebFetch(domain:www.convex.dev)",
       "WebFetch(domain:docs.convex.dev)",
-      "WebFetch(domain:stack.convex.dev)"
+      "WebFetch(domain:stack.convex.dev)",
+      "WebFetch(domain:www.gingeritsolutions.com)",
+      "WebFetch(domain:graphicdesignjunction.com)",
+      "WebFetch(domain:elementor.com)",
+      "WebFetch(domain:kontra.agency)",
+      "WebFetch(domain:uitop.design)"
     ]
   }
 }

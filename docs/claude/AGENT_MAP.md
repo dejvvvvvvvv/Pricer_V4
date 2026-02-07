@@ -9,8 +9,8 @@
 
 ### Hierarchicky princip
 - **Senior (sr)** = vlastni celou domenu, architekturalni rozhodnuti, review, delegace. Model: **opus**
-- **Middle (mid)** = vlastni 2-4 podoblasti, implementace stredne slozitych ukolu. Model: **sonnet**
-- **Specific (spec)** = ultra-uzky scope, 1 konkretni vec, minimalni chybovost. Model: **haiku** nebo **sonnet**
+- **Middle (mid)** = vlastni 2-4 podoblasti, implementace stredne slozitych ukolu. Model: **Opus**
+- **Specific (spec)** = ultra-uzky scope, 1 konkretni vec, minimalni chybovost. Model: **Opus** nebo **sonnet**
 
 ### Pojmenovaci konvence
 `mp-{tier}-{domena}-{specializace}`

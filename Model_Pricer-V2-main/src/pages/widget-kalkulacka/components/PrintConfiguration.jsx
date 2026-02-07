@@ -21,6 +21,7 @@ const PrintConfiguration = ({
   onPresetChange,
   presetsLoading = false,
   presetsError = null,
+  onPresetsRetry,
   theme,
 }) => {
   const { language } = useLanguage();
@@ -296,8 +297,16 @@ const PrintConfiguration = ({
         </h3>
 
         {presetsError && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {presetUi.failed}
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center justify-between">
+            <span>{presetUi.failed}</span>
+            {onPresetsRetry && (
+              <button
+                onClick={onPresetsRetry}
+                className="ml-3 text-xs font-medium px-3 py-1 rounded bg-red-100 hover:bg-red-200 text-red-800 transition-colors"
+              >
+                {language === 'en' ? 'Retry' : 'Zkusit znovu'}
+              </button>
+            )}
           </div>
         )}
 
@@ -568,64 +577,74 @@ const PrintConfiguration = ({
           </div>
         )}
 
-        {selectedFile?.status === 'completed' && selectedFile?.result && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-                style={{ backgroundColor: 'var(--widget-btn-primary, #2563EB)20' }}
-              >
-                <Icon name="Clock" size={20} style={{ color: 'var(--widget-btn-primary, #2563EB)' }} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
-                {Math.round(selectedFile.result.time / 3600)}h {Math.round((selectedFile.result.time % 3600) / 60)}min
-              </p>
-              <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Doba tisku</p>
-            </div>
+        {selectedFile?.status === 'completed' && selectedFile?.result && (() => {
+          const safeN = (v, fallback = 0) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+          const res = selectedFile.result;
+          const timeSeconds = safeN(res.time, 0);
+          const materialG = safeN(res.material, 0);
+          const layers = safeN(res.layers, 0);
 
-            <div className="text-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-                style={{ backgroundColor: '#10B98120' }}
-              >
-                <Icon name="Weight" size={20} style={{ color: '#10B981' }} />
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
+                  style={{ backgroundColor: 'var(--widget-btn-primary, #2563EB)20' }}
+                >
+                  <Icon name="Clock" size={20} style={{ color: 'var(--widget-btn-primary, #2563EB)' }} />
+                </div>
+                <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
+                  {timeSeconds > 0
+                    ? `${Math.round(timeSeconds / 3600)}h ${Math.round((timeSeconds % 3600) / 60)}min`
+                    : '—'}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Doba tisku</p>
               </div>
-              <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
-                {Math.round(selectedFile.result.material)}g
-              </p>
-              <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Hmotnost</p>
-            </div>
 
-            <div className="text-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-                style={{ backgroundColor: '#F59E0B20' }}
-              >
-                <Icon name="Layers" size={20} style={{ color: '#F59E0B' }} />
+              <div className="text-center">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
+                  style={{ backgroundColor: '#10B98120' }}
+                >
+                  <Icon name="Weight" size={20} style={{ color: '#10B981' }} />
+                </div>
+                <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
+                  {materialG > 0 ? `${Math.round(materialG)}g` : '—'}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Hmotnost</p>
               </div>
-              <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
-                {selectedFile.result.layers}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Vrstvy</p>
-            </div>
 
-            <div className="text-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-                style={{ backgroundColor: '#EF444420' }}
-              >
-                <Icon name="Thermometer" size={20} style={{ color: '#EF4444' }} />
+              <div className="text-center">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
+                  style={{ backgroundColor: '#F59E0B20' }}
+                >
+                  <Icon name="Layers" size={20} style={{ color: '#F59E0B' }} />
+                </div>
+                <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
+                  {layers > 0 ? layers : '—'}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Vrstvy</p>
               </div>
-              <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
-                {config?.material === 'pla' ? '200°C' :
-                  config?.material === 'abs' ? '250°C' :
-                    config?.material === 'petg' ? '230°C' :
-                      config?.material === 'tpu' ? '220°C' : '210°C'}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Teplota</p>
+
+              <div className="text-center">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
+                  style={{ backgroundColor: '#EF444420' }}
+                >
+                  <Icon name="Thermometer" size={20} style={{ color: '#EF4444' }} />
+                </div>
+                <p className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
+                  {config?.material === 'pla' ? '200°C' :
+                    config?.material === 'abs' ? '250°C' :
+                      config?.material === 'petg' ? '230°C' :
+                        config?.material === 'tpu' ? '220°C' : '210°C'}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>Teplota</p>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {(!selectedFile?.result && selectedFile?.status !== 'processing' && selectedFile?.status !== 'failed') && (
           <div className="text-center py-4 text-sm" style={{ color: 'var(--widget-muted, #6B7280)' }}>
