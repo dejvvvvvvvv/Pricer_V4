@@ -13,6 +13,7 @@ import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
+import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 
 // Default config is used for newly uploaded models (so switching between models does not
 // accidentally reset already-sliced results when a config entry is missing).
@@ -163,10 +164,28 @@ const TestKalkulacka = () => {
   const handleConfigChange = useCallback((newConfig) => {
     if (selectedFileId === null) return;
 
-    setPrintConfigs(prev => ({ ...prev, [selectedFileId]: newConfig }));
+    setPrintConfigs(prev => {
+      const oldConfig = prev[selectedFileId] || {};
 
-    // Any explicit config change should mark the model as needing a re-slice.
-    updateModelStatus(selectedFileId, { status: 'pending', result: null, error: null });
+      // Only reset slice results if the config actually changed in a meaningful way.
+      // This prevents the bug where switching between models triggers a remount
+      // of PrintConfiguration, which fires onConfigChange with the same config,
+      // which would incorrectly reset already-sliced results.
+      const meaningfulKeys = ['material', 'quality', 'infill', 'supports'];
+      const changed = meaningfulKeys.some(k => {
+        const oldVal = oldConfig[k];
+        const newVal = newConfig[k];
+        // Treat undefined/null as equivalent to the default
+        if (oldVal == null && newVal == null) return false;
+        return String(oldVal) !== String(newVal);
+      });
+
+      if (changed) {
+        updateModelStatus(selectedFileId, { status: 'pending', result: null, error: null });
+      }
+
+      return { ...prev, [selectedFileId]: newConfig };
+    });
   }, [selectedFileId, updateModelStatus]);
 
   const steps = [
@@ -294,9 +313,13 @@ const TestKalkulacka = () => {
       if (currentStep < 3) setCurrentStep(3);
     } catch (err) {
       console.error('[test-kalkulacka] Slice failed:', err);
+      const classified = parseSlicerError(err);
       updateModelStatus(selectedFile.id, {
         status: 'failed',
-        error: String(err?.message || err),
+        error: classified.userMessage,
+        errorCategory: classified.category,
+        errorSeverity: classified.severity,
+        errorRaw: classified.raw,
       });
     }
   }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetId]);
@@ -355,9 +378,13 @@ const TestKalkulacka = () => {
           });
         } catch (err) {
           console.error('[test-kalkulacka] Batch slice failed:', fileItem.name, err);
+          const classified = parseSlicerError(err);
           updateModelStatus(fileItem.id, {
             status: 'failed',
-            error: String(err?.message || err),
+            error: classified.userMessage,
+            errorCategory: classified.category,
+            errorSeverity: classified.severity,
+            errorRaw: classified.raw,
           });
         } finally {
           done += 1;
@@ -515,36 +542,87 @@ const TestKalkulacka = () => {
           </div>
 
           <div className="mb-8">
-            <div className="flex items-center justify-between max-w-2xl">
-              {steps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${currentStep >= step.id
-                        ? 'bg-primary border-primary text-primary-foreground'
-                        : 'border-border text-muted-foreground'
-                        }`}
-                    >
-                      <Icon name={step.icon} size={20} />
-                    </div>
-                    <div className="mt-2 text-center">
-                      <p
-                        className={`text-sm font-medium ${currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {steps.map((step, index) => (
+                  <div key={step.id} className="flex items-center">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${currentStep >= step.id
+                          ? 'bg-primary border-primary text-primary-foreground'
+                          : 'border-border text-muted-foreground'
                           }`}
                       >
-                        {step.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{step.description}</p>
+                        <Icon name={step.icon} size={20} />
+                      </div>
+                      <div className="mt-2 text-center">
+                        <p
+                          className={`text-sm font-medium ${currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
+                            }`}
+                        >
+                          {step.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{step.description}</p>
+                      </div>
                     </div>
+                    {index < steps.length - 1 && (
+                      <div
+                        className={`w-24 h-0.5 mx-4 transition-colors ${currentStep > step.id ? 'bg-primary' : 'bg-border'
+                          }`}
+                      />
+                    )}
                   </div>
-                  {index < steps.length - 1 && (
-                    <div
-                      className={`w-24 h-0.5 mx-4 transition-colors ${currentStep > step.id ? 'bg-primary' : 'bg-border'
-                        }`}
+                ))}
+              </div>
+
+              {/* Calculation buttons - inline with stepper */}
+              {uploadedFiles.length > 0 && selectedFile && (
+                <div className="flex flex-col items-end gap-1.5 ml-6">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <GenerateButton
+                      size="compact"
+                      label="Spočítat cenu"
+                      onClick={handleSliceSelected}
+                      loading={selectedFile.status === 'processing'}
+                      disabled={!selectedFile || selectedFile.status === 'processing' || sliceAllProcessing}
                     />
+
+                    {hasMultipleModels && (
+                      <GenerateButton
+                        size="compact"
+                        label="Spočítat vše"
+                        onClick={handleSliceAll}
+                        loading={sliceAllProcessing && batchProgress.mode === 'all'}
+                        disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
+                      />
+                    )}
+
+                    {hasFailedModels && (
+                      <GenerateButton
+                        size="compact"
+                        label="Reslice failed"
+                        onClick={handleResliceFailed}
+                        loading={sliceAllProcessing && batchProgress.mode === 'failed'}
+                        disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
+                      />
+                    )}
+                  </div>
+
+                  {sliceAllProcessing && batchProgress.total > 0 && (
+                    <div className="flex items-center gap-2 w-full max-w-[220px]">
+                      <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-300"
+                          style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {batchProgress.done}/{batchProgress.total}
+                      </span>
+                    </div>
                   )}
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -582,46 +660,6 @@ const TestKalkulacka = () => {
             </div>
 
             <div className="space-y-4">
-              {/* CTA: Slicing buttons above ModelViewer (compact top layout) */}
-              {uploadedFiles.length > 0 && selectedFile && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <GenerateButton
-                      size="top"
-                      label="Spočítat cenu"
-                      onClick={handleSliceSelected}
-                      loading={selectedFile.status === 'processing'}
-                      disabled={!selectedFile || selectedFile.status === 'processing' || sliceAllProcessing}
-                    />
-
-                    {hasMultipleModels && (
-                      <GenerateButton
-                        size="top"
-                        label="Spočítat vše"
-                        onClick={handleSliceAll}
-                        loading={sliceAllProcessing && batchProgress.mode === 'all'}
-                        disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
-                      />
-                    )}
-
-                    {hasFailedModels && (
-                      <GenerateButton
-                        size="top"
-                        label="Reslice failed"
-                        onClick={handleResliceFailed}
-                        loading={sliceAllProcessing && batchProgress.mode === 'failed'}
-                        disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
-                      />
-                    )}
-                  </div>
-
-                  {sliceAllProcessing && batchProgress.total > 0 && (
-                    <div className="text-xs text-muted-foreground text-center">
-                      {batchProgress.mode === 'failed' ? 'Reslice failed' : 'Spočítat vše'} – hotovo {batchProgress.done}/{batchProgress.total}
-                    </div>
-                  )}
-                </div>
-              )}
               <ErrorBoundary>
             <ModelViewer
               selectedFile={selectedFile}
@@ -655,28 +693,52 @@ const TestKalkulacka = () => {
                   </div>
                   <div className="flex flex-col gap-2">
                     {uploadedFiles.map((file) => (
-                      <Button
-                        key={file.id}
-                        variant={selectedFile && selectedFile.id === file.id ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedFileId(file.id)}
-                        className="w-full justify-start text-left h-auto py-2 px-3"
-                        title={statusTooltips[file.status] || 'Neznámý stav'}
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          {file.status === 'processing' && (
-                            <Icon name="Loader" size={14} className="animate-spin flex-shrink-0" />
-                          )}
-                          {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0" />}
-                          {file.status === 'completed' && (
-                            <Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" />
-                          )}
-                          {file.status === 'failed' && (
-                            <Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" />
-                          )}
-                          <span className="truncate flex-grow text-left">{file.name}</span>
-                        </div>
-                      </Button>
+                      <div key={file.id} className="flex flex-col">
+                        <Button
+                          variant={selectedFile && selectedFile.id === file.id ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedFileId(file.id)}
+                          className="w-full justify-start text-left h-auto py-2 px-3"
+                          title={statusTooltips[file.status] || 'Neznámý stav'}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            {file.status === 'processing' && (
+                              <Icon name="Loader" size={14} className="animate-spin flex-shrink-0" />
+                            )}
+                            {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0 text-muted-foreground" />}
+                            {file.status === 'completed' && (
+                              <Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" />
+                            )}
+                            {file.status === 'failed' && (
+                              <Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" />
+                            )}
+                            <span className="truncate flex-grow text-left">{file.name}</span>
+                            {file.status === 'completed' && file.result?.metrics && (
+                              <span className="text-[11px] text-muted-foreground whitespace-nowrap ml-auto">
+                                {Math.round((file.result.metrics.estimatedTimeSeconds || 0) / 60)} min
+                              </span>
+                            )}
+                          </div>
+                        </Button>
+                        {file.status === 'processing' && (
+                          <div className="mx-3 mt-1">
+                            <div className="h-1 bg-border rounded-full overflow-hidden">
+                              <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: '60%' }} />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">Vypočítávám…</p>
+                          </div>
+                        )}
+                        {file.status === 'failed' && file.error && (
+                          <div className="mt-1 mx-3">
+                            <p className={`text-[10px] ${file.errorSeverity === 'warning' ? 'text-amber-500' : 'text-red-500'}`} title={file.errorRaw || file.error}>
+                              {file.error}
+                            </p>
+                            {file.errorCategory && file.errorCategory !== 'UNKNOWN' && (
+                              <span className="text-[9px] text-muted-foreground">{file.errorCategory}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

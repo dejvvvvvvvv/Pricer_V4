@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "write-file-atomic": "^7.0.0"
+  }
+}

@@ -81,24 +81,30 @@ export default function PricingCalculator({
     return files.filter((f) => !(f?.status === 'completed' && f?.result));
   }, [uploadedFiles]);
 
+  const isPartial = incompleteModels.length > 0 && readyModels.length > 0;
+
   const quoteState = useMemo(() => {
-    if (!pricingConfig) return { quote: null, error: null };
-    if (!Array.isArray(uploadedFiles) || uploadedFiles.length === 0) return { quote: null, error: null };
-    if (incompleteModels.length > 0) return { quote: null, error: null };
+    if (!pricingConfig) return { quote: null, error: null, isPartial: false };
+    if (!Array.isArray(uploadedFiles) || uploadedFiles.length === 0) return { quote: null, error: null, isPartial: false };
+
+    // Calculate quote from completed models only (progressive pricing).
+    // If some models are still pending/processing, show partial total.
+    const modelsForQuote = readyModels.length > 0 ? readyModels : [];
+    if (modelsForQuote.length === 0) return { quote: null, error: null, isPartial: false };
 
     try {
       const quote = calculateOrderQuote({
-        uploadedFiles,
+        uploadedFiles: modelsForQuote,
         printConfigs,
         pricingConfig,
         feesConfig,
         feeSelections,
       });
-      return { quote, error: null };
+      return { quote, error: null, isPartial: incompleteModels.length > 0 };
     } catch (e) {
-      return { quote: null, error: e instanceof Error ? e.message : String(e) };
+      return { quote: null, error: e instanceof Error ? e.message : String(e), isPartial: false };
     }
-  }, [pricingConfig, uploadedFiles, printConfigs, feesConfig, feeSelections, incompleteModels.length]);
+  }, [pricingConfig, uploadedFiles, readyModels, printConfigs, feesConfig, feeSelections, incompleteModels.length]);
 
   const quote = quoteState.quote;
 
@@ -153,21 +159,25 @@ export default function PricingCalculator({
         </div>
 
         {/* Readiness */}
-        {incompleteModels.length > 0 ? (
+        {incompleteModels.length > 0 && (
           <div className="p-3 rounded-lg border border-border bg-muted/30">
             <div className="flex items-start gap-2">
               <Icon name="Info" size={16} className="mt-0.5" />
               <div>
-                <p className="text-sm font-medium">Čekám na dokončení slicování</p>
+                <p className="text-sm font-medium">
+                  {readyModels.length > 0
+                    ? `Průběžná cena (${readyModels.length}/${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} modelů)`
+                    : 'Čekám na dokončení slicování'}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Aby byla cena přesná, musí být všechny modely ve stavu <b>completed</b>.
                   Hotovo: {readyModels.length} / {Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels}
+                  {readyModels.length > 0 && ' — cena se aktualizuje s každým dalším modelem'}
                 </p>
                 {incompleteModels.length > 0 && (
                   <ul className="mt-2 text-xs text-muted-foreground list-disc pl-5">
                     {incompleteModels.slice(0, 4).map((f) => (
                       <li key={f.id} className="truncate">
-                        {f.name} ({f.status})
+                        {f.name} — {f.status === 'processing' ? 'vypočítávám…' : f.status === 'failed' ? 'chyba' : 'čeká'}
                       </li>
                     ))}
                     {incompleteModels.length > 4 && <li>…a další</li>}
@@ -176,7 +186,8 @@ export default function PricingCalculator({
               </div>
             </div>
           </div>
-        ) : quoteState.error ? (
+        )}
+        {quoteState.error ? (
           <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive">
             <p className="text-sm font-semibold">Chyba výpočtu ceny</p>
             <p className="text-xs mt-1 break-words">{quoteState.error}</p>
@@ -186,10 +197,12 @@ export default function PricingCalculator({
         {/* Main totals */}
         {quote && (
           <div className="p-4 rounded-xl border border-border bg-background/40">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-3">
               <div>
-                <p className="text-xs text-muted-foreground">Celkem</p>
-                <p className="text-2xl font-bold tracking-tight">{formatCzk(quote.total)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {quoteState.isPartial ? `Průběžně (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'Celkem'}
+                </p>
+                <p className={`text-2xl font-bold tracking-tight ${quoteState.isPartial ? 'text-muted-foreground' : ''}`}>{formatCzk(quote.total)}</p>
                 {(quote.flags?.min_order_total_applied || quote.flags?.clamped_to_zero) && (
                   <div className="mt-2 space-y-1">
                     {quote.flags?.min_order_total_applied && (
@@ -202,7 +215,7 @@ export default function PricingCalculator({
                 )}
               </div>
 
-              <div className="min-w-[200px] space-y-2">
+              <div className="space-y-2">
                 <MiniRow label="Materiál" value={formatCzk(quote.simple.material)} />
                 <MiniRow label="Čas tisku" value={formatCzk(quote.simple.time)} />
                 <MiniRow label="Služby" value={formatSignedCzk(quote.simple.services)} />

@@ -1,0 +1,58 @@
+# System
+.DS_Store
+nul
+
+# Dependencies
+node_modules/
+
+# IDE / Editor
+.idea/
+.vscode/
+
+# Env
+*.env
+*.env.*
+.env
+.env.*
+.env.local
+.env.production
+
+# MCP config (may contain API keys)
+.mcp.json
+
+# Build
+dist/
+build/
+coverage/
+*.log
+
+# AI IDE tools (not needed in repo)
+.cursor/
+.windsurf/
+.continue/
+.vibe/
+.trae/
+.roo/
+.junie/
+.kiro/
+.augment/
+.cline/
+.factory/
+.goose/
+.openhands/
+.qoder/
+.qwen/
+.zencoder/
+.crush/
+.mux/
+.pi/
+.pochi/
+.iflow/
+.kilocode/
+.kode/
+.commandcode/
+.codebuddy/
+.mcpjam/
+.neovate/
+.adal/
+.agent/
