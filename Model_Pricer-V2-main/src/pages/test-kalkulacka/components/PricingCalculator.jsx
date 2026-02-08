@@ -68,6 +68,12 @@ export default function PricingCalculator({
   pricingConfig,
   feesConfig,
   feeSelections,
+  expressConfig,
+  selectedExpressTierId,
+  shippingConfig,
+  selectedShippingMethodId,
+  couponsConfig,
+  appliedCouponCode,
 }) {
   const [showDeveloper, setShowDeveloper] = useState(false);
 
@@ -99,12 +105,18 @@ export default function PricingCalculator({
         pricingConfig,
         feesConfig,
         feeSelections,
+        expressConfig,
+        selectedExpressTierId,
+        shippingConfig,
+        selectedShippingMethodId,
+        couponsConfig,
+        appliedCouponCode,
       });
       return { quote, error: null, isPartial: incompleteModels.length > 0 };
     } catch (e) {
       return { quote: null, error: e instanceof Error ? e.message : String(e), isPartial: false };
     }
-  }, [pricingConfig, uploadedFiles, readyModels, printConfigs, feesConfig, feeSelections, incompleteModels.length]);
+  }, [pricingConfig, uploadedFiles, readyModels, printConfigs, feesConfig, feeSelections, incompleteModels.length, expressConfig, selectedExpressTierId, shippingConfig, selectedShippingMethodId, couponsConfig, appliedCouponCode]);
 
   const quote = quoteState.quote;
 

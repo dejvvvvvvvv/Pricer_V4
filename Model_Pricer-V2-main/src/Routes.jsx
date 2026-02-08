@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import { BrowserRouter, Routes as RouterRoutes, Route } from 'react-router-dom';
 import Header from './components/ui/Header';
 import Footer from './components/ui/Footer';
@@ -27,6 +28,12 @@ import AdminTeamAccess from './pages/admin/AdminTeamAccess';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import InviteAccept from './pages/InviteAccept';
 import WidgetPublicPage from './pages/widget-public/WidgetPublicPage';
+
+// Phase 2+3: Lazy-loaded admin pages
+const AdminExpress = React.lazy(() => import('./pages/admin/AdminExpress'));
+const AdminShipping = React.lazy(() => import('./pages/admin/AdminShipping'));
+const AdminEmails = React.lazy(() => import('./pages/admin/AdminEmails'));
+const AdminCoupons = React.lazy(() => import('./pages/admin/AdminCoupons'));
 
 
 export default function Routes() {
@@ -81,6 +88,11 @@ export default function Routes() {
             {/* widget/builder/:id moved to top-level for fullscreen builder */}
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="team" element={<AdminTeamAccess />} />
+            {/* Phase 2+3: New admin routes (lazy loaded) */}
+            <Route path="express" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminExpress /></Suspense>} />
+            <Route path="shipping" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminShipping /></Suspense>} />
+            <Route path="emails" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminEmails /></Suspense>} />
+            <Route path="coupons" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminCoupons /></Suspense>} />
           </Route>
 
                   {/* 404 */}

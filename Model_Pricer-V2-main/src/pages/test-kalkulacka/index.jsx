@@ -15,6 +15,9 @@ import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
+import { loadExpressConfigV1 } from '../../utils/adminExpressStorage';
+import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
 
@@ -50,6 +53,18 @@ const TestKalkulacka = () => {
     feeTargetsById: {},
   }));
 
+  // S09: Express pricing
+  const [expressConfig, setExpressConfig] = useState(() => loadExpressConfigV1());
+  const [selectedExpressTierId, setSelectedExpressTierId] = useState(null);
+
+  // S04: Shipping
+  const [shippingConfig, setShippingConfig] = useState(() => loadShippingConfigV1());
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(null);
+
+  // S10: Coupons
+  const [couponsConfig, setCouponsConfig] = useState(() => loadCouponsConfigV1());
+  const [appliedCouponCode, setAppliedCouponCode] = useState('');
+
   const [batchProgress, setBatchProgress] = useState({ mode: null, done: 0, total: 0 });
 
   // Keep calculator configs synced with localStorage changes (best-effort; storage events fire across tabs).
@@ -58,6 +73,9 @@ const TestKalkulacka = () => {
       if (!e?.key) return;
       if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3());
       if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3());
+      if (e.key.includes('express:v1')) setExpressConfig(loadExpressConfigV1());
+      if (e.key.includes('shipping:v1')) setShippingConfig(loadShippingConfigV1());
+      if (e.key.includes('coupons:v1')) setCouponsConfig(loadCouponsConfigV1());
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -541,6 +559,9 @@ const TestKalkulacka = () => {
     setSelectedPresetIds(prev => ({ __default: prev.__default }));
     setCurrentStep(1);
     setLastOrderResult(null);
+    setSelectedExpressTierId(null);
+    setSelectedShippingMethodId(null);
+    setAppliedCouponCode('');
   };
 
   const handleFileDelete = (fileToDelete) => {
@@ -733,6 +754,12 @@ const TestKalkulacka = () => {
               pricingConfig={pricingConfig}
               feesConfig={feesConfig}
               feeSelections={feeSelections}
+              expressConfig={expressConfig}
+              selectedExpressTierId={selectedExpressTierId}
+              shippingConfig={shippingConfig}
+              selectedShippingMethodId={selectedShippingMethodId}
+              couponsConfig={couponsConfig}
+              appliedCouponCode={appliedCouponCode}
               onComplete={handleCheckoutComplete}
               onBack={() => setCurrentStep(3)}
             />
@@ -803,6 +830,12 @@ const TestKalkulacka = () => {
                   pricingConfig={pricingConfig}
                   feesConfig={feesConfig}
                   feeSelections={feeSelections}
+                  expressConfig={expressConfig}
+                  selectedExpressTierId={selectedExpressTierId}
+                  shippingConfig={shippingConfig}
+                  selectedShippingMethodId={selectedShippingMethodId}
+                  couponsConfig={couponsConfig}
+                  appliedCouponCode={appliedCouponCode}
                 />
               )}
               {uploadedFiles.length > 0 && (

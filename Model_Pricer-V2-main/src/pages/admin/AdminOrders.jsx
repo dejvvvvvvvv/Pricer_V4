@@ -17,6 +17,8 @@ import {
   round2,
   saveOrders,
 } from '../../utils/adminOrdersStorage';
+import KanbanBoard from './components/kanban/KanbanBoard';
+import { loadKanbanConfigV1, saveKanbanConfigV1 } from '../../utils/adminKanbanStorage';
 
 // =====================================
 // Admin Orders — Variant A (front-end demo)
@@ -101,6 +103,22 @@ function OrdersList({ orders, setOrders }) {
   const [dateTo, setDateTo] = useState('');
   const [sortKey, setSortKey] = useState('newest');
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    try {
+      const kc = loadKanbanConfigV1();
+      if (kc?.view_preference === 'kanban') setViewMode('kanban');
+    } catch {}
+  }, []);
+
+  const toggleView = (mode) => {
+    setViewMode(mode);
+    try {
+      const kc = loadKanbanConfigV1();
+      saveKanbanConfigV1({ ...kc, view_preference: mode });
+    } catch {}
+  };
 
   const allMaterials = useMemo(() => {
     const set = new Set();
@@ -256,6 +274,14 @@ function OrdersList({ orders, setOrders }) {
           <p className="subtitle">Rychlý přehled objednávek, filtrů a audit logu. (Demo Varianta A)</p>
         </div>
         <div className="header-actions">
+          <div className="view-toggle">
+            <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => toggleView('table')} type="button">
+              <Icon name="List" size={16} />
+            </button>
+            <button className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => toggleView('kanban')} type="button">
+              <Icon name="Columns" size={16} />
+            </button>
+          </div>
           <button className="btn" onClick={exportCsv} type="button">
             <Icon name="Download" size={16} /> Export CSV
           </button>
@@ -368,91 +394,106 @@ function OrdersList({ orders, setOrders }) {
         </div>
       </div>
 
-      <div className="panel">
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Created</th>
-                <th>Customer</th>
-                <th>Models / Pieces</th>
-                <th>Material(s)</th>
-                <th>Print time</th>
-                <th>Weight</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Flags</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((o) => {
-                const totals = computeOrderTotals(o);
-                const mats = extractOrderMaterials(o);
-                const flags = collectOrderFlags(o);
-                return (
-                  <tr key={o.id}>
-                    <td className="mono">{o.id}</td>
-                    <td>{formatDateTime(o.created_at)}</td>
-                    <td>
-                      <div className="customer">
-                        <div className="customer-name">{o.customer_snapshot?.name || '—'}</div>
-                        <div className="customer-sub">{o.customer_snapshot?.email || ''}</div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="muted">{(o.models || []).length} / {totals.sum_pieces}</div>
-                    </td>
-                    <td>
-                      <div className="muted">{mats.join(', ') || '—'}</div>
-                    </td>
-                    <td className="muted">{formatTime(totals.sum_time_min)}</td>
-                    <td className="muted">{round2(totals.sum_weight_g)} g</td>
-                    <td className="strong">{formatMoney(totals.total)}</td>
-                    <td>
-                      <Badge tone={o.status === 'CANCELED' ? 'red' : o.status === 'DONE' ? 'green' : 'blue'}>
-                        {getStatusLabel(o.status, language)}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="flags">
-                        {flags.slice(0, 3).map((f) => (
-                          <span key={f} title={getFlagLabel(f, language)} className="flag">
-                            <Icon name="AlertTriangle" size={14} />
-                          </span>
-                        ))}
-                        {flags.length > 3 ? <span className="muted">+{flags.length - 3}</span> : null}
-                      </div>
-                    </td>
-                    <td className="actions">
-                      <button className="btn-primary btn-small" onClick={() => navigate(`./${o.id}`)} type="button">
-                        Open
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {pageItems.length === 0 ? (
+      {viewMode === 'table' ? (
+        <div className="panel">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <td colSpan={11} className="empty">Žádné objednávky pro zvolené filtry.</td>
+                  <th>Order ID</th>
+                  <th>Created</th>
+                  <th>Customer</th>
+                  <th>Models / Pieces</th>
+                  <th>Material(s)</th>
+                  <th>Print time</th>
+                  <th>Weight</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th>Flags</th>
+                  <th></th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {pageItems.map((o) => {
+                  const totals = computeOrderTotals(o);
+                  const mats = extractOrderMaterials(o);
+                  const flags = collectOrderFlags(o);
+                  return (
+                    <tr key={o.id}>
+                      <td className="mono">{o.id}</td>
+                      <td>{formatDateTime(o.created_at)}</td>
+                      <td>
+                        <div className="customer">
+                          <div className="customer-name">{o.customer_snapshot?.name || '—'}</div>
+                          <div className="customer-sub">{o.customer_snapshot?.email || ''}</div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="muted">{(o.models || []).length} / {totals.sum_pieces}</div>
+                      </td>
+                      <td>
+                        <div className="muted">{mats.join(', ') || '—'}</div>
+                      </td>
+                      <td className="muted">{formatTime(totals.sum_time_min)}</td>
+                      <td className="muted">{round2(totals.sum_weight_g)} g</td>
+                      <td className="strong">{formatMoney(totals.total)}</td>
+                      <td>
+                        <Badge tone={o.status === 'CANCELED' ? 'red' : o.status === 'DONE' ? 'green' : 'blue'}>
+                          {getStatusLabel(o.status, language)}
+                        </Badge>
+                      </td>
+                      <td>
+                        <div className="flags">
+                          {flags.slice(0, 3).map((f) => (
+                            <span key={f} title={getFlagLabel(f, language)} className="flag">
+                              <Icon name="AlertTriangle" size={14} />
+                            </span>
+                          ))}
+                          {flags.length > 3 ? <span className="muted">+{flags.length - 3}</span> : null}
+                        </div>
+                      </td>
+                      <td className="actions">
+                        <button className="btn-primary btn-small" onClick={() => navigate(`./${o.id}`)} type="button">
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
 
-        <div className="pagination">
-          <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} type="button">
-            <Icon name="ChevronLeft" size={16} /> Předchozí
-          </button>
-          <div className="muted">Strana {page} / {pageCount}</div>
-          <button className="btn" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} type="button">
-            Další <Icon name="ChevronRight" size={16} />
-          </button>
+                {pageItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="empty">Žádné objednávky pro zvolené filtry.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pagination">
+            <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} type="button">
+              <Icon name="ChevronLeft" size={16} /> Předchozí
+            </button>
+            <div className="muted">Strana {page} / {pageCount}</div>
+            <button className="btn" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} type="button">
+              Další <Icon name="ChevronRight" size={16} />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <KanbanBoard
+          orders={filtered}
+          onOrderClick={(orderId) => navigate(`./${orderId}`)}
+          onStatusChange={(orderId, newStatus) => {
+            const next = orders.map(o => {
+              if (o.id !== orderId) return o;
+              return { ...o, status: newStatus, updated_at: nowIso(), activity: [{ timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } }, ...(o.activity || [])].slice(0, 200) };
+            });
+            setOrders(next);
+            saveOrders(next);
+          }}
+        />
+      )}
 
       <style>{`
         .orders { max-width: 1200px; }
@@ -510,6 +551,12 @@ function OrdersList({ orders, setOrders }) {
         .btn-small { padding: 8px 10px; border-radius: 9px; }
 
         .pagination { display:flex; align-items:center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+
+        .view-toggle { display: flex; border: 1px solid #D1D5DB; border-radius: 10px; overflow: hidden; }
+        .toggle-btn { border: none; background: white; padding: 8px 10px; cursor: pointer; display: flex; align-items: center; }
+        .toggle-btn:hover { background: #F9FAFB; }
+        .toggle-btn.active { background: #EFF6FF; color: #1D4ED8; }
+        .toggle-btn + .toggle-btn { border-left: 1px solid #D1D5DB; }
 
         @media (max-width: 900px) {
           .panel.sticky { position: relative; top: auto; }

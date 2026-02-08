@@ -167,6 +167,12 @@ function normalizeFee(fee, idx = 0) {
     category: String(f.category || '').trim() || '',
     description: String(f.description || '').trim() || '',
     conditions: normalizeConditions(f.conditions),
+
+    // S06: Post-processing fields (optional, defaults if missing)
+    icon: String(f.icon || '').trim() || '',
+    processing_days: safeNum(f.processing_days, 0),
+    customer_description: String(f.customer_description || '').trim() || '',
+    image_url: String(f.image_url || '').trim() || '',
   };
 }
 

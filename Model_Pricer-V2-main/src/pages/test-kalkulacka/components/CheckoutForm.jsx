@@ -42,6 +42,12 @@ export default function CheckoutForm({
   pricingConfig,
   feesConfig,
   feeSelections,
+  expressConfig,
+  selectedExpressTierId,
+  shippingConfig,
+  selectedShippingMethodId,
+  couponsConfig,
+  appliedCouponCode,
   onComplete,
   onBack,
 }) {
@@ -78,11 +84,17 @@ export default function CheckoutForm({
         pricingConfig,
         feesConfig,
         feeSelections,
+        expressConfig,
+        selectedExpressTierId,
+        shippingConfig,
+        selectedShippingMethodId,
+        couponsConfig,
+        appliedCouponCode,
       });
     } catch {
       return null;
     }
-  }, [uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections]);
+  }, [uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections, expressConfig, selectedExpressTierId, shippingConfig, selectedShippingMethodId, couponsConfig, appliedCouponCode]);
 
   const onSubmit = async (data) => {
     const orderNumber = generateOrderNumber();

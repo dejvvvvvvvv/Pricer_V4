@@ -1,6 +1,8 @@
 // Pricing Engine V3
 // Used by /test-kalkulacka (tenant-scoped configs from AdminPricing + AdminFees)
-// Pipeline: base → fees → markup → minima → rounding
+// Pipeline: base → MODEL fees → percent fees → per-model min → per-model round
+//         → EXPRESS (S09) → COUPON (S10) → volume discounts (S05) → ORDER fees
+//         → markup → order min → final round → SHIPPING (S04)
 
 function safeNum(v, fallback = 0) {
   const n = typeof v === 'string' && v.trim() === '' ? NaN : Number(v);
@@ -402,6 +404,15 @@ export function calculateOrderQuote({
   pricingConfig,
   feesConfig,
   feeSelections,
+  // S09: Express surcharge
+  expressConfig,
+  selectedExpressTierId,
+  // S10: Coupon discount
+  couponsConfig,
+  appliedCouponCode,
+  // S04: Shipping
+  shippingConfig,
+  selectedShippingMethodId,
 }) {
   const files = Array.isArray(uploadedFiles) ? uploadedFiles : [];
   const cfgById = printConfigs && typeof printConfigs === 'object' ? printConfigs : {};
@@ -661,6 +672,99 @@ export function calculateOrderQuote({
   }
 
   const modelsTotal = Object.values(modelTotalsById).reduce((a, b) => a + safeNum(b, 0), 0);
+
+  // --- EXPRESS surcharge (S09)
+  const ec = expressConfig && typeof expressConfig === 'object' ? expressConfig : {};
+  const expressEnabled = !!ec.enabled;
+  let expressSurchargeTotal = 0;
+  const expressDetails = {};
+
+  if (expressEnabled && selectedExpressTierId && Array.isArray(ec.tiers)) {
+    const tier = ec.tiers.find(t => t && t.id === selectedExpressTierId && t.active !== false);
+    if (tier) {
+      const surchargeType = String(tier.surcharge_type || 'percent');
+      const surchargeValue = safeNum(tier.surcharge_value, 0);
+
+      for (const model of modelResults) {
+        const modelTotal = safeNum(modelTotalsById[model.id], 0);
+        let surcharge = 0;
+
+        if (surchargeType === 'percent') {
+          surcharge = (modelTotal * surchargeValue) / 100;
+        } else if (surchargeType === 'fixed') {
+          surcharge = surchargeValue;
+        }
+
+        surcharge = Math.max(0, surcharge);
+        expressSurchargeTotal += surcharge;
+        modelTotalsById[model.id] = modelTotal + surcharge;
+
+        expressDetails[model.id] = {
+          originalTotal: modelTotal,
+          surcharge,
+          newTotal: modelTotal + surcharge,
+          surchargeType,
+          surchargeValue,
+        };
+      }
+    }
+  }
+
+  // --- COUPON discount (S10)
+  const cc = couponsConfig && typeof couponsConfig === 'object' ? couponsConfig : {};
+  const couponsEnabled = !!cc.enabled;
+  let couponDiscountTotal = 0;
+  let couponApplied = null;
+
+  if (couponsEnabled && appliedCouponCode && Array.isArray(cc.coupons)) {
+    const code = String(appliedCouponCode).trim().toUpperCase();
+    const coupon = cc.coupons.find(c => c && c.active && String(c.code).trim().toUpperCase() === code);
+
+    if (coupon) {
+      const now = new Date();
+      const notExpired = !coupon.expires_at || new Date(coupon.expires_at) > now;
+      const started = !coupon.starts_at || new Date(coupon.starts_at) <= now;
+      const underLimit = !coupon.max_uses || safeNum(coupon.used_count, 0) < safeNum(coupon.max_uses, Infinity);
+      const meetsMinimum = !coupon.min_order_total || Object.values(modelTotalsById).reduce((a, b) => a + safeNum(b, 0), 0) >= safeNum(coupon.min_order_total, 0);
+
+      if (notExpired && started && underLimit && meetsMinimum) {
+        const couponType = String(coupon.type || 'percent');
+        const couponValue = safeNum(coupon.value, 0);
+        const currentSubtotal = Object.values(modelTotalsById).reduce((a, b) => a + safeNum(b, 0), 0);
+
+        if (couponType === 'percent') {
+          const maxPct = safeNum(cc.settings?.max_discount_percent, 100);
+          const effectivePct = Math.min(couponValue, maxPct);
+          couponDiscountTotal = (currentSubtotal * effectivePct) / 100;
+        } else if (couponType === 'fixed') {
+          couponDiscountTotal = Math.min(couponValue, currentSubtotal);
+        }
+        // free_shipping is handled in shipping step
+
+        couponDiscountTotal = Math.max(0, couponDiscountTotal);
+
+        // Distribute discount proportionally across models
+        if (couponDiscountTotal > 0 && currentSubtotal > 0) {
+          for (const model of modelResults) {
+            const modelTotal = safeNum(modelTotalsById[model.id], 0);
+            const proportion = modelTotal / currentSubtotal;
+            const modelDiscount = couponDiscountTotal * proportion;
+            modelTotalsById[model.id] = Math.max(0, modelTotal - modelDiscount);
+          }
+        }
+
+        couponApplied = {
+          code: coupon.code,
+          type: couponType,
+          value: couponValue,
+          discount: couponDiscountTotal,
+        };
+      }
+    }
+  }
+
+  // Update discountsNegative with coupon
+  discountsNegative -= couponDiscountTotal;
 
   // --- Volume Discounts (S05)
   const volumeConfig = pc.volume_discounts && typeof pc.volume_discounts === 'object' ? pc.volume_discounts : null;
@@ -996,29 +1100,88 @@ for (const fee of fees) {
   const total = Math.max(0, safeNum(totalRounded, 0));
   const clampedToZero = total !== safeNum(totalRounded, 0);
 
+  // --- SHIPPING (S04)
+  const sc = shippingConfig && typeof shippingConfig === 'object' ? shippingConfig : {};
+  const shippingEnabled = !!sc.enabled;
+  let shippingCost = 0;
+  let shippingMethod = null;
+  let freeShippingApplied = false;
+
+  if (shippingEnabled && selectedShippingMethodId && Array.isArray(sc.methods)) {
+    const method = sc.methods.find(m => m && m.id === selectedShippingMethodId && m.active !== false);
+    if (method) {
+      const methodType = String(method.type || 'FIXED');
+
+      if (methodType === 'PICKUP') {
+        shippingCost = 0;
+      } else if (methodType === 'FIXED') {
+        shippingCost = safeNum(method.price, 0);
+      } else if (methodType === 'WEIGHT_BASED') {
+        // Sum total weight across all models
+        const totalWeightG = modelResults.reduce((sum, m) => {
+          return sum + safeNum(m.base.filamentGrams, 0) * safeNum(m.quantity, 1);
+        }, 0);
+
+        const tiers = Array.isArray(method.weight_tiers) ? [...method.weight_tiers].sort((a, b) => safeNum(a.max_weight_g, 0) - safeNum(b.max_weight_g, 0)) : [];
+        const matchedTier = tiers.find(t => totalWeightG <= safeNum(t.max_weight_g, Infinity));
+        shippingCost = matchedTier ? safeNum(matchedTier.price, 0) : (tiers.length > 0 ? safeNum(tiers[tiers.length - 1].price, 0) : 0);
+      }
+
+      // Free shipping threshold
+      if (sc.free_shipping_enabled && safeNum(sc.free_shipping_threshold, 0) > 0 && total >= safeNum(sc.free_shipping_threshold, 0)) {
+        freeShippingApplied = true;
+        shippingCost = 0;
+      }
+
+      // Coupon free_shipping override
+      if (couponApplied && couponApplied.type === 'free_shipping') {
+        freeShippingApplied = true;
+        shippingCost = 0;
+      }
+
+      shippingMethod = {
+        id: method.id,
+        name: method.name,
+        type: methodType,
+        cost: shippingCost,
+        delivery_days_min: safeNum(method.delivery_days_min, 0),
+        delivery_days_max: safeNum(method.delivery_days_max, 0),
+      };
+    }
+  }
+
+  const grandTotal = Math.max(0, total + shippingCost);
+
   return {
     currency: 'CZK',
     total,
+    grandTotal,
     totals: {
       material: materialTotal,
       time: timeTotal,
       modelsTotal: modelsTotalAfterVolume,
+      expressSurchargeTotal,
+      couponDiscountTotal,
       volumeDiscountTotal,
       orderFeesTotal,
       subtotalBeforeMarkup,
       markupAmount,
       totalAfterMarkup,
       totalRounded,
+      shippingCost,
+      grandTotal,
     },
     simple: {
       material: materialTotal,
       time: timeTotal,
       services: servicesPositive,
-      discount: discountsNegative, // negative number (includes volume discount)
+      discount: discountsNegative, // negative number (includes volume discount + coupon)
       markup: markupAmount,
     },
     models: modelResults,
     orderFees: orderFeeRows,
+    express: expressEnabled ? { enabled: true, tierId: selectedExpressTierId, surchargeTotal: expressSurchargeTotal, details: expressDetails } : null,
+    coupon: couponApplied,
     volumeDiscount: volumeEnabled ? {
       enabled: true,
       mode: volumeConfig.mode,
@@ -1026,11 +1189,16 @@ for (const fee of fees) {
       totalSavings: volumeDiscountTotal,
       details: volumeDiscountDetails,
     } : null,
+    shipping: shippingMethod ? { ...shippingMethod, freeShippingApplied } : null,
     flags: {
       min_order_total_applied: minOrderApplied,
       rounding_final_applied: roundingAppliedFinal,
       clamped_to_zero: clampedToZero,
       volume_discount_applied: volumeDiscountTotal > 0,
+      express_applied: expressSurchargeTotal > 0,
+      coupon_applied: couponDiscountTotal > 0,
+      shipping_applied: shippingCost > 0,
+      free_shipping_applied: freeShippingApplied,
     },
   };
 }

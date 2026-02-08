@@ -39,7 +39,10 @@
       "WebFetch(domain:graphicdesignjunction.com)",
       "WebFetch(domain:elementor.com)",
       "WebFetch(domain:kontra.agency)",
-      "WebFetch(domain:uitop.design)"
+      "WebFetch(domain:uitop.design)",
+      "Bash(for f in \"C:/Users/Kuňákovi/Downloads/Model_Pricer-V2-main_VariantaA_A_to_F_Integrated/docs/claude/Planovane_Implementace/Redesign/IMPL_PLAN\"*)",
+      "Bash(do if [ -f \"$f\" ])",
+      "Bash(fi:*)"
     ]
   }
 }
