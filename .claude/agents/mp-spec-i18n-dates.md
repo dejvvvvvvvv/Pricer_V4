@@ -2,7 +2,7 @@
 name: mp-spec-i18n-dates
 description: Formatovani datumu a casu - Intl.DateTimeFormat, locale-aware timestamps
 color: "#2DD4BF"
-model: claude-opus-4-6
+model: claude-haiku-4-5-20251001
 tools: [Read, Glob, Grep, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

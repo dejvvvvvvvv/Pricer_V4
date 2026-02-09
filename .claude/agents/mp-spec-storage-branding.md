@@ -2,7 +2,7 @@
 name: mp-spec-storage-branding
 description: "Branding storage — logo, barvy, nazev firmy, tenant-scoped branding config."
 color: "#A78BFA"
-model: claude-opus-4-6
+model: claude-sonnet-4-5-20250929
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

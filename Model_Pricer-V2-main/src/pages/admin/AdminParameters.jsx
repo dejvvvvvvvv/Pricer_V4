@@ -413,10 +413,22 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState('');
   const [onlyActive, setOnlyActive] = useState(false);
+  const [onlyInactive, setOnlyInactive] = useState(false);
   const [onlyChanged, setOnlyChanged] = useState(false);
   const [typeFilter, setTypeFilter] = useState('');
-  const [levelFilter, setLevelFilter] = useState('basic');
+  const [levelFilter, setLevelFilter] = useState('pro');
   const [confirm, setConfirm] = useState({ open: false, action: null, title: '', description: '' });
+
+  const hasAnyFilter = search || group || typeFilter || levelFilter !== 'pro' || onlyActive || onlyInactive || onlyChanged;
+  const clearAllFilters = () => {
+    setSearch('');
+    setGroup('');
+    setTypeFilter('');
+    setLevelFilter('pro');
+    setOnlyActive(false);
+    setOnlyInactive(false);
+    setOnlyChanged(false);
+  };
 
   const groups = useMemo(() => {
     const set = new Set(PRUSA_PARAMETER_CATALOG.map(d => d.group || 'Other'));
@@ -425,23 +437,23 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
+    const lvlOrder = { basic: 0, mid: 1, pro: 2 };
 
     return PRUSA_PARAMETER_CATALOG
       .filter(def => {
         if (group && def.group !== group) return false;
         if (typeFilter && def.dataType !== typeFilter) return false;
-        const _lvlOrder = { basic: 0, mid: 1, pro: 2 };
-        const _defLvl = def.uiLevel || 'pro';
-        if (_lvlOrder[_defLvl] > _lvlOrder[levelFilter || 'basic']) return false;
+        const defLvl = def.uiLevel || 'pro';
+        if (lvlOrder[defLvl] > lvlOrder[levelFilter || 'pro']) return false;
 
         const row = draft.parameters[def.key];
         if (!row) return false;
 
         const active = !!row.active_for_slicing;
         if (onlyActive && !active) return false;
+        if (onlyInactive && active) return false;
 
         const baseDefault = def.defaultValue;
-        const value = row.default_value_override === null ? baseDefault : row.default_value_override;
         const isValueChanged = row.default_value_override !== null && !safeEqual(row.default_value_override, baseDefault);
         const isActiveChanged = active !== Boolean(def.defaultActiveForSlicing);
         if (onlyChanged && !(isValueChanged || isActiveChanged)) return false;
@@ -457,7 +469,7 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
         if (ga !== gb) return ga.localeCompare(gb);
         return getLabel(a, language).localeCompare(getLabel(b, language));
       });
-  }, [search, group, onlyActive, onlyChanged, typeFilter, levelFilter, draft, language]);
+  }, [search, group, onlyActive, onlyInactive, onlyChanged, typeFilter, levelFilter, draft, language]);
 
   const grouped = useMemo(() => {
     const out = {};
@@ -494,44 +506,87 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
 
   return (
     <div>
-      <div className="compact-toolbar">
-        <div className="toolbar-row">
-          <div className="search-compact">
+      <div className="lib-filter-panel">
+        <div className="lib-filter-row-search">
+          <div className="lib-search-box">
             <Icon name="Search" size={16} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={language === 'cs' ? 'Hledat…' : 'Search…'}
+              placeholder={language === 'cs' ? 'Hledat podle nazvu nebo klice...' : 'Search by name or key...'}
             />
+            {search && (
+              <button className="lib-search-clear" onClick={() => setSearch('')} title={language === 'cs' ? 'Vymazat' : 'Clear'}>
+                <Icon name="X" size={14} />
+              </button>
+            )}
           </div>
-          <select value={group} onChange={(e) => setGroup(e.target.value)} className="filter-select">
-            <option value="">{language === 'cs' ? 'Skupiny' : 'Groups'}</option>
-            {groups.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="filter-select">
-            <option value="">{language === 'cs' ? 'Typ' : 'Type'}</option>
-            <option value="number">number</option>
-            <option value="boolean">boolean</option>
-            <option value="enum">enum</option>
-            <option value="string">string</option>
-          </select>
-          <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="filter-select">
-            <option value="basic">Basic</option>
-            <option value="mid">Mid</option>
-            <option value="pro">Pro</option>
-          </select>
-          <button className={`filter-chip ${onlyActive ? 'active' : ''}`} onClick={() => setOnlyActive(v => !v)}>
-            {language === 'cs' ? 'Aktivní' : 'Active'}
-          </button>
-          <button className={`filter-chip ${onlyChanged ? 'active' : ''}`} onClick={() => setOnlyChanged(v => !v)}>
-            {language === 'cs' ? 'Změněné' : 'Changed'}
-          </button>
-          <div className="toolbar-spacer" />
-          <span className="changes-badge">{changedCountVsCatalog} {language === 'cs' ? 'změn' : 'changes'}</span>
-          <button className="btn primary" onClick={onSave} disabled={saveDisabled}>
-            <Icon name="Save" size={16} />
-            {language === 'cs' ? 'Uložit' : 'Save'}
-          </button>
+          <div className="lib-filter-result">
+            <span className="lib-filter-result-count">{filtered.length}</span>
+            <span className="lib-filter-result-sep">/</span>
+            <span className="lib-filter-result-total">{PRUSA_PARAMETER_CATALOG.length}</span>
+            <span className="lib-filter-result-label">{language === 'cs' ? 'parametru' : 'params'}</span>
+          </div>
+        </div>
+
+        <div className="lib-filter-row-controls">
+          <div className="lib-filter-selects">
+            <div className="lib-filter-select-wrap">
+              <span className="lib-filter-select-label">{language === 'cs' ? 'Skupina' : 'Group'}</span>
+              <select value={group} onChange={(e) => setGroup(e.target.value)}>
+                <option value="">{language === 'cs' ? 'Vsechny' : 'All'}</option>
+                {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div className="lib-filter-select-wrap">
+              <span className="lib-filter-select-label">{language === 'cs' ? 'Datovy typ' : 'Data type'}</span>
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="">{language === 'cs' ? 'Vsechny' : 'All'}</option>
+                <option value="number">Number</option>
+                <option value="boolean">Boolean</option>
+                <option value="enum">Enum</option>
+                <option value="string">String</option>
+              </select>
+            </div>
+            <div className="lib-filter-select-wrap">
+              <span className="lib-filter-select-label">{language === 'cs' ? 'Uroven' : 'Level'}</span>
+              <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+                <option value="pro">{language === 'cs' ? 'Vsechny' : 'All'}</option>
+                <option value="basic">Basic</option>
+                <option value="mid">Basic + Mid</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="lib-filter-divider" />
+
+          <div className="lib-filter-chips">
+            <button
+              className={`lib-chip ${onlyActive ? 'on' : ''}`}
+              onClick={() => { setOnlyActive(v => !v); if (!onlyActive) setOnlyInactive(false); }}
+            >
+              {language === 'cs' ? 'Aktivni' : 'Active'}
+            </button>
+            <button
+              className={`lib-chip ${onlyInactive ? 'on' : ''}`}
+              onClick={() => { setOnlyInactive(v => !v); if (!onlyInactive) setOnlyActive(false); }}
+            >
+              {language === 'cs' ? 'Neaktivni' : 'Inactive'}
+            </button>
+            <button
+              className={`lib-chip ${onlyChanged ? 'on' : ''}`}
+              onClick={() => setOnlyChanged(v => !v)}
+            >
+              {language === 'cs' ? 'Zmenene' : 'Changed'}
+            </button>
+          </div>
+
+          {hasAnyFilter && (
+            <button className="lib-filter-clear-btn" onClick={clearAllFilters}>
+              <Icon name="X" size={14} />
+              {language === 'cs' ? 'Zrusit filtry' : 'Clear'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -615,44 +670,184 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
       />
 
       <style>{`
-        .toolbar {
-          position: sticky;
-          top: 0;
-          z-index: 5;
-          background: #F5F5F5;
-          padding: 12px 0;
+        .lib-filter-panel {
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 14px;
+          padding: 14px 16px;
+          margin-bottom: 16px;
           display: flex;
-          gap: 14px;
-          align-items: center;
-          justify-content: space-between;
-        }
-        .toolbar-left {
-          display: flex;
-          align-items: center;
+          flex-direction: column;
           gap: 12px;
-          flex-wrap: wrap;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
-        .search {
+        .lib-filter-row-search {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .lib-search-box {
+          flex: 1;
           display: flex;
           align-items: center;
           gap: 8px;
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          padding: 8px 12px;
+          transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+        }
+        .lib-search-box:focus-within {
+          border-color: #111827;
+          box-shadow: 0 0 0 3px rgba(17,24,39,0.06);
           background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-          padding: 10px 12px;
-          min-width: 340px;
         }
-        .search input {
-          border: none;
-          outline: none;
-          width: 100%;
+        .lib-search-box input {
+          flex: 1;
+          border: none !important;
+          outline: none !important;
+          background: transparent !important;
           font-size: 14px;
+          padding: 0 !important;
+          height: auto !important;
+          box-shadow: none !important;
+          width: 100%;
         }
-        .filters {
+        .lib-search-box .lucide {
+          color: #9ca3af;
+          flex-shrink: 0;
+        }
+        .lib-search-clear {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          background: none;
+          cursor: pointer;
+          color: #9ca3af;
+          padding: 2px;
+          border-radius: 4px;
+          transition: color 0.15s;
+          flex-shrink: 0;
+        }
+        .lib-search-clear:hover {
+          color: #374151;
+        }
+        .lib-filter-result {
+          display: flex;
+          align-items: baseline;
+          gap: 4px;
+          font-size: 13px;
+          color: #6b7280;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .lib-filter-result-count {
+          font-weight: 800;
+          color: #111827;
+          font-size: 16px;
+        }
+        .lib-filter-result-sep {
+          color: #d1d5db;
+        }
+        .lib-filter-result-total {
+          font-weight: 600;
+        }
+        .lib-filter-result-label {
+          margin-left: 2px;
+        }
+        .lib-filter-row-controls {
           display: flex;
           align-items: center;
           gap: 10px;
           flex-wrap: wrap;
+        }
+        .lib-filter-selects {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .lib-filter-select-wrap {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .lib-filter-select-label {
+          font-size: 12px;
+          color: #6b7280;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+        .lib-filter-select-wrap select {
+          height: 32px;
+          padding: 0 28px 0 10px !important;
+          font-size: 13px;
+          border-radius: 8px !important;
+          border: 1px solid #e5e7eb;
+          background: #fff;
+          font-weight: 500;
+          cursor: pointer;
+          min-width: 90px;
+        }
+        .lib-filter-select-wrap select:focus {
+          border-color: #111827;
+          box-shadow: 0 0 0 2px rgba(17,24,39,0.06);
+        }
+        .lib-filter-divider {
+          width: 1px;
+          height: 24px;
+          background: #e5e7eb;
+          flex-shrink: 0;
+        }
+        .lib-filter-chips {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .lib-chip {
+          height: 32px;
+          padding: 0 12px;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          color: #374151;
+          cursor: pointer;
+          transition: all 0.15s;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+        }
+        .lib-chip:hover {
+          background: #f9fafb;
+          border-color: #d1d5db;
+        }
+        .lib-chip.on {
+          background: #eff6ff;
+          border-color: #93c5fd;
+          color: #1d4ed8;
+        }
+        .lib-filter-clear-btn {
+          height: 32px;
+          padding: 0 10px;
+          border-radius: 8px;
+          border: 1px solid #fecaca;
+          background: #fff;
+          font-size: 12px;
+          font-weight: 600;
+          color: #dc2626;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          white-space: nowrap;
+          margin-left: auto;
+          transition: all 0.15s;
+        }
+        .lib-filter-clear-btn:hover {
+          background: #fef2f2;
         }
         select {
           background: #fff;
@@ -660,28 +855,6 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           border-radius: 10px;
           padding: 10px 10px;
           font-size: 14px;
-        }
-        .chip {
-          border: 1px solid #D1D5DB;
-          background: #fff;
-          border-radius: 999px;
-          padding: 9px 12px;
-          cursor: pointer;
-          font-weight: 600;
-          font-size: 13px;
-          color: #374151;
-        }
-        .chip.on {
-          background: #EFF6FF;
-          border-color: #BFDBFE;
-          color: #1D4ED8;
-        }
-        .toolbar-right {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
         }
         .btn {
           display: inline-flex;
@@ -708,6 +881,21 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           background: #fff;
           border-color: #FCA5A5;
           color: #B91C1C;
+        }
+        @media (max-width: 768px) {
+          .lib-filter-row-search {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .lib-filter-result {
+            justify-content: center;
+          }
+          .lib-filter-row-controls {
+            justify-content: flex-start;
+          }
+          .lib-filter-divider {
+            display: none;
+          }
         }
         .bulk {
           background: #fff;
@@ -788,9 +976,6 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           border: 1px dashed #D1D5DB;
           border-radius: 14px;
           padding: 16px;
-        }
-        @media (max-width: 960px) {
-          .search { min-width: 240px; }
         }
       `}</style>
     </div>
@@ -1480,9 +1665,6 @@ function WidgetPage({ language, draft, onPatchDraft }) {
           display: flex;
           flex-direction: column;
           gap: 12px;
-        }
-        @media (max-width: 960px) {
-          .search { min-width: 240px; }
         }
       `}</style>
     </div>
@@ -2222,83 +2404,7 @@ export default function AdminParameters() {
           .tabs-right { margin-left: 0; }
         }
 
-        /* Compact Toolbar Styles */
-        .compact-toolbar {
-          background: #fff;
-          border-bottom: 1px solid #e5e7eb;
-          padding: 12px 24px;
-          margin: -24px -24px 20px -24px;
-          position: sticky;
-          top: 0;
-          z-index: 100;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-        }
-        .toolbar-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .search-compact {
-          position: relative;
-          width: 240px;
-        }
-        .search-compact input {
-          width: 100%;
-          padding: 6px 10px 6px 32px;
-          border-radius: 6px !important;
-          font-size: 13px;
-          height: 32px;
-          border: 1px solid #e5e7eb;
-        }
-        .search-compact .lucide {
-          position: absolute;
-          left: 10px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #9ca3af;
-        }
-        .filter-select {
-          width: auto;
-          height: 32px;
-          padding: 0 24px 0 10px !important;
-          font-size: 13px;
-          border-radius: 6px !important;
-          border: 1px solid #e5e7eb;
-          background: #fff;
-        }
-        .filter-chip {
-          height: 32px;
-          padding: 0 12px;
-          border-radius: 6px;
-          border: 1px solid #e5e7eb;
-          background: #fff;
-          font-size: 13px;
-          font-weight: 500;
-          color: #374151;
-          cursor: pointer;
-          transition: all 0.15s;
-          display: flex;
-          align-items: center;
-        }
-        .filter-chip:hover {
-          background: #f9fafb;
-          border-color: #d1d5db;
-        }
-        .filter-chip.active {
-          background: #eff6ff;
-          border-color: #bfdbfe;
-          color: #2563eb;
-        }
-        .toolbar-spacer {
-          flex: 1;
-        }
-        .changes-badge {
-          font-size: 12px;
-          color: #6b7280;
-          font-weight: 500;
-          white-space: nowrap;
-        }
+        /* Filter panel styles are in LibraryPage component */
       `}</style>
     </div>
   );

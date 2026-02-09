@@ -2,7 +2,7 @@
 name: mp-spec-fe-notifications
 description: "Notification/toast system — success/error/warning/info, auto-dismiss, stacking."
 color: "#4ADE80"
-model: claude-opus-4-6
+model: claude-haiku-4-5-20251001
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

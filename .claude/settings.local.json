@@ -32,7 +32,8 @@
       "WebFetch(domain:graphicdesignjunction.com)",
       "WebFetch(domain:elementor.com)",
       "WebFetch(domain:kontra.agency)",
-      "WebFetch(domain:uitop.design)"
+      "WebFetch(domain:uitop.design)",
+      "WebSearch"
     ]
   }
 }

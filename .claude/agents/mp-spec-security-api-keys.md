@@ -1,7 +1,7 @@
 ---
 name: mp-spec-security-api-keys
 description: API Keys & Secrets Guardian
-model: claude-opus-4-6
+model: claude-haiku-4-5-20251001
 color: "#F87171"
 tools:
   - Read

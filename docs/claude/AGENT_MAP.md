@@ -63,7 +63,7 @@
 | `mp-spec-fe-forms` | Formulare — React Hook Form, Zod validace, input UX, error states | sonnet | Vsechny form komponenty, validacni logika |
 | `mp-spec-fe-3d-viewer` | 3D prohlizec — Three.js, STLLoader, OBJLoader, 3MFLoader, kamera, osvetleni | sonnet | `ModelViewer.jsx`, `FilePreview.jsx`, Three.js konfigurace |
 | `mp-spec-fe-state` | State management — React state, context, Zustand, Jotai (budouci) | sonnet | `/src/context/`, hooks, state patterns |
-| `mp-spec-fe-animations` | Animace a mikro-interakce — CSS transitions, loading states, skeleton screens | haiku | `/src/components/marketing/`, animacni patterns |
+| `mp-spec-fe-animations` | Animace a mikro-interakce — CSS transitions, loading states, skeleton screens | sonnet | `/src/components/marketing/`, animacni patterns |
 | `mp-spec-fe-tables` | Tabulky a data gridy — sortovani, filtrovani, paginace, responsive tables | sonnet | Admin tabulky v `/src/pages/admin/` |
 | `mp-spec-fe-charts` | Grafy a vizualizace — Recharts, Chart.js, dashboard metriky | sonnet | `/src/pages/admin/AdminAnalytics.jsx`, graf komponenty |
 | `mp-spec-fe-kanban` | Kanban board — drag-and-drop (@dnd-kit), karty, sloupce, WIP limity | sonnet | Admin Orders Kanban view (budouci Sekce 14) |
@@ -95,9 +95,9 @@
 |-------|------|-------|-------|
 | `mp-spec-design-responsive` | Responsive design — mobile-first, touch interakce, breakpoints | sonnet | Media queries, responsive patterns |
 | `mp-spec-design-a11y` | Accessibility — WCAG 2.1 AA, keyboard navigace, ARIA, kontrast, screen reader | sonnet | UI komponenty (a11y audit + patche) |
-| `mp-spec-design-user-friendly` | User-Friendly design — intuitivni rozhrani, error prevence, jasne labely | haiku | UX review vsech stranek |
+| `mp-spec-design-user-friendly` | User-Friendly design — intuitivni rozhrani, error prevence, jasne labely | sonnet | UX review vsech stranek |
 | `mp-spec-design-onboarding` | Onboarding UX — guided tours, tooltips, first-time experience (Driver.js, Shepherd.js) | sonnet | Onboarding komponenty (budouci Sekce 22) |
-| `mp-spec-design-icons` | Ikony a vizualni prvky — ikonovy system, ilustrace, placeholdery, empty states | haiku | `/src/components/ui/Icon.jsx`, ikony |
+| `mp-spec-design-icons` | Ikony a vizualni prvky — ikonovy system, ilustrace, placeholdery, empty states | sonnet | `/src/components/ui/Icon.jsx`, ikony |
 
 ---
 
@@ -182,7 +182,7 @@
 | `mp-spec-storage-tenant-id` | TenantID — getTenantId() pouziti, tenant scoping, izolace dat | haiku | `adminTenantStorage.js`, tenant klice |
 | `mp-spec-storage-migration` | Storage migrace — legacy klice, schema versioning, data transformace | sonnet | Migracni skripty |
 | `mp-spec-storage-cache` | Caching — React Query (budouci), memoizace, localStorage cache, invalidace | sonnet | Cache patterns |
-| `mp-spec-storage-branding` | Branding storage — widget config, logo, barvy, branding persistence | haiku | `/src/utils/adminBrandingWidgetStorage.js` |
+| `mp-spec-storage-branding` | Branding storage — widget config, logo, barvy, branding persistence | sonnet | `/src/utils/adminBrandingWidgetStorage.js` |
 
 ---
 
