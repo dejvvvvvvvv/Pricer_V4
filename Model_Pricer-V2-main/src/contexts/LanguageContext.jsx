@@ -113,6 +113,50 @@ const translations = {
     'home.faq.a3': 'V adminu nastavíš maximální rozměry podle své tiskárny. Systém automaticky odmítne modely, které jsou příliš velké.',
     'home.faq.more': 'Zobrazit všechny otázky →',
 
+    // Home — What We Do
+    'home.whatWeDo.title': 'Co je ModelPricer?',
+    'home.whatWeDo.p1': 'ModelPricer je SaaS platforma pro 3D tiskové firmy. Automatizuje nacenění zakázek — zákazník nahraje model, vybere parametry a okamžitě vidí cenu. Žádné e-maily, žádné ruční kalkulace.',
+    'home.whatWeDo.p2': 'Backend spustí PrusaSlicer, získá přesný čas tisku a spotřebu materiálu. Cenotvorba se řídí tvými pravidly — cena materiálu, čas, poplatky, markup a zaokrouhlení. Výsledek zobrazíš přes embedovatelný widget přímo na svém webu.',
+    'home.whatWeDo.stat1': 'Průměrný čas k ceně po nahrání modelu',
+    'home.whatWeDo.stat2': 'Méně ruční práce s naceněním',
+    'home.whatWeDo.stat3': 'Nonstop automatická kalkulace',
+
+    // Home — How It Works
+    'home.howItWorks.title': 'Jak to funguje',
+    'home.howItWorks.step1.title': 'Nahrání modelu',
+    'home.howItWorks.step1.desc': 'Zákazník nahraje STL soubor přes tvůj web nebo widget.',
+    'home.howItWorks.step2.title': 'Server slicing',
+    'home.howItWorks.step2.desc': 'PrusaSlicer na serveru analyzuje model a vrátí čas tisku a spotřebu materiálu.',
+    'home.howItWorks.step3.title': 'Kalkulace ceny',
+    'home.howItWorks.step3.desc': 'Pricing engine aplikuje tvoje pravidla — materiál, čas, poplatky, markup.',
+    'home.howItWorks.step4.title': 'Okamžitá nabídka',
+    'home.howItWorks.step4.desc': 'Zákazník vidí detailní rozpis ceny a může rovnou objednat.',
+
+    // Home — Feature Cards (fixed)
+    'home.forge.feature1.title': 'Přesný cenotvorný engine',
+    'home.forge.feature1.desc': 'Kalkulace založená na objemu s přehledným rozpisem. Nastav ceny materiálů, časové sazby a vlastní poplatky.',
+    'home.forge.feature2.title': 'Multi-formát upload',
+    'home.forge.feature2.desc': 'Nahrávej STL modely přímo. Server-side PrusaSlicer vrátí čas tisku, spotřebu materiálu a počet vrstev.',
+    'home.forge.feature3.title': 'White-label widget',
+    'home.forge.feature3.desc': 'Embedovatelná cenová kalkulačka s vlastním brandingem. Nastav barvy, logo a whitelist domén pro e-shop integraci.',
+
+    // Home — Plans
+    'home.forge.plans.title': 'Cenové plány',
+    'home.forge.plans.period': 'měsíčně',
+    'home.forge.plans.starter.f1': '1 widget na web',
+    'home.forge.plans.starter.f2': '100 kalkulací / měsíc',
+    'home.forge.plans.starter.f3': 'Email podpora',
+    'home.forge.plans.pro.f1': 'Neomezené widgety',
+    'home.forge.plans.pro.f2': '500 kalkulací / měsíc',
+    'home.forge.plans.pro.f3': 'Plný branding',
+    'home.forge.plans.pro.f4': 'Prioritní podpora',
+    'home.forge.plans.pro.cta': 'Doporučeno',
+    'home.forge.plans.enterprise.f1': 'Vše z Pro',
+    'home.forge.plans.enterprise.f2': 'White-label řešení',
+    'home.forge.plans.enterprise.f3': 'SLA + dedikovaná podpora',
+    'home.forge.plans.enterprise.f4': 'Custom API integrace',
+    'home.forge.plans.enterprise.cta': 'Kontaktovat',
+
     // Footer
     'footer.description': 'SaaS pro nacenění 3D tisku',
     'footer.nav.title': 'Navigace',
@@ -576,6 +620,50 @@ const translations = {
     'home.faq.q3': 'What if the model is larger than my printer?',
     'home.faq.a3': 'In the admin panel, you set maximum dimensions based on your printer. The system automatically rejects models that are too large.',
     'home.faq.more': 'View All Questions →',
+
+    // Home — What We Do
+    'home.whatWeDo.title': 'What is ModelPricer?',
+    'home.whatWeDo.p1': 'ModelPricer is a SaaS platform for 3D print shops. It automates quote generation — customers upload a model, pick parameters, and instantly see the price. No emails, no manual calculations.',
+    'home.whatWeDo.p2': 'The backend runs PrusaSlicer to get accurate print time and material usage. Pricing follows your rules — material cost, time rate, fees, markup, and rounding. Results are displayed through an embeddable widget on your website.',
+    'home.whatWeDo.stat1': 'Average time to quote after upload',
+    'home.whatWeDo.stat2': 'Less manual quoting work',
+    'home.whatWeDo.stat3': 'Nonstop automated quoting',
+
+    // Home — How It Works
+    'home.howItWorks.title': 'How It Works',
+    'home.howItWorks.step1.title': 'Upload Model',
+    'home.howItWorks.step1.desc': 'Customer uploads an STL file through your website or widget.',
+    'home.howItWorks.step2.title': 'Server Slicing',
+    'home.howItWorks.step2.desc': 'PrusaSlicer on the server analyzes the model and returns print time and material usage.',
+    'home.howItWorks.step3.title': 'Price Calculation',
+    'home.howItWorks.step3.desc': 'The pricing engine applies your rules — material, time, fees, and markup.',
+    'home.howItWorks.step4.title': 'Instant Quote',
+    'home.howItWorks.step4.desc': 'Customer sees a detailed price breakdown and can order right away.',
+
+    // Home — Feature Cards (fixed)
+    'home.forge.feature1.title': 'Precision Pricing Engine',
+    'home.forge.feature1.desc': 'Volume-based calculations with receipt-style breakdowns. Configure material costs, time rates, and custom fees.',
+    'home.forge.feature2.title': 'Multi-Format Upload',
+    'home.forge.feature2.desc': 'Upload STL models directly. Server-side PrusaSlicer returns print time, material usage, and layer count.',
+    'home.forge.feature3.title': 'White-Label Widget',
+    'home.forge.feature3.desc': 'Embeddable pricing calculator with custom branding. Set colors, logo, and domain whitelist for e-shop integration.',
+
+    // Home — Plans
+    'home.forge.plans.title': 'Pricing Plans',
+    'home.forge.plans.period': 'per month',
+    'home.forge.plans.starter.f1': '1 widget on your site',
+    'home.forge.plans.starter.f2': '100 calculations / month',
+    'home.forge.plans.starter.f3': 'Email support',
+    'home.forge.plans.pro.f1': 'Unlimited widgets',
+    'home.forge.plans.pro.f2': '500 calculations / month',
+    'home.forge.plans.pro.f3': 'Full branding',
+    'home.forge.plans.pro.f4': 'Priority support',
+    'home.forge.plans.pro.cta': 'Recommended',
+    'home.forge.plans.enterprise.f1': 'Everything in Pro',
+    'home.forge.plans.enterprise.f2': 'White-label solution',
+    'home.forge.plans.enterprise.f3': 'SLA + dedicated support',
+    'home.forge.plans.enterprise.f4': 'Custom API integration',
+    'home.forge.plans.enterprise.cta': 'Contact',
 
     // Footer
     'footer.description': 'SaaS for 3D Print Pricing',

@@ -1,15 +1,25 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
-import Button from '../../components/ui/Button';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeStatusIndicator from '../../components/ui/forge/ForgeStatusIndicator';
 import ForgeSquiggle from '../../components/ui/forge/ForgeSquiggle';
 import ForgePrinterSVG from '../../components/ui/forge/ForgePrinterSVG';
 import ForgeNumberedCard from '../../components/ui/forge/ForgeNumberedCard';
+import ForgeButton from '../../components/ui/forge/ForgeButton';
+import ForgeSectionLabel from '../../components/ui/forge/ForgeSectionLabel';
+import ForgePricingCard from '../../components/ui/forge/ForgePricingCard';
+import ForgeFaqAccordion from '../../components/ui/forge/ForgeFaqAccordion';
+
+const forgePageStyles = {
+  backgroundColor: 'var(--forge-bg-void)',
+  color: 'var(--forge-text-primary)',
+  fontFamily: 'var(--forge-font-body)',
+  minHeight: '100vh',
+};
 
 const Home = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const trustItems = [
     'PrusaSlicer CLI',
@@ -28,61 +38,82 @@ const Home = () => {
     {
       name: 'STARTER',
       price: '$0',
-      cta: t('home.hero.cta.secondary'),
+      period: t('home.forge.plans.period'),
+      ctaText: t('home.hero.cta.secondary'),
+      ctaTo: '/test-kalkulacka',
       recommended: false,
       features: [
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
+        t('home.forge.plans.starter.f1'),
+        t('home.forge.plans.starter.f2'),
+        t('home.forge.plans.starter.f3'),
       ],
     },
     {
       name: 'PRO',
       price: '$49',
-      cta: 'Recommended',
+      period: t('home.forge.plans.period'),
+      ctaText: t('home.forge.plans.pro.cta'),
+      ctaTo: '/register',
       recommended: true,
       features: [
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
+        t('home.forge.plans.pro.f1'),
+        t('home.forge.plans.pro.f2'),
+        t('home.forge.plans.pro.f3'),
+        t('home.forge.plans.pro.f4'),
       ],
     },
     {
       name: 'ENTERPRISE',
       price: '$199',
-      cta: 'Kontaktujte',
+      period: t('home.forge.plans.period'),
+      ctaText: t('home.forge.plans.enterprise.cta'),
+      ctaTo: '/support',
       recommended: false,
       features: [
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
-        'IBM Plex Sans 14px',
+        t('home.forge.plans.enterprise.f1'),
+        t('home.forge.plans.enterprise.f2'),
+        t('home.forge.plans.enterprise.f3'),
+        t('home.forge.plans.enterprise.f4'),
       ],
     },
   ];
 
   const faqItems = [
-    { q: t('home.faq.q1'), a: t('home.faq.a1') },
-    { q: t('home.faq.q2'), a: t('home.faq.a2') },
-    { q: t('home.faq.q3'), a: t('home.faq.a3') },
+    { question: t('home.faq.q1'), answer: t('home.faq.a1') },
+    { question: t('home.faq.q2'), answer: t('home.faq.a2') },
+    { question: t('home.faq.q3'), answer: t('home.faq.a3') },
+  ];
+
+  const howItWorksSteps = [
+    {
+      number: '01',
+      title: t('home.howItWorks.step1.title'),
+      desc: t('home.howItWorks.step1.desc'),
+    },
+    {
+      number: '02',
+      title: t('home.howItWorks.step2.title'),
+      desc: t('home.howItWorks.step2.desc'),
+    },
+    {
+      number: '03',
+      title: t('home.howItWorks.step3.title'),
+      desc: t('home.howItWorks.step3.desc'),
+    },
+    {
+      number: '04',
+      title: t('home.howItWorks.step4.title'),
+      desc: t('home.howItWorks.step4.desc'),
+    },
   ];
 
   return (
-    <div
-      className="forge-grain"
-      style={{
-        backgroundColor: 'var(--forge-bg-void)',
-        color: 'var(--forge-text-primary)',
-        fontFamily: 'var(--forge-font-body)',
-        minHeight: '100vh',
-      }}
-    >
-      {/* ========== HERO ========== */}
+    <div className="forge-grain" style={forgePageStyles}>
+      {/* ========== HERO (UNTOUCHED) ========== */}
       <section
         className="relative overflow-hidden forge-grid-bg"
         style={{ minHeight: '90vh', display: 'flex', alignItems: 'center' }}
       >
-        {/* Glow effect behind printer */}
         <div
           className="absolute top-1/2 right-[20%] -translate-y-1/2 w-[500px] h-[400px] pointer-events-none"
           style={{
@@ -91,13 +122,10 @@ const Home = () => {
         />
 
         <div className="max-w-7xl mx-auto px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-[55%_45%] gap-12 lg:gap-16 items-center py-16 lg:py-0">
-          {/* LEFT — Text content (LEFT-ALIGNED) */}
           <Reveal>
             <div className="relative z-10">
-              {/* Status badge */}
               <ForgeStatusIndicator status="printing" className="mb-6" />
 
-              {/* Headline — Space Grotesk 700 */}
               <h1 className="forge-h1" style={{ maxWidth: 540 }}>
                 Precision Pricing for{' '}
                 <br className="hidden sm:block" />
@@ -108,7 +136,6 @@ const Home = () => {
                 </span>
               </h1>
 
-              {/* Subheadline — IBM Plex Sans 400 */}
               <p
                 className="forge-body-lg mt-6"
                 style={{ color: 'var(--forge-text-secondary)', maxWidth: 480 }}
@@ -117,54 +144,17 @@ const Home = () => {
                 Upload models, configure parameters, get instant pricing.
               </p>
 
-              {/* CTA cluster */}
               <div className="flex flex-wrap gap-3 mt-8">
-                <Link
-                  to="/register"
-                  className="inline-flex items-center justify-center h-12 px-7 text-base font-semibold rounded-[var(--forge-radius-sm)] forge-transition-micro"
-                  style={{
-                    backgroundColor: 'var(--forge-accent-primary)',
-                    color: '#08090C',
-                    fontFamily: 'var(--forge-font-heading)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary-h)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = 'var(--forge-shadow-glow)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
+                <ForgeButton to="/register" variant="primary" size="lg">
                   Start Building
-                </Link>
-                <Link
-                  to="/test-kalkulacka"
-                  className="inline-flex items-center justify-center h-12 px-7 text-base font-medium rounded-[var(--forge-radius-sm)] forge-transition-micro"
-                  style={{
-                    backgroundColor: 'transparent',
-                    color: 'var(--forge-text-secondary)',
-                    border: '1px solid var(--forge-border-active)',
-                    fontFamily: 'var(--forge-font-heading)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-                    e.currentTarget.style.color = 'var(--forge-text-primary)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = 'var(--forge-text-secondary)';
-                  }}
-                >
+                </ForgeButton>
+                <ForgeButton to="/test-kalkulacka" variant="outline" size="lg">
                   See Demo
-                </Link>
+                </ForgeButton>
               </div>
             </div>
           </Reveal>
 
-          {/* RIGHT — Animated 3D Printer SVG */}
           <Reveal delay={0.1}>
             <div className="relative z-10 hidden lg:flex justify-center">
               <ForgePrinterSVG />
@@ -173,7 +163,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ========== TRUST STRIP / SOCIAL PROOF MARQUEE ========== */}
+      {/* ========== TRUST STRIP ========== */}
       <section
         className="overflow-hidden py-5"
         style={{ borderTop: '1px solid var(--forge-border-default)', borderBottom: '1px solid var(--forge-border-default)' }}
@@ -211,22 +201,92 @@ const Home = () => {
         </div>
       </section>
 
+      {/* ========== WHAT WE DO — About Section ========== */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
+        <Reveal>
+          <ForgeSectionLabel text="ABOUT" className="mb-4 block" />
+          <h2 className="forge-h2 mb-10">{t('home.whatWeDo.title')}</h2>
+        </Reveal>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10 lg:gap-16">
+          <Reveal delay={0.02}>
+            <div>
+              <p className="forge-body-lg mb-6" style={{ color: 'var(--forge-text-secondary)', lineHeight: '1.7' }}>
+                {t('home.whatWeDo.p1')}
+              </p>
+              <p className="forge-body mb-6" style={{ color: 'var(--forge-text-secondary)', lineHeight: '1.7' }}>
+                {t('home.whatWeDo.p2')}
+              </p>
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.08}>
+            <div className="space-y-4">
+              {[
+                { value: '8s', label: t('home.whatWeDo.stat1') },
+                { value: '60%', label: t('home.whatWeDo.stat2') },
+                { value: '24/7', label: t('home.whatWeDo.stat3') },
+              ].map((stat, i) => (
+                <div
+                  key={i}
+                  className="p-5"
+                  style={{
+                    background: 'var(--forge-bg-surface)',
+                    border: '1px solid var(--forge-border-default)',
+                    borderRadius: 'var(--forge-radius-md)',
+                  }}
+                >
+                  <span
+                    className="forge-mono-bold block mb-1"
+                    style={{ fontSize: 'var(--forge-text-2xl)', color: 'var(--forge-accent-primary)' }}
+                  >
+                    {stat.value}
+                  </span>
+                  <span style={{ color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-body)' }}>
+                    {stat.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ========== HOW IT WORKS ========== */}
+      <section
+        className="py-20 lg:py-24"
+        style={{ borderTop: '1px solid var(--forge-border-default)' }}
+      >
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <Reveal>
+            <ForgeSectionLabel text="PROCESS" className="mb-4 block" />
+            <h2 className="forge-h2 mb-12">
+              <span className="relative inline-block">
+                {t('home.howItWorks.title')}
+                <ForgeSquiggle className="absolute -bottom-2 left-0 w-full h-3" />
+              </span>
+            </h2>
+          </Reveal>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {howItWorksSteps.map((step, i) => (
+              <Reveal key={step.number} delay={i * 0.04}>
+                <ForgeNumberedCard
+                  number={step.number}
+                  title={step.title}
+                  description={step.desc}
+                  className="h-full"
+                />
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ========== CAPABILITIES — Numbered Feature Cards ========== */}
       <section className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
         <Reveal>
-          <div className="mb-10">
-            <span
-              style={{
-                fontFamily: 'var(--forge-font-tech)',
-                fontSize: 'var(--forge-text-xs)',
-                letterSpacing: '0.1em',
-                color: 'var(--forge-text-muted)',
-                textTransform: 'uppercase',
-              }}
-            >
-              CAPABILITIES
-            </span>
-          </div>
+          <ForgeSectionLabel text="CAPABILITIES" className="mb-10 block" />
         </Reveal>
 
         <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5">
@@ -240,8 +300,8 @@ const Home = () => {
                   <circle cx="16" cy="16" r="3" />
                 </svg>
               }
-              title="Precision Pricing Engine"
-              description="Volume-based calculations to aviation 3D-printing and volume its own hanovation, receipt-style breakdowns inv volume-based calculations and receipt-style breakdowns."
+              title={t('home.forge.feature1.title')}
+              description={t('home.forge.feature1.desc')}
               className="md:row-span-2 h-full"
             />
           </Reveal>
@@ -251,13 +311,11 @@ const Home = () => {
               number="02"
               icon={
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="6" y="6" width="20" height="4" rx="1" />
-                  <rect x="6" y="14" width="20" height="4" rx="1" />
-                  <rect x="6" y="22" width="20" height="4" rx="1" />
+                  <path d="M16 4l4 8h8l-6 5 2 9-8-5-8 5 2-9-6-5h8z" />
                 </svg>
               }
-              title="Printing layers"
-              description="Printing require models to upload models invvasanute eatoms in 3D-printing carriers."
+              title={t('home.forge.feature2.title')}
+              description={t('home.forge.feature2.desc')}
             />
           </Reveal>
 
@@ -271,8 +329,8 @@ const Home = () => {
                   <path d="M16 6v4M16 22v4M6 16h4M22 16h4" />
                 </svg>
               }
-              title="Spool for filament"
-              description="Spool 3D-printing themed SVG filament enquires 3D-printing filament."
+              title={t('home.forge.feature3.title')}
+              description={t('home.forge.feature3.desc')}
             />
           </Reveal>
         </div>
@@ -282,134 +340,25 @@ const Home = () => {
       <section className="forge-skewed-bg py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
           <Reveal>
-            <h2
-              className="forge-h2 text-center mb-12"
-              style={{ fontFamily: 'var(--forge-font-heading)' }}
-            >
-              Pricing Plans
+            <ForgeSectionLabel text="PLANS" className="mb-4 block text-center" />
+            <h2 className="forge-h2 text-center mb-12">
+              {t('home.forge.plans.title')}
             </h2>
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {plans.map((plan, i) => (
               <Reveal key={plan.name} delay={i * 0.05}>
-                <div
-                  className="relative p-6 h-full flex flex-col"
-                  style={{
-                    background: 'var(--forge-bg-surface)',
-                    border: plan.recommended
-                      ? '1px solid var(--forge-accent-primary)'
-                      : '1px solid var(--forge-border-default)',
-                    borderRadius: 'var(--forge-radius-md)',
-                    ...(plan.recommended ? { boxShadow: '0 0 30px rgba(0,212,170,0.1)' } : {}),
-                  }}
-                >
-                  {/* Recommended badge */}
-                  {plan.recommended && (
-                    <div
-                      className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-semibold"
-                      style={{
-                        background: 'var(--forge-accent-primary)',
-                        color: '#08090C',
-                        fontFamily: 'var(--forge-font-heading)',
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      Recommended
-                    </div>
-                  )}
-
-                  {/* Plan name */}
-                  <span className="forge-label">{plan.name}</span>
-
-                  {/* Price */}
-                  <div className="mt-4 mb-6">
-                    <span
-                      className="forge-mono-bold"
-                      style={{ fontSize: 'var(--forge-text-3xl)', color: 'var(--forge-text-primary)' }}
-                    >
-                      {plan.price}
-                    </span>
-                    <span
-                      className="ml-2"
-                      style={{
-                        fontFamily: 'var(--forge-font-tech)',
-                        fontSize: 'var(--forge-text-sm)',
-                        color: 'var(--forge-text-muted)',
-                      }}
-                    >
-                      per month
-                    </span>
-                  </div>
-
-                  {/* Features */}
-                  <ul className="space-y-3 flex-1">
-                    {plan.features.map((f, fi) => (
-                      <li
-                        key={fi}
-                        className="flex items-center gap-2"
-                        style={{
-                          fontFamily: 'var(--forge-font-body)',
-                          fontSize: 'var(--forge-text-base)',
-                          color: 'var(--forge-text-secondary)',
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          className="shrink-0"
-                        >
-                          <path
-                            d="M3 8L6.5 11.5L13 5"
-                            stroke="var(--forge-accent-primary)"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* CTA Button */}
-                  <div className="mt-8">
-                    <Link
-                      to={plan.recommended ? '/register' : '/test-kalkulacka'}
-                      className="w-full inline-flex items-center justify-center h-10 px-5 text-sm font-medium rounded-[var(--forge-radius-sm)] forge-transition-micro"
-                      style={plan.recommended ? {
-                        backgroundColor: 'var(--forge-accent-primary)',
-                        color: '#08090C',
-                        fontFamily: 'var(--forge-font-heading)',
-                      } : {
-                        backgroundColor: 'transparent',
-                        color: 'var(--forge-text-secondary)',
-                        border: '1px solid var(--forge-border-active)',
-                        fontFamily: 'var(--forge-font-heading)',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (plan.recommended) {
-                          e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary-h)';
-                        } else {
-                          e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-                          e.currentTarget.style.color = 'var(--forge-text-primary)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (plan.recommended) {
-                          e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary)';
-                        } else {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.color = 'var(--forge-text-secondary)';
-                        }
-                      }}
-                    >
-                      {plan.recommended ? plan.cta : 'See Demo'}
-                    </Link>
-                  </div>
-                </div>
+                <ForgePricingCard
+                  name={plan.name}
+                  price={plan.price}
+                  period={plan.period}
+                  features={plan.features}
+                  ctaText={plan.ctaText}
+                  ctaTo={plan.ctaTo}
+                  recommended={plan.recommended}
+                  className="h-full"
+                />
               </Reveal>
             ))}
           </div>
@@ -420,32 +369,19 @@ const Home = () => {
       <section className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
         <Reveal>
           <div className="max-w-2xl mx-auto">
-            <h2 className="forge-h2 text-center mb-12">FAQ</h2>
+            <ForgeSectionLabel text="FAQ" className="mb-4 block text-center" />
+            <h2 className="forge-h2 text-center mb-12">{t('home.faq.title')}</h2>
 
-            <div className="space-y-0">
-              {faqItems.map((item, i) => (
-                <FaqItem key={i} question={item.q} answer={item.a} />
-              ))}
-            </div>
+            <ForgeFaqAccordion items={faqItems} />
 
             <div className="mt-8 text-center">
-              <Link
-                to="/support"
-                className="inline-flex items-center gap-2 forge-transition-micro"
-                style={{
-                  fontFamily: 'var(--forge-font-body)',
-                  fontSize: 'var(--forge-text-base)',
-                  color: 'var(--forge-text-muted)',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--forge-accent-primary)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <ForgeButton to="/support" variant="ghost">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                   <circle cx="8" cy="8" r="6" />
                   <path d="M8 10V8M8 6h.01" />
                 </svg>
-                Support
-              </Link>
+                {t('home.faq.more')}
+              </ForgeButton>
             </div>
           </div>
         </Reveal>
@@ -467,74 +403,33 @@ const Home = () => {
           [ MODEL.PRICER ] &middot; v3.2
         </span>
         <div className="mt-3 flex justify-center gap-6">
-          {['UPPERCASE', 'PRICING', 'SUPPORT'].map((label) => (
-            <span
-              key={label}
+          {[
+            { label: 'HOME', to: '/' },
+            { label: 'PRICING', to: '/pricing' },
+            { label: 'SUPPORT', to: '/support' },
+          ].map((link) => (
+            <Link
+              key={link.label}
+              to={link.to}
+              className="forge-transition-micro"
               style={{
                 fontFamily: 'var(--forge-font-tech)',
                 fontSize: 'var(--forge-text-xs)',
                 color: 'var(--forge-text-muted)',
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
+                textDecoration: 'none',
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--forge-accent-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
             >
-              {label}
-            </span>
+              {link.label}
+            </Link>
           ))}
         </div>
       </footer>
     </div>
   );
 };
-
-/* ========== FAQ ITEM (internal component) ========== */
-function FaqItem({ question, answer }) {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  return (
-    <div style={{ borderBottom: '1px solid var(--forge-border-default)' }}>
-      <button
-        className="w-full flex items-center justify-between py-5 text-left forge-transition-micro group"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-      >
-        <span
-          style={{
-            fontFamily: 'var(--forge-font-heading)',
-            fontSize: 'var(--forge-text-lg)',
-            fontWeight: 500,
-            color: 'var(--forge-text-primary)',
-          }}
-        >
-          {question}
-        </span>
-        <span
-          className="shrink-0 ml-4 forge-transition-micro"
-          style={{
-            fontFamily: 'var(--forge-font-mono)',
-            fontSize: 'var(--forge-text-lg)',
-            color: 'var(--forge-accent-primary)',
-            transform: isOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-          }}
-        >
-          +
-        </span>
-      </button>
-      {isOpen && (
-        <div
-          className="pb-5"
-          style={{
-            fontFamily: 'var(--forge-font-body)',
-            fontSize: 'var(--forge-text-base)',
-            color: 'var(--forge-text-secondary)',
-            lineHeight: '1.6',
-          }}
-        >
-          {answer}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default Home;
