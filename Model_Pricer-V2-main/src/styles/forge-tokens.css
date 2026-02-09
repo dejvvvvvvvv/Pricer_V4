@@ -1,0 +1,78 @@
+/* ==========================================================================
+   FORGE Design Tokens
+   Dark industrial/technical theme for the ModelPricer Home page.
+   Scoped via .forge-* utility classes — does NOT override global styles.
+   ========================================================================== */
+
+:root {
+  /* ---- Background ---- */
+  --forge-bg-void: #08090C;
+  --forge-bg-surface: #0E1015;
+  --forge-bg-elevated: #161920;
+  --forge-bg-overlay: #1C1F28;
+
+  /* ---- Text ---- */
+  --forge-text-primary: #E8ECF1;
+  --forge-text-secondary: #9BA3B0;
+  --forge-text-muted: #5C6370;
+  --forge-text-disabled: #3A3F4A;
+
+  /* ---- Accents ---- */
+  --forge-accent-primary: #00D4AA;
+  --forge-accent-primary-h: #00F0C0;
+  --forge-accent-secondary: #FF6B35;
+  --forge-accent-tertiary: #6C63FF;
+
+  /* ---- Semantic ---- */
+  --forge-success: #00D4AA;
+  --forge-warning: #FFB547;
+  --forge-error: #FF4757;
+  --forge-info: #4DA8DA;
+
+  /* ---- Borders ---- */
+  --forge-border-default: #1E2230;
+  --forge-border-active: #2A3040;
+  --forge-border-highlight: rgba(0, 212, 170, 0.2);
+  --forge-border-grid: #141720;
+
+  /* ---- Gradients ---- */
+  --forge-gradient-brand: linear-gradient(135deg, #00D4AA 0%, #6C63FF 100%);
+  --forge-gradient-glow: radial-gradient(ellipse at center, rgba(0,212,170,0.08) 0%, transparent 70%);
+
+  /* ---- Shadows ---- */
+  --forge-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.03);
+  --forge-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  --forge-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  --forge-shadow-glow: 0 0 20px rgba(0, 212, 170, 0.15);
+
+  /* ---- Radii ---- */
+  --forge-radius-sm: 4px;
+  --forge-radius-md: 6px;
+  --forge-radius-lg: 8px;
+  --forge-radius-xl: 12px;
+
+  /* ---- Typography — Font Stacks ---- */
+  --forge-font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --forge-font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --forge-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --forge-font-tech: 'Space Mono', 'JetBrains Mono', monospace;
+
+  /* ---- Typography — Scale (minor-third) ---- */
+  --forge-text-4xl: 2.441rem;
+  --forge-text-3xl: 1.953rem;
+  --forge-text-2xl: 1.563rem;
+  --forge-text-xl: 1.25rem;
+  --forge-text-lg: 1rem;
+  --forge-text-base: 0.875rem;
+  --forge-text-sm: 0.75rem;
+  --forge-text-xs: 0.625rem;
+
+  /* ---- Motion ---- */
+  --forge-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --forge-duration-micro: 120ms;
+  --forge-duration-breathing: 3000ms;
+
+  /* ---- 3D-print specific ---- */
+  --forge-nozzle-hot: #FF9F43;
+  --forge-bed-heated: #FD7272;
+}

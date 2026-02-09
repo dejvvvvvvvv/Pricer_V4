@@ -63,6 +63,26 @@ export default {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			forge: {
+  				void: '#08090C',
+  				surface: '#0E1015',
+  				elevated: '#161920',
+  				overlay: '#1C1F28',
+  				'text-primary': '#E8ECF1',
+  				'text-secondary': '#9BA3B0',
+  				'text-muted': '#5C6370',
+  				'accent-primary': '#00D4AA',
+  				'accent-primary-h': '#00F0C0',
+  				'accent-secondary': '#FF6B35',
+  				'accent-tertiary': '#6C63FF',
+  				success: '#00D4AA',
+  				warning: '#FFB547',
+  				error: '#FF4757',
+  				info: '#4DA8DA',
+  				'border-default': '#1E2230',
+  				'border-active': '#2A3040',
+  				'border-grid': '#141720',
   			}
   		},
   		fontFamily: {
@@ -73,7 +93,11 @@ export default {
   			mono: [
   				'JetBrains Mono',
   				'monospace'
-  			]
+  			],
+  			'forge-heading': ["'Space Grotesk'", 'system-ui', 'sans-serif'],
+  			'forge-body': ["'IBM Plex Sans'", 'system-ui', 'sans-serif'],
+  			'forge-mono': ["'JetBrains Mono'", "'Fira Code'", 'monospace'],
+  			'forge-tech': ["'Space Mono'", "'JetBrains Mono'", 'monospace']
   		},
   		fontSize: {
   			xs: [

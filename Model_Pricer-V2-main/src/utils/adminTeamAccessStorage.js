@@ -4,6 +4,9 @@
 import { getTenantId } from './adminTenantStorage';
 import { getPlanFeatures } from './adminBrandingWidgetStorage';
 import { appendAuditEntry } from './adminAuditLogStorage';
+import { storageAdapter } from '../lib/supabase/storageAdapter';
+import { getStorageMode } from '../lib/supabase/featureFlags';
+import { isSupabaseAvailable } from '../lib/supabase/client';
 
 const USERS_KEY = (tenantId) => `modelpricer:${tenantId}:team_users`;
 const INVITES_KEY = (tenantId) => `modelpricer:${tenantId}:team_invites`;
@@ -59,6 +62,13 @@ function readUsers(tenantId) {
 
 function writeUsers(tenantId, users) {
   localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(users));
+
+  // Fire-and-forget Supabase dual-write
+  const mode = getStorageMode('team_users');
+  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.writeConfig('team_members', tenantId, 'team_users', users)
+      .catch(err => console.warn('[teamAccess] Supabase users write failed:', err.message));
+  }
 }
 
 function readInvites(tenantId) {
@@ -80,6 +90,13 @@ function readInvites(tenantId) {
 
 function writeInvites(tenantId, invites) {
   localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(invites));
+
+  // Fire-and-forget Supabase dual-write
+  const mode = getStorageMode('team_invites');
+  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.writeConfig('team_members', tenantId, 'team_invites', invites)
+      .catch(err => console.warn('[teamAccess] Supabase invites write failed:', err.message));
+  }
 }
 
 export function getTenantForTeam() {

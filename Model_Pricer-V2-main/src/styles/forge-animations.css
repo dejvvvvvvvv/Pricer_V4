@@ -1,0 +1,82 @@
+/* ==========================================================================
+   FORGE Animations
+   Breathing, pulsing, nozzle movement, layer reveals, marquee.
+   All classes are opt-in via .forge-* — no global side effects.
+   Respects prefers-reduced-motion.
+   ========================================================================== */
+
+/* ---- Breathe (subtle scale + opacity) ---- */
+
+@keyframes forge-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+.forge-breathe {
+  animation: forge-breathe 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* ---- Pulse Dot (status indicator) ---- */
+
+@keyframes forge-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.forge-pulse-dot {
+  animation: forge-pulse-dot 2s ease-in-out infinite;
+}
+
+/* ---- Nozzle Move (3D-print nozzle simulation) ---- */
+
+@keyframes forge-nozzle-move {
+  0% { transform: translateX(0px); }
+  50% { transform: translateX(100px); }
+  100% { transform: translateX(0px); }
+}
+.forge-nozzle-move {
+  animation: forge-nozzle-move 8s ease-in-out infinite;
+}
+
+/* ---- Layer Appear (3D-print layer deposition) ---- */
+
+@keyframes forge-layer-appear {
+  from { opacity: 0; transform: scaleX(0.3); }
+  to { opacity: var(--layer-opacity, 0.5); transform: scaleX(1); }
+}
+
+/* ---- Hot Glow (heated element indicator) ---- */
+
+@keyframes forge-hot-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 159, 67, 0.6)); }
+  50% { filter: drop-shadow(0 0 8px rgba(255, 159, 67, 0.9)); }
+}
+.forge-hot-glow {
+  animation: forge-hot-glow 2s ease-in-out infinite;
+}
+
+/* ---- Marquee (horizontal auto-scroll) ---- */
+
+@keyframes forge-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.forge-marquee {
+  animation: forge-marquee 25s linear infinite;
+}
+
+/* ---- Micro transition utility ---- */
+
+.forge-transition-micro {
+  transition: all 120ms ease-out;
+}
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-breathe,
+  .forge-pulse-dot,
+  .forge-nozzle-move,
+  .forge-hot-glow,
+  .forge-marquee {
+    animation: none;
+  }
+}

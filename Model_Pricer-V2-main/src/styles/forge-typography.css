@@ -1,0 +1,109 @@
+/* ==========================================================================
+   FORGE Typography
+   Heading, body, label, and monospace utility classes.
+   All classes are opt-in via .forge-* — no global side effects.
+   ========================================================================== */
+
+/* ---- Headings ---- */
+
+.forge-h1 {
+  font-family: var(--forge-font-heading);
+  font-size: var(--forge-text-4xl);
+  line-height: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--forge-text-primary);
+}
+
+.forge-h2 {
+  font-family: var(--forge-font-heading);
+  font-size: var(--forge-text-3xl);
+  line-height: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--forge-text-primary);
+}
+
+.forge-h3 {
+  font-family: var(--forge-font-heading);
+  font-size: var(--forge-text-2xl);
+  line-height: 2rem;
+  font-weight: 600;
+  color: var(--forge-text-primary);
+}
+
+.forge-h4 {
+  font-family: var(--forge-font-heading);
+  font-size: var(--forge-text-xl);
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: var(--forge-text-primary);
+}
+
+/* ---- Body ---- */
+
+.forge-body {
+  font-family: var(--forge-font-body);
+  font-size: var(--forge-text-base);
+  line-height: 1.375rem;
+  font-weight: 400;
+  color: var(--forge-text-primary);
+}
+
+.forge-body-lg {
+  font-family: var(--forge-font-body);
+  font-size: var(--forge-text-lg);
+  line-height: 1.5rem;
+  font-weight: 400;
+}
+
+/* ---- Labels ---- */
+
+.forge-label {
+  font-family: var(--forge-font-body);
+  font-size: var(--forge-text-sm);
+  line-height: 1.125rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--forge-text-secondary);
+}
+
+.forge-label-mono {
+  font-family: var(--forge-font-tech);
+  font-size: var(--forge-text-xs);
+  line-height: 1.2;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--forge-text-muted);
+}
+
+/* ---- Monospace / Tech ---- */
+
+.forge-mono {
+  font-family: var(--forge-font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.forge-mono-bold {
+  font-family: var(--forge-font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.forge-tech {
+  font-family: var(--forge-font-tech);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Price (accent) ---- */
+
+.forge-price {
+  font-family: var(--forge-font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--forge-accent-primary);
+}

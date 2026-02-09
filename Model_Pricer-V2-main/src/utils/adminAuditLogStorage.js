@@ -4,6 +4,9 @@
 // NOTE: In Varianta B, this becomes server-side (DB) with enforcement + pagination.
 
 import { getTenantId } from './adminTenantStorage';
+import { storageAdapter } from '../lib/supabase/storageAdapter';
+import { getStorageMode } from '../lib/supabase/featureFlags';
+import { isSupabaseAvailable } from '../lib/supabase/client';
 
 const AUDIT_KEY = (tenantId) => `modelpricer:${tenantId}:audit_log`;
 
@@ -72,6 +75,23 @@ export function appendAuditEntry(
   // Retention: keep last ~2000 entries in demo.
   const next = [full, ...entries].slice(0, 2000);
   localStorage.setItem(AUDIT_KEY(tenantId), JSON.stringify(next));
+
+  // Fire-and-forget Supabase dual-write
+  const mode = getStorageMode('audit_log');
+  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.insert('audit_log', {
+      tenant_id: tenantId,
+      action: full.action,
+      entity_type: full.entity_type,
+      entity_id: full.entity_id,
+      actor: { id: full.actor_user_id, email: full.actor_email, name: full.actor_name },
+      details: { summary: full.summary, diff: full.diff, metadata: full.metadata },
+      ip_address: full.ip_address,
+      user_agent: full.user_agent,
+      created_at: full.timestamp,
+    }).catch(err => console.warn('[auditLog] Supabase insert failed:', err.message));
+  }
+
   return full;
 }
 

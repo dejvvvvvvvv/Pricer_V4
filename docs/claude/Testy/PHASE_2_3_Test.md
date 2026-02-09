@@ -272,4 +272,4 @@ app.use('/api/email', emailRoutes);
 | Backend Email | 4 | P2 |
 | **Celkem** | **104** | |
 
-**Doporucene poradi testovani:** Sidebar → Express → Shipping → Coupons → Kalkulacka → Kanban → Emails → Cross-cutting → Zbytek
+**Doporucene poradi testovani:** Sidebar → Express → Shipping → Coupons → Kalkulacka → Kanban → Emails → Cross-cutting → Zbytek 

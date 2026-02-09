@@ -20,6 +20,10 @@ node_modules/
 # MCP config (may contain API keys)
 .mcp.json
 
+# Supabase credentials (NEVER commit)
+**/Supabase_Information*
+**/supabase-credentials*
+
 # Build
 dist/
 build/

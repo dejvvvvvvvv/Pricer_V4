@@ -1,6 +1,13 @@
 {
   "permissions": {
     "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "WebFetch(*)",
+      "mcp__context7__*",
+      "mcp__brave-search__*",
+      "mcp__claude-in-chrome__*",
       "Bash(claude mcp list:*)",
       "Bash(claude mcp add:*)",
       "Bash(npm search:*)",
@@ -9,26 +16,12 @@
       "mcp__context7__query-docs",
       "Bash(claude:*)",
       "Bash(git add:*)",
-      "Bash(dir \"C:\\\\Users\\\\Kuňákovi\\\\Downloads\\\\Model_Pricer-V2-main_VariantaA_A_to_F_Integrated\" /b)",
       "Bash(npm install:*)",
-      "Bash(ls:*)",
-      "Bash(grep:*)",
-      "Bash(for file in \"Header\" \"Footer\" \"SmoothScroll\" \"ScrollToTop\" \"PrivateRoute\" \"Home\" \"ModelUpload\" \"TestKalkulacka\" \"Pricing\" \"Support\" \"AccountPage\" \"NotFound\" \"Login\" \"Register\" \"AdminLayout\" \"AdminDashboard\" \"AdminBranding\" \"AdminPricing\" \"AdminFees\" \"AdminParameters\" \"AdminPresets\" \"AdminOrders\" \"AdminWidget\" \"AdminWidgetBuilder\" \"AdminTeamAccess\" \"AdminAnalytics\" \"InviteAccept\" \"WidgetPublicPage\")",
-      "Bash(do echo \"=== $file ===\")",
-      "Bash(done)",
-      "Bash(wc:*)",
       "Bash(npm run build:*)",
-      "Bash(dir:*)",
-      "Bash(findstr:*)",
       "Bash(npx skills add:*)",
-      "Bash(kill:*)",
-      "WebFetch(domain:www.aitmpl.com)",
-      "Bash(npx claude-code-templates@latest:*)",
-      "Bash(npx skills --help:*)",
       "Bash(npx skills:*)",
-      "Bash(for f in *.md)",
-      "Bash(do grep -m1 \"^model:\" \"$f\")",
-      "Bash(do sed -i 's/model: claude-opus-4-6/model: claude-sonnet-4-5-20250929/' \"$f\")",
+      "Bash(npx vite:*)",
+      "WebFetch(domain:www.aitmpl.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:manpages.ubuntu.com)",
       "WebFetch(domain:help.prusa3d.com)",
@@ -39,10 +32,7 @@
       "WebFetch(domain:graphicdesignjunction.com)",
       "WebFetch(domain:elementor.com)",
       "WebFetch(domain:kontra.agency)",
-      "WebFetch(domain:uitop.design)",
-      "Bash(for f in \"C:/Users/Kuňákovi/Downloads/Model_Pricer-V2-main_VariantaA_A_to_F_Integrated/docs/claude/Planovane_Implementace/Redesign/IMPL_PLAN\"*)",
-      "Bash(do if [ -f \"$f\" ])",
-      "Bash(fi:*)"
+      "WebFetch(domain:uitop.design)"
     ]
   }
 }

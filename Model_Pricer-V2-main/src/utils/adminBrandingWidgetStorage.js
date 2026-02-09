@@ -8,6 +8,10 @@
 import { getDefaultWidgetTheme } from './widgetThemeStorage';
 export { getDefaultWidgetTheme };
 
+import { storageAdapter } from '../lib/supabase/storageAdapter';
+import { getStorageMode } from '../lib/supabase/featureFlags';
+import { isSupabaseAvailable } from '../lib/supabase/client';
+
 const KEY = {
   branding: (tenantId) => `modelpricer_branding__${tenantId}`,
   widgets: (tenantId) => `modelpricer_widgets__${tenantId}`,
@@ -73,6 +77,14 @@ export function setPlanFeatures(tenantId, next) {
     updated_at: nowIso(),
   };
   lsSet(KEY.plan(tenantId), data);
+
+  // Fire-and-forget Supabase dual-write
+  const modeP = getStorageMode('plan_features');
+  if ((modeP === 'supabase' || modeP === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.writeConfig('tenants', tenantId, 'plan_features', data)
+      .catch(err => console.warn('[planFeatures] Supabase write failed:', err.message));
+  }
+
   return data;
 }
 
@@ -129,6 +141,14 @@ export function saveBranding(tenantId, brandingInput, updatedBy = 'admin') {
   }
 
   lsSet(KEY.branding(tenantId), next);
+
+  // Fire-and-forget Supabase dual-write
+  const mode = getStorageMode('branding');
+  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.writeConfig('branding', tenantId, 'branding', next)
+      .catch(err => console.warn('[branding] Supabase write failed:', err.message));
+  }
+
   return next;
 }
 
@@ -180,6 +200,14 @@ export function saveWidgets(tenantId, widgets) {
     updated_at: nowIso(),
   }));
   lsSet(KEY.widgets(tenantId), next);
+
+  // Fire-and-forget Supabase dual-write
+  const modeW = getStorageMode('widgets');
+  if ((modeW === 'supabase' || modeW === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.writeConfig('widget_configs', tenantId, 'widgets', next)
+      .catch(err => console.warn('[widgets] Supabase write failed:', err.message));
+  }
+
   return next;
 }
 

@@ -1,0 +1,69 @@
+/* ==========================================================================
+   FORGE Utilities
+   Focus rings, cards, badges, numbered labels.
+   All classes are opt-in via .forge-* — no global side effects.
+   ========================================================================== */
+
+/* ---- Focus Ring (WCAG AA accessible) ---- */
+
+.forge-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.15);
+  border-color: var(--forge-accent-primary);
+}
+
+/* ---- Card (static) ---- */
+
+.forge-card {
+  background: var(--forge-bg-surface);
+  border: 1px solid var(--forge-border-default);
+  border-radius: var(--forge-radius-md);
+  padding: 24px;
+}
+
+/* ---- Card Interactive (hover states) ---- */
+
+.forge-card-interactive {
+  background: var(--forge-bg-surface);
+  border: 1px solid var(--forge-border-default);
+  border-radius: var(--forge-radius-md);
+  padding: 24px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+}
+
+.forge-card-interactive:hover {
+  background: var(--forge-bg-elevated);
+  border-color: var(--forge-border-highlight);
+  box-shadow: var(--forge-shadow-glow);
+  transform: translateY(-2px);
+}
+
+/* ---- Numbered Label (section markers) ---- */
+
+.forge-numbered-label {
+  font-family: var(--forge-font-tech);
+  font-size: var(--forge-text-xs);
+  font-weight: 400;
+  color: var(--forge-text-muted);
+  letter-spacing: 0.05em;
+}
+
+/* ---- Badge (base + variants) ---- */
+
+.forge-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-family: var(--forge-font-mono);
+  font-size: var(--forge-text-xs);
+  font-weight: 500;
+  border-radius: var(--forge-radius-sm);
+  line-height: 1.4;
+}
+
+.forge-badge-success {
+  background: rgba(0, 212, 170, 0.12);
+  color: var(--forge-success);
+}

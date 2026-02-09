@@ -34,6 +34,7 @@ const AdminExpress = React.lazy(() => import('./pages/admin/AdminExpress'));
 const AdminShipping = React.lazy(() => import('./pages/admin/AdminShipping'));
 const AdminEmails = React.lazy(() => import('./pages/admin/AdminEmails'));
 const AdminCoupons = React.lazy(() => import('./pages/admin/AdminCoupons'));
+const AdminMigration = React.lazy(() => import('./pages/admin/AdminMigration'));
 
 
 export default function Routes() {
@@ -93,6 +94,8 @@ export default function Routes() {
             <Route path="shipping" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminShipping /></Suspense>} />
             <Route path="emails" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminEmails /></Suspense>} />
             <Route path="coupons" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminCoupons /></Suspense>} />
+            {/* Phase 4: Database Migration */}
+            <Route path="migration" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminMigration /></Suspense>} />
           </Route>
 
                   {/* 404 */}

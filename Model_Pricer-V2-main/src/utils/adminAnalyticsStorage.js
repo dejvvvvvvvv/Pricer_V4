@@ -2,6 +2,9 @@
 // Works without backend. For future Variant B, replace these helpers with API calls.
 
 import { appendAuditEntry } from './adminAuditLogStorage';
+import { storageAdapter } from '../lib/supabase/storageAdapter';
+import { getStorageMode } from '../lib/supabase/featureFlags';
+import { isSupabaseAvailable } from '../lib/supabase/client';
 
 const DEFAULT_TENANT_ID = 'demo-tenant';
 const STORAGE_PREFIX = 'modelpricer:demo-tenant:analytics';
@@ -78,6 +81,19 @@ export function trackAnalyticsEvent({
   const MAX_EVENTS = 20000;
   const trimmed = events.length > MAX_EVENTS ? events.slice(events.length - MAX_EVENTS) : events;
   setAnalyticsEvents(trimmed);
+
+  // Fire-and-forget Supabase dual-write
+  const mode = getStorageMode('analytics:events');
+  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
+    storageAdapter.supabase.insert('analytics_events', {
+      tenant_id: tenantId,
+      event_type: eventType,
+      widget_id: widgetInstanceId,
+      session_id: sessionId,
+      payload: metadata,
+      created_at: timestamp,
+    }).catch(err => console.warn('[analytics] Supabase insert failed:', err.message));
+  }
 }
 
 function toMs(iso) {
