@@ -17,37 +17,72 @@ export default function ShippingSelector({
     : 0;
   const remaining = freeShippingEnabled && freeShippingThreshold > 0 ? Math.max(0, freeShippingThreshold - orderTotal) : 0;
 
+  const cardStyle = {
+    backgroundColor: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '16px',
+  };
+
+  const headingStyle = {
+    fontFamily: 'var(--forge-font-tech)',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '12px',
+  };
+
+  const progressBoxStyle = {
+    marginBottom: '16px',
+    padding: '12px',
+    backgroundColor: 'rgba(0, 212, 170, 0.06)',
+    border: '1px solid rgba(0, 212, 170, 0.15)',
+    borderRadius: 'var(--forge-radius-sm)',
+  };
+
+  const successBoxStyle = {
+    ...progressBoxStyle,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  };
+
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-        <Icon name="Truck" size={18} />
+    <div style={cardStyle}>
+      <h3 style={headingStyle}>
+        <Icon name="Truck" size={18} style={{ color: 'var(--forge-text-muted)' }} />
         Shipping
       </h3>
 
       {/* Free shipping progress bar */}
       {freeShippingEnabled && freeShippingThreshold > 0 && !qualifiesForFree && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex justify-between text-xs text-green-700 mb-1">
+        <div style={progressBoxStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--forge-accent-primary)', marginBottom: '6px' }}>
             <span>Free shipping progress</span>
-            <span>{Math.round(progressToFree)}%</span>
+            <span style={{ fontFamily: 'var(--forge-font-mono)', fontWeight: 600 }}>{Math.round(progressToFree)}%</span>
           </div>
-          <div className="h-2 bg-green-200 rounded-full overflow-hidden">
-            <div className="h-full bg-green-500 rounded-full transition-all duration-300" style={{ width: `${progressToFree}%` }} />
+          <div style={{ height: '4px', backgroundColor: 'var(--forge-bg-elevated)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', backgroundColor: 'var(--forge-accent-primary)', borderRadius: '2px', transition: 'width 300ms ease-out', width: `${progressToFree}%` }} />
           </div>
-          <p className="text-xs text-green-600 mt-1">
-            Add {remaining.toFixed(0)} CZK more for free shipping!
+          <p style={{ fontSize: '11px', color: 'var(--forge-text-muted)', marginTop: '6px', fontFamily: 'var(--forge-font-body)' }}>
+            Add <span style={{ fontFamily: 'var(--forge-font-mono)', fontWeight: 600, color: 'var(--forge-accent-primary)' }}>{remaining.toFixed(0)} CZK</span> more for free shipping!
           </p>
         </div>
       )}
 
       {qualifiesForFree && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-          <Icon name="Check" size={16} className="text-green-600" />
-          <span className="text-sm text-green-700 font-medium">You qualify for free shipping!</span>
+        <div style={successBoxStyle}>
+          <Icon name="Check" size={16} style={{ color: 'var(--forge-success)' }} />
+          <span style={{ fontSize: '13px', color: 'var(--forge-success)', fontWeight: 500, fontFamily: 'var(--forge-font-body)' }}>You qualify for free shipping!</span>
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {activeMethods.map(method => {
           const isSelected = method.id === selectedMethodId;
           const isFree = method.type === 'PICKUP' || (qualifiesForFree && method.type !== 'PICKUP');
@@ -58,27 +93,50 @@ export default function ShippingSelector({
               key={method.id}
               disabled={disabled}
               onClick={() => onSelectMethod(method.id)}
-              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${
-                isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'
-              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: 'var(--forge-radius-sm)',
+                border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-border-default)',
+                backgroundColor: isSelected ? 'rgba(0, 212, 170, 0.06)' : 'var(--forge-bg-elevated)',
+                transition: 'all 150ms ease-out',
+                textAlign: 'left',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+                outline: 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected && !disabled) e.currentTarget.style.borderColor = 'rgba(0, 212, 170, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected && !disabled) e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+              }}
             >
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                isSelected ? 'border-primary' : 'border-muted-foreground/30'
-              }`}>
-                {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+              <div style={{
+                width: '16px', height: '16px', borderRadius: '50%',
+                border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-text-disabled)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--forge-accent-primary)' }} />}
               </div>
-              <Icon name={method.type === 'PICKUP' ? 'MapPin' : 'Truck'} size={16} className="text-muted-foreground flex-shrink-0" />
-              <div className="flex-1">
-                <div className="font-medium text-sm text-foreground">{method.name}</div>
+              <Icon name={method.type === 'PICKUP' ? 'MapPin' : 'Truck'} size={16} style={{ color: 'var(--forge-text-muted)', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>{method.name}</div>
                 {(method.delivery_days_min > 0 || method.delivery_days_max > 0) && (
-                  <div className="text-xs text-muted-foreground">
+                  <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)', marginTop: '2px' }}>
                     {method.delivery_days_min === method.delivery_days_max
                       ? `${method.delivery_days_min} days`
                       : `${method.delivery_days_min}-${method.delivery_days_max} days`}
                   </div>
                 )}
               </div>
-              <span className={`text-sm font-medium ${price === 0 ? 'text-green-600' : 'text-foreground'}`}>
+              <span style={{
+                fontSize: '13px', fontWeight: 600,
+                fontFamily: 'var(--forge-font-mono)',
+                color: price === 0 ? 'var(--forge-success)' : 'var(--forge-text-primary)',
+              }}>
                 {price === 0 ? 'Free' : `${price} CZK`}
               </span>
             </button>

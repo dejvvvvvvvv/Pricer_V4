@@ -16,6 +16,150 @@ function formatCzk(amount) {
   }
 }
 
+const forgeStyles = {
+  wrapper: {
+    maxWidth: '42rem',
+    margin: '0 auto',
+  },
+  heroCard: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '2rem',
+    textAlign: 'center',
+    marginBottom: '1.5rem',
+  },
+  checkCircle: {
+    width: '4rem',
+    height: '4rem',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 1rem auto',
+    background: 'rgba(0, 212, 170, 0.12)',
+    animation: 'forgeCheckPulse 0.6s var(--forge-ease-out-expo)',
+  },
+  title: {
+    fontSize: 'var(--forge-text-2xl)',
+    fontFamily: 'var(--forge-font-tech)',
+    fontWeight: 700,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    marginBottom: '0.5rem',
+  },
+  subtitle: {
+    color: 'var(--forge-text-secondary)',
+    fontFamily: 'var(--forge-font-body)',
+    fontSize: 'var(--forge-text-base)',
+    marginBottom: '1rem',
+  },
+  orderNumberBox: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    background: 'var(--forge-bg-elevated)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '0.5rem 1rem',
+    border: '1px solid var(--forge-border-default)',
+  },
+  orderNumberLabel: {
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  orderNumberValue: {
+    fontSize: 'var(--forge-text-base)',
+    fontWeight: 700,
+    color: 'var(--forge-accent-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  card: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '1.5rem',
+    marginBottom: '1.5rem',
+  },
+  sectionTitle: {
+    fontSize: 'var(--forge-text-lg)',
+    fontFamily: 'var(--forge-font-tech)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    marginBottom: '1rem',
+  },
+  modelRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0.5rem 0',
+    borderBottom: '1px solid var(--forge-border-default)',
+  },
+  modelRowLast: {
+    borderBottom: 'none',
+  },
+  modelName: {
+    fontSize: 'var(--forge-text-base)',
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  modelMeta: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  totalRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: '0.75rem',
+    borderTop: '2px solid var(--forge-accent-primary)',
+    marginTop: '0.5rem',
+  },
+  totalLabel: {
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-tech)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  totalValue: {
+    fontSize: 'var(--forge-text-xl)',
+    fontWeight: 700,
+    color: 'var(--forge-accent-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  contactLabel: {
+    fontSize: '12px',
+    fontFamily: 'var(--forge-font-body)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--forge-text-muted)',
+  },
+  contactValue: {
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+    fontSize: 'var(--forge-text-base)',
+  },
+  actionCenter: {
+    textAlign: 'center',
+  },
+};
+
+// Keyframe for animated checkmark pulse
+const animStyle = `
+@keyframes forgeCheckPulse {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+`;
+
 export default function OrderConfirmation({ order, onStartNew }) {
   const { language } = useLanguage();
   const t = (cs, en) => (language === 'en' ? en : cs);
@@ -27,40 +171,48 @@ export default function OrderConfirmation({ order, onStartNew }) {
   const customer = order.customer_snapshot || {};
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-card border border-border rounded-xl p-8 text-center mb-6">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Icon name="CheckCircle" size={32} className="text-green-600" />
+    <div style={forgeStyles.wrapper}>
+      <style>{animStyle}</style>
+
+      <div style={forgeStyles.heroCard}>
+        <div style={forgeStyles.checkCircle}>
+          <Icon name="CheckCircle" size={32} style={{ color: 'var(--forge-accent-primary)' }} />
         </div>
 
-        <h2 className="text-2xl font-bold text-foreground mb-2">
+        <h2 style={forgeStyles.title}>
           {t('Objednavka odeslana!', 'Order submitted!')}
         </h2>
-        <p className="text-muted-foreground mb-4">
+        <p style={forgeStyles.subtitle}>
           {t(
             'Dekujeme za vasi objednavku. Brzy vas budeme kontaktovat.',
             'Thank you for your order. We will contact you soon.'
           )}
         </p>
 
-        <div className="inline-flex items-center gap-2 bg-muted rounded-lg px-4 py-2">
-          <span className="text-sm text-muted-foreground">{t('Cislo objednavky:', 'Order number:')}</span>
-          <span className="text-sm font-bold text-foreground">{order.id}</span>
+        <div style={forgeStyles.orderNumberBox}>
+          <span style={forgeStyles.orderNumberLabel}>{t('Cislo objednavky:', 'Order number:')}</span>
+          <span style={forgeStyles.orderNumberValue}>{order.id}</span>
         </div>
       </div>
 
       {/* Order summary */}
-      <div className="bg-card border border-border rounded-xl p-6 mb-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">
+      <div style={forgeStyles.card}>
+        <h3 style={forgeStyles.sectionTitle}>
           {t('Souhrn objednavky', 'Order Summary')}
         </h3>
 
-        <div className="space-y-3 mb-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginBottom: '0.5rem' }}>
           {models.map((m, idx) => (
-            <div key={m.id || idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+            <div
+              key={m.id || idx}
+              style={{
+                ...forgeStyles.modelRow,
+                ...(idx === models.length - 1 ? forgeStyles.modelRowLast : {}),
+              }}
+            >
               <div>
-                <p className="text-sm font-medium">{m.file_snapshot?.filename || `Model ${idx + 1}`}</p>
-                <p className="text-xs text-muted-foreground">
+                <p style={forgeStyles.modelName}>{m.file_snapshot?.filename || `Model ${idx + 1}`}</p>
+                <p style={forgeStyles.modelMeta}>
                   {m.quantity || 1}x &middot; {m.material_snapshot?.name || 'PLA'}
                 </p>
               </div>
@@ -68,43 +220,43 @@ export default function OrderConfirmation({ order, onStartNew }) {
           ))}
         </div>
 
-        <div className="pt-3 border-t border-border flex justify-between items-center">
-          <span className="font-semibold">{t('Celkem', 'Total')}</span>
-          <span className="text-xl font-bold text-primary">{formatCzk(total)}</span>
+        <div style={forgeStyles.totalRow}>
+          <span style={forgeStyles.totalLabel}>{t('Celkem', 'Total')}</span>
+          <span style={forgeStyles.totalValue}>{formatCzk(total)}</span>
         </div>
       </div>
 
       {/* Contact info */}
-      <div className="bg-card border border-border rounded-xl p-6 mb-8">
-        <h3 className="text-lg font-semibold text-foreground mb-3">
+      <div style={forgeStyles.card}>
+        <h3 style={forgeStyles.sectionTitle}>
           {t('Kontaktni udaje', 'Contact Info')}
         </h3>
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div>
-            <span className="text-muted-foreground">{t('Jmeno', 'Name')}:</span>
-            <p className="font-medium">{customer.name || '—'}</p>
+            <span style={forgeStyles.contactLabel}>{t('Jmeno', 'Name')}:</span>
+            <p style={forgeStyles.contactValue}>{customer.name || '\u2014'}</p>
           </div>
           <div>
-            <span className="text-muted-foreground">Email:</span>
-            <p className="font-medium">{customer.email || '—'}</p>
+            <span style={forgeStyles.contactLabel}>Email:</span>
+            <p style={forgeStyles.contactValue}>{customer.email || '\u2014'}</p>
           </div>
           {customer.phone && (
             <div>
-              <span className="text-muted-foreground">{t('Telefon', 'Phone')}:</span>
-              <p className="font-medium">{customer.phone}</p>
+              <span style={forgeStyles.contactLabel}>{t('Telefon', 'Phone')}:</span>
+              <p style={forgeStyles.contactValue}>{customer.phone}</p>
             </div>
           )}
           {customer.company && (
             <div>
-              <span className="text-muted-foreground">{t('Firma', 'Company')}:</span>
-              <p className="font-medium">{customer.company}</p>
+              <span style={forgeStyles.contactLabel}>{t('Firma', 'Company')}:</span>
+              <p style={forgeStyles.contactValue}>{customer.company}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Action */}
-      <div className="text-center">
+      <div style={forgeStyles.actionCenter}>
         <Button variant="default" onClick={onStartNew} iconName="Plus" iconPosition="left">
           {t('Nova objednavka', 'New Order')}
         </Button>

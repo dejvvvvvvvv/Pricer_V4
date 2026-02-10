@@ -63,14 +63,14 @@ const WidgetConfigTab = ({ editor, errors, onEditorChange }) => {
           <input
             type="color"
             className="aw-color-picker"
-            value={editor.primaryColorOverride || '#2563EB'}
+            value={editor.primaryColorOverride || '#00D4AA'}
             onChange={(e) => update('primaryColorOverride', e.target.value)}
           />
           <input
             className={`aw-input ${errors.primaryColorOverride ? 'aw-input-error' : ''}`}
             value={editor.primaryColorOverride || ''}
             onChange={(e) => update('primaryColorOverride', e.target.value)}
-            placeholder="#2563EB (prazdne = z Brandingu)"
+            placeholder="#00D4AA (prazdne = z Brandingu)"
           />
         </div>
         {errors.primaryColorOverride ? (

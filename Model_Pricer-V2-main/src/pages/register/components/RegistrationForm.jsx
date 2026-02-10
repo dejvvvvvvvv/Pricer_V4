@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -6,14 +5,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from '@/firebase'; 
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
-import { Checkbox } from '@/components/ui/Checkbox';
+import { auth, db } from '@/firebase';
+import ForgeButton from '@/components/ui/forge/ForgeButton';
 import Icon from '@/components/AppIcon';
 import { useTranslation } from 'react-i18next';
 
-// Funkce pro generování schématu v závislosti na roli a překladové funkci t
 const createRegistrationSchema = (t, role) => {
   let schema = z.object({
     firstName: z.string().min(1, t('registrationForm.firstNameRequired')),
@@ -51,6 +47,52 @@ const createRegistrationSchema = (t, role) => {
   return schema;
 };
 
+const inputStyle = {
+  width: '100%',
+  height: '44px',
+  padding: '0 12px',
+  backgroundColor: 'var(--forge-bg-elevated)',
+  border: '1px solid var(--forge-border-default)',
+  borderRadius: 'var(--forge-radius-sm)',
+  fontSize: '14px',
+  color: 'var(--forge-text-primary)',
+  fontFamily: 'var(--forge-font-body)',
+  outline: 'none',
+  transition: 'border-color 120ms ease-out, box-shadow 120ms ease-out',
+  boxSizing: 'border-box',
+};
+
+const labelStyle = {
+  fontFamily: 'var(--forge-font-body)',
+  fontSize: '12px',
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  color: 'var(--forge-text-secondary)',
+  marginBottom: '6px',
+  display: 'block',
+};
+
+const errorTextStyle = {
+  fontSize: '11px',
+  color: 'var(--forge-error)',
+  marginTop: '4px',
+  fontFamily: 'var(--forge-font-body)',
+};
+
+const sectionHeadingStyle = {
+  fontFamily: 'var(--forge-font-tech)',
+  fontSize: '12px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  color: 'var(--forge-text-primary)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  marginBottom: '16px',
+};
+
 const RegistrationForm = ({ selectedRole }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -67,23 +109,13 @@ const RegistrationForm = ({ selectedRole }) => {
   } = useForm({
     resolver: zodResolver(registrationSchema),
     defaultValues: {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        password: '',
-        confirmPassword: '',
-        agreeTerms: false,
-        agreeMarketing: false,
-        companyName: '',
-        businessId: '',
-        city: '',
-        postalCode: '',
-        address: '',
-        confirmEquipment: false,
-      }
+      firstName: '', lastName: '', email: '', phone: '',
+      password: '', confirmPassword: '',
+      agreeTerms: false, agreeMarketing: false,
+      companyName: '', businessId: '', city: '', postalCode: '', address: '',
+      confirmEquipment: false,
+    }
   });
-
 
   const onSubmit = async (data) => {
     try {
@@ -98,7 +130,6 @@ const RegistrationForm = ({ selectedRole }) => {
         phone: data.phone || '',
         role: selectedRole,
         createdAt: new Date(),
-        // Conditionally add host-specific data
         ...(selectedRole === 'host' && {
           companyName: data.companyName || '',
           businessId: data.businessId || '',
@@ -112,7 +143,6 @@ const RegistrationForm = ({ selectedRole }) => {
 
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // Navigate to the appropriate dashboard after successful registration
       if (selectedRole === 'host') {
         navigate('/host-dashboard');
       } else {
@@ -131,137 +161,190 @@ const RegistrationForm = ({ selectedRole }) => {
     }
   };
 
+  const handleFocus = (e) => {
+    e.target.style.borderColor = 'var(--forge-accent-primary)';
+    e.target.style.boxShadow = '0 0 0 2px rgba(0,212,170,0.15)';
+  };
+
+  const handleBlur = (e) => {
+    e.target.style.borderColor = 'var(--forge-border-default)';
+    e.target.style.boxShadow = 'none';
+  };
+
+  const renderInput = (name, label, type = 'text', placeholder = '', required = false) => (
+    <div>
+      <label style={labelStyle}>{label}{required ? ' *' : ''}</label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        {...register(name)}
+        disabled={isSubmitting}
+        style={{
+          ...inputStyle,
+          borderColor: errors[name] ? 'var(--forge-error)' : 'var(--forge-border-default)',
+        }}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+      />
+      {errors[name]?.message && <div style={errorTextStyle}>{errors[name].message}</div>}
+    </div>
+  );
+
+  const renderPasswordInput = (name, label, show, setShow, placeholder) => (
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>{label} *</label>
+      <input
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder}
+        {...register(name)}
+        disabled={isSubmitting}
+        style={{
+          ...inputStyle,
+          paddingRight: '40px',
+          borderColor: errors[name] ? 'var(--forge-error)' : 'var(--forge-border-default)',
+        }}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        style={{
+          position: 'absolute', right: '12px', top: '32px',
+          background: 'none', border: 'none', padding: '4px',
+          color: 'var(--forge-text-muted)', cursor: 'pointer',
+        }}
+      >
+        <Icon name={show ? 'EyeOff' : 'Eye'} size={18} />
+      </button>
+      {errors[name]?.message && <div style={errorTextStyle}>{errors[name].message}</div>}
+    </div>
+  );
+
+  const renderCheckbox = (name, label, required = false) => (
+    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        {...register(name)}
+        disabled={isSubmitting}
+        style={{ accentColor: 'var(--forge-accent-primary)', marginTop: '3px', flexShrink: 0 }}
+      />
+      <span style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', lineHeight: 1.4 }}>
+        {label}
+      </span>
+      {errors[name]?.message && <div style={errorTextStyle}>{errors[name].message}</div>}
+    </label>
+  );
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {errors.root?.serverError && <p className="text-red-500 text-center mb-4">{errors.root.serverError.message}</p>}
+    <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {errors.root?.serverError && (
+        <p style={{ color: 'var(--forge-error)', textAlign: 'center', fontSize: '13px', fontFamily: 'var(--forge-font-body)' }}>
+          {errors.root.serverError.message}
+        </p>
+      )}
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
-          <Icon name="User" size={20} />
-          <span>{t('registrationForm.personalDetails')}</span>
+      {/* Personal Details */}
+      <div>
+        <h3 style={sectionHeadingStyle}>
+          <Icon name="User" size={18} style={{ color: 'var(--forge-text-muted)' }} />
+          {t('registrationForm.personalDetails')}
         </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            {...register('firstName')}
-            label={t('registrationForm.firstNameLabel') + ' *'}
-            placeholder={t('registrationForm.firstNamePlaceholder')}
-            error={errors.firstName?.message}
-            required
-          />
-          <Input
-             {...register('lastName')}
-            label={t('registrationForm.lastNameLabel') + ' *'}
-            placeholder={t('registrationForm.lastNamePlaceholder')}
-            error={errors.lastName?.message}
-            required
-          />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          {renderInput('firstName', t('registrationForm.firstNameLabel'), 'text', t('registrationForm.firstNamePlaceholder'), true)}
+          {renderInput('lastName', t('registrationForm.lastNameLabel'), 'text', t('registrationForm.lastNamePlaceholder'), true)}
         </div>
-
-        <Input
-            {...register('email')}
-            label={t('registrationForm.emailLabel') + ' *'}
-            type="email"
-            placeholder={t('registrationForm.emailPlaceholder')}
-            error={errors.email?.message}
-            required
-        />
-        <Input
-            {...register('phone')}
-            label={t('registrationForm.phoneLabel')}
-            type="tel"
-            placeholder="+420 123 456 789"
-            error={errors.phone?.message}
-        />
+        {renderInput('email', t('registrationForm.emailLabel'), 'email', t('registrationForm.emailPlaceholder'), true)}
+        <div style={{ marginTop: '16px' }}>
+          {renderInput('phone', t('registrationForm.phoneLabel'), 'tel', '+420 123 456 789')}
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
-          <Icon name="Lock" size={20} />
-          <span>{t('registrationForm.security')}</span>
+      {/* Security */}
+      <div>
+        <h3 style={sectionHeadingStyle}>
+          <Icon name="Lock" size={18} style={{ color: 'var(--forge-text-muted)' }} />
+          {t('registrationForm.security')}
         </h3>
-
-        <div className="relative">
-          <Input
-             {...register('password')}
-            label={t('registrationForm.passwordLabel') + ' *'}
-            type={showPassword ? "text" : "password"}
-            placeholder={t('registrationForm.passwordPlaceholder')}
-            error={errors.password?.message}
-            required
-          />
-          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-9 text-muted-foreground hover:text-foreground transition-colors">
-            <Icon name={showPassword ? "EyeOff" : "Eye"} size={18} />
-          </button>
-        </div>
-
-        <div className="relative">
-          <Input
-            {...register('confirmPassword')}
-            label={t('registrationForm.confirmPasswordLabel') + ' *'}
-            type={showConfirmPassword ? "text" : "password"}
-            placeholder={t('registrationForm.confirmPasswordPlaceholder')}
-            error={errors.confirmPassword?.message}
-            required
-          />
-          <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-9 text-muted-foreground hover:text-foreground transition-colors">
-            <Icon name={showConfirmPassword ? "EyeOff" : "Eye"} size={18} />
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {renderPasswordInput('password', t('registrationForm.passwordLabel'), showPassword, setShowPassword, t('registrationForm.passwordPlaceholder'))}
+          {renderPasswordInput('confirmPassword', t('registrationForm.confirmPasswordLabel'), showConfirmPassword, setShowConfirmPassword, t('registrationForm.confirmPasswordPlaceholder'))}
         </div>
       </div>
-      
+
+      {/* Business Info (host only) */}
       {selectedRole === 'host' && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
-            <Icon name="Building" size={20} />
-            <span>{t('registrationForm.businessInfo')}</span>
+        <div>
+          <h3 style={sectionHeadingStyle}>
+            <Icon name="Building" size={18} style={{ color: 'var(--forge-text-muted)' }} />
+            {t('registrationForm.businessInfo')}
           </h3>
-          <Input {...register('companyName')} label={t('registrationForm.companyNameLabel')} error={errors.companyName?.message} />
-          <Input {...register('businessId')} label={t('registrationForm.businessIdLabel')} error={errors.businessId?.message} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input {...register('city')} label={t('registrationForm.cityLabel') + ' *'} error={errors.city?.message} required />
-            <Input {...register('postalCode')} label={t('registrationForm.postalCodeLabel') + ' *'} error={errors.postalCode?.message} required />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {renderInput('companyName', t('registrationForm.companyNameLabel'))}
+            {renderInput('businessId', t('registrationForm.businessIdLabel'))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {renderInput('city', t('registrationForm.cityLabel'), 'text', '', true)}
+              {renderInput('postalCode', t('registrationForm.postalCodeLabel'), 'text', '', true)}
+            </div>
+            {renderInput('address', t('registrationForm.addressLabel'), 'text', '', true)}
           </div>
-          <Input {...register('address')} label={t('registrationForm.addressLabel') + ' *'} error={errors.address?.message} required />
         </div>
       )}
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
-          <Icon name="FileText" size={20} />
-          <span>{t('registrationForm.legalAgreements')}</span>
+      {/* Legal Agreements */}
+      <div>
+        <h3 style={sectionHeadingStyle}>
+          <Icon name="FileText" size={18} style={{ color: 'var(--forge-text-muted)' }} />
+          {t('registrationForm.legalAgreements')}
         </h3>
-        <Checkbox
-           {...register('agreeTerms')}
-          label={
-            <span className="text-sm">
-              {t('registrationForm.agreeTermsPrefix')} <Link to="/terms" className="text-primary hover:underline">{t('registrationForm.termsAndConditions')}</Link> {t('registrationForm.and')} <Link to="/privacy" className="text-primary hover:underline">{t('registrationForm.privacyPolicy')}</Link> *
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              {...register('agreeTerms')}
+              disabled={isSubmitting}
+              style={{ accentColor: 'var(--forge-accent-primary)', marginTop: '3px', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', lineHeight: 1.4 }}>
+              {t('registrationForm.agreeTermsPrefix')}{' '}
+              <Link to="/terms" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.termsAndConditions')}</Link>
+              {' '}{t('registrationForm.and')}{' '}
+              <Link to="/privacy" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.privacyPolicy')}</Link> *
             </span>
-          }
-          error={errors.agreeTerms?.message}
-          required
-        />
-        <Checkbox {...register('agreeMarketing')} label={t('registrationForm.agreeMarketing')} />
-        {selectedRole === 'host' && (
-          <Checkbox
-             {...register('confirmEquipment')}
-            label={t('registrationForm.confirmEquipment')}
-            error={errors.confirmEquipment?.message}
-            required
-          />
-        )}
+          </label>
+          {errors.agreeTerms?.message && <div style={errorTextStyle}>{errors.agreeTerms.message}</div>}
+
+          {renderCheckbox('agreeMarketing', t('registrationForm.agreeMarketing'))}
+
+          {selectedRole === 'host' && renderCheckbox('confirmEquipment', t('registrationForm.confirmEquipment'), true)}
+        </div>
       </div>
 
-      <div className="pt-4">
-        <Button type="submit" variant="default" size="lg" fullWidth loading={isSubmitting} iconName="UserPlus" iconPosition="left">
+      {/* Submit */}
+      <div style={{ paddingTop: '8px' }}>
+        <ForgeButton
+          variant="primary"
+          type="submit"
+          disabled={isSubmitting}
+          style={{ width: '100%', height: '48px' }}
+        >
           {isSubmitting ? t('registrationForm.creatingAccount') : t('registrationForm.createAccountButton')}
-        </Button>
+        </ForgeButton>
       </div>
-      
-      <div className="text-center pt-4 border-t border-border">
-        <p className="text-sm text-muted-foreground">
+
+      {/* Login Link */}
+      <div style={{
+        textAlign: 'center',
+        paddingTop: '16px',
+        borderTop: '1px solid var(--forge-border-default)',
+      }}>
+        <p style={{
+          fontSize: '13px',
+          color: 'var(--forge-text-muted)',
+          fontFamily: 'var(--forge-font-body)',
+        }}>
           {t('registrationForm.alreadyHaveAccount')}{' '}
-          <Link to="/login" className="text-primary hover:underline font-medium">
+          <Link to="/login" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
             {t('registrationForm.loginLink')}
           </Link>
         </p>

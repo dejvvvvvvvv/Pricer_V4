@@ -8,8 +8,178 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import ErrorBoundary from './ErrorBoundary';
 
+/* ── FORGE style objects ─────────────────────────────────────────────────── */
+const fg = {
+  container: {
+    position: 'relative',
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    aspectRatio: '1',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '0.5rem',
+  },
+  emptyContainer: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    aspectRatio: '1',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    width: '5rem',
+    height: '5rem',
+    borderRadius: '50%',
+    background: 'var(--forge-bg-elevated)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto',
+  },
+  emptyTitle: {
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-tech)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    marginTop: '1rem',
+  },
+  emptyText: {
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-secondary)',
+    fontFamily: 'var(--forge-font-body)',
+    marginTop: '0.5rem',
+  },
+  toolbar: {
+    position: 'absolute',
+    top: '0.5rem',
+    right: '0.5rem',
+    zIndex: 10,
+    display: 'flex',
+    gap: '0.25rem',
+  },
+  canvasWrap: {
+    background: 'var(--forge-bg-void)',
+    borderRadius: 'var(--forge-radius-xl)',
+    overflow: 'hidden',
+  },
+  fallbackWrap: {
+    width: '100%',
+    height: '100%',
+    background: 'var(--forge-bg-void)',
+    borderRadius: 'var(--forge-radius-xl)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+    textAlign: 'center',
+  },
+  infoBar: {
+    marginTop: '0.5rem',
+    padding: '0.75rem',
+    background: 'var(--forge-bg-elevated)',
+    borderRadius: 'var(--forge-radius-xl)',
+    border: '1px solid var(--forge-border-default)',
+  },
+  fileName: {
+    fontSize: 'var(--forge-text-sm)',
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+    width: '100%',
+  },
+  metricLabel: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  metricValue: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  metricCard: {
+    textAlign: 'center',
+    padding: '0.5rem',
+    background: 'var(--forge-bg-surface)',
+    borderRadius: 'var(--forge-radius-md)',
+    border: '1px solid var(--forge-border-default)',
+  },
+  metricCardValue: {
+    fontWeight: 700,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+    fontSize: 'var(--forge-text-xs)',
+  },
+  metricCardLabel: {
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+    fontSize: 'var(--forge-text-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  errorText: {
+    marginTop: '0.5rem',
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-error)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  fullscreenOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 9999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(8, 9, 12, 0.85)',
+    backdropFilter: 'blur(8px)',
+  },
+  fullscreenInner: {
+    position: 'relative',
+    width: '90vw',
+    height: '90vh',
+    background: 'transparent',
+  },
+  fullscreenClose: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 20,
+    paddingTop: '0.5rem',
+  },
+  fullscreenBtn: {
+    height: '3rem',
+    width: '3rem',
+    borderRadius: '50%',
+    background: 'rgba(0, 0, 0, 0.4)',
+    border: '1px solid var(--forge-border-active)',
+    color: 'rgba(255, 255, 255, 0.9)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Surface area (STL) – frontend-only with guardrails
+// Surface area (STL) -- frontend-only with guardrails
 // NOTE: We do NOT compute volume in browser (backend slicer is source of truth).
 // Surface is generally safe, but still protect the UI from huge meshes.
 const MAX_PREVIEW_MB = 12;
@@ -129,7 +299,7 @@ function computeSurfaceMm2FromGeometry(geometry, opts) {
 function STLModel({ url, computeSurface, onSurfaceComputed }) {
   const geometry = useLoader(STLLoader, url);
 
-  // Center geometry (cheap & safe) – prevents model being out of view.
+  // Center geometry (cheap & safe) -- prevents model being out of view.
   useMemo(() => {
     if (!geometry) return;
     geometry.computeBoundingBox();
@@ -176,12 +346,12 @@ function STLModel({ url, computeSurface, onSurfaceComputed }) {
 
   return (
     <mesh geometry={geometry}>
-      <meshStandardMaterial color="#1E90FF" metalness={0.1} roughness={0.5} />
+      <meshStandardMaterial color="#00D4AA" metalness={0.15} roughness={0.45} />
     </mesh>
   );
 }
 
-// Fullscreen Modal (1:1 z OLD verze; pouze vyšší z-index, aby překryl navbar)
+// Fullscreen Modal
 const FullScreenModel = ({ url }) => {
   const geom = useLoader(STLLoader, url);
   const mesh = useMemo(() => {
@@ -189,9 +359,9 @@ const FullScreenModel = ({ url }) => {
     return new THREE.Mesh(
       geom,
       new THREE.MeshStandardMaterial({
-        color: '#1E90FF',
-        metalness: 0.1,
-        roughness: 0.5,
+        color: '#00D4AA',
+        metalness: 0.15,
+        roughness: 0.45,
       })
     );
   }, [geom]);
@@ -201,29 +371,29 @@ const FullScreenModel = ({ url }) => {
 const FullScreenViewer = ({ fileUrl, onClose }) => {
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      style={fg.fullscreenOverlay}
       onClick={onClose}
     >
       <div
-        className="relative w-[90vw] h-[90vh] bg-transparent"
+        style={fg.fullscreenInner}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 pt-2">
-          <Button
-            variant="ghost"
-            size="icon"
+        <div style={fg.fullscreenClose}>
+          <button
             onClick={onClose}
-            aria-label="Zavřít celé okno"
-            className="h-12 w-12 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-md text-white/90 hover:text-white transition-colors"
+            aria-label="Zav\u0159\u00edt cel\u00e9 okno"
+            style={fg.fullscreenBtn}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.4)'; }}
           >
             <Icon name="Minimize" size={28} />
-          </Button>
+          </button>
         </div>
 
         <Suspense
           fallback={
-            <div className="flex flex-col items-center justify-center h-full">
-              <Icon name="Loader2" className="animate-spin text-primary" size={32} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Icon name="Loader2" className="animate-spin" size={32} style={{ color: 'var(--forge-accent-primary)' }} />
             </div>
           }
         >
@@ -271,7 +441,7 @@ function STLCanvas({ file, computeSurface, onSurfaceComputed }) {
   }, []);
 
   return (
-    <div ref={canvasWrapRef} className="w-full h-full bg-muted/30 rounded-xl overflow-hidden">
+    <div ref={canvasWrapRef} style={{ width: '100%', height: '100%', ...fg.canvasWrap }}>
       <Canvas camera={{ position: [0, 0, 100], fov: 50 }} dpr={[1, 1.5]}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[10, 10, 10]} intensity={0.8} />
@@ -294,10 +464,10 @@ function formatDuration(totalSeconds) {
 }
 
 /**
- * Stabilnější (lehčí) 3D viewer pro /test-kalkulacka.
- * - žádné výpočty objemu v prohlížeči (to dělá backend slicer)
- * - guard na velké soubory + nepodporované formáty
- * - ErrorBoundary kolem Canvas, aby stránka nespadla (white-screen)
+ * Stabilnejsi (lehci) 3D viewer pro /test-kalkulacka.
+ * - zadne vypocty objemu v prohlizeci (to dela backend slicer)
+ * - guard na velke soubory + nepodporovane formaty
+ * - ErrorBoundary kolem Canvas, aby stranka nespadla (white-screen)
  */
 const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
   const [fileUrl, setFileUrl] = useState(null);
@@ -358,14 +528,14 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
 
   if (!selectedFile) {
     return (
-      <div className="bg-card border border-border rounded-xl aspect-square flex flex-col items-center justify-center p-4 text-center">
-        <div className="space-y-4">
-          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto">
-            <Icon name="Scan" size={40} className="text-muted-foreground" />
+      <div style={fg.emptyContainer}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div style={fg.emptyIcon}>
+            <Icon name="Scan" size={40} style={{ color: 'var(--forge-text-muted)' }} />
           </div>
-          <h3 className="font-semibold text-foreground">Náhled modelu</h3>
-          <p className="text-sm text-muted-foreground">
-            Po nahrání souboru se zde zobrazí náhled a metriky ze sliceru.
+          <h3 style={fg.emptyTitle}>N\u00e1hled modelu</h3>
+          <p style={fg.emptyText}>
+            Po nahr\u00e1n\u00ed souboru se zde zobraz\u00ed n\u00e1hled a metriky ze sliceru.
           </p>
         </div>
       </div>
@@ -381,14 +551,14 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
 
   return (
     <>
-      <div className="relative bg-card border border-border rounded-xl aspect-square flex flex-col p-2">
-        <div className="absolute top-2 right-2 z-10 flex space-x-1">
+      <div style={fg.container}>
+        <div style={fg.toolbar}>
           {canFullscreen && (
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsFullScreen(true)}
-              aria-label="Celá obrazovka"
+              aria-label="Cel\u00e1 obrazovka"
             >
               <Icon name="Expand" size={16} />
             </Button>
@@ -403,19 +573,19 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
           </Button>
         </div>
 
-        <div className="flex-1 min-h-0">
+        <div style={{ flex: 1, minHeight: 0 }}>
           <ErrorBoundary>
             {(!fileObj || !previewSupported) ? (
-              <div className="w-full h-full bg-muted/30 rounded-xl flex items-center justify-center p-4 text-sm text-muted-foreground text-center">
-                Náhled je dostupný jen pro STL soubory.
+              <div style={fg.fallbackWrap}>
+                N\u00e1hled je dostupn\u00fd jen pro STL soubory.
                 <br />
-                Pro data použijte „Metriky ze sliceru“.
+                Pro data pou\u017eijte \u201eMetriky ze sliceru\u201c.
               </div>
             ) : tooLargeForPreview ? (
-              <div className="w-full h-full bg-muted/30 rounded-xl flex items-center justify-center p-4 text-sm text-muted-foreground text-center">
-                Náhled je vypnutý (velký soubor ~{sizeMb.toFixed(1)} MB).
+              <div style={fg.fallbackWrap}>
+                N\u00e1hled je vypnut\u00fd (velk\u00fd soubor ~{sizeMb.toFixed(1)} MB).
                 <br />
-                Pro data použijte „Metriky ze sliceru“.
+                Pro data pou\u017eijte \u201eMetriky ze sliceru\u201c.
               </div>
             ) : (
           <STLCanvas file={fileObj} computeSurface={canComputeSurfaceSafe} onSurfaceComputed={handleSurfaceComputed} />
@@ -423,51 +593,48 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
           </ErrorBoundary>
         </div>
 
-        <div className="mt-2 p-3 bg-card/80 backdrop-blur-sm rounded-xl border border-border">
-          <div className="flex items-center justify-center mb-2">
-            <p
-              className="text-sm font-medium text-foreground truncate text-center w-full"
-              title={selectedFile.name}
-            >
+        <div style={fg.infoBar}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}>
+            <p style={fg.fileName} title={selectedFile.name}>
               {selectedFile.name}
             </p>
           </div>
 
           {/* Backend metrics */}
           {(dims?.x || dims?.y || dims?.z || volumeCm3 != null || metrics) && (
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {(dims?.x || dims?.y || dims?.z || volumeCm3 != null) && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <div className="text-muted-foreground">Rozměry:</div>
-                  <div className="text-foreground">
-                    {Number(dims?.x || 0).toFixed(2)} × {Number(dims?.y || 0).toFixed(2)} × {Number(dims?.z || 0).toFixed(2)} mm
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 1rem', fontSize: 'var(--forge-text-xs)' }}>
+                  <div style={fg.metricLabel}>Rozm\u011bry:</div>
+                  <div style={fg.metricValue}>
+                    {Number(dims?.x || 0).toFixed(2)} \u00d7 {Number(dims?.y || 0).toFixed(2)} \u00d7 {Number(dims?.z || 0).toFixed(2)} mm
                   </div>
                   {volumeCm3 != null && (
                     <>
-                      <div className="text-muted-foreground">Objem:</div>
-                      <div className="text-foreground">{volumeCm3.toFixed(2)} cm³</div>
+                      <div style={fg.metricLabel}>Objem:</div>
+                      <div style={fg.metricValue}>{volumeCm3.toFixed(2)} cm\u00b3</div>
                     </>
                   )}
                   {surfaceCm2 != null && (
                     <>
-                      <div className="text-muted-foreground">Povrch:</div>
-                      <div className="text-foreground">{surfaceCm2.toFixed(2)} cm²</div>
+                      <div style={fg.metricLabel}>Povrch:</div>
+                      <div style={fg.metricValue}>{surfaceCm2.toFixed(2)} cm\u00b2</div>
                     </>
                   )}
                 </div>
               )}
 
               {metrics && (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="text-center p-2 bg-muted/50 rounded-md">
-                    <p className="font-bold text-foreground">{formatDuration(metrics?.estimatedTimeSeconds)}</p>
-                    <p className="text-muted-foreground">Čas tisku</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div style={fg.metricCard}>
+                    <p style={fg.metricCardValue}>{formatDuration(metrics?.estimatedTimeSeconds)}</p>
+                    <p style={fg.metricCardLabel}>\u010cas tisku</p>
                   </div>
-                  <div className="text-center p-2 bg-muted/50 rounded-md">
-                    <p className="font-bold text-foreground">
+                  <div style={fg.metricCard}>
+                    <p style={fg.metricCardValue}>
                       {Number.isFinite(Number(metrics?.filamentGrams)) ? `${Number(metrics.filamentGrams).toFixed(1)} g` : '-'}
                     </p>
-                    <p className="text-muted-foreground">Materiál</p>
+                    <p style={fg.metricCardLabel}>Materi\u00e1l</p>
                   </div>
                 </div>
               )}
@@ -475,7 +642,7 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
           )}
 
           {selectedFile?.status === 'failed' && selectedFile?.error && (
-            <div className="mt-2 text-xs text-destructive">
+            <div style={fg.errorText}>
               {selectedFile.error}
             </div>
           )}

@@ -92,9 +92,9 @@ const WidgetEmbedTab = ({ widget }) => {
       />
 
       <div className="aw-embed-instructions">
-        <Icon name="Info" size={16} />
+        <Icon name="Info" size={16} style={{ color: 'var(--forge-accent-primary)', flexShrink: 0 }} />
         <div>
-          <strong>Jak pouzit:</strong> Zkopirujte kod vyse a vlozte ho na svuj web (do HTML stranky
+          <strong style={{ color: 'var(--forge-text-primary)' }}>Jak pouzit:</strong> Zkopirujte kod vyse a vlozte ho na svuj web (do HTML stranky
           nebo pres CMS jako vlastni HTML blok). Widget se automaticky prizpusobi sirce kontejneru
           a vysku obsahu.
         </div>

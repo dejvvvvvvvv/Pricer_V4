@@ -85,8 +85,7 @@ const Header = () => {
 
   const navItems = [
     { label: t('nav.home'), path: '/', icon: 'Home' },
-    { label: t('nav.demo'), path: '/model-upload', icon: 'Calculator' },
-    { label: 'Test Kalkulačka', path: '/test-kalkulacka', icon: 'TestTube' },
+    { label: t('nav.demo'), path: '/test-kalkulacka', icon: 'Calculator' },
     { label: t('nav.pricing'), path: '/pricing', icon: 'DollarSign' },
     { label: t('nav.support'), path: '/support', icon: 'HelpCircle' },
     { label: t('nav.admin'), path: '/admin', icon: 'Settings' },
@@ -215,7 +214,7 @@ const Header = () => {
                 iconName="Upload"
                 iconPosition="left"
                 onClick={() => {
-                  window.location.href = '/model-upload';
+                  window.location.href = '/test-kalkulacka';
                 }}
               >
                 Upload Model
@@ -378,7 +377,7 @@ const Header = () => {
                   iconPosition="left"
                   onClick={() => {
                     setIsMenuOpen(false);
-                    window.location.href = '/model-upload';
+                    window.location.href = '/test-kalkulacka';
                   }}
                 >
                   Upload Model

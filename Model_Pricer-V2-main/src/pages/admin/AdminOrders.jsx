@@ -45,7 +45,7 @@ function formatDateTime(iso, locale = 'cs-CZ') {
 }
 
 function formatMoney(amount) {
-  return `${round2(amount).toFixed(2)} Kč`;
+  return `${round2(amount).toFixed(2)} Kc`;
 }
 
 function formatTime(min) {
@@ -57,33 +57,111 @@ function formatTime(min) {
 }
 
 function Badge({ children, tone = 'gray' }) {
+  const toneMap = {
+    gray: { bg: 'var(--forge-bg-elevated)', color: 'var(--forge-text-secondary)', border: 'var(--forge-border-default)' },
+    blue: { bg: 'rgba(0, 212, 170, 0.1)', color: 'var(--forge-accent-primary)', border: 'rgba(0, 212, 170, 0.25)' },
+    green: { bg: 'rgba(0, 212, 170, 0.15)', color: '#00D4AA', border: 'rgba(0, 212, 170, 0.3)' },
+    red: { bg: 'rgba(255, 71, 87, 0.12)', color: 'var(--forge-error)', border: 'rgba(255, 71, 87, 0.3)' },
+  };
+  const t = toneMap[tone] || toneMap.gray;
   return (
-    <span className={`badge badge-${tone}`}>{children}</span>
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '4px 10px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      fontFamily: 'var(--forge-font-tech)',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+      backgroundColor: t.bg,
+      color: t.color,
+      border: `1px solid ${t.border}`,
+    }}>
+      {children}
+    </span>
   );
 }
 
 function PillButton({ active, onClick, children }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
-      className={`pill ${active ? 'pill-active' : ''}`}
       onClick={onClick}
       type="button"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        border: `1px solid ${active ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
+        background: active ? 'var(--forge-accent-primary)' : (hovered ? 'var(--forge-bg-overlay)' : 'var(--forge-bg-elevated)'),
+        color: active ? '#08090C' : 'var(--forge-text-secondary)',
+        borderRadius: '999px',
+        padding: '6px 12px',
+        fontSize: '11px',
+        fontFamily: 'var(--forge-font-tech)',
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.03em',
+        cursor: 'pointer',
+        transition: 'all var(--forge-duration-micro) ease',
+      }}
     >
       {children}
     </button>
   );
 }
 
-function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelText = 'Zrušit', onConfirm, onCancel }) {
+function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelText = 'Zrusit', onConfirm, onCancel }) {
   if (!open) return null;
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal">
-        <div className="modal-title">{title}</div>
-        <div className="modal-body">{message}</div>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} type="button">{cancelText}</button>
-          <button className="btn-primary" onClick={onConfirm} type="button">{confirmText}</button>
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(8, 9, 12, 0.75)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '18px',
+      zIndex: 999,
+    }} role="dialog" aria-modal="true">
+      <div style={{
+        backgroundColor: 'var(--forge-bg-surface)',
+        borderRadius: 'var(--forge-radius-xl)',
+        padding: '20px',
+        width: '100%',
+        maxWidth: '460px',
+        boxShadow: 'var(--forge-shadow-lg)',
+        border: '1px solid var(--forge-border-default)',
+      }}>
+        <div style={{
+          fontFamily: 'var(--forge-font-heading)',
+          fontWeight: 800,
+          color: 'var(--forge-text-primary)',
+          fontSize: '16px',
+        }}>{title}</div>
+        <div style={{
+          marginTop: '10px',
+          color: 'var(--forge-text-secondary)',
+          fontFamily: 'var(--forge-font-body)',
+          fontSize: '14px',
+          lineHeight: 1.5,
+        }}>{message}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+          <button onClick={onCancel} type="button" style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            border: '1px solid var(--forge-border-default)', backgroundColor: 'var(--forge-bg-elevated)',
+            color: 'var(--forge-text-secondary)', borderRadius: 'var(--forge-radius-lg)',
+            padding: '10px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+            fontFamily: 'var(--forge-font-body)',
+          }}>{cancelText}</button>
+          <button onClick={onConfirm} type="button" style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid var(--forge-accent-primary)', backgroundColor: 'var(--forge-accent-primary)',
+            color: '#08090C', borderRadius: 'var(--forge-radius-lg)',
+            padding: '10px 14px', fontWeight: 800, fontSize: '13px', cursor: 'pointer',
+            fontFamily: 'var(--forge-font-body)',
+          }}>{confirmText}</button>
         </div>
       </div>
     </div>
@@ -271,7 +349,7 @@ function OrdersList({ orders, setOrders }) {
       <div className="page-header">
         <div>
           <h1>{t('admin.orders.title') || 'Orders'}</h1>
-          <p className="subtitle">Rychlý přehled objednávek, filtrů a audit logu. (Demo Varianta A)</p>
+          <p className="subtitle">Rychly prehled objednavek, filtru a audit logu. (Demo Varianta A)</p>
         </div>
         <div className="header-actions">
           <div className="view-toggle">
@@ -295,13 +373,13 @@ function OrdersList({ orders, setOrders }) {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Hledat: order ID, soubor, jméno, email…"
+              placeholder="Hledat: order ID, soubor, jmeno, email..."
             />
           </div>
 
           <div className="filter-row">
             <div className="filter-group">
-              <div className="filter-label">Status</div>
+              <div className="filter-label">STATUS</div>
               <div className="pill-row">
                 {ORDER_STATUSES.map((s) => (
                   <PillButton
@@ -316,10 +394,10 @@ function OrdersList({ orders, setOrders }) {
             </div>
 
             <div className="filter-group">
-              <div className="filter-label">Material</div>
+              <div className="filter-label">MATERIAL</div>
               <div className="pill-row">
                 {allMaterials.length === 0 ? (
-                  <span className="muted">—</span>
+                  <span className="muted">--</span>
                 ) : allMaterials.map((m) => (
                   <PillButton
                     key={m}
@@ -333,10 +411,10 @@ function OrdersList({ orders, setOrders }) {
             </div>
 
             <div className="filter-group">
-              <div className="filter-label">Preset</div>
+              <div className="filter-label">PRESET</div>
               <div className="pill-row">
                 {allPresets.length === 0 ? (
-                  <span className="muted">—</span>
+                  <span className="muted">--</span>
                 ) : allPresets.map((p) => (
                   <PillButton
                     key={p}
@@ -350,7 +428,7 @@ function OrdersList({ orders, setOrders }) {
             </div>
 
             <div className="filter-group">
-              <div className="filter-label">Flags</div>
+              <div className="filter-label">FLAGS</div>
               <div className="pill-row">
                 {ORDER_FLAGS.map((f) => (
                   <PillButton
@@ -367,26 +445,26 @@ function OrdersList({ orders, setOrders }) {
 
           <div className="filter-row" style={{ marginTop: 12 }}>
             <div className="date-range">
-              <div className="filter-label">Od</div>
+              <div className="filter-label">OD</div>
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
             <div className="date-range">
-              <div className="filter-label">Do</div>
+              <div className="filter-label">DO</div>
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
 
             <div className="sort">
-              <div className="filter-label">Řazení</div>
+              <div className="filter-label">RAZENI</div>
               <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
-                <option value="newest">Nejnovější</option>
-                <option value="highest_price">Nejvyšší cena</option>
-                <option value="longest_time">Nejdelší čas tisku</option>
+                <option value="newest">Nejnovejsi</option>
+                <option value="highest_price">Nejvyssi cena</option>
+                <option value="longest_time">Nejdelsi cas tisku</option>
               </select>
             </div>
 
             <div className="right-actions">
               <button className="btn" onClick={clearFilters} type="button">
-                <Icon name="X" size={16} /> Reset filtrů
+                <Icon name="X" size={16} /> Reset filtru
               </button>
               <div className="count">Zobrazeno: {filtered.length}</div>
             </div>
@@ -400,31 +478,31 @@ function OrdersList({ orders, setOrders }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Order ID</th>
-                  <th>Created</th>
-                  <th>Customer</th>
-                  <th>Models / Pieces</th>
-                  <th>Material(s)</th>
-                  <th>Print time</th>
-                  <th>Weight</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                  <th>Flags</th>
+                  <th>ORDER ID</th>
+                  <th>CREATED</th>
+                  <th>CUSTOMER</th>
+                  <th>MODELS / PCS</th>
+                  <th>MATERIAL(S)</th>
+                  <th>PRINT TIME</th>
+                  <th>WEIGHT</th>
+                  <th>TOTAL</th>
+                  <th>STATUS</th>
+                  <th>FLAGS</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((o) => {
+                {pageItems.map((o, idx) => {
                   const totals = computeOrderTotals(o);
                   const mats = extractOrderMaterials(o);
                   const flags = collectOrderFlags(o);
                   return (
-                    <tr key={o.id}>
+                    <tr key={o.id} className={idx % 2 === 0 ? 'row-even' : 'row-odd'}>
                       <td className="mono">{o.id}</td>
-                      <td>{formatDateTime(o.created_at)}</td>
+                      <td className="mono">{formatDateTime(o.created_at)}</td>
                       <td>
                         <div className="customer">
-                          <div className="customer-name">{o.customer_snapshot?.name || '—'}</div>
+                          <div className="customer-name">{o.customer_snapshot?.name || '--'}</div>
                           <div className="customer-sub">{o.customer_snapshot?.email || ''}</div>
                         </div>
                       </td>
@@ -432,10 +510,10 @@ function OrdersList({ orders, setOrders }) {
                         <div className="muted">{(o.models || []).length} / {totals.sum_pieces}</div>
                       </td>
                       <td>
-                        <div className="muted">{mats.join(', ') || '—'}</div>
+                        <div className="muted">{mats.join(', ') || '--'}</div>
                       </td>
-                      <td className="muted">{formatTime(totals.sum_time_min)}</td>
-                      <td className="muted">{round2(totals.sum_weight_g)} g</td>
+                      <td className="mono">{formatTime(totals.sum_time_min)}</td>
+                      <td className="mono">{round2(totals.sum_weight_g)} g</td>
                       <td className="strong">{formatMoney(totals.total)}</td>
                       <td>
                         <Badge tone={o.status === 'CANCELED' ? 'red' : o.status === 'DONE' ? 'green' : 'blue'}>
@@ -463,7 +541,7 @@ function OrdersList({ orders, setOrders }) {
 
                 {pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="empty">Žádné objednávky pro zvolené filtry.</td>
+                    <td colSpan={11} className="empty">Zadne objednavky pro zvolene filtry.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -472,11 +550,11 @@ function OrdersList({ orders, setOrders }) {
 
           <div className="pagination">
             <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} type="button">
-              <Icon name="ChevronLeft" size={16} /> Předchozí
+              <Icon name="ChevronLeft" size={16} /> Predchozi
             </button>
             <div className="muted">Strana {page} / {pageCount}</div>
             <button className="btn" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} type="button">
-              Další <Icon name="ChevronRight" size={16} />
+              Dalsi <Icon name="ChevronRight" size={16} />
             </button>
           </div>
         </div>
@@ -498,65 +576,78 @@ function OrdersList({ orders, setOrders }) {
       <style>{`
         .orders { max-width: 1200px; }
         .page-header { display:flex; align-items:flex-end; justify-content:space-between; gap: 12px; margin-bottom: 18px; }
-        h1 { margin: 0 0 6px 0; font-size: 28px; font-weight: 800; color: #111827; }
-        .subtitle { margin: 0; font-size: 14px; color: #6B7280; }
+        h1 { margin: 0 0 6px 0; font-size: 28px; font-weight: 800; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
+        .subtitle { margin: 0; font-size: 14px; color: var(--forge-text-muted); font-family: var(--forge-font-body); }
         .header-actions { display:flex; gap: 10px; }
 
-        .panel { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; }
+        .panel { background: var(--forge-bg-surface); border-radius: var(--forge-radius-xl); padding: 16px; box-shadow: var(--forge-shadow-sm); margin-bottom: 16px; border: 1px solid var(--forge-border-default); }
         .panel.sticky { position: sticky; top: 64px; z-index: 2; }
 
         .filters { display:flex; flex-direction: column; gap: 12px; }
-        .search { display:flex; align-items:center; gap: 8px; border: 1px solid #D1D5DB; border-radius: 10px; padding: 10px 12px; }
-        .search input { border:none; outline:none; font-size: 14px; flex:1; }
+        .search { display:flex; align-items:center; gap: 8px; border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-lg); padding: 10px 12px; background: var(--forge-bg-elevated); color: var(--forge-text-muted); }
+        .search input { border:none; outline:none; font-size: 14px; flex:1; background: transparent; color: var(--forge-text-primary); font-family: var(--forge-font-body); }
+        .search input::placeholder { color: var(--forge-text-muted); }
 
         .filter-row { display:flex; flex-wrap: wrap; gap: 16px; }
         .filter-group { flex: 1; min-width: 220px; }
-        .filter-label { font-size: 12px; color: #6B7280; margin-bottom: 6px; }
+        .filter-label { font-size: 11px; font-family: var(--forge-font-tech); color: var(--forge-text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
         .pill-row { display:flex; flex-wrap: wrap; gap: 8px; }
-        .pill { border: 1px solid #E5E7EB; background: #F9FAFB; color:#374151; border-radius: 999px; padding: 6px 10px; font-size: 12px; cursor:pointer; transition: all .15s; }
-        .pill:hover { background:#F3F4F6; }
-        .pill-active { background: #EFF6FF; border-color:#2563EB; color:#1D4ED8; }
 
-        .date-range input, .sort select { border: 1px solid #D1D5DB; border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+        .date-range input, .sort select {
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
+          padding: 8px 10px;
+          font-size: 14px;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-body);
+        }
         .right-actions { margin-left: auto; display:flex; align-items:center; gap: 10px; }
-        .count { font-size: 12px; color:#6B7280; }
+        .count { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-mono); }
 
         .table-wrap { width: 100%; overflow: auto; }
         .table { width: 100%; border-collapse: collapse; min-width: 1050px; }
-        th { text-align:left; font-size: 12px; color:#6B7280; font-weight: 700; padding: 10px 8px; border-bottom: 1px solid #E5E7EB; }
-        td { padding: 10px 8px; border-bottom: 1px solid #F3F4F6; vertical-align: top; }
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; }
-        .muted { color:#6B7280; font-size: 13px; }
-        .strong { font-weight: 800; color:#111827; }
+        th {
+          text-align:left;
+          font-size: 11px;
+          font-family: var(--forge-font-tech);
+          color: var(--forge-text-muted);
+          font-weight: 700;
+          padding: 10px 8px;
+          border-bottom: 1px solid var(--forge-border-default);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+        td { padding: 10px 8px; border-bottom: 1px solid var(--forge-border-default); vertical-align: top; color: var(--forge-text-secondary); }
+        .row-even { background: var(--forge-bg-surface); }
+        .row-odd { background: var(--forge-bg-elevated); }
+        tr:hover td { background: var(--forge-bg-overlay); }
+        .mono { font-family: var(--forge-font-mono); font-size: 12px; color: var(--forge-text-secondary); }
+        .muted { color: var(--forge-text-muted); font-size: 13px; }
+        .strong { font-weight: 800; color: var(--forge-accent-primary); font-family: var(--forge-font-mono); }
         .actions { text-align:right; }
-        .empty { text-align:center; padding: 24px; color:#6B7280; }
+        .empty { text-align:center; padding: 24px; color: var(--forge-text-muted); }
 
-        .customer-name { font-weight: 700; color:#111827; font-size: 13px; }
-        .customer-sub { font-size: 12px; color:#6B7280; }
+        .customer-name { font-weight: 700; color: var(--forge-text-primary); font-size: 13px; }
+        .customer-sub { font-size: 12px; color: var(--forge-text-muted); }
 
         .flags { display:flex; align-items:center; gap: 6px; }
-        .flag { display:inline-flex; align-items:center; justify-content:center; width: 22px; height: 22px; border-radius: 6px; border:1px solid #FDE68A; background:#FFFBEB; color:#92400E; }
+        .flag { display:inline-flex; align-items:center; justify-content:center; width: 22px; height: 22px; border-radius: 6px; border:1px solid rgba(255,181,71,0.3); background: rgba(255,181,71,0.1); color: var(--forge-warning); }
 
-        .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border:1px solid transparent; }
-        .badge-gray { background:#F3F4F6; color:#374151; }
-        .badge-blue { background:#EFF6FF; color:#1D4ED8; border-color:#BFDBFE; }
-        .badge-green { background:#ECFDF5; color:#065F46; border-color:#A7F3D0; }
-        .badge-red { background:#FEF2F2; color:#991B1B; border-color:#FECACA; }
-
-        .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid #D1D5DB; background:white; border-radius: 10px; padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; }
-        .btn:hover:not(:disabled) { background:#F9FAFB; }
-        .btn:disabled { opacity:.5; cursor:not-allowed; }
-        .btn-primary { display:inline-flex; align-items:center; justify-content:center; border:1px solid #2563EB; background:#2563EB; color:white; border-radius: 10px; padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; }
-        .btn-primary:hover { background:#1D4ED8; border-color:#1D4ED8; }
-        .btn-small { padding: 8px 10px; border-radius: 9px; }
+        .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn:hover:not(:disabled) { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); color: var(--forge-text-primary); }
+        .btn:disabled { opacity:.4; cursor:not-allowed; }
+        .btn-primary { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: #08090C; border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn-primary:hover { background: var(--forge-accent-primary-h); border-color: var(--forge-accent-primary-h); }
+        .btn-small { padding: 8px 10px; border-radius: var(--forge-radius-lg); }
 
         .pagination { display:flex; align-items:center; justify-content: space-between; gap: 10px; margin-top: 12px; }
 
-        .view-toggle { display: flex; border: 1px solid #D1D5DB; border-radius: 10px; overflow: hidden; }
-        .toggle-btn { border: none; background: white; padding: 8px 10px; cursor: pointer; display: flex; align-items: center; }
-        .toggle-btn:hover { background: #F9FAFB; }
-        .toggle-btn.active { background: #EFF6FF; color: #1D4ED8; }
-        .toggle-btn + .toggle-btn { border-left: 1px solid #D1D5DB; }
+        .view-toggle { display: flex; border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-lg); overflow: hidden; }
+        .toggle-btn { border: none; background: var(--forge-bg-elevated); color: var(--forge-text-muted); padding: 8px 10px; cursor: pointer; display: flex; align-items: center; transition: all var(--forge-duration-micro) ease; }
+        .toggle-btn:hover { background: var(--forge-bg-overlay); color: var(--forge-text-secondary); }
+        .toggle-btn.active { background: rgba(0, 212, 170, 0.12); color: var(--forge-accent-primary); }
+        .toggle-btn + .toggle-btn { border-left: 1px solid var(--forge-border-default); }
 
         @media (max-width: 900px) {
           .panel.sticky { position: relative; top: auto; }
@@ -584,14 +675,25 @@ function OrderDetail({ orders, setOrders }) {
 
   if (!order) {
     return (
-      <div className="panel">
-        <div className="row">
+      <div style={{
+        background: 'var(--forge-bg-surface)',
+        borderRadius: 'var(--forge-radius-xl)',
+        padding: '16px',
+        boxShadow: 'var(--forge-shadow-sm)',
+        border: '1px solid var(--forge-border-default)',
+      }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
           <button className="btn" onClick={() => navigate('../')} type="button">
-            <Icon name="ChevronLeft" size={16} /> Zpět
+            <Icon name="ChevronLeft" size={16} /> Zpet
           </button>
         </div>
-        <div className="empty">Objednávka nenalezena.</div>
-        <style>{`.panel{background:white;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}.empty{padding:18px;color:#6B7280}`}</style>
+        <div style={{ padding: '18px', color: 'var(--forge-text-muted)', textAlign: 'center', fontFamily: 'var(--forge-font-body)' }}>
+          Objednavka nenalezena.
+        </div>
+        <style>{`
+          .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); }
+          .btn:hover { background: var(--forge-bg-overlay); }
+        `}</style>
       </div>
     );
   }
@@ -779,11 +881,11 @@ function OrderDetail({ orders, setOrders }) {
     <div className="detail">
       <div className="header">
         <button className="btn" onClick={() => navigate('../')} type="button">
-          <Icon name="ChevronLeft" size={16} /> Zpět
+          <Icon name="ChevronLeft" size={16} /> Zpet
         </button>
         <div className="title">
           <div className="h">Order {order.id}</div>
-          <div className="sub">Vytvořeno: {formatDateTime(order.created_at)} • Modelů: {(order.models || []).length}</div>
+          <div className="sub">Vytvoreno: {formatDateTime(order.created_at)} / Modelu: {(order.models || []).length}</div>
         </div>
         <div className="right">
           <Badge tone={statusTone}>{getStatusLabel(order.status, language)}</Badge>
@@ -794,8 +896,8 @@ function OrderDetail({ orders, setOrders }) {
         <div className="banner">
           <Icon name="AlertTriangle" size={18} />
           <div>
-            <div className="banner-title">Pozor: tento order má flags</div>
-            <div className="banner-sub">{flags.map((f) => getFlagLabel(f, language)).join(' • ')}</div>
+            <div className="banner-title">Pozor: tento order ma flags</div>
+            <div className="banner-sub">{flags.map((f) => getFlagLabel(f, language)).join(' / ')}</div>
           </div>
         </div>
       ) : null}
@@ -803,16 +905,16 @@ function OrderDetail({ orders, setOrders }) {
       <div className="grid">
         <div className="left">
           <div className="panel">
-            <div className="panel-title">Zákazník</div>
+            <div className="panel-title">ZAKAZNIK</div>
             <div className="kv">
-              <div className="k">Jméno</div><div className="v">{order.customer_snapshot?.name || '—'}</div>
-              <div className="k">Email</div><div className="v">{order.customer_snapshot?.email || '—'}</div>
-              <div className="k">Telefon</div><div className="v">{order.customer_snapshot?.phone || '—'}</div>
+              <div className="k">Jmeno</div><div className="v">{order.customer_snapshot?.name || '--'}</div>
+              <div className="k">Email</div><div className="v">{order.customer_snapshot?.email || '--'}</div>
+              <div className="k">Telefon</div><div className="v">{order.customer_snapshot?.phone || '--'}</div>
             </div>
           </div>
 
           <div className="panel">
-            <div className="panel-title">Modely</div>
+            <div className="panel-title">MODELY</div>
             <div className="models">
               {(order.models || []).map((m) => {
                 const bd = m.price_breakdown_snapshot || {};
@@ -821,7 +923,7 @@ function OrderDetail({ orders, setOrders }) {
                     <div className="model-top">
                       <div>
                         <div className="model-file">{m.file_snapshot?.filename || 'model'}</div>
-                        <div className="model-sub">Material: {m.material_snapshot?.name || '—'} • Preset: {m.preset_snapshot?.name || '—'} • Qty: {m.quantity}</div>
+                        <div className="model-sub">Material: {m.material_snapshot?.name || '--'} / Preset: {m.preset_snapshot?.name || '--'} / Qty: {m.quantity}</div>
                       </div>
                       <button className="btn-primary btn-small" onClick={() => navigate(`./${order.id}/model/${m.id}`)} type="button">
                         Detail
@@ -830,16 +932,16 @@ function OrderDetail({ orders, setOrders }) {
 
                     <div className="model-mid">
                       <div className="mini">
-                        <div className="mini-k">Čas</div>
+                        <div className="mini-k">CAS</div>
                         <div className="mini-v">{formatTime(m?.slicer_snapshot?.time_min || 0)}</div>
                       </div>
                       <div className="mini">
-                        <div className="mini-k">Hmotnost</div>
+                        <div className="mini-k">HMOTNOST</div>
                         <div className="mini-v">{round2(m?.slicer_snapshot?.weight_g || 0)} g</div>
                       </div>
                       <div className="mini">
                         <div className="mini-k">XYZ</div>
-                        <div className="mini-v">{m?.slicer_snapshot?.dimensions_xyz?.x}×{m?.slicer_snapshot?.dimensions_xyz?.y}×{m?.slicer_snapshot?.dimensions_xyz?.z} mm</div>
+                        <div className="mini-v">{m?.slicer_snapshot?.dimensions_xyz?.x}x{m?.slicer_snapshot?.dimensions_xyz?.y}x{m?.slicer_snapshot?.dimensions_xyz?.z} mm</div>
                       </div>
                     </div>
 
@@ -856,7 +958,7 @@ function OrderDetail({ orders, setOrders }) {
           </div>
 
           <div className="panel">
-            <div className="panel-title">Order totals</div>
+            <div className="panel-title">ORDER TOTALS</div>
             <div className="breakdown">
               <div className="b-row"><span>Subtotal models</span><span>{formatMoney(totals.subtotal_models)}</span></div>
               <div className="b-row"><span>One-time fees</span><span>{formatMoney(totals.one_time_fees_total)}</span></div>
@@ -870,16 +972,16 @@ function OrderDetail({ orders, setOrders }) {
 
         <div className="right">
           <div className="panel sticky">
-            <div className="panel-title">Status & Actions</div>
+            <div className="panel-title">STATUS & ACTIONS</div>
 
             <div className="field">
-              <div className="label">Status</div>
+              <div className="label">STATUS</div>
               <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value)}>
                 {ORDER_STATUSES.map((s) => (
                   <option key={s} value={s}>{getStatusLabel(s, language)}</option>
                 ))}
               </select>
-              <button className="btn-primary" onClick={() => changeStatus(statusDraft)} type="button">Uložit status</button>
+              <button className="btn-primary" onClick={() => changeStatus(statusDraft)} type="button">Ulozit status</button>
             </div>
 
             <div className="action-row">
@@ -892,21 +994,21 @@ function OrderDetail({ orders, setOrders }) {
             </div>
 
             <div className="hint">
-              * Varianta A: akce jsou simulované (pro prezentaci UI).<br />
-              Později napojíme na backend a PrusaSlicer jobs.
+              * Varianta A: akce jsou simulovane (pro prezentaci UI).<br />
+              Pozdeji napojime na backend a PrusaSlicer jobs.
             </div>
           </div>
 
           <div className="panel">
-            <div className="panel-title">Interní poznámky</div>
-            <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Napiš interní poznámku…" />
+            <div className="panel-title">INTERNI POZNAMKY</div>
+            <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Napis interni poznamku..." />
             <button className="btn-primary" onClick={addNote} type="button">
-              <Icon name="Plus" size={16} /> Přidat poznámku
+              <Icon name="Plus" size={16} /> Pridat poznamku
             </button>
 
             <div className="notes">
               {(order.notes || []).length === 0 ? (
-                <div className="muted">Zatím žádné poznámky.</div>
+                <div className="muted">Zatim zadne poznamky.</div>
               ) : (order.notes || []).map((n) => (
                 <div key={n.id} className="note">
                   <div className="note-top">
@@ -920,7 +1022,7 @@ function OrderDetail({ orders, setOrders }) {
           </div>
 
           <div className="panel">
-            <div className="panel-title">Audit log</div>
+            <div className="panel-title">AUDIT LOG</div>
             <div className="audit">
               {(order.activity || []).slice(0, 50).map((a, idx) => (
                 <div key={`${a.timestamp}-${idx}`} className="audit-row">
@@ -936,12 +1038,12 @@ function OrderDetail({ orders, setOrders }) {
 
       <ConfirmModal
         open={Boolean(confirm)}
-        title={confirm?.type === 'reslice' ? 'Re-slice objednávky' : 'Reprice objednávky'}
+        title={confirm?.type === 'reslice' ? 'Re-slice objednavky' : 'Reprice objednavky'}
         message={confirm?.type === 'reslice'
-          ? 'V demo režimu vytvořím nový slicer snapshot a automaticky spustím reprice. Chceš pokračovat?'
-          : 'V demo režimu vytvořím novou cenovou revizi (reprice). Chceš pokračovat?'
+          ? 'V demo rezimu vytvorim novy slicer snapshot a automaticky spustim reprice. Chces pokracovat?'
+          : 'V demo rezimu vytvorim novou cenovou revizi (reprice). Chces pokracovat?'
         }
-        confirmText="Ano, pokračovat"
+        confirmText="Ano, pokracovat"
         onConfirm={onConfirmAction}
         onCancel={() => setConfirm(null)}
       />
@@ -950,76 +1052,67 @@ function OrderDetail({ orders, setOrders }) {
         .detail { max-width: 1200px; }
         .header { display:flex; align-items:center; gap: 12px; margin-bottom: 12px; }
         .title { flex:1; }
-        .h { font-size: 22px; font-weight: 900; color:#111827; }
-        .sub { font-size: 13px; color:#6B7280; margin-top: 2px; }
+        .h { font-size: 22px; font-weight: 900; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
+        .sub { font-size: 13px; color: var(--forge-text-muted); margin-top: 2px; font-family: var(--forge-font-body); }
 
         .grid { display:grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
-        .panel { background:white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 14px; }
+        .panel { background: var(--forge-bg-surface); border-radius: var(--forge-radius-xl); padding: 16px; box-shadow: var(--forge-shadow-sm); margin-bottom: 14px; border: 1px solid var(--forge-border-default); }
         .panel.sticky { position: sticky; top: 64px; }
-        .panel-title { font-weight: 900; color:#111827; margin-bottom: 10px; }
+        .panel-title { font-weight: 800; color: var(--forge-text-primary); margin-bottom: 10px; font-family: var(--forge-font-tech); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
 
         .kv { display:grid; grid-template-columns: 120px 1fr; gap: 8px 12px; }
-        .k { color:#6B7280; font-size: 12px; }
-        .v { color:#111827; font-weight: 700; font-size: 13px; }
+        .k { color: var(--forge-text-muted); font-size: 12px; font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.04em; }
+        .v { color: var(--forge-text-primary); font-weight: 700; font-size: 13px; font-family: var(--forge-font-body); }
 
         .models { display:flex; flex-direction: column; gap: 12px; }
-        .model-card { border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px; }
+        .model-card { border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-xl); padding: 14px; background: var(--forge-bg-elevated); }
         .model-top { display:flex; align-items:flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-        .model-file { font-weight: 900; color:#111827; }
-        .model-sub { color:#6B7280; font-size: 12px; margin-top: 2px; }
+        .model-file { font-weight: 800; color: var(--forge-text-primary); font-family: var(--forge-font-body); }
+        .model-sub { color: var(--forge-text-muted); font-size: 12px; margin-top: 2px; font-family: var(--forge-font-body); }
         .model-mid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
-        .mini { border: 1px solid #F3F4F6; background:#F9FAFB; border-radius: 10px; padding: 10px; }
-        .mini-k { font-size: 11px; color:#6B7280; }
-        .mini-v { font-size: 12px; font-weight: 800; color:#111827; margin-top: 2px; }
+        .mini { border: 1px solid var(--forge-border-default); background: var(--forge-bg-surface); border-radius: var(--forge-radius-lg); padding: 10px; }
+        .mini-k { font-size: 10px; color: var(--forge-text-muted); font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.06em; }
+        .mini-v { font-size: 13px; font-weight: 800; color: var(--forge-text-primary); margin-top: 2px; font-family: var(--forge-font-mono); }
 
         .breakdown { display:flex; flex-direction: column; gap: 6px; }
-        .b-row { display:flex; justify-content: space-between; gap: 10px; color:#374151; font-size: 13px; }
-        .b-row.total { font-weight: 900; color:#111827; border-top: 1px dashed #E5E7EB; padding-top: 8px; margin-top: 6px; }
+        .b-row { display:flex; justify-content: space-between; gap: 10px; color: var(--forge-text-secondary); font-size: 13px; font-family: var(--forge-font-body); }
+        .b-row span:last-child { font-family: var(--forge-font-mono); }
+        .b-row.total { font-weight: 900; color: var(--forge-accent-primary); border-top: 1px dashed var(--forge-border-active); padding-top: 8px; margin-top: 6px; }
 
         .field { display:flex; flex-direction: column; gap: 8px; }
-        .label { font-size: 12px; color:#6B7280; }
-        select { border: 1px solid #D1D5DB; border-radius: 10px; padding: 10px; font-weight: 700; }
+        .label { font-size: 11px; color: var(--forge-text-muted); font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.06em; }
+        select { border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-lg); padding: 10px; font-weight: 700; background: var(--forge-bg-elevated); color: var(--forge-text-primary); font-family: var(--forge-font-body); }
         .action-row { display:flex; gap: 10px; margin-top: 12px; }
-        .hint { margin-top: 12px; font-size: 12px; color:#6B7280; line-height: 1.35; }
+        .hint { margin-top: 12px; font-size: 12px; color: var(--forge-text-muted); line-height: 1.35; font-family: var(--forge-font-body); }
 
-        textarea { border: 1px solid #D1D5DB; border-radius: 10px; padding: 10px; min-height: 90px; resize: vertical; }
+        textarea { border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-lg); padding: 10px; min-height: 90px; resize: vertical; background: var(--forge-bg-elevated); color: var(--forge-text-primary); font-family: var(--forge-font-body); font-size: 13px; }
+        textarea::placeholder { color: var(--forge-text-muted); }
         .notes { margin-top: 12px; display:flex; flex-direction: column; gap: 10px; }
-        .note { border: 1px solid #F3F4F6; background:#F9FAFB; border-radius: 10px; padding: 10px; }
+        .note { border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); border-radius: var(--forge-radius-lg); padding: 10px; }
         .note-top { display:flex; justify-content: space-between; gap: 10px; }
-        .note-text { margin-top: 6px; font-size: 13px; color:#111827; white-space: pre-wrap; }
+        .note-text { margin-top: 6px; font-size: 13px; color: var(--forge-text-primary); white-space: pre-wrap; font-family: var(--forge-font-body); }
 
         .audit { display:flex; flex-direction: column; gap: 8px; }
-        .audit-row { display:grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items:center; border-bottom: 1px solid #F3F4F6; padding-bottom: 8px; }
-        .audit-type { font-weight: 800; color:#111827; }
+        .audit-row { display:grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items:center; border-bottom: 1px solid var(--forge-border-default); padding-bottom: 8px; }
+        .audit-type { font-weight: 800; color: var(--forge-text-primary); font-family: var(--forge-font-tech); font-size: 12px; text-transform: uppercase; }
 
-        .banner { display:flex; gap: 10px; align-items:flex-start; border: 1px solid #FDE68A; background:#FFFBEB; color:#92400E; padding: 12px; border-radius: 12px; margin-bottom: 12px; }
-        .banner-title { font-weight: 900; }
-        .banner-sub { font-size: 12px; margin-top: 2px; }
+        .banner { display:flex; gap: 10px; align-items:flex-start; border: 1px solid rgba(255,181,71,0.3); background: rgba(255,181,71,0.08); color: var(--forge-warning); padding: 12px; border-radius: var(--forge-radius-xl); margin-bottom: 12px; }
+        .banner-title { font-weight: 900; font-family: var(--forge-font-heading); }
+        .banner-sub { font-size: 12px; margin-top: 2px; color: rgba(255,181,71,0.8); font-family: var(--forge-font-body); }
 
-        .badge { display:inline-flex; align-items:center; padding: 6px 10px; border-radius: 999px; font-weight: 900; font-size: 12px; }
-        .badge-blue { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; }
-        .badge-green { background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; }
-        .badge-red { background:#FEF2F2; color:#991B1B; border:1px solid #FECACA; }
+        .mono { font-family: var(--forge-font-mono); font-size: 12px; color: var(--forge-text-secondary); }
+        .muted { color: var(--forge-text-muted); font-size: 12px; }
 
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; }
-        .muted { color:#6B7280; font-size: 12px; }
-
-        .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid #D1D5DB; background:white; border-radius: 10px; padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; }
-        .btn:hover { background:#F9FAFB; }
-        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid #2563EB; background:#2563EB; color:white; border-radius: 10px; padding: 10px 12px; font-weight: 900; font-size: 13px; cursor:pointer; }
-        .btn-primary:hover { background:#1D4ED8; border-color:#1D4ED8; }
+        .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn:hover { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); color: var(--forge-text-primary); }
+        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: #08090C; border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn-primary:hover { background: var(--forge-accent-primary-h); border-color: var(--forge-accent-primary-h); }
         .btn-small { padding: 8px 10px; }
 
         @media (max-width: 1050px) {
           .grid { grid-template-columns: 1fr; }
           .panel.sticky { position: relative; top: auto; }
         }
-
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding: 18px; z-index: 999; }
-        .modal { background:white; border-radius: 14px; padding: 16px; width: 100%; max-width: 460px; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
-        .modal-title { font-weight: 900; color:#111827; font-size: 16px; }
-        .modal-body { margin-top: 8px; color:#374151; font-size: 14px; line-height: 1.4; }
-        .modal-actions { display:flex; justify-content:flex-end; gap: 10px; margin-top: 14px; }
       `}</style>
     </div>
   );
@@ -1180,24 +1273,24 @@ function ModelDetail({ orders, setOrders }) {
     <div className="model-detail">
       <div className="header">
         <button className="btn" onClick={() => navigate(`../${order.id}`)} type="button">
-          <Icon name="ChevronLeft" size={16} /> Zpět na order
+          <Icon name="ChevronLeft" size={16} /> Zpet na order
         </button>
         <div className="title">
           <div className="h">Model {model.id}</div>
-          <div className="sub">{model.file_snapshot?.filename} • Order {order.id}</div>
+          <div className="sub">{model.file_snapshot?.filename} / Order {order.id}</div>
         </div>
       </div>
 
       <div className="grid">
         <div className="panel">
-          <div className="panel-title">Soubor & slicer snapshot</div>
+          <div className="panel-title">SOUBOR & SLICER SNAPSHOT</div>
           <div className="kv">
             <div className="k">Filename</div><div className="v">{model.file_snapshot?.filename}</div>
             <div className="k">Size</div><div className="v">{Math.round((model.file_snapshot?.size || 0) / 1024)} KB</div>
             <div className="k">Uploaded</div><div className="v">{formatDateTime(model.file_snapshot?.uploaded_at)}</div>
             <div className="k">Time</div><div className="v">{formatTime(model.slicer_snapshot?.time_min)}</div>
             <div className="k">Weight</div><div className="v">{round2(model.slicer_snapshot?.weight_g)} g</div>
-            <div className="k">XYZ</div><div className="v">{model.slicer_snapshot?.dimensions_xyz?.x}×{model.slicer_snapshot?.dimensions_xyz?.y}×{model.slicer_snapshot?.dimensions_xyz?.z} mm</div>
+            <div className="k">XYZ</div><div className="v">{model.slicer_snapshot?.dimensions_xyz?.x}x{model.slicer_snapshot?.dimensions_xyz?.y}x{model.slicer_snapshot?.dimensions_xyz?.z} mm</div>
           </div>
 
           <div className="actions">
@@ -1211,11 +1304,11 @@ function ModelDetail({ orders, setOrders }) {
         </div>
 
         <div className="panel">
-          <div className="panel-title">Resolved config snapshot</div>
+          <div className="panel-title">RESOLVED CONFIG SNAPSHOT</div>
           <div className="row">
             <label className="toggle">
               <input type="checkbox" checked={showOnlyChanged} onChange={(e) => setShowOnlyChanged(e.target.checked)} />
-              <span>Jen změněné (source != default)</span>
+              <span>Jen zmenene (source != default)</span>
             </label>
           </div>
 
@@ -1223,61 +1316,61 @@ function ModelDetail({ orders, setOrders }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Parameter</th>
-                  <th>Value</th>
-                  <th>Source</th>
+                  <th>PARAMETER</th>
+                  <th>VALUE</th>
+                  <th>SOURCE</th>
                 </tr>
               </thead>
               <tbody>
-                {shownRows.map((r) => (
-                  <tr key={r.key}>
+                {shownRows.map((r, idx) => (
+                  <tr key={r.key} className={idx % 2 === 0 ? 'row-even' : 'row-odd'}>
                     <td className="mono">{r.key}</td>
-                    <td>{String(r.value)}</td>
+                    <td style={{ fontFamily: 'var(--forge-font-mono)', color: 'var(--forge-text-primary)' }}>{String(r.value)}</td>
                     <td><Badge tone={r.source === 'widget' ? 'blue' : r.source === 'preset' ? 'green' : 'gray'}>{r.source}</Badge></td>
                   </tr>
                 ))}
                 {shownRows.length === 0 ? (
-                  <tr><td colSpan={3} className="empty">Žádné záznamy pro zvolený filtr.</td></tr>
+                  <tr><td colSpan={3} className="empty">Zadne zaznamy pro zvoleny filtr.</td></tr>
                 ) : null}
               </tbody>
             </table>
           </div>
 
           <div className="muted" style={{ marginTop: 10 }}>
-            * Snapshot slouží pro reprodukovatelnost a debug.
+            * Snapshot slouzi pro reprodukovatelnost a debug.
           </div>
         </div>
 
         <div className="panel">
-          <div className="panel-title">Price breakdown</div>
+          <div className="panel-title">PRICE BREAKDOWN</div>
           <div className="breakdown">
             <div className="b-row"><span>Material</span><span>{formatMoney(bd.material_cost || 0)}</span></div>
             <div className="b-row"><span>Time</span><span>{formatMoney(bd.time_cost || 0)}</span></div>
             <div className="b-row"><span>Fees</span><span>{formatMoney(bd.fees_total || 0)}</span></div>
             <div className="b-row total"><span>Total (1 ks)</span><span>{formatMoney(bd.model_total || 0)}</span></div>
-            <div className="b-row"><span>Quantity</span><span>{model.quantity}</span></div>
+            <div className="b-row"><span>Quantity</span><span style={{ fontFamily: 'var(--forge-font-mono)' }}>{model.quantity}</span></div>
             <div className="b-row total"><span>Total (qty)</span><span>{formatMoney((bd.model_total || 0) * (Number(model.quantity) || 1))}</span></div>
           </div>
         </div>
 
         <div className="panel">
-          <div className="panel-title">Revision history (demo)</div>
+          <div className="panel-title">REVISION HISTORY (DEMO)</div>
           <div className="rev">
             <div className="rev-col">
-              <div className="rev-h">Slicer revisions</div>
+              <div className="rev-h">SLICER REVISIONS</div>
               {(model.revisions?.slicer || []).slice(0, 10).map((r) => (
                 <div key={r.id} className="rev-item">
                   <div className="mono">{r.id}</div>
-                  <div className="muted">{formatDateTime(r.created_at)} • {r.reason}</div>
+                  <div className="muted">{formatDateTime(r.created_at)} / {r.reason}</div>
                 </div>
               ))}
             </div>
             <div className="rev-col">
-              <div className="rev-h">Price revisions</div>
+              <div className="rev-h">PRICE REVISIONS</div>
               {(model.revisions?.price || []).slice(0, 10).map((r) => (
                 <div key={r.id} className="rev-item">
                   <div className="mono">{r.id}</div>
-                  <div className="muted">{formatDateTime(r.created_at)} • {r.reason}</div>
+                  <div className="muted">{formatDateTime(r.created_at)} / {r.reason}</div>
                 </div>
               ))}
             </div>
@@ -1289,10 +1382,10 @@ function ModelDetail({ orders, setOrders }) {
         open={confirm != null}
         title={confirm === 'reslice' ? 'Re-slice modelu' : 'Reprice modelu'}
         message={confirm === 'reslice'
-          ? 'V demo režimu vytvořím nový slicer snapshot a automaticky spustím reprice. Chceš pokračovat?'
-          : 'V demo režimu vytvořím novou cenovou revizi. Chceš pokračovat?'
+          ? 'V demo rezimu vytvorim novy slicer snapshot a automaticky spustim reprice. Chces pokracovat?'
+          : 'V demo rezimu vytvorim novou cenovou revizi. Chces pokracovat?'
         }
-        confirmText="Ano, pokračovat"
+        confirmText="Ano, pokracovat"
         onConfirm={() => {
           if (confirm === 'reslice') simulateResliceModel();
           if (confirm === 'reprice') simulateRepriceModel();
@@ -1305,57 +1398,55 @@ function ModelDetail({ orders, setOrders }) {
         .model-detail { max-width: 1200px; }
         .header { display:flex; align-items:center; gap: 12px; margin-bottom: 12px; }
         .title { flex:1; }
-        .h { font-size: 22px; font-weight: 900; color:#111827; }
-        .sub { font-size: 13px; color:#6B7280; margin-top: 2px; }
+        .h { font-size: 22px; font-weight: 900; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
+        .sub { font-size: 13px; color: var(--forge-text-muted); margin-top: 2px; font-family: var(--forge-font-body); }
 
         .grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
         @media (min-width: 1100px) {
           .grid { grid-template-columns: 1.15fr 1.2fr; }
         }
 
-        .panel { background:white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-        .panel-title { font-weight: 900; color:#111827; margin-bottom: 10px; }
+        .panel { background: var(--forge-bg-surface); border-radius: var(--forge-radius-xl); padding: 16px; box-shadow: var(--forge-shadow-sm); border: 1px solid var(--forge-border-default); }
+        .panel-title { font-weight: 800; color: var(--forge-text-primary); margin-bottom: 10px; font-family: var(--forge-font-tech); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
 
         .kv { display:grid; grid-template-columns: 140px 1fr; gap: 8px 12px; }
-        .k { color:#6B7280; font-size: 12px; }
-        .v { color:#111827; font-weight: 800; font-size: 13px; }
+        .k { color: var(--forge-text-muted); font-size: 11px; font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.04em; }
+        .v { color: var(--forge-text-primary); font-weight: 800; font-size: 13px; font-family: var(--forge-font-mono); }
 
         .actions { display:flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 
         .table-wrap { overflow:auto; }
         .table { width: 100%; border-collapse: collapse; min-width: 520px; }
-        th { text-align:left; font-size: 12px; color:#6B7280; font-weight: 800; padding: 10px 8px; border-bottom: 1px solid #E5E7EB; }
-        td { padding: 10px 8px; border-bottom: 1px solid #F3F4F6; }
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; }
-        .empty { text-align:center; padding: 18px; color:#6B7280; }
+        th { text-align:left; font-size: 11px; font-family: var(--forge-font-tech); color: var(--forge-text-muted); font-weight: 700; padding: 10px 8px; border-bottom: 1px solid var(--forge-border-default); text-transform: uppercase; letter-spacing: 0.06em; }
+        td { padding: 10px 8px; border-bottom: 1px solid var(--forge-border-default); color: var(--forge-text-secondary); }
+        .row-even { background: var(--forge-bg-surface); }
+        .row-odd { background: var(--forge-bg-elevated); }
+        tr:hover td { background: var(--forge-bg-overlay); }
+        .mono { font-family: var(--forge-font-mono); font-size: 12px; color: var(--forge-text-secondary); }
+        .empty { text-align:center; padding: 18px; color: var(--forge-text-muted); }
 
-        .toggle { display:flex; gap: 10px; align-items:center; font-weight: 800; color:#374151; font-size: 13px; }
+        .toggle { display:flex; gap: 10px; align-items:center; font-weight: 700; color: var(--forge-text-secondary); font-size: 13px; font-family: var(--forge-font-body); cursor: pointer; }
+        .toggle input { accent-color: var(--forge-accent-primary); }
 
         .breakdown { display:flex; flex-direction: column; gap: 6px; }
-        .b-row { display:flex; justify-content: space-between; gap: 10px; color:#374151; font-size: 13px; }
-        .b-row.total { font-weight: 900; color:#111827; border-top: 1px dashed #E5E7EB; padding-top: 8px; margin-top: 6px; }
+        .b-row { display:flex; justify-content: space-between; gap: 10px; color: var(--forge-text-secondary); font-size: 13px; font-family: var(--forge-font-body); }
+        .b-row span:last-child { font-family: var(--forge-font-mono); }
+        .b-row.total { font-weight: 900; color: var(--forge-accent-primary); border-top: 1px dashed var(--forge-border-active); padding-top: 8px; margin-top: 6px; }
 
         .rev { display:grid; grid-template-columns: 1fr; gap: 12px; }
         @media (min-width: 900px) { .rev { grid-template-columns: 1fr 1fr; } }
-        .rev-h { font-weight: 900; color:#111827; margin-bottom: 8px; }
-        .rev-item { border: 1px solid #F3F4F6; background:#F9FAFB; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        .rev-h { font-weight: 800; color: var(--forge-text-primary); margin-bottom: 8px; font-family: var(--forge-font-tech); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+        .rev-item { border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); border-radius: var(--forge-radius-lg); padding: 10px; margin-bottom: 10px; }
 
-        .muted { color:#6B7280; font-size: 12px; }
+        .muted { color: var(--forge-text-muted); font-size: 12px; }
 
-        .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid #D1D5DB; background:white; border-radius: 10px; padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; }
-        .btn:hover { background:#F9FAFB; }
+        .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn:hover { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); color: var(--forge-text-primary); }
 
-        .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; border:1px solid transparent; }
-        .badge-gray { background:#F3F4F6; color:#374151; }
-        .badge-blue { background:#EFF6FF; color:#1D4ED8; border-color:#BFDBFE; }
-        .badge-green { background:#ECFDF5; color:#065F46; border-color:#A7F3D0; }
+        .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; border:1px solid transparent; font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.04em; }
 
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding: 18px; z-index: 999; }
-        .modal { background:white; border-radius: 14px; padding: 16px; width: 100%; max-width: 460px; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
-        .modal-title { font-weight: 900; color:#111827; font-size: 16px; }
-        .modal-body { margin-top: 8px; color:#374151; font-size: 14px; line-height: 1.4; }
-        .modal-actions { display:flex; justify-content:flex-end; gap: 10px; margin-top: 14px; }
-        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid #2563EB; background:#2563EB; color:white; border-radius: 10px; padding: 10px 12px; font-weight: 900; font-size: 13px; cursor:pointer; }
+        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: #08090C; border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn-primary:hover { background: var(--forge-accent-primary-h); border-color: var(--forge-accent-primary-h); }
       `}</style>
     </div>
   );

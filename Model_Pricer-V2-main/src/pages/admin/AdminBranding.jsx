@@ -86,15 +86,15 @@ const AdminBranding = () => {
 
     const isHex = (v) => /^#[0-9a-fA-F]{6}$/.test((v || '').trim());
     if (!branding.businessName || branding.businessName.trim().length < 2) {
-      nextErrors.businessName = 'Zadej alespoň 2 znaky.';
+      nextErrors.businessName = 'Zadej alespon 2 znaky.';
     }
-    if (!isHex(branding.primaryColor)) nextErrors.primaryColor = 'Použij HEX ve formátu #RRGGBB.';
-    if (!isHex(branding.secondaryColor)) nextErrors.secondaryColor = 'Použij HEX ve formátu #RRGGBB.';
-    if (!isHex(branding.backgroundColor)) nextErrors.backgroundColor = 'Použij HEX ve formátu #RRGGBB.';
+    if (!isHex(branding.primaryColor)) nextErrors.primaryColor = 'Pouzij HEX ve formatu #RRGGBB.';
+    if (!isHex(branding.secondaryColor)) nextErrors.secondaryColor = 'Pouzij HEX ve formatu #RRGGBB.';
+    if (!isHex(branding.backgroundColor)) nextErrors.backgroundColor = 'Pouzij HEX ve formatu #RRGGBB.';
 
     const r = Number(branding.cornerRadius);
     if (Number.isNaN(r) || r < 0 || r > 24) {
-      nextErrors.cornerRadius = 'Zaoblení musí být v rozsahu 0–24.';
+      nextErrors.cornerRadius = 'Zaobleni musi byt v rozsahu 0-24.';
     }
 
     setErrors(nextErrors);
@@ -104,7 +104,7 @@ const AdminBranding = () => {
     try {
       setSaving(true);
       if (Object.keys(errors).length > 0) {
-        alert('❌ Oprav prosím chyby ve formuláři (červeně).');
+        alert('Oprav prosim chyby ve formulari (cervene).');
         return;
       }
 
@@ -140,7 +140,7 @@ const AdminBranding = () => {
         }
       };
 
-      // If user selected a logo file but didn't click "Použít", auto-apply it on Save.
+      // If user selected a logo file but didn't click "Pouzit", auto-apply it on Save.
       const brandingToSave = { ...branding };
       if (logoDraft) {
         const dataUrl = await rasterToOptimizedDataUrl(logoDraft);
@@ -154,17 +154,17 @@ const AdminBranding = () => {
       setLogoDraft(null);
       setLogoDraftPreview(null);
       setLogoDraftError(null);
-      alert('✅ Branding uložen.');
+      alert('Branding ulozen.');
     } catch (e) {
       console.error(e);
-      alert('❌ Uložení se nepodařilo.');
+      alert('Ulozeni se nepodarilo.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleResetToDefaults = () => {
-    // Reset in UI only (requires Save) – per spec.
+    // Reset in UI only (requires Save) - per spec.
     const defaults = getDefaultBranding();
     // Enforce plan gating for Powered by
     const canHide = !!plan?.features?.can_hide_powered_by;
@@ -188,13 +188,13 @@ const AdminBranding = () => {
     if (!file) return;
     const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
     if (!allowed.includes(file.type)) {
-      setLogoDraftError('Nepodporovaný formát. Použij PNG/JPG/SVG/WEBP.');
+      setLogoDraftError('Nepodporovany format. Pouzij PNG/JPG/SVG/WEBP.');
       setLogoDraft(null);
       setLogoDraftPreview(null);
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setLogoDraftError('Soubor je příliš velký (max 2 MB).');
+      setLogoDraftError('Soubor je prilis velky (max 2 MB).');
       setLogoDraft(null);
       setLogoDraftPreview(null);
       return;
@@ -245,7 +245,7 @@ const AdminBranding = () => {
       setLogoDraftPreview(null);
     } catch (e) {
       console.error(e);
-      setLogoDraftError('Logo se nepodařilo načíst. Zkus to prosím znovu.');
+      setLogoDraftError('Logo se nepodarilo nacist. Zkus to prosim znovu.');
     }
   };
 
@@ -275,85 +275,621 @@ const AdminBranding = () => {
     });
   };
 
+  /* ---- FORGE Style Objects ---- */
+
+  const styles = {
+    page: {
+      maxWidth: 1400,
+    },
+    pageHeader: {
+      marginBottom: 32,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    h1: {
+      margin: '0 0 8px 0',
+      fontSize: 'var(--forge-text-2xl)',
+      fontWeight: 700,
+      fontFamily: 'var(--forge-font-heading)',
+      color: 'var(--forge-text-primary)',
+    },
+    subtitle: {
+      margin: 0,
+      fontSize: 'var(--forge-text-base)',
+      fontFamily: 'var(--forge-font-body)',
+      color: 'var(--forge-text-muted)',
+    },
+    headerActions: {
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+    },
+    statusBadge: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '2px 10px',
+      borderRadius: 999,
+      fontFamily: 'var(--forge-font-mono)',
+      fontSize: 11,
+      fontWeight: 500,
+      whiteSpace: 'nowrap',
+    },
+    statusDirty: {
+      backgroundColor: 'rgba(255,181,71,0.12)',
+      color: 'var(--forge-warning)',
+    },
+    statusSaved: {
+      backgroundColor: 'rgba(0,212,170,0.12)',
+      color: 'var(--forge-success)',
+    },
+    statusError: {
+      backgroundColor: 'rgba(255,71,87,0.12)',
+      color: 'var(--forge-error)',
+    },
+    saveStatus: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    },
+    unsavedBanner: {
+      marginBottom: 24,
+      padding: '12px 16px',
+      backgroundColor: 'rgba(255,181,71,0.08)',
+      border: '1px solid rgba(255,181,71,0.2)',
+      borderRadius: 'var(--forge-radius-md)',
+      color: 'var(--forge-warning)',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-base)',
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 24,
+      marginBottom: 24,
+    },
+    column: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 24,
+    },
+    section: {
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      padding: 24,
+    },
+    sectionTitle: {
+      margin: '0 0 20px 0',
+      fontSize: 'var(--forge-text-xl)',
+      fontWeight: 600,
+      fontFamily: 'var(--forge-font-heading)',
+      color: 'var(--forge-text-primary)',
+      paddingBottom: 12,
+      borderBottom: '1px solid var(--forge-border-default)',
+    },
+    formGroup: {
+      marginBottom: 20,
+    },
+    formGroupLast: {
+      marginBottom: 0,
+    },
+    label: {
+      display: 'block',
+      marginBottom: 8,
+      fontFamily: 'var(--forge-font-tech)',
+      fontSize: 11,
+      fontWeight: 500,
+      color: 'var(--forge-text-secondary)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+    },
+    input: {
+      width: '100%',
+      padding: '10px 12px',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-sm)',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-base)',
+      color: 'var(--forge-text-primary)',
+      outline: 'none',
+      transition: 'border-color 120ms ease-out, box-shadow 120ms ease-out',
+      boxSizing: 'border-box',
+    },
+    inputError: {
+      borderColor: 'var(--forge-error)',
+      boxShadow: '0 0 0 2px rgba(255,71,87,0.15)',
+    },
+    helpText: {
+      margin: '6px 0 0 0',
+      fontSize: 'var(--forge-text-sm)',
+      fontFamily: 'var(--forge-font-body)',
+      color: 'var(--forge-text-muted)',
+    },
+    errorText: {
+      margin: '6px 0 0 0',
+      fontSize: 'var(--forge-text-sm)',
+      fontFamily: 'var(--forge-font-body)',
+      color: 'var(--forge-error)',
+    },
+    sectionHeadRow: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingBottom: 12,
+      borderBottom: '1px solid var(--forge-border-default)',
+      marginBottom: 12,
+    },
+    btnTertiary: {
+      padding: '8px 12px',
+      border: '1px solid var(--forge-border-active)',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      borderRadius: 'var(--forge-radius-md)',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 13,
+      color: 'var(--forge-text-secondary)',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      whiteSpace: 'nowrap',
+    },
+    helpCallout: {
+      margin: '0 0 16px 0',
+      padding: '12px 14px',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 13,
+      color: 'var(--forge-text-secondary)',
+      lineHeight: 1.4,
+    },
+    checkboxGroup: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+      marginBottom: 20,
+    },
+    checkboxLabel: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      cursor: 'pointer',
+    },
+    checkboxSpan: {
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-base)',
+      color: 'var(--forge-text-secondary)',
+    },
+    chip: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '1px 8px',
+      borderRadius: 999,
+      fontFamily: 'var(--forge-font-mono)',
+      fontSize: 10,
+      fontWeight: 600,
+      backgroundColor: 'rgba(108,99,255,0.12)',
+      color: 'var(--forge-accent-tertiary)',
+      letterSpacing: '0.05em',
+    },
+    currentLogo: {
+      display: 'flex',
+      gap: 16,
+      marginBottom: 16,
+    },
+    logoPreview: {
+      width: 120,
+      height: 120,
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-lg)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      color: 'var(--forge-text-muted)',
+    },
+    logoInfo: {
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      gap: 4,
+    },
+    logoInfoP: {
+      margin: 0,
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 13,
+      color: 'var(--forge-text-muted)',
+    },
+    uploadArea: {
+      backgroundColor: 'var(--forge-bg-elevated)',
+      border: '2px dashed var(--forge-border-active)',
+      borderRadius: 'var(--forge-radius-md)',
+      padding: 32,
+      textAlign: 'center',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      marginBottom: 16,
+    },
+    uploadAreaP: {
+      margin: '8px 0 0 0',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-base)',
+      color: 'var(--forge-text-secondary)',
+    },
+    uploadHint: {
+      margin: '8px 0 0 0',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-sm)',
+      color: 'var(--forge-text-muted)',
+    },
+    uploadActions: {
+      display: 'flex',
+      gap: 12,
+    },
+    colorInputGroup: {
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+    },
+    colorSwatch: {
+      width: 40,
+      height: 40,
+      borderRadius: 'var(--forge-radius-lg)',
+      border: '1px solid var(--forge-border-default)',
+      flexShrink: 0,
+    },
+    colorPresets: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    presetBtn: {
+      padding: '8px 16px',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-sm)',
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-base)',
+      color: 'var(--forge-text-secondary)',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+    },
+    fontOptions: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+    },
+    radioLabel: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      cursor: 'pointer',
+    },
+    radioSpan: {
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-base)',
+      color: 'var(--forge-text-secondary)',
+    },
+    stickyPreview: {
+      position: 'sticky',
+      top: 24,
+    },
+    calculatorPreview: {
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 12,
+      padding: 24,
+      minHeight: 400,
+    },
+    previewHeader: {
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    previewLogo: {
+      width: 48,
+      height: 48,
+      borderRadius: 'var(--forge-radius-lg)',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: 'var(--forge-text-muted)',
+    },
+    previewH4: {
+      margin: 0,
+      fontSize: 18,
+      fontWeight: 600,
+      color: '#111827',
+    },
+    previewSubtitle: {
+      margin: '4px 0 0 0',
+      fontSize: 13,
+      color: '#6B7280',
+    },
+    previewDivider: {
+      height: 1,
+      backgroundColor: '#E5E7EB',
+      margin: '16px 0',
+    },
+    previewForm: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 16,
+    },
+    previewFieldLabel: {
+      display: 'block',
+      marginBottom: 6,
+      fontSize: 13,
+      fontWeight: 500,
+      color: '#374151',
+    },
+    previewInput: {
+      padding: '10px 12px',
+      border: '1px solid #D1D5DB',
+      fontSize: 14,
+      color: '#6B7280',
+    },
+    previewButton: {
+      padding: '12px 24px',
+      color: 'white',
+      border: 'none',
+      fontSize: 14,
+      fontWeight: 600,
+      cursor: 'pointer',
+      marginTop: 8,
+    },
+    previewFooter: {
+      marginTop: 16,
+      paddingTop: 16,
+      borderTop: '1px solid #E5E7EB',
+      textAlign: 'center',
+    },
+    previewFooterSmall: {
+      fontSize: 11,
+      color: '#9CA3AF',
+    },
+    btnPrimary: {
+      padding: '10px 28px',
+      backgroundColor: 'var(--forge-accent-primary)',
+      color: '#08090C',
+      border: 'none',
+      borderRadius: 'var(--forge-radius-sm)',
+      fontFamily: 'var(--forge-font-heading)',
+      fontSize: 'var(--forge-text-base)',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+    },
+    btnPrimaryDisabled: {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+    btnSecondary: {
+      padding: '10px 20px',
+      backgroundColor: 'transparent',
+      color: 'var(--forge-text-secondary)',
+      border: '1px solid var(--forge-border-active)',
+      borderRadius: 'var(--forge-radius-sm)',
+      fontFamily: 'var(--forge-font-heading)',
+      fontSize: 'var(--forge-text-base)',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+    },
+    btnDanger: {
+      padding: '10px 20px',
+      backgroundColor: 'transparent',
+      color: 'var(--forge-error)',
+      border: '1px solid var(--forge-error)',
+      borderRadius: 'var(--forge-radius-sm)',
+      fontFamily: 'var(--forge-font-heading)',
+      fontSize: 'var(--forge-text-base)',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+    },
+    sliderLabels: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginTop: 8,
+    },
+    sliderLabelSpan: {
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: 'var(--forge-text-sm)',
+      color: 'var(--forge-text-muted)',
+    },
+  };
+
+  // Hover handlers for buttons
+  const btnPrimaryHover = {
+    onMouseEnter: (e) => {
+      if (!e.currentTarget.disabled) {
+        e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary-h)';
+        e.currentTarget.style.transform = 'translateY(-1px)';
+        e.currentTarget.style.boxShadow = 'var(--forge-shadow-glow)';
+      }
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary)';
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = 'none';
+    },
+  };
+
+  const btnSecondaryHover = {
+    onMouseEnter: (e) => {
+      if (!e.currentTarget.disabled) {
+        e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
+        e.currentTarget.style.color = 'var(--forge-text-primary)';
+      }
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.backgroundColor = 'transparent';
+      e.currentTarget.style.color = 'var(--forge-text-secondary)';
+    },
+  };
+
+  const btnDangerHover = {
+    onMouseEnter: (e) => {
+      if (!e.currentTarget.disabled) {
+        e.currentTarget.style.backgroundColor = 'rgba(255,71,87,0.08)';
+      }
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.backgroundColor = 'transparent';
+    },
+  };
+
+  const btnTertiaryHover = {
+    onMouseEnter: (e) => {
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
+      e.currentTarget.style.borderColor = 'var(--forge-border-highlight)';
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
+      e.currentTarget.style.borderColor = 'var(--forge-border-active)';
+    },
+  };
+
+  const presetBtnHover = {
+    onMouseEnter: (e) => {
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
+      e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+      e.currentTarget.style.color = 'var(--forge-accent-primary)';
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
+      e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+      e.currentTarget.style.color = 'var(--forge-text-secondary)';
+    },
+  };
+
+  const uploadAreaHover = {
+    onMouseEnter: (e) => {
+      e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.borderColor = 'var(--forge-border-active)';
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
+    },
+  };
+
+  const inputFocusHandler = (e) => {
+    e.target.style.borderColor = 'var(--forge-accent-primary)';
+    e.target.style.boxShadow = '0 0 0 2px rgba(0,212,170,0.15)';
+  };
+
+  const inputBlurHandler = (hasError) => (e) => {
+    e.target.style.borderColor = hasError ? 'var(--forge-error)' : 'var(--forge-border-default)';
+    e.target.style.boxShadow = 'none';
+  };
+
+  // Compute slider track percent for FORGE slider styling
+  const sliderPercent = ((branding.cornerRadius - 0) / (24 - 0)) * 100;
+  const sliderTrackBg = `linear-gradient(to right, var(--forge-accent-primary) 0%, var(--forge-accent-primary) ${sliderPercent}%, var(--forge-bg-overlay) ${sliderPercent}%, var(--forge-bg-overlay) 100%)`;
+
   return (
-    <div className="admin-branding">
-      <div className="page-header">
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
         <div>
-          <h1>{t('admin.branding.title')}</h1>
-          <p className="subtitle">{t('admin.branding.subtitle')}</p>
+          <h1 style={styles.h1}>{t('admin.branding.title')}</h1>
+          <p style={styles.subtitle}>{t('admin.branding.subtitle')}</p>
         </div>
-        <div className="header-actions">
-          <div className="save-status" aria-live="polite">
+        <div style={styles.headerActions}>
+          <div style={styles.saveStatus} aria-live="polite">
             {isDirty ? (
-              <span className="status-badge status-dirty">Neuložené změny</span>
+              <span style={{ ...styles.statusBadge, ...styles.statusDirty }}>Neuulozene zmeny</span>
             ) : (
-              <span className="status-badge status-saved">Uloženo</span>
+              <span style={{ ...styles.statusBadge, ...styles.statusSaved }}>Ulozeno</span>
             )}
             {Object.keys(errors).length > 0 && (
-              <span className="status-badge status-error" title="Nejdřív oprav chyby ve formuláři">
-                {Object.keys(errors).length}× chyba
+              <span
+                style={{ ...styles.statusBadge, ...styles.statusError }}
+                title="Nejdriv oprav chyby ve formulari"
+              >
+                {Object.keys(errors).length}x chyba
               </span>
             )}
           </div>
           <button
-            className="btn-secondary"
+            style={{
+              ...styles.btnSecondary,
+              ...(saving || loading ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+            }}
             onClick={handleResetToDefaults}
             disabled={saving || loading}
-            title="Resetuje hodnoty na výchozí (vyžaduje Uložit)"
+            title="Resetuje hodnoty na vychozi (vyzaduje Ulozit)"
+            {...btnSecondaryHover}
           >
             {t('common.reset')}
           </button>
           <button
-            className="btn-primary"
+            style={{
+              ...styles.btnPrimary,
+              ...(saving || loading || !isDirty || Object.keys(errors).length > 0 ? styles.btnPrimaryDisabled : {}),
+            }}
             onClick={handleSave}
             disabled={saving || loading || !isDirty || Object.keys(errors).length > 0}
-            title={!isDirty ? 'Není co ukládat' : undefined}
+            title={!isDirty ? 'Neni co ukladat' : undefined}
+            {...btnPrimaryHover}
           >
-            {saving ? t('common.saving') : 'Uložit změny'}
+            {saving ? t('common.saving') : 'Ulozit zmeny'}
           </button>
         </div>
       </div>
 
       {isDirty && (
-        <div className="unsaved-banner">
-          Máš neuložené změny. Klikni na <strong>Uložit změny</strong>, aby se projevily ve widgetu.
+        <div style={styles.unsavedBanner}>
+          Mas neulozene zmeny. Klikni na <strong>Ulozit zmeny</strong>, aby se projevily ve widgetu.
         </div>
       )}
 
-      <div className="branding-grid">
+      <div className="admin-branding-grid-responsive" style={styles.grid}>
         {/* Left Column */}
-        <div className="branding-column">
+        <div style={styles.column}>
           {/* Business Information */}
-          <div className="branding-section">
-            <h3>{t('admin.branding.businessInfo')}</h3>
-            <div className="form-group">
-              <label>{t('admin.branding.businessName')}</label>
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t('admin.branding.businessInfo')}</h3>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('admin.branding.businessName')}</label>
               <input
                 type="text"
                 value={branding.businessName}
                 onChange={(e) => setBranding({ ...branding, businessName: e.target.value })}
                 placeholder={t('admin.branding.businessNamePlaceholder')}
                 maxLength={50}
-                className={errors.businessName ? 'input-error' : ''}
+                style={{
+                  ...styles.input,
+                  ...(errors.businessName ? styles.inputError : {}),
+                }}
+                onFocus={inputFocusHandler}
+                onBlur={inputBlurHandler(!!errors.businessName)}
               />
-              {errors.businessName && <p className="error-text">{errors.businessName}</p>}
-              <p className="help-text">{t('admin.branding.businessNameHelp')}</p>
+              {errors.businessName && <p style={styles.errorText}>{errors.businessName}</p>}
+              <p style={styles.helpText}>{t('admin.branding.businessNameHelp')}</p>
             </div>
-            <div className="form-group">
-              <label>{t('admin.branding.tagline')}</label>
+            <div style={{ ...styles.formGroup, marginBottom: 0 }}>
+              <label style={styles.label}>{t('admin.branding.tagline')}</label>
               <input
                 type="text"
                 value={branding.tagline}
                 onChange={(e) => setBranding({ ...branding, tagline: e.target.value })}
                 placeholder={t('admin.branding.taglinePlaceholder')}
                 maxLength={100}
+                style={styles.input}
+                onFocus={inputFocusHandler}
+                onBlur={inputBlurHandler(false)}
               />
             </div>
           </div>
 
           {/* Logo */}
-          <div className="branding-section">
-            <h3>{t('admin.branding.logo')}</h3>
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t('admin.branding.logo')}</h3>
             <input
               ref={logoInputRef}
               type="file"
@@ -367,19 +903,19 @@ const AdminBranding = () => {
             />
 
             {branding.logo && (
-              <div className="current-logo">
-                <div className="logo-preview">
+              <div style={styles.currentLogo}>
+                <div style={styles.logoPreview}>
                   <img src={branding.logo} alt="Logo" style={{ maxWidth: 72, maxHeight: 72, objectFit: 'contain' }} />
                 </div>
-                <div className="logo-info">
-                  <p>PNG, JPG, SVG (max 2 MB)</p>
-                  <p className="help-text">Logo se uloží po kliknutí na Uložit změny.</p>
+                <div style={styles.logoInfo}>
+                  <p style={styles.logoInfoP}>PNG, JPG, SVG (max 2 MB)</p>
+                  <p style={{ ...styles.logoInfoP, fontSize: 12, color: 'var(--forge-text-muted)' }}>Logo se ulozi po kliknuti na Ulozit zmeny.</p>
                 </div>
               </div>
             )}
 
             <div
-              className="upload-area"
+              style={styles.uploadArea}
               role="button"
               tabIndex={0}
               onClick={() => logoInputRef.current?.click()}
@@ -396,35 +932,44 @@ const AdminBranding = () => {
                 const f = e.dataTransfer.files?.[0];
                 if (f) startLogoDraftFromFile(f);
               }}
-              title="Klikni pro výběr souboru, nebo sem přetáhni logo"
+              title="Klikni pro vyber souboru, nebo sem pretahni logo"
+              {...uploadAreaHover}
             >
               {logoDraftPreview ? (
-                <div className="draft-preview">
-                  <img src={logoDraftPreview} alt="Náhled" style={{ maxWidth: 140, maxHeight: 80, objectFit: 'contain' }} />
-                  <p className="upload-hint">Připraveno k nahrání</p>
+                <div>
+                  <img src={logoDraftPreview} alt="Nahled" style={{ maxWidth: 140, maxHeight: 80, objectFit: 'contain' }} />
+                  <p style={styles.uploadHint}>Pripraveno k nahrani</p>
                 </div>
               ) : (
                 <>
-                  <Icon name="Upload" size={32} />
-                  <p>{t('admin.branding.dragDrop')}</p>
-                  <p className="upload-hint">{t('admin.branding.orClick')}</p>
-                  <p className="upload-hint">{t('admin.branding.recommended')}</p>
+                  <Icon name="Upload" size={32} style={{ color: 'var(--forge-text-muted)' }} />
+                  <p style={styles.uploadAreaP}>{t('admin.branding.dragDrop')}</p>
+                  <p style={styles.uploadHint}>{t('admin.branding.orClick')}</p>
+                  <p style={styles.uploadHint}>{t('admin.branding.recommended')}</p>
                 </>
               )}
             </div>
 
-            {logoDraftError && <p className="error-text">{logoDraftError}</p>}
+            {logoDraftError && <p style={styles.errorText}>{logoDraftError}</p>}
 
-            <div className="upload-actions">
-              <button className="btn-secondary" onClick={() => logoInputRef.current?.click()}>
+            <div style={styles.uploadActions}>
+              <button style={styles.btnSecondary} onClick={() => logoInputRef.current?.click()} {...btnSecondaryHover}>
                 {t('admin.branding.chooseFile')}
               </button>
-              <button className="btn-primary" onClick={applyLogoDraft} disabled={!logoDraft}>
-                Použít logo
+              <button
+                style={{
+                  ...styles.btnPrimary,
+                  ...(!logoDraft ? styles.btnPrimaryDisabled : {}),
+                }}
+                onClick={applyLogoDraft}
+                disabled={!logoDraft}
+                {...btnPrimaryHover}
+              >
+                Pouzit logo
               </button>
               {(branding.logo || logoDraft) && (
                 <button
-                  className="btn-danger"
+                  style={styles.btnDanger}
                   onClick={() => {
                     setBranding({ ...branding, logo: null });
                     setLogoDraft(null);
@@ -432,6 +977,7 @@ const AdminBranding = () => {
                     setLogoDraftPreview(null);
                     setLogoDraftError(null);
                   }}
+                  {...btnDangerHover}
                 >
                   {t('admin.branding.removeLogo')}
                 </button>
@@ -440,64 +986,69 @@ const AdminBranding = () => {
           </div>
 
           {/* Display in widget */}
-          <div className="branding-section">
-            <div className="section-head-row">
-              <h3 style={{ marginBottom: 0 }}>{t('admin.branding.calculatorSettings')}</h3>
+          <div style={styles.section}>
+            <div style={styles.sectionHeadRow}>
+              <h3 style={{ ...styles.sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>{t('admin.branding.calculatorSettings')}</h3>
               <button
-                className="btn-tertiary"
+                style={styles.btnTertiary}
                 onClick={() => (window.location.href = '/admin/widget')}
-                title="Rozložení, embed kód a widget instance se řeší ve Widget Code"
+                title="Rozlozeni, embed kod a widget instance se resi ve Widget Code"
+                {...btnTertiaryHover}
               >
-                Otevřít Widget
+                Otevrit Widget
               </button>
             </div>
-            <p className="help-callout">
-              Tip: zde nastavuješ hlavně <strong>logo/barvy/typografii</strong> a co se ukazuje v hlavičce widgetu.
-              Rozměry, embed kód a instance widgetu nastavíš ve stránce <strong>Widget</strong>.
+            <p style={styles.helpCallout}>
+              Tip: zde nastavujes hlavne <strong style={{ color: 'var(--forge-text-primary)' }}>logo/barvy/typografii</strong> a co se ukazuje v hlavicce widgetu.
+              Rozmery, embed kod a instance widgetu nastavis ve strance <strong style={{ color: 'var(--forge-text-primary)' }}>Widget</strong>.
             </p>
-            <div className="checkbox-group">
-              <label className="checkbox-label">
+            <div style={styles.checkboxGroup}>
+              <label style={styles.checkboxLabel}>
                 <input
                   type="checkbox"
                   checked={branding.showLogo}
                   onChange={(e) => setBranding({ ...branding, showLogo: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
                 />
-                <span>{t('admin.branding.showLogo')}</span>
+                <span style={styles.checkboxSpan}>{t('admin.branding.showLogo')}</span>
               </label>
-              <label className="checkbox-label">
+              <label style={styles.checkboxLabel}>
                 <input
                   type="checkbox"
                   checked={branding.showBusinessName}
                   onChange={(e) => setBranding({ ...branding, showBusinessName: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
                 />
-                <span>{t('admin.branding.showBusinessName')}</span>
+                <span style={styles.checkboxSpan}>{t('admin.branding.showBusinessName')}</span>
               </label>
-              <label className="checkbox-label">
+              <label style={styles.checkboxLabel}>
                 <input
                   type="checkbox"
                   checked={branding.showTagline}
                   onChange={(e) => setBranding({ ...branding, showTagline: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
                 />
-                <span>{t('admin.branding.showTagline')}</span>
+                <span style={styles.checkboxSpan}>{t('admin.branding.showTagline')}</span>
               </label>
-              <label className="checkbox-label">
+              <label style={styles.checkboxLabel}>
                 <input
                   type="checkbox"
                   checked={enforcePoweredBy.poweredByRequired ? true : branding.showPoweredBy}
                   disabled={enforcePoweredBy.poweredByRequired}
                   onChange={(e) => setBranding({ ...branding, showPoweredBy: e.target.checked })}
-                  title={enforcePoweredBy.poweredByRequired ? 'Dostupné v tarifu Pro (white-label)' : ''}
+                  title={enforcePoweredBy.poweredByRequired ? 'Dostupne v tarifu Pro (white-label)' : ''}
+                  style={{ width: 18, height: 18, cursor: enforcePoweredBy.poweredByRequired ? 'not-allowed' : 'pointer', accentColor: 'var(--forge-accent-primary)' }}
                 />
-                <span>{t('admin.branding.showPoweredBy')}</span>
+                <span style={styles.checkboxSpan}>{t('admin.branding.showPoweredBy')}</span>
                 {enforcePoweredBy.poweredByRequired && (
-                  <span className="chip" title="Dostupné v tarifu Pro">
+                  <span style={styles.chip} title="Dostupne v tarifu Pro">
                     PRO
                   </span>
                 )}
               </label>
             </div>
-            <div className="form-group" style={{ marginTop: 16 }}>
-              <label>{t('admin.branding.cornerRadius')} {branding.cornerRadius}px</label>
+            <div style={{ marginTop: 16 }}>
+              <label style={styles.label}>{t('admin.branding.cornerRadius')} {branding.cornerRadius}px</label>
               <input
                 type="range"
                 min="0"
@@ -505,69 +1056,99 @@ const AdminBranding = () => {
                 step="1"
                 value={branding.cornerRadius}
                 onChange={(e) => setBranding({ ...branding, cornerRadius: parseInt(e.target.value) })}
-                className="slider"
+                style={{
+                  width: '100%',
+                  height: 4,
+                  borderRadius: 2,
+                  background: sliderTrackBg,
+                  outline: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  cursor: 'pointer',
+                  margin: '8px 0',
+                }}
+                className="forge-slider-input"
               />
-              {errors.cornerRadius && <p className="error-text">{errors.cornerRadius}</p>}
-              <div className="slider-labels">
-                <span>0px (Sharp)</span>
-                <span>24px (Rounded)</span>
+              {errors.cornerRadius && <p style={styles.errorText}>{errors.cornerRadius}</p>}
+              <div style={styles.sliderLabels}>
+                <span style={styles.sliderLabelSpan}>0px (Sharp)</span>
+                <span style={styles.sliderLabelSpan}>24px (Rounded)</span>
               </div>
             </div>
           </div>
 
           {/* Color Scheme */}
-          <div className="branding-section">
-            <h3>{t('admin.branding.colorScheme')}</h3>
-            <div className="form-group">
-              <label>{t('admin.branding.primaryColor')}</label>
-              <div className="color-input-group">
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t('admin.branding.colorScheme')}</h3>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('admin.branding.primaryColor')}</label>
+              <div style={styles.colorInputGroup}>
                 <input
                   type="text"
                   value={branding.primaryColor}
                   onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                  className={errors.primaryColor ? 'input-error' : ''}
+                  style={{
+                    ...styles.input,
+                    flex: 1,
+                    ...(errors.primaryColor ? styles.inputError : {}),
+                  }}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler(!!errors.primaryColor)}
                 />
-                <div className="color-swatch" style={{ backgroundColor: branding.primaryColor }}></div>
+                <div style={{ ...styles.colorSwatch, backgroundColor: branding.primaryColor }} />
               </div>
-              <p className="help-text">{t('admin.branding.primaryColorHelp')}</p>
-              {errors.primaryColor && <p className="error-text">{errors.primaryColor}</p>}
+              <p style={styles.helpText}>{t('admin.branding.primaryColorHelp')}</p>
+              {errors.primaryColor && <p style={styles.errorText}>{errors.primaryColor}</p>}
             </div>
-            <div className="form-group">
-              <label>{t('admin.branding.secondaryColor')}</label>
-              <div className="color-input-group">
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('admin.branding.secondaryColor')}</label>
+              <div style={styles.colorInputGroup}>
                 <input
                   type="text"
                   value={branding.secondaryColor}
                   onChange={(e) => setBranding({ ...branding, secondaryColor: e.target.value })}
-                  className={errors.secondaryColor ? 'input-error' : ''}
+                  style={{
+                    ...styles.input,
+                    flex: 1,
+                    ...(errors.secondaryColor ? styles.inputError : {}),
+                  }}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler(!!errors.secondaryColor)}
                 />
-                <div className="color-swatch" style={{ backgroundColor: branding.secondaryColor }}></div>
+                <div style={{ ...styles.colorSwatch, backgroundColor: branding.secondaryColor }} />
               </div>
-              <p className="help-text">{t('admin.branding.secondaryColorHelp')}</p>
-              {errors.secondaryColor && <p className="error-text">{errors.secondaryColor}</p>}
+              <p style={styles.helpText}>{t('admin.branding.secondaryColorHelp')}</p>
+              {errors.secondaryColor && <p style={styles.errorText}>{errors.secondaryColor}</p>}
             </div>
-            <div className="form-group">
-              <label>{t('admin.branding.backgroundColor')}</label>
-              <div className="color-input-group">
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('admin.branding.backgroundColor')}</label>
+              <div style={styles.colorInputGroup}>
                 <input
                   type="text"
                   value={branding.backgroundColor}
                   onChange={(e) => setBranding({ ...branding, backgroundColor: e.target.value })}
-                  className={errors.backgroundColor ? 'input-error' : ''}
+                  style={{
+                    ...styles.input,
+                    flex: 1,
+                    ...(errors.backgroundColor ? styles.inputError : {}),
+                  }}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler(!!errors.backgroundColor)}
                 />
-                <div className="color-swatch" style={{ backgroundColor: branding.backgroundColor }}></div>
+                <div style={{ ...styles.colorSwatch, backgroundColor: branding.backgroundColor }} />
               </div>
-              <p className="help-text">{t('admin.branding.backgroundColorHelp')}</p>
-              {errors.backgroundColor && <p className="error-text">{errors.backgroundColor}</p>}
+              <p style={styles.helpText}>{t('admin.branding.backgroundColorHelp')}</p>
+              {errors.backgroundColor && <p style={styles.errorText}>{errors.backgroundColor}</p>}
             </div>
-            <div className="form-group">
-              <label>{t('admin.branding.presets')}</label>
-              <div className="color-presets">
+            <div style={{ marginBottom: 0 }}>
+              <label style={styles.label}>{t('admin.branding.presets')}</label>
+              <div style={styles.colorPresets}>
                 {colorPresets.map((preset) => (
                   <button
                     key={preset.name}
-                    className="preset-btn"
+                    style={styles.presetBtn}
                     onClick={() => handleColorPreset(preset)}
+                    {...presetBtnHover}
                   >
                     {preset.name}
                   </button>
@@ -577,20 +1158,21 @@ const AdminBranding = () => {
           </div>
 
           {/* Typography */}
-          <div className="branding-section">
-            <h3>{t('admin.branding.typography')}</h3>
-            <div className="form-group">
-              <label>{t('admin.branding.fontFamily')}</label>
-              <div className="font-options">
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t('admin.branding.typography')}</h3>
+            <div style={{ marginBottom: 0 }}>
+              <label style={styles.label}>{t('admin.branding.fontFamily')}</label>
+              <div style={styles.fontOptions}>
                 {fonts.map((font) => (
-                  <label key={font} className="radio-label">
+                  <label key={font} style={styles.radioLabel}>
                     <input
                       type="radio"
                       name="font"
                       checked={branding.fontFamily === font}
                       onChange={() => setBranding({ ...branding, fontFamily: font })}
+                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
                     />
-                    <span>{font} {font === 'Inter' && '(Default)'}</span>
+                    <span style={styles.radioSpan}>{font} {font === 'Inter' && '(Default)'}</span>
                   </label>
                 ))}
               </div>
@@ -600,22 +1182,22 @@ const AdminBranding = () => {
         </div>
 
         {/* Right Column - Live Preview */}
-        <div className="branding-column">
-          <div className="branding-section sticky-preview">
-            <h3>{t('admin.branding.livePreview')}</h3>
+        <div style={styles.column}>
+          <div style={{ ...styles.section, ...styles.stickyPreview }}>
+            <h3 style={styles.sectionTitle}>{t('admin.branding.livePreview')}</h3>
             <div
-              className="calculator-preview"
               style={{
+                ...styles.calculatorPreview,
                 backgroundColor: branding.backgroundColor,
                 borderRadius: `${branding.cornerRadius}px`,
                 fontFamily: branding.fontFamily,
               }}
             >
-              <div className="preview-header">
+              <div style={styles.previewHeader}>
                 {branding.showLogo && (
-                  <div className="preview-logo">
+                  <div style={styles.previewLogo}>
                     {branding.logo ? (
-                      <img src={branding.logo} alt="Logo" />
+                      <img src={branding.logo} alt="Logo" style={{ maxWidth: 40, maxHeight: 40, objectFit: 'contain' }} />
                     ) : (
                       <Icon name="Image" size={32} />
                     )}
@@ -623,40 +1205,40 @@ const AdminBranding = () => {
                 )}
                 <div>
                   {branding.showBusinessName && (
-                    <h4 style={{ fontFamily: branding.fontFamily }}>{branding.businessName}</h4>
+                    <h4 style={{ ...styles.previewH4, fontFamily: branding.fontFamily }}>{branding.businessName}</h4>
                   )}
                   {branding.showTagline && (
-                    <p style={{ fontFamily: branding.fontFamily }}>{branding.tagline}</p>
+                    <p style={{ ...styles.previewSubtitle, fontFamily: branding.fontFamily }}>{branding.tagline}</p>
                   )}
                 </div>
               </div>
-              <div className="preview-divider"></div>
-              <div className="preview-form" style={{ fontFamily: branding.fontFamily }}>
-                <div className="preview-field">
-                  <label>{t('admin.branding.uploadModel')}</label>
-                  <div className="preview-input" style={{ borderRadius: `${branding.cornerRadius}px` }}>
+              <div style={styles.previewDivider} />
+              <div style={{ ...styles.previewForm, fontFamily: branding.fontFamily }}>
+                <div>
+                  <label style={styles.previewFieldLabel}>{t('admin.branding.uploadModel')}</label>
+                  <div style={{ ...styles.previewInput, borderRadius: `${branding.cornerRadius}px` }}>
                     Choose File
                   </div>
                 </div>
-                <div className="preview-field">
-                  <label>{t('admin.branding.material')}</label>
-                  <div className="preview-select" style={{ borderRadius: `${branding.cornerRadius}px` }}>
-                    PLA ▼
+                <div>
+                  <label style={styles.previewFieldLabel}>{t('admin.branding.material')}</label>
+                  <div style={{ ...styles.previewInput, borderRadius: `${branding.cornerRadius}px` }}>
+                    PLA &#9660;
                   </div>
                 </div>
-                <button 
-                  className="preview-button" 
-                  style={{ 
+                <button
+                  style={{
+                    ...styles.previewButton,
                     backgroundColor: branding.primaryColor,
-                    borderRadius: `${branding.cornerRadius}px`
+                    borderRadius: `${branding.cornerRadius}px`,
                   }}
                 >
                   {t('admin.branding.calculatePrice')}
                 </button>
               </div>
               {branding.showPoweredBy && (
-                <div className="preview-footer">
-                  <small>Powered by ModelPricer</small>
+                <div style={styles.previewFooter}>
+                  <small style={styles.previewFooterSmall}>Powered by ModelPricer</small>
                 </div>
               )}
             </div>
@@ -665,520 +1247,52 @@ const AdminBranding = () => {
       </div>
 
       <style>{`
-        .admin-branding {
-          max-width: 1400px;
-        }
-
-        .page-header {
-          margin-bottom: 32px;
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-        }
-
-        h1 {
-          margin: 0 0 8px 0;
-          font-size: 32px;
-          font-weight: 700;
-          color: #111827;
-        }
-
-        .subtitle {
-          margin: 0;
-          font-size: 14px;
-          color: #6B7280;
-        }
-
-        .header-actions {
-          display: flex;
-          gap: 12px;
-        }
-
-        .section-head-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid #E5E7EB;
-          margin-bottom: 12px;
-        }
-
-        .section-head-row h3 {
-          margin: 0;
-          padding: 0;
-          border: none;
-        }
-
-        .btn-tertiary {
-          padding: 8px 12px;
-          border: 1px solid #E5E7EB;
-          background: #F9FAFB;
-          border-radius: 10px;
-          font-size: 13px;
-          color: #111827;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
-        }
-
-        .btn-tertiary:hover {
-          background: #F3F4F6;
-          border-color: #D1D5DB;
-        }
-
-        .help-callout {
-          margin: 0 0 16px 0;
-          padding: 12px 14px;
-          background: #F9FAFB;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-          font-size: 13px;
-          color: #374151;
-          line-height: 1.4;
-        }
-
-        .branding-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
-          margin-bottom: 24px;
-        }
-
-        .branding-column {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-
-        .branding-section {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .branding-section h3 {
-          margin: 0 0 20px 0;
-          font-size: 18px;
-          font-weight: 600;
-          color: #111827;
-          padding-bottom: 12px;
-          border-bottom: 1px solid #E5E7EB;
-        }
-
-        .form-group {
-          margin-bottom: 20px;
-        }
-
-        .form-group:last-child {
-          margin-bottom: 0;
-        }
-
-        label {
-          display: block;
-          margin-bottom: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          color: #374151;
-        }
-
-        input[type="text"] {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #D1D5DB;
-          border-radius: 6px;
-          font-size: 14px;
-          color: #111827;
-          transition: all 0.2s;
-        }
-
-        input[type="text"]:focus {
-          outline: none;
-          border-color: #2563EB;
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .help-text {
-          margin: 6px 0 0 0;
-          font-size: 12px;
-          color: #6B7280;
-        }
-
-        .error-text {
-          margin: 6px 0 0 0;
-          font-size: 12px;
-          color: #EF4444;
-        }
-
-        .input-error {
-          border-color: #EF4444 !important;
-          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
-        }
-
-        .header-status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 12px;
-          border-radius: 999px;
-          font-size: 12px;
-          border: 1px solid #E5E7EB;
-          background: #FFFFFF;
-          color: #6B7280;
-        }
-
-        .header-status.dirty {
-          border-color: #F59E0B;
-          background: rgba(245, 158, 11, 0.08);
-          color: #B45309;
-        }
-
-        .current-logo {
-          display: flex;
-          gap: 16px;
-          margin-bottom: 16px;
-        }
-
-        .logo-preview {
-          width: 120px;
-          height: 120px;
-          border: 1px solid #E5E7EB;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #F9FAFB;
-          color: #9CA3AF;
-        }
-
-        .logo-info {
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          gap: 4px;
-        }
-
-        .logo-info p {
-          margin: 0;
-          font-size: 13px;
-          color: #6B7280;
-        }
-
-        .upload-area {
-          background: #F9FAFB;
-          border: 2px dashed #D1D5DB;
-          border-radius: 12px;
-          padding: 32px;
-          text-align: center;
-          cursor: pointer;
-          transition: all 0.2s;
-          margin-bottom: 16px;
-        }
-
-        .upload-area:hover {
-          border-color: #2563EB;
-          background: #EFF6FF;
-        }
-
-        .upload-area p {
-          margin: 8px 0 0 0;
-          font-size: 14px;
-          color: #374151;
-        }
-
-        .upload-hint {
-          font-size: 12px !important;
-          color: #9CA3AF !important;
-        }
-
-        .upload-actions {
-          display: flex;
-          gap: 12px;
-        }
-
-        .color-input-group {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-
-        .color-input-group input {
-          flex: 1;
-        }
-
-        .color-swatch {
-          width: 40px;
-          height: 40px;
-          border-radius: 8px;
-          border: 1px solid #E5E7EB;
-          flex-shrink: 0;
-        }
-
-        .color-presets {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .preset-btn {
-          padding: 8px 16px;
-          background: white;
-          border: 1px solid #D1D5DB;
-          border-radius: 6px;
-          font-size: 14px;
-          color: #374151;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .preset-btn:hover {
-          background: #F9FAFB;
-          border-color: #2563EB;
-          color: #2563EB;
-        }
-
-        .font-options {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .radio-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-        }
-
-        .radio-label input[type="radio"] {
-          width: 20px;
-          height: 20px;
-          cursor: pointer;
-        }
-
-        .radio-label span {
-          font-size: 14px;
-          color: #374151;
-        }
-
-        .checkbox-group {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        .checkbox-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-        }
-
-        .checkbox-label input[type="checkbox"] {
-          width: 20px;
-          height: 20px;
-          cursor: pointer;
-        }
-
-        .checkbox-label span {
-          font-size: 14px;
-          color: #374151;
-        }
-
-        .slider {
-          width: 100%;
-          height: 6px;
-          border-radius: 3px;
-          background: #E5E7EB;
-          outline: none;
-          -webkit-appearance: none;
-        }
-
-        .slider::-webkit-slider-thumb {
+        /* FORGE slider thumb styles */
+        .forge-slider-input::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: #2563EB;
+          background: var(--forge-accent-primary);
+          border: none;
           cursor: pointer;
+          margin-top: -6px;
+          transition: box-shadow 120ms ease-out;
         }
-
-        .slider::-moz-range-thumb {
+        .forge-slider-input::-webkit-slider-thumb:hover {
+          box-shadow: 0 0 0 4px rgba(0,212,170,0.2);
+        }
+        .forge-slider-input::-moz-range-thumb {
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: #2563EB;
-          cursor: pointer;
+          background: var(--forge-accent-primary);
           border: none;
-        }
-
-        .slider-labels {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 8px;
-        }
-
-        .slider-labels span {
-          font-size: 12px;
-          color: #6B7280;
-        }
-
-        .sticky-preview {
-          position: sticky;
-          top: 24px;
-        }
-
-        .calculator-preview {
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-          padding: 24px;
-          min-height: 400px;
-        }
-
-        .preview-header {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-
-        .preview-logo {
-          width: 48px;
-          height: 48px;
-          border-radius: 8px;
-          background: #F9FAFB;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #9CA3AF;
-        }
-
-        .preview-header h4 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 600;
-          color: #111827;
-        }
-
-        .preview-header p {
-          margin: 4px 0 0 0;
-          font-size: 13px;
-          color: #6B7280;
-        }
-
-        .preview-divider {
-          height: 1px;
-          background: #E5E7EB;
-          margin: 16px 0;
-        }
-
-        .preview-form {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .preview-field label {
-          margin-bottom: 6px;
-          font-size: 13px;
-        }
-
-        .preview-input,
-        .preview-select {
-          padding: 10px 12px;
-          border: 1px solid #D1D5DB;
-          font-size: 14px;
-          color: #6B7280;
-        }
-
-        .preview-button {
-          padding: 12px 24px;
-          color: white;
-          border: none;
-          font-size: 14px;
-          font-weight: 600;
           cursor: pointer;
-          margin-top: 8px;
         }
-
-        .preview-footer {
-          margin-top: 16px;
-          padding-top: 16px;
-          border-top: 1px solid #E5E7EB;
-          text-align: center;
+        .forge-slider-input::-moz-range-thumb:hover {
+          box-shadow: 0 0 0 4px rgba(0,212,170,0.2);
         }
-
-        .preview-footer small {
-          font-size: 11px;
-          color: #9CA3AF;
+        .forge-slider-input::-webkit-slider-runnable-track {
+          height: 4px;
+          border-radius: 2px;
         }
-
-        .page-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
+        .forge-slider-input::-moz-range-track {
+          height: 4px;
+          border-radius: 2px;
+          background: transparent;
         }
-
-        .btn-primary {
-          padding: 12px 32px;
-          background: #2563EB;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
+        .forge-slider-input:focus::-webkit-slider-thumb {
+          box-shadow: 0 0 0 4px rgba(0,212,170,0.25);
         }
-
-        .btn-primary:hover {
-          background: #1D4ED8;
-          box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
-        }
-
-        .btn-secondary {
-          padding: 12px 24px;
-          background: white;
-          color: #374151;
-          border: 1px solid #D1D5DB;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-secondary:hover {
-          background: #F9FAFB;
-          border-color: #9CA3AF;
-        }
-
-        .btn-danger {
-          padding: 12px 24px;
-          background: white;
-          color: #DC2626;
-          border: 1px solid #DC2626;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-danger:hover {
-          background: #FEF2F2;
+        .forge-slider-input:focus::-moz-range-thumb {
+          box-shadow: 0 0 0 4px rgba(0,212,170,0.25);
         }
 
         @media (max-width: 1024px) {
-          .branding-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .sticky-preview {
-            position: static;
+          .admin-branding-grid-responsive {
+            grid-template-columns: 1fr !important;
           }
         }
       `}</style>

@@ -4,25 +4,63 @@ import Icon from '../../../components/AppIcon';
 
 const LoginHeader = () => {
   return (
-    <div className="text-center mb-8">
+    <div style={{ textAlign: 'center', marginBottom: '32px' }}>
       {/* Logo */}
-      <Link to="/" className="inline-flex items-center space-x-3 mb-6">
-        <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center elevation-2">
-          <Icon name="Layers3" size={28} color="white" />
+      <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', textDecoration: 'none', marginBottom: '24px' }}>
+        <div style={{
+          width: 48,
+          height: 48,
+          borderRadius: 'var(--forge-radius-lg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--forge-accent-primary)',
+          backgroundColor: 'var(--forge-bg-elevated)',
+          border: '1px solid var(--forge-border-default)',
+        }}>
+          <Icon name="Layers3" size={28} />
         </div>
-        <div className="text-left">
-          <h1 className="text-2xl font-bold text-foreground">Commun Printing</h1>
-          <p className="text-sm text-muted-foreground">3D tiskové služby</p>
+        <div style={{ textAlign: 'left' }}>
+          <h1 style={{
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '20px',
+            fontWeight: 700,
+            color: 'var(--forge-text-primary)',
+            margin: 0,
+          }}>
+            ModelPricer
+          </h1>
+          <p style={{
+            fontFamily: 'var(--forge-font-tech)',
+            fontSize: '11px',
+            color: 'var(--forge-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            margin: 0,
+          }}>
+            3D PRINT PRICING
+          </p>
         </div>
       </Link>
 
-      {/* Welcome Message */}
-      <div className="space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">
-          Vítejte zpět
+      {/* Welcome */}
+      <div>
+        <h2 style={{
+          fontFamily: 'var(--forge-font-heading)',
+          fontSize: 'var(--forge-text-2xl)',
+          fontWeight: 700,
+          color: 'var(--forge-text-primary)',
+          margin: '0 0 8px 0',
+        }}>
+          Welcome Back
         </h2>
-        <p className="text-muted-foreground">
-          Přihlaste se do svého účtu a pokračujte v 3D tisku
+        <p style={{
+          fontFamily: 'var(--forge-font-body)',
+          fontSize: 'var(--forge-text-base)',
+          color: 'var(--forge-text-muted)',
+          margin: 0,
+        }}>
+          Sign in to continue
         </p>
       </div>
     </div>

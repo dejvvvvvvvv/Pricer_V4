@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import Button from '@/components/ui/Button';
-
+import Icon from '../../../components/AppIcon';
 
 const LanguageToggle = () => {
   const [currentLanguage, setCurrentLanguage] = useState('cs');
 
   useEffect(() => {
-    // Check localStorage for saved language preference
     const savedLanguage = localStorage.getItem('language') || 'cs';
     setCurrentLanguage(savedLanguage);
   }, []);
@@ -15,24 +13,41 @@ const LanguageToggle = () => {
     const newLanguage = currentLanguage === 'cs' ? 'en' : 'cs';
     setCurrentLanguage(newLanguage);
     localStorage.setItem('language', newLanguage);
-    
-    // In a real app, this would trigger a global language change
-    // For now, we'll just reload the page to simulate the change
     window.location?.reload();
   };
 
   return (
-    <div className="absolute top-4 right-4">
-      <Button
-        variant="ghost"
-        size="sm"
+    <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+      <button
         onClick={toggleLanguage}
-        iconName="Globe"
-        iconPosition="left"
-        className="text-muted-foreground hover:text-foreground"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 12px',
+          backgroundColor: 'transparent',
+          border: '1px solid var(--forge-border-default)',
+          borderRadius: 'var(--forge-radius-sm)',
+          color: 'var(--forge-text-muted)',
+          fontSize: '12px',
+          fontWeight: 600,
+          fontFamily: 'var(--forge-font-tech)',
+          letterSpacing: '0.05em',
+          cursor: 'pointer',
+          transition: 'all 150ms ease-out',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+          e.currentTarget.style.color = 'var(--forge-text-primary)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+          e.currentTarget.style.color = 'var(--forge-text-muted)';
+        }}
       >
+        <Icon name="Globe" size={14} />
         {currentLanguage === 'cs' ? 'EN' : 'CZ'}
-      </Button>
+      </button>
     </div>
   );
 };

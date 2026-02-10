@@ -326,7 +326,7 @@ export default function AdminEmails() {
 
               {provider === 'smtp' && (
                 <div style={{ marginTop: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', marginBottom: 12, fontFamily: 'var(--forge-font-heading)' }}>
                     {cs ? 'SMTP nastaveni' : 'SMTP settings'}
                   </h3>
                   <div className="grid2">
@@ -373,7 +373,7 @@ export default function AdminEmails() {
 
               {(provider === 'resend' || provider === 'sendgrid') && (
                 <div style={{ marginTop: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', marginBottom: 12, fontFamily: 'var(--forge-font-heading)' }}>
                     {provider === 'resend' ? 'Resend' : 'SendGrid'} {cs ? 'nastaveni' : 'settings'}
                   </h3>
                   <div className="field">
@@ -395,7 +395,7 @@ export default function AdminEmails() {
 
               {provider !== 'none' && (
                 <div style={{ marginTop: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', marginBottom: 12, fontFamily: 'var(--forge-font-heading)' }}>
                     {cs ? 'Odesilatel' : 'Sender'}
                   </h3>
                   <div className="grid2">
@@ -480,6 +480,8 @@ export default function AdminEmails() {
           padding: 24px;
           max-width: 1320px;
           margin: 0 auto;
+          background: var(--forge-bg-void);
+          min-height: 100vh;
         }
 
         .admin-header {
@@ -490,8 +492,8 @@ export default function AdminEmails() {
           margin-bottom: 14px;
         }
 
-        h1 { margin: 0; font-size: 28px; font-weight: 600; color: #1a1a1a; }
-        .subtitle { margin: 4px 0 0 0; color: #666; font-size: 14px; max-width: 760px; }
+        h1 { margin: 0; font-size: 28px; font-weight: 600; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
+        .subtitle { margin: 4px 0 0 0; color: var(--forge-text-secondary); font-size: 14px; max-width: 760px; }
 
         .header-actions {
           display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
@@ -499,102 +501,112 @@ export default function AdminEmails() {
 
         .status-pill {
           display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
-          padding: 6px 10px; font-size: 12px; border: 1px solid #e6e6e6; background: #fafafa; color: #555;
+          padding: 6px 10px; font-size: 12px; border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated); color: var(--forge-text-secondary);
+          font-family: var(--forge-font-tech);
         }
-        .status-pill.clean { border-color: #d7f0df; background: #f3fbf6; color: #1f6b3a; }
-        .status-pill.dirty { border-color: #ffe0b2; background: #fff7e6; color: #8a5a00; }
+        .status-pill.clean { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
+        .status-pill.dirty { border-color: rgba(255,181,71,0.3); background: rgba(255,181,71,0.08); color: var(--forge-warning); }
 
         .btn-primary {
-          background: #111827; color: white; border: 1px solid #111827; border-radius: 10px;
+          background: var(--forge-accent-primary); color: var(--forge-bg-void); border: 1px solid var(--forge-accent-primary); border-radius: var(--forge-radius-md);
           padding: 10px 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+          font-family: var(--forge-font-tech); letter-spacing: 0.02em;
         }
+        .btn-primary:hover { background: var(--forge-accent-primary-h); }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .btn-secondary {
-          background: white; color: #111827; border: 1px solid #e5e7eb; border-radius: 10px;
+          background: var(--forge-bg-elevated); color: var(--forge-text-primary); border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md);
           padding: 10px 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
         }
+        .btn-secondary:hover { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); }
         .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .banner {
           display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-          border-radius: 8px; margin: 10px 0 16px 0; font-size: 14px;
-          border: 1px solid #eaeaea; background: #fafafa; color: #444;
+          border-radius: var(--forge-radius-md); margin: 10px 0 16px 0; font-size: 14px;
+          border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary);
         }
-        .banner.success { border-color: #d7f0df; background: #f3fbf6; }
-        .banner.error { border-color: #ffd7d7; background: #fff2f2; }
+        .banner.success { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
+        .banner.error { border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.08); color: var(--forge-error); }
 
         /* Tabs */
         .tab-bar {
-          display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #eee; padding-bottom: 0;
+          display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--forge-border-default); padding-bottom: 0;
         }
         .tab-btn {
           display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px;
           border: none; background: none; font-size: 14px; font-weight: 600;
-          color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent;
+          color: var(--forge-text-muted); cursor: pointer; border-bottom: 2px solid transparent;
           margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
+          font-family: var(--forge-font-tech); letter-spacing: 0.04em;
         }
-        .tab-btn:hover { color: #111827; }
-        .tab-btn.active { color: #111827; border-bottom-color: #111827; }
+        .tab-btn:hover { color: var(--forge-text-primary); }
+        .tab-btn.active { color: var(--forge-accent-primary); border-bottom-color: var(--forge-accent-primary); }
 
         .tab-content { }
 
-        .admin-card { background: white; border: 1px solid #eee; border-radius: 12px; overflow: hidden; }
+        .admin-card { background: var(--forge-bg-surface); border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-xl); overflow: hidden; }
 
         .card-header {
           display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-          padding: 14px; border-bottom: 1px solid #eee; background: #fafafa;
+          padding: 14px; border-bottom: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated);
         }
-        .card-header h2 { margin: 0; font-size: 16px; font-weight: 800; color: #111827; }
-        .card-description { margin: 4px 0 0 0; font-size: 13px; color: #6b7280; max-width: 760px; }
+        .card-header h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
+        .card-description { margin: 4px 0 0 0; font-size: 13px; color: var(--forge-text-muted); max-width: 760px; }
         .card-body { padding: 14px; }
 
-        .empty-state { padding: 18px; text-align: center; color: #6b7280; }
-        .empty-state h3 { margin: 10px 0 4px 0; color: #111827; font-size: 16px; }
+        .empty-state { padding: 18px; text-align: center; color: var(--forge-text-muted); }
+        .empty-state h3 { margin: 10px 0 4px 0; color: var(--forge-text-primary); font-size: 16px; }
         .empty-state p { margin: 0; font-size: 13px; }
 
-        .muted { color: #6b7280; font-size: 12px; }
+        .muted { color: var(--forge-text-muted); font-size: 12px; }
 
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
 
         .field label {
-          display: block; font-size: 12px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: 0.04em; color: #374151; margin-bottom: 6px;
+          display: block; font-size: 11px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.08em; color: var(--forge-text-secondary); margin-bottom: 6px;
+          font-family: var(--forge-font-tech);
         }
 
         .input {
-          width: 100%; border: 1px solid #e5e7eb; border-radius: 10px;
-          padding: 10px 12px; font-size: 14px; outline: none; background: #fff;
+          width: 100%; border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md);
+          padding: 10px 12px; font-size: 14px; outline: none; background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
         }
-        .help { font-size: 12px; color: #6b7280; margin-top: 6px; }
+        .input:focus { border-color: var(--forge-accent-primary); }
+        .help { font-size: 12px; color: var(--forge-text-muted); margin-top: 6px; }
 
         .toggles { display: grid; gap: 10px; margin-top: 6px; }
-        .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #111827; }
+        .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--forge-text-primary); }
 
         .icon-btn {
-          border: 1px solid #e5e7eb; background: #fff; border-radius: 10px;
+          border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); border-radius: var(--forge-radius-md);
           padding: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+          color: var(--forge-text-secondary);
         }
-        .icon-btn:hover { background: #f9fafb; }
+        .icon-btn:hover { background: var(--forge-bg-overlay); color: var(--forge-text-primary); }
 
         /* Security note */
         .security-note {
           display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px;
-          border: 1px solid #ffe0b2; background: #fff7e6; border-radius: 10px;
-          font-size: 13px; color: #8a5a00;
+          border: 1px solid rgba(255,181,71,0.3); background: rgba(255,181,71,0.08); border-radius: var(--forge-radius-md);
+          font-size: 13px; color: var(--forge-warning);
         }
 
         /* Trigger list */
         .trigger-list { display: grid; gap: 12px; }
         .trigger-row {
-          border: 1px solid #eee; border-radius: 12px; padding: 12px; background: #fff;
+          border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-xl); padding: 12px; background: var(--forge-bg-surface);
         }
         .trigger-header {
           display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;
         }
         .trigger-left { display: flex; flex-direction: column; gap: 4px; }
-        .trigger-event-name { font-weight: 700; color: #111827; }
+        .trigger-event-name { font-weight: 700; color: var(--forge-text-primary); }
         .trigger-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 640px) { .trigger-fields { grid-template-columns: 1fr; } }
 
@@ -602,23 +614,24 @@ export default function AdminEmails() {
         .log-table { display: grid; gap: 0; overflow-x: auto; }
         .log-header {
           display: grid; grid-template-columns: 170px 180px 1fr 90px 130px; gap: 8px;
-          font-size: 12px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: 0.04em; color: #374151; padding: 8px 12px;
-          background: #fafafa; border-bottom: 1px solid #eee; border-radius: 8px 8px 0 0;
+          font-size: 11px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.08em; color: var(--forge-text-muted); padding: 8px 12px;
+          background: var(--forge-bg-elevated); border-bottom: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md) var(--forge-radius-md) 0 0;
+          font-family: var(--forge-font-tech);
         }
         .log-row {
           display: grid; grid-template-columns: 170px 180px 1fr 90px 130px; gap: 8px;
-          font-size: 13px; color: #374151; padding: 8px 12px;
-          border-bottom: 1px solid #f1f1f1; align-items: center;
+          font-size: 13px; color: var(--forge-text-secondary); padding: 8px 12px;
+          border-bottom: 1px solid var(--forge-border-default); align-items: center;
         }
         .log-row:last-child { border-bottom: none; }
-        .log-date { font-size: 12px; color: #6b7280; }
-        .log-recipient { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .log-date { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-mono); }
+        .log-recipient { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--forge-text-primary); }
         .log-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .log-status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
-        .log-status.sent { color: #166534; }
-        .log-status.failed { color: #991b1b; }
-        .log-trigger { font-size: 12px; color: #6b7280; }
+        .log-status.sent { color: var(--forge-success); }
+        .log-status.failed { color: var(--forge-error); }
+        .log-trigger { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-mono); }
         @media (max-width: 900px) {
           .log-header, .log-row { grid-template-columns: 1fr 1fr; }
           .log-header span:nth-child(n+3), .log-row span:nth-child(n+3) { display: none; }

@@ -1447,6 +1447,8 @@ const AdminFees = () => {
           padding: 24px;
           max-width: 1320px;
           margin: 0 auto;
+          background: var(--forge-bg-void);
+          min-height: 100vh;
         }
 
         .admin-header {
@@ -1461,14 +1463,16 @@ const AdminFees = () => {
           margin: 0;
           font-size: 28px;
           font-weight: 600;
-          color: #1a1a1a;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading);
         }
 
         .subtitle {
           margin: 4px 0 0 0;
-          color: #666;
+          color: var(--forge-text-secondary);
           font-size: 14px;
           max-width: 760px;
+          font-family: var(--forge-font-body);
         }
 
         .header-actions {
@@ -1485,66 +1489,93 @@ const AdminFees = () => {
           gap: 6px;
           border-radius: 999px;
           padding: 6px 10px;
-          font-size: 12px;
-          border: 1px solid #e6e6e6;
-          background: #fafafa;
-          color: #555;
+          font-size: 11px;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-secondary);
         }
 
         .status-pill.clean {
-          border-color: #d7f0df;
-          background: #f3fbf6;
-          color: #1f6b3a;
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.08);
+          color: var(--forge-success);
         }
 
         .status-pill.dirty {
-          border-color: #ffe0b2;
-          background: #fff7e6;
-          color: #8a5a00;
+          border-color: rgba(255, 181, 71, 0.3);
+          background: rgba(255, 181, 71, 0.08);
+          color: var(--forge-warning);
         }
 
         .btn-primary {
-          background: #111827;
-          color: white;
-          border: 1px solid #111827;
-          border-radius: 10px;
+          background: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
+          border: 1px solid var(--forge-accent-primary);
+          border-radius: var(--forge-radius-md);
           padding: 10px 14px;
           font-weight: 600;
+          font-family: var(--forge-font-tech);
+          font-size: 13px;
+          letter-spacing: 0.04em;
           display: inline-flex;
           align-items: center;
           gap: 8px;
           cursor: pointer;
+          transition: background var(--forge-duration-micro) var(--forge-ease-out-expo);
+        }
+
+        .btn-primary:hover {
+          background: var(--forge-accent-primary-h);
         }
 
         .btn-primary:disabled {
-          opacity: 0.5;
+          opacity: 0.4;
           cursor: not-allowed;
         }
 
         .btn-secondary {
-          background: white;
-          color: #111827;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           padding: 10px 14px;
           font-weight: 600;
+          font-family: var(--forge-font-body);
+          font-size: 13px;
           display: inline-flex;
           align-items: center;
           gap: 8px;
           cursor: pointer;
+          transition: background var(--forge-duration-micro) var(--forge-ease-out-expo),
+                      border-color var(--forge-duration-micro) var(--forge-ease-out-expo);
+        }
+
+        .btn-secondary:hover {
+          background: var(--forge-bg-overlay);
+          border-color: var(--forge-border-active);
         }
 
         .btn-danger {
-          background: #fff;
-          color: #991b1b;
-          border: 1px solid #fecaca;
-          border-radius: 10px;
+          background: rgba(255, 71, 87, 0.08);
+          color: var(--forge-error);
+          border: 1px solid rgba(255, 71, 87, 0.25);
+          border-radius: var(--forge-radius-md);
           padding: 10px 14px;
           font-weight: 600;
+          font-family: var(--forge-font-body);
+          font-size: 13px;
           display: inline-flex;
           align-items: center;
           gap: 8px;
           cursor: pointer;
+          transition: background var(--forge-duration-micro) var(--forge-ease-out-expo);
+        }
+
+        .btn-danger:hover {
+          background: rgba(255, 71, 87, 0.15);
         }
 
         .banner {
@@ -1552,22 +1583,25 @@ const AdminFees = () => {
           align-items: center;
           gap: 10px;
           padding: 10px 12px;
-          border-radius: 8px;
+          border-radius: var(--forge-radius-md);
           margin: 10px 0 16px 0;
           font-size: 14px;
-          border: 1px solid #eaeaea;
-          background: #fafafa;
-          color: #444;
+          font-family: var(--forge-font-body);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-secondary);
         }
 
         .banner.success {
-          border-color: #d7f0df;
-          background: #f3fbf6;
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.06);
+          color: var(--forge-success);
         }
 
         .banner.error {
-          border-color: #ffd7d7;
-          background: #fff2f2;
+          border-color: rgba(255, 71, 87, 0.3);
+          background: rgba(255, 71, 87, 0.06);
+          color: var(--forge-error);
         }
 
         .fees-layout {
@@ -1584,16 +1618,16 @@ const AdminFees = () => {
         }
 
         .fees-panel {
-          background: white;
-          border: 1px solid #eee;
-          border-radius: 12px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           overflow: hidden;
         }
 
         .panel-header {
           padding: 12px;
-          border-bottom: 1px solid #eee;
-          background: #fafafa;
+          border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
         }
 
         .panel-title {
@@ -1605,16 +1639,18 @@ const AdminFees = () => {
 
         .panel-title h2 {
           margin: 0;
-          font-size: 14px;
+          font-size: 11px;
           font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: 0.03em;
-          color: #111827;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-tech);
         }
 
         .muted {
-          color: #6b7280;
+          color: var(--forge-text-muted);
           font-size: 12px;
+          font-family: var(--forge-font-mono);
         }
 
         .panel-tools {
@@ -1626,10 +1662,16 @@ const AdminFees = () => {
           display: flex;
           align-items: center;
           gap: 8px;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           padding: 8px 10px;
-          background: white;
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-primary);
+          transition: border-color var(--forge-duration-micro) var(--forge-ease-out-expo);
+        }
+
+        .search:focus-within {
+          border-color: var(--forge-accent-primary);
         }
 
         .search input {
@@ -1637,6 +1679,13 @@ const AdminFees = () => {
           outline: none;
           width: 100%;
           font-size: 14px;
+          background: transparent;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-body);
+        }
+
+        .search input::placeholder {
+          color: var(--forge-text-muted);
         }
 
         .filters {
@@ -1647,11 +1696,13 @@ const AdminFees = () => {
 
         .filters select {
           width: 100%;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           padding: 8px 10px;
-          background: white;
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-primary);
           font-size: 13px;
+          font-family: var(--forge-font-body);
         }
 
         .bulkbar {
@@ -1682,33 +1733,39 @@ const AdminFees = () => {
           gap: 8px;
           margin-left: 6px;
           padding-left: 6px;
-          border-left: 1px solid #e5e7eb;
+          border-left: 1px solid var(--forge-border-default);
         }
 
         .segmented {
           display: inline-flex;
           align-items: center;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           overflow: hidden;
-          background: white;
+          background: var(--forge-bg-surface);
         }
 
         .segmented button {
           border: none;
           background: transparent;
           padding: 7px 10px;
-          font-size: 12px;
+          font-size: 11px;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
           cursor: pointer;
-          color: #111827;
+          color: var(--forge-text-secondary);
+          transition: background var(--forge-duration-micro) var(--forge-ease-out-expo),
+                      color var(--forge-duration-micro) var(--forge-ease-out-expo);
         }
 
         .segmented button:hover {
-          background: #f9fafb;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
         }
 
         .segmented button:active {
-          background: #f3f4f6;
+          background: var(--forge-bg-overlay);
         }
 
         @media (max-width: 1100px) {
@@ -1726,8 +1783,13 @@ const AdminFees = () => {
           align-items: center;
           gap: 8px;
           font-size: 13px;
-          color: #111827;
+          color: var(--forge-text-primary);
           user-select: none;
+          font-family: var(--forge-font-body);
+        }
+
+        .checkbox input[type="checkbox"] {
+          accent-color: var(--forge-accent-primary);
         }
 
         .panel-body {
@@ -1750,18 +1812,23 @@ const AdminFees = () => {
           grid-template-columns: 42px 1fr;
           gap: 10px;
           padding: 12px;
-          border-bottom: 1px solid #f1f1f1;
+          border-bottom: 1px solid var(--forge-border-default);
           cursor: pointer;
-          background: white;
+          background: var(--forge-bg-surface);
+          transition: background var(--forge-duration-micro) var(--forge-ease-out-expo);
+        }
+
+        .fee-row:nth-child(even) {
+          background: var(--forge-bg-void);
         }
 
         .fee-row:hover {
-          background: #fafafa;
+          background: var(--forge-bg-elevated);
         }
 
         .fee-row.active {
-          background: #f2f7ff;
-          border-left: 4px solid #2563eb;
+          background: rgba(0, 212, 170, 0.06);
+          border-left: 4px solid var(--forge-accent-primary);
           padding-left: 8px;
         }
 
@@ -1770,6 +1837,10 @@ const AdminFees = () => {
           align-items: flex-start;
           justify-content: center;
           padding-top: 3px;
+        }
+
+        .fee-row-left input[type="checkbox"] {
+          accent-color: var(--forge-accent-primary);
         }
 
         .fee-row-top {
@@ -1790,22 +1861,23 @@ const AdminFees = () => {
           height: 10px;
           border-radius: 999px;
           display: inline-block;
-          border: 2px solid #e5e7eb;
+          border: 2px solid var(--forge-border-default);
         }
 
         .dot.on {
-          background: #10b981;
-          border-color: #10b981;
+          background: var(--forge-success);
+          border-color: var(--forge-success);
         }
 
         .dot.off {
-          background: #9ca3af;
-          border-color: #9ca3af;
+          background: var(--forge-text-muted);
+          border-color: var(--forge-text-muted);
         }
 
         .name-text {
           font-weight: 700;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-body);
         }
 
         .fee-row-bottom {
@@ -1817,60 +1889,70 @@ const AdminFees = () => {
         }
 
         .chip {
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--forge-border-default);
           border-radius: 999px;
           padding: 4px 8px;
-          font-size: 12px;
-          color: #374151;
-          background: #fff;
+          font-size: 11px;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--forge-text-secondary);
+          background: var(--forge-bg-elevated);
         }
 
         .discount-chip {
-          border-color: #fed7aa;
-          background: #fff7ed;
-          color: #9a3412;
+          border-color: rgba(255, 107, 53, 0.3);
+          background: rgba(255, 107, 53, 0.08);
+          color: var(--forge-accent-secondary);
         }
 
         .value {
           margin-left: auto;
           font-weight: 800;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-mono);
         }
 
         .value.discount {
-          color: #9a3412;
+          color: var(--forge-accent-secondary);
         }
 
         .icon-btn {
-          border: 1px solid #e5e7eb;
-          background: #fff;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          border-radius: var(--forge-radius-md);
           padding: 6px;
           cursor: pointer;
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          color: var(--forge-text-secondary);
+          transition: background var(--forge-duration-micro) var(--forge-ease-out-expo),
+                      color var(--forge-duration-micro) var(--forge-ease-out-expo);
         }
 
         .icon-btn:hover {
-          background: #f9fafb;
+          background: var(--forge-bg-overlay);
+          color: var(--forge-text-primary);
         }
 
         .empty-state {
           padding: 18px;
           text-align: center;
-          color: #6b7280;
+          color: var(--forge-text-muted);
         }
 
         .empty-state h3 {
           margin: 10px 0 4px 0;
-          color: #111827;
+          color: var(--forge-text-primary);
           font-size: 16px;
+          font-family: var(--forge-font-heading);
         }
 
         .empty-state p {
           margin: 0;
           font-size: 13px;
+          font-family: var(--forge-font-body);
         }
 
         .fees-editor {
@@ -1879,9 +1961,9 @@ const AdminFees = () => {
         }
 
         .admin-card {
-          background: white;
-          border: 1px solid #eee;
-          border-radius: 12px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           overflow: hidden;
         }
 
@@ -1891,22 +1973,24 @@ const AdminFees = () => {
           justify-content: space-between;
           gap: 12px;
           padding: 14px 14px;
-          border-bottom: 1px solid #eee;
-          background: #fafafa;
+          border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
         }
 
         .card-header h2 {
           margin: 0;
           font-size: 16px;
           font-weight: 800;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading);
         }
 
         .card-description {
           margin: 4px 0 0 0;
           font-size: 13px;
-          color: #6b7280;
+          color: var(--forge-text-secondary);
           max-width: 760px;
+          font-family: var(--forge-font-body);
         }
 
         .card-body {
@@ -1915,12 +1999,13 @@ const AdminFees = () => {
 
         .empty-editor {
           text-align: center;
-          color: #6b7280;
+          color: var(--forge-text-muted);
         }
 
         .empty-editor h3 {
           margin: 10px 0 4px 0;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading);
         }
 
         .grid2 {
@@ -1937,47 +2022,67 @@ const AdminFees = () => {
 
         .field label {
           display: block;
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: 0.04em;
-          color: #374151;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted);
           margin-bottom: 6px;
+          font-family: var(--forge-font-tech);
         }
 
         .input {
           width: 100%;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           padding: 10px 12px;
           font-size: 14px;
           outline: none;
-          background: #fff;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-body);
+          transition: border-color var(--forge-duration-micro) var(--forge-ease-out-expo);
+        }
+
+        .input:focus {
+          border-color: var(--forge-accent-primary);
         }
 
         .input-error {
-          border-color: #ef4444;
-          background: #fff5f5;
+          border-color: var(--forge-error);
+          background: rgba(255, 71, 87, 0.06);
         }
 
         textarea.input {
           resize: vertical;
         }
 
+        select.input,
+        .filters select {
+          cursor: pointer;
+        }
+
+        option {
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+        }
+
         .readonly {
           width: 100%;
-          border: 1px dashed #e5e7eb;
-          border-radius: 10px;
+          border: 1px dashed var(--forge-border-active);
+          border-radius: var(--forge-radius-md);
           padding: 10px 12px;
           font-size: 14px;
-          background: #fafafa;
-          color: #6b7280;
+          background: var(--forge-bg-void);
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-mono);
         }
 
         .help {
           font-size: 12px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           margin-top: 6px;
+          font-family: var(--forge-font-body);
         }
 
         .toggles {
@@ -1991,11 +2096,16 @@ const AdminFees = () => {
           align-items: center;
           gap: 10px;
           font-size: 14px;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-body);
+        }
+
+        .toggle input[type="checkbox"] {
+          accent-color: var(--forge-accent-primary);
         }
 
         .toggle.disabled {
-          opacity: 0.55;
+          opacity: 0.4;
         }
 
         .conditions {
@@ -2009,17 +2119,18 @@ const AdminFees = () => {
           gap: 10px;
           align-items: end;
           padding: 10px;
-          border: 1px solid #f1f1f1;
-          border-radius: 12px;
-          background: #fff;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
+          background: var(--forge-bg-void);
         }
 
         .cond-and {
-          font-size: 12px;
-          color: #9ca3af;
+          font-size: 11px;
+          color: var(--forge-accent-primary);
           font-weight: 800;
-          letter-spacing: 0.04em;
+          letter-spacing: 0.08em;
           padding-bottom: 10px;
+          font-family: var(--forge-font-tech);
         }
 
         .cond-grid {
@@ -2061,7 +2172,7 @@ const AdminFees = () => {
         .sim-result {
           margin-top: 14px;
           padding-top: 14px;
-          border-top: 1px solid #eee;
+          border-top: 1px solid var(--forge-border-default);
           display: grid;
           grid-template-columns: 130px 180px 1fr;
           gap: 14px;
@@ -2081,31 +2192,36 @@ const AdminFees = () => {
           border-radius: 999px;
           padding: 8px 10px;
           font-weight: 800;
-          border: 1px solid #e5e7eb;
+          font-family: var(--forge-font-tech);
+          font-size: 12px;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          border: 1px solid var(--forge-border-default);
           width: fit-content;
         }
 
         .sim-pill.match {
-          border-color: #bbf7d0;
-          background: #f0fdf4;
-          color: #166534;
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.08);
+          color: var(--forge-success);
         }
 
         .sim-pill.nomatch {
-          border-color: #fecaca;
-          background: #fff1f2;
-          color: #991b1b;
+          border-color: rgba(255, 71, 87, 0.3);
+          background: rgba(255, 71, 87, 0.08);
+          color: var(--forge-error);
         }
 
         .sim-amount .amount {
           font-size: 22px;
           font-weight: 900;
-          color: #111827;
+          color: var(--forge-text-primary);
           margin-top: 4px;
+          font-family: var(--forge-font-mono);
         }
 
         .sim-amount .amount.discount {
-          color: #9a3412;
+          color: var(--forge-accent-secondary);
         }
 
         .why-list {
@@ -2119,46 +2235,63 @@ const AdminFees = () => {
           grid-template-columns: 10px 1fr 1fr;
           gap: 10px;
           padding: 8px;
-          border: 1px solid #f1f1f1;
-          border-radius: 10px;
-          background: #fff;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
+          background: var(--forge-bg-void);
           align-items: center;
         }
 
         .why-row.ok {
-          border-color: #d1fae5;
-          background: #f0fdf4;
+          border-color: rgba(0, 212, 170, 0.25);
+          background: rgba(0, 212, 170, 0.04);
         }
 
         .why-row.bad {
-          border-color: #fee2e2;
-          background: #fff1f2;
+          border-color: rgba(255, 71, 87, 0.25);
+          background: rgba(255, 71, 87, 0.04);
         }
 
         .why-dot {
           width: 8px;
           height: 8px;
           border-radius: 999px;
-          background: #9ca3af;
+          background: var(--forge-text-muted);
         }
 
         .why-row.ok .why-dot {
-          background: #10b981;
+          background: var(--forge-success);
         }
 
         .why-row.bad .why-dot {
-          background: #ef4444;
+          background: var(--forge-error);
         }
 
         .why-text {
           font-size: 13px;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-body);
         }
 
         .why-details {
           font-size: 12px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           text-align: right;
+          font-family: var(--forge-font-mono);
+        }
+
+        /* Scrollbar styling for dark theme */
+        .panel-body::-webkit-scrollbar {
+          width: 6px;
+        }
+        .panel-body::-webkit-scrollbar-track {
+          background: var(--forge-bg-void);
+        }
+        .panel-body::-webkit-scrollbar-thumb {
+          background: var(--forge-border-active);
+          border-radius: 3px;
+        }
+        .panel-body::-webkit-scrollbar-thumb:hover {
+          background: var(--forge-text-muted);
         }
       `}</style>
     </div>

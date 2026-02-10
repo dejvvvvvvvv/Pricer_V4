@@ -1685,7 +1685,7 @@ const AdminPricing = () => {
               <div style={{ padding: '16px 0' }}>
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
                   <div style={{ flex: 1 }}>
-                    <label className="field-label" style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+                    <label className="field-label" style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, fontFamily: 'var(--forge-font-tech, Share Tech Mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-secondary, #a0a0a0)' }}>
                       {language === 'cs' ? 'Typ slevy' : 'Discount mode'}
                     </label>
                     <select
@@ -1694,14 +1694,14 @@ const AdminPricing = () => {
                         setVolumeDiscounts(prev => ({ ...prev, mode: e.target.value }));
                         setTouched(true);
                       }}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--forge-border-default, #1a1a2e)', fontSize: '14px', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)' }}
                     >
                       <option value="percent">{language === 'cs' ? 'Procentní sleva' : 'Percentage discount'}</option>
                       <option value="fixed_price">{language === 'cs' ? 'Fixní cena za kus' : 'Fixed price per piece'}</option>
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label className="field-label" style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+                    <label className="field-label" style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, fontFamily: 'var(--forge-font-tech, Share Tech Mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-secondary, #a0a0a0)' }}>
                       {language === 'cs' ? 'Rozsah' : 'Scope'}
                     </label>
                     <select
@@ -1710,7 +1710,7 @@ const AdminPricing = () => {
                         setVolumeDiscounts(prev => ({ ...prev, scope: e.target.value }));
                         setTouched(true);
                       }}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--forge-border-default, #1a1a2e)', fontSize: '14px', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)' }}
                     >
                       <option value="per_model">{language === 'cs' ? 'Za model (ks jednoho modelu)' : 'Per model (qty of single model)'}</option>
                       <option value="per_order">{language === 'cs' ? 'Za objednávku (celkový ks)' : 'Per order (total qty)'}</option>
@@ -1721,24 +1721,24 @@ const AdminPricing = () => {
                 {/* Tiers table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #eee' }}>
-                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600 }}>
+                    <tr style={{ borderBottom: '2px solid var(--forge-border-default, #1a1a2e)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600, fontSize: '11px', fontFamily: 'var(--forge-font-tech, Share Tech Mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted, #666680)', background: 'var(--forge-bg-elevated, #1a1a2e)' }}>
                         {language === 'cs' ? 'Od (ks)' : 'Min qty'}
                       </th>
-                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600 }}>
+                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600, fontSize: '11px', fontFamily: 'var(--forge-font-tech, Share Tech Mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted, #666680)', background: 'var(--forge-bg-elevated, #1a1a2e)' }}>
                         {volumeDiscounts.mode === 'percent'
                           ? (language === 'cs' ? 'Sleva (%)' : 'Discount (%)')
                           : (language === 'cs' ? 'Cena/ks (Kč)' : 'Price/pc (CZK)')}
                       </th>
-                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600 }}>
+                      <th style={{ textAlign: 'left', padding: '8px', fontWeight: 600, fontSize: '11px', fontFamily: 'var(--forge-font-tech, Share Tech Mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted, #666680)', background: 'var(--forge-bg-elevated, #1a1a2e)' }}>
                         {language === 'cs' ? 'Popis' : 'Label'}
                       </th>
-                      <th style={{ width: '60px' }}></th>
+                      <th style={{ width: '60px', background: 'var(--forge-bg-elevated, #1a1a2e)' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {volumeDiscounts.tiers.map((tier, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--forge-border-default, #1a1a2e)', background: idx % 2 === 0 ? 'var(--forge-bg-surface, #12121a)' : 'var(--forge-bg-void, #0a0a0f)' }}>
                         <td style={{ padding: '6px 8px' }}>
                           <input
                             type="number"
@@ -1751,7 +1751,7 @@ const AdminPricing = () => {
                               setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                               setTouched(true);
                             }}
-                            style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ddd' }}
+                            style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--forge-border-default, #1a1a2e)', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)', fontFamily: 'var(--forge-font-mono, JetBrains Mono, monospace)' }}
                           />
                         </td>
                         <td style={{ padding: '6px 8px' }}>
@@ -1766,7 +1766,7 @@ const AdminPricing = () => {
                               setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                               setTouched(true);
                             }}
-                            style={{ width: '100px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ddd' }}
+                            style={{ width: '100px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--forge-border-default, #1a1a2e)', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)', fontFamily: 'var(--forge-font-mono, JetBrains Mono, monospace)' }}
                           />
                         </td>
                         <td style={{ padding: '6px 8px' }}>
@@ -1780,7 +1780,7 @@ const AdminPricing = () => {
                               setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                               setTouched(true);
                             }}
-                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ddd' }}
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--forge-border-default, #1a1a2e)', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)' }}
                           />
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -1819,7 +1819,7 @@ const AdminPricing = () => {
                 </button>
 
                 {volumeDiscounts.tiers.length > 0 && (
-                  <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', fontSize: '13px', color: '#6b7280' }}>
+                  <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: 'var(--forge-bg-void, #0a0a0f)', border: '1px solid var(--forge-border-default, #1a1a2e)', fontSize: '13px', color: 'var(--forge-text-muted, #666680)', fontFamily: 'var(--forge-font-mono, JetBrains Mono, monospace)' }}>
                     <strong>{language === 'cs' ? 'Příklad:' : 'Example:'}</strong>{' '}
                     {volumeDiscounts.tiers.map((t, i) => (
                       <span key={i}>
@@ -2045,6 +2045,9 @@ const AdminPricing = () => {
           padding: 24px;
           max-width: 1200px;
           margin: 0 auto;
+          background: var(--forge-bg-void, #0a0a0f);
+          min-height: 100vh;
+          color: var(--forge-text-primary, #e0e0e0);
         }
 
         .admin-header {
@@ -2059,12 +2062,13 @@ const AdminPricing = () => {
           margin: 0;
           font-size: 28px;
           font-weight: 600;
-          color: #1a1a1a;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
         }
 
         .subtitle {
           margin: 4px 0 0 0;
-          color: #666;
+          color: var(--forge-text-secondary, #a0a0a0);
           font-size: 14px;
           max-width: 740px;
         }
@@ -2084,21 +2088,22 @@ const AdminPricing = () => {
           border-radius: 999px;
           padding: 6px 10px;
           font-size: 12px;
-          border: 1px solid #e6e6e6;
-          background: #fafafa;
-          color: #555;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          background: var(--forge-bg-surface, #12121a);
+          color: var(--forge-text-muted, #666680);
         }
 
         .status-pill.clean {
-          border-color: #d7f0df;
-          background: #f3fbf6;
-          color: #1f6b3a;
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.08);
+          color: var(--forge-accent-primary, #00D4AA);
         }
 
         .status-pill.dirty {
-          border-color: #ffe0b2;
-          background: #fff7e6;
-          color: #8a5a00;
+          border-color: rgba(255, 170, 0, 0.3);
+          background: rgba(255, 170, 0, 0.08);
+          color: #ffaa00;
         }
 
         .banner {
@@ -2106,27 +2111,27 @@ const AdminPricing = () => {
           align-items: center;
           gap: 10px;
           padding: 10px 12px;
-          border-radius: 8px;
+          border-radius: var(--forge-radius-md, 8px);
           margin: 10px 0 16px 0;
           font-size: 14px;
-          border: 1px solid #eaeaea;
-          background: #fafafa;
-          color: #444;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          background: var(--forge-bg-surface, #12121a);
+          color: var(--forge-text-secondary, #a0a0a0);
         }
 
         .banner.info {
-          border-color: #d7e7ff;
-          background: #f2f7ff;
+          border-color: rgba(0, 150, 255, 0.3);
+          background: rgba(0, 150, 255, 0.06);
         }
 
         .banner.success {
-          border-color: #d7f0df;
-          background: #f3fbf6;
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.06);
         }
 
         .banner.error {
-          border-color: #ffd7d7;
-          background: #fff2f2;
+          border-color: rgba(255, 60, 60, 0.3);
+          background: rgba(255, 60, 60, 0.06);
         }
 
         .pricing-layout {
@@ -2148,15 +2153,15 @@ const AdminPricing = () => {
         }
 
         .admin-card {
-          background: white;
-          border-radius: 8px;
+          background: var(--forge-bg-surface, #12121a);
+          border-radius: var(--forge-radius-md, 8px);
           padding: 18px;
-          border: 1px solid #eee;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
         }
 
         .admin-card.future {
           border-style: dashed;
-          opacity: 0.9;
+          opacity: 0.7;
         }
 
         .card-header {
@@ -2171,36 +2176,43 @@ const AdminPricing = () => {
           margin: 0;
           font-size: 18px;
           font-weight: 600;
-          color: #1a1a1a;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
         }
 
         .card-description {
           margin: 4px 0 0 0;
-          color: #777;
+          color: var(--forge-text-muted, #666680);
           font-size: 13px;
         }
 
         .tag {
-          font-size: 12px;
-          background: #f4f0ff;
-          color: #5b3dbb;
-          border: 1px solid #e6ddff;
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          background: rgba(139, 92, 246, 0.1);
+          color: #a78bfa;
+          border: 1px solid rgba(139, 92, 246, 0.25);
           padding: 4px 8px;
           border-radius: 999px;
           white-space: nowrap;
         }
 
         .mini-preview {
-          border: 1px solid #eee;
-          background: #fafafa;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          background: var(--forge-bg-void, #0a0a0f);
           border-radius: 10px;
           padding: 10px 12px;
           min-width: 170px;
         }
 
         .mini-preview-title {
-          font-size: 12px;
-          color: #666;
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted, #666680);
           margin-bottom: 6px;
         }
 
@@ -2210,21 +2222,23 @@ const AdminPricing = () => {
           align-items: center;
           gap: 8px;
           font-size: 13px;
-          color: #333;
+          color: var(--forge-text-secondary, #a0a0a0);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
         }
 
         .mini-preview-row strong {
           font-weight: 700;
+          color: var(--forge-text-primary, #e0e0e0);
         }
 
         .mini-preview-note {
           margin-top: 4px;
           font-size: 12px;
-          color: #777;
+          color: var(--forge-text-muted, #666680);
         }
 
         .arrow {
-          color: #888;
+          color: var(--forge-text-muted, #666680);
           font-weight: 600;
           margin: 0 6px;
         }
@@ -2232,7 +2246,7 @@ const AdminPricing = () => {
         .btn-primary,
         .btn-secondary {
           border: none;
-          border-radius: 8px;
+          border-radius: var(--forge-radius-md, 8px);
           padding: 10px 14px;
           font-weight: 600;
           cursor: pointer;
@@ -2244,26 +2258,30 @@ const AdminPricing = () => {
         }
 
         .btn-primary {
-          background: #1a73e8;
-          color: white;
+          background: var(--forge-accent-primary, #00D4AA);
+          color: #0a0a0f;
         }
 
         .btn-primary:hover:not(:disabled) {
-          background: #1557b0;
+          background: #00e6b8;
+          box-shadow: 0 0 12px rgba(0, 212, 170, 0.3);
         }
 
         .btn-secondary {
-          background: #f5f5f5;
-          color: #333;
+          background: var(--forge-bg-elevated, #1a1a2e);
+          color: var(--forge-text-secondary, #a0a0a0);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
         }
 
         .btn-secondary:hover:not(:disabled) {
-          background: #e9e9e9;
+          background: var(--forge-bg-overlay, #22223a);
+          color: var(--forge-text-primary, #e0e0e0);
+          border-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .btn-primary:disabled,
         .btn-secondary:disabled {
-          opacity: 0.6;
+          opacity: 0.4;
           cursor: not-allowed;
         }
 
@@ -2274,10 +2292,10 @@ const AdminPricing = () => {
         }
 
         .material-card {
-          border: 1px solid #eee;
-          border-radius: 8px;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: var(--forge-radius-md, 8px);
           padding: 12px;
-          background: #fafafa;
+          background: var(--forge-bg-void, #0a0a0f);
         }
 
         .material-header {
@@ -2290,11 +2308,18 @@ const AdminPricing = () => {
 
         .material-name {
           flex: 1;
-          border: 1px solid #ddd;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
           border-radius: 6px;
           padding: 8px 10px;
           font-size: 14px;
-          background: white;
+          background: var(--forge-bg-elevated, #1a1a2e);
+          color: var(--forge-text-primary, #e0e0e0);
+        }
+
+        .material-name:focus {
+          outline: none;
+          border-color: var(--forge-accent-primary, #00D4AA);
+          box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.15);
         }
 
         .icon-btn {
@@ -2303,12 +2328,12 @@ const AdminPricing = () => {
           cursor: pointer;
           padding: 6px;
           border-radius: 6px;
-          color: #666;
+          color: var(--forge-text-muted, #666680);
         }
 
         .icon-btn:hover {
-          background: rgba(0, 0, 0, 0.05);
-          color: #333;
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--forge-text-primary, #e0e0e0);
         }
 
         .icon-btn:disabled {
@@ -2318,7 +2343,7 @@ const AdminPricing = () => {
 
         .icon-btn:disabled:hover {
           background: none;
-          color: #666;
+          color: var(--forge-text-muted, #666680);
         }
 
         .material-actions {
@@ -2331,11 +2356,11 @@ const AdminPricing = () => {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          border: 1px solid #e6e6e6;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
           border-radius: 999px;
           padding: 6px 10px;
-          background: #fff;
-          color: #444;
+          background: var(--forge-bg-surface, #12121a);
+          color: var(--forge-text-muted, #666680);
           font-size: 12px;
           cursor: pointer;
           user-select: none;
@@ -2346,9 +2371,9 @@ const AdminPricing = () => {
         }
 
         .default-radio.is-default {
-          border-color: #d7e7ff;
-          background: #f2f7ff;
-          color: #1557b0;
+          border-color: rgba(0, 212, 170, 0.4);
+          background: rgba(0, 212, 170, 0.08);
+          color: var(--forge-accent-primary, #00D4AA);
         }
 
         .default-radio input:disabled {
@@ -2356,23 +2381,26 @@ const AdminPricing = () => {
         }
 
         .default-radio input:disabled + span {
-          opacity: 0.7;
+          opacity: 0.5;
         }
 
         .mono {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
         }
 
         .colors-section {
           margin-top: 12px;
           padding-top: 12px;
-          border-top: 1px dashed #e6e6e6;
+          border-top: 1px dashed var(--forge-border-default, #1a1a2e);
         }
 
         .colors-title {
-          font-size: 13px;
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
           font-weight: 600;
-          color: #333;
+          color: var(--forge-text-secondary, #a0a0a0);
           margin-bottom: 8px;
         }
 
@@ -2385,9 +2413,9 @@ const AdminPricing = () => {
         }
 
         .color-add {
-          border: 1px solid #eee;
-          border-radius: 8px;
-          background: #fff;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: var(--forge-radius-md, 8px);
+          background: var(--forge-bg-surface, #12121a);
           padding: 10px;
           margin-top: 10px;
         }
@@ -2403,9 +2431,9 @@ const AdminPricing = () => {
           width: 44px;
           height: 36px;
           padding: 0;
-          border: 1px solid #ddd;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
           border-radius: 8px;
-          background: #fff;
+          background: var(--forge-bg-elevated, #1a1a2e);
           cursor: pointer;
         }
 
@@ -2419,8 +2447,11 @@ const AdminPricing = () => {
         }
 
         .field label {
-          font-size: 13px;
-          color: #333;
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-secondary, #a0a0a0);
           display: block;
           margin-bottom: 6px;
           font-weight: 600;
@@ -2429,7 +2460,7 @@ const AdminPricing = () => {
         .nested {
           margin-left: 6px;
           padding-left: 10px;
-          border-left: 3px solid #f0f0f0;
+          border-left: 3px solid var(--forge-border-default, #1a1a2e);
           margin-top: 10px;
         }
 
@@ -2441,21 +2472,29 @@ const AdminPricing = () => {
 
         .input {
           width: 100%;
-          border: 1px solid #ddd;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
           border-radius: 6px;
           padding: 10px 12px;
           font-size: 14px;
-          background: white;
+          background: var(--forge-bg-elevated, #1a1a2e);
+          color: var(--forge-text-primary, #e0e0e0);
+        }
+
+        .input:focus {
+          outline: none;
+          border-color: var(--forge-accent-primary, #00D4AA);
+          box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.15);
         }
 
         .input-error {
-          border-color: #e53935;
-          box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.08);
+          border-color: #ff4444 !important;
+          box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.15);
         }
 
         .unit {
           font-size: 13px;
-          color: #666;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-muted, #666680);
           white-space: nowrap;
           min-width: 46px;
           text-align: right;
@@ -2463,22 +2502,28 @@ const AdminPricing = () => {
 
         .select {
           width: 100%;
-          border: 1px solid #ddd;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
           border-radius: 6px;
           padding: 10px 12px;
           font-size: 14px;
-          background: white;
+          background: var(--forge-bg-elevated, #1a1a2e);
+          color: var(--forge-text-primary, #e0e0e0);
+        }
+
+        .select:focus {
+          outline: none;
+          border-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .help-text {
           margin: 6px 0 0 0;
           font-size: 13px;
-          color: #777;
+          color: var(--forge-text-muted, #666680);
         }
 
         .divider {
           height: 1px;
-          background: #eee;
+          background: var(--forge-border-default, #1a1a2e);
           margin: 12px 0;
         }
 
@@ -2489,19 +2534,20 @@ const AdminPricing = () => {
           cursor: pointer;
           user-select: none;
           font-size: 14px;
-          color: #333;
+          color: var(--forge-text-secondary, #a0a0a0);
           margin-top: 8px;
         }
 
         .toggle.mini {
           font-size: 13px;
-          color: #555;
+          color: var(--forge-text-muted, #666680);
           margin-top: 0;
         }
 
         .toggle input {
           width: 16px;
           height: 16px;
+          accent-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .toggle-row {
@@ -2516,22 +2562,23 @@ const AdminPricing = () => {
         .toggle-row input {
           width: 16px;
           height: 16px;
+          accent-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .toggle-label {
           font-weight: 600;
-          color: #333;
+          color: var(--forge-text-primary, #e0e0e0);
           font-size: 14px;
         }
 
         .hint {
           display: inline-flex;
           align-items: center;
-          color: #888;
+          color: var(--forge-text-muted, #666680);
         }
 
         .hint:hover {
-          color: #444;
+          color: var(--forge-text-secondary, #a0a0a0);
         }
 
         .grid-2 {
@@ -2563,28 +2610,30 @@ const AdminPricing = () => {
           align-items: center;
           gap: 8px;
           font-size: 14px;
-          color: #333;
+          color: var(--forge-text-secondary, #a0a0a0);
           cursor: pointer;
         }
 
         .radio input {
           width: 16px;
           height: 16px;
+          accent-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .empty-state {
           text-align: center;
           padding: 26px 12px;
-          color: #666;
-          border: 1px dashed #e5e5e5;
+          color: var(--forge-text-muted, #666680);
+          border: 1px dashed var(--forge-border-default, #1a1a2e);
           border-radius: 10px;
-          background: #fbfbfb;
+          background: var(--forge-bg-void, #0a0a0f);
         }
 
         .empty-state h3 {
           margin: 10px 0 6px;
           font-size: 16px;
-          color: #333;
+          color: var(--forge-text-secondary, #a0a0a0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
         }
 
         .empty-state p {
@@ -2595,7 +2644,7 @@ const AdminPricing = () => {
         .field-error {
           margin-top: 6px;
           font-size: 12px;
-          color: #e53935;
+          color: #ff4444;
         }
 
         .preview {
@@ -2605,9 +2654,9 @@ const AdminPricing = () => {
         .preview-card {
           position: sticky;
           top: 16px;
-          background: white;
-          border: 1px solid #eee;
-          border-radius: 8px;
+          background: var(--forge-bg-surface, #12121a);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: var(--forge-radius-md, 8px);
           padding: 16px;
         }
 
@@ -2629,13 +2678,14 @@ const AdminPricing = () => {
           margin: 0;
           font-size: 16px;
           font-weight: 700;
-          color: #1a1a1a;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
         }
 
         .breakdown {
           margin-top: 12px;
-          border: 1px solid #eee;
-          background: #fafafa;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          background: var(--forge-bg-void, #0a0a0f);
           border-radius: 10px;
           padding: 12px;
         }
@@ -2646,20 +2696,26 @@ const AdminPricing = () => {
           align-items: baseline;
           gap: 10px;
           font-size: 13px;
-          color: #333;
+          color: var(--forge-text-secondary, #a0a0a0);
           padding: 6px 0;
         }
 
         .breakdown-row strong {
           font-weight: 800;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
         }
 
         .breakdown-row.total {
           font-size: 14px;
         }
 
+        .breakdown-row.total strong {
+          color: var(--forge-accent-primary, #00D4AA);
+        }
+
         .muted {
-          color: #777;
+          color: var(--forge-text-muted, #666680);
           font-weight: 500;
           font-size: 12px;
         }
@@ -2672,24 +2728,25 @@ const AdminPricing = () => {
         }
 
         .flag {
-          font-size: 12px;
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
           padding: 4px 8px;
           border-radius: 999px;
-          border: 1px solid #e6e6e6;
-          background: white;
-          color: #555;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          background: var(--forge-bg-surface, #12121a);
+          color: var(--forge-text-muted, #666680);
         }
 
         .flag.warn {
-          border-color: #ffe0b2;
-          background: #fff7e6;
-          color: #8a5a00;
+          border-color: rgba(255, 170, 0, 0.3);
+          background: rgba(255, 170, 0, 0.06);
+          color: #ffaa00;
         }
 
         .flag.info {
-          border-color: #d7e7ff;
-          background: #f2f7ff;
-          color: #1557b0;
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.06);
+          color: var(--forge-accent-primary, #00D4AA);
         }
 
         .validation-box {
@@ -2698,17 +2755,18 @@ const AdminPricing = () => {
           align-items: center;
           gap: 8px;
           padding: 10px 12px;
-          border-radius: 8px;
-          border: 1px solid #ffe0b2;
-          background: #fff7e6;
-          color: #8a5a00;
+          border-radius: var(--forge-radius-md, 8px);
+          border: 1px solid rgba(255, 170, 0, 0.3);
+          background: rgba(255, 170, 0, 0.06);
+          color: #ffaa00;
           font-size: 13px;
         }
 
         .loading {
           text-align: center;
           padding: 40px;
-          color: #666;
+          color: var(--forge-text-muted, #666680);
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
         }
       `}</style>
     </div>

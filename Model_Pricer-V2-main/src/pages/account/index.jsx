@@ -2,25 +2,185 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
-import BackgroundPattern from '../../components/ui/BackgroundPattern';
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FORGE inline-style helpers (no Tailwind light-mode classes)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const forgePageStyles = {
+  backgroundColor: 'var(--forge-bg-void)',
+  color: 'var(--forge-text-primary)',
+  fontFamily: 'var(--forge-font-body)',
+  minHeight: '100vh',
+};
+
+const forgeCardStyles = {
+  backgroundColor: 'var(--forge-bg-surface)',
+  border: '1px solid var(--forge-border-default)',
+  borderRadius: 'var(--forge-radius-md)',
+  overflow: 'hidden',
+};
+
+const forgeCardHeaderStyles = {
+  padding: '16px 24px',
+  borderBottom: '1px solid var(--forge-border-default)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+};
+
+const forgeCardHeaderIconBox = {
+  width: 36,
+  height: 36,
+  borderRadius: 'var(--forge-radius-sm)',
+  backgroundColor: 'rgba(0,212,170,0.08)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--forge-accent-primary)',
+  flexShrink: 0,
+};
+
+const forgeCardTitle = {
+  fontFamily: 'var(--forge-font-heading)',
+  fontWeight: 700,
+  fontSize: '1rem',
+  color: 'var(--forge-text-primary)',
+  margin: 0,
+};
+
+const forgeCardBody = {
+  padding: '24px',
+};
+
+const forgeLabelStyles = {
+  fontFamily: 'var(--forge-font-body)',
+  fontSize: '12px',
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  color: 'var(--forge-text-secondary)',
+  marginBottom: '6px',
+  display: 'block',
+};
+
+const forgeInputStyles = {
+  width: '100%',
+  height: '40px',
+  backgroundColor: 'var(--forge-bg-elevated)',
+  border: '1px solid var(--forge-border-default)',
+  borderRadius: 'var(--forge-radius-sm)',
+  color: 'var(--forge-text-primary)',
+  fontFamily: 'var(--forge-font-body)',
+  fontSize: '14px',
+  padding: '0 12px',
+  outline: 'none',
+  transition: 'border-color 0.2s, box-shadow 0.2s',
+  boxSizing: 'border-box',
+};
+
+const forgeInputWithIconStyles = {
+  ...forgeInputStyles,
+  paddingLeft: '38px',
+};
+
+const forgeSelectStyles = {
+  ...forgeInputStyles,
+  appearance: 'none',
+  cursor: 'pointer',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239BA3B0' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 12px center',
+  paddingRight: '32px',
+};
+
+const forgePrimaryBtn = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  padding: '10px 20px',
+  borderRadius: 'var(--forge-radius-sm)',
+  backgroundColor: 'var(--forge-accent-primary)',
+  color: '#08090C',
+  fontFamily: 'var(--forge-font-body)',
+  fontWeight: 600,
+  fontSize: '14px',
+  border: 'none',
+  cursor: 'pointer',
+  transition: 'opacity 0.2s, transform 0.15s',
+};
+
+const forgeOutlineBtn = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  padding: '10px 20px',
+  borderRadius: 'var(--forge-radius-sm)',
+  backgroundColor: 'transparent',
+  color: 'var(--forge-text-secondary)',
+  fontFamily: 'var(--forge-font-body)',
+  fontWeight: 500,
+  fontSize: '14px',
+  border: '1px solid var(--forge-border-default)',
+  cursor: 'pointer',
+  transition: 'border-color 0.2s, color 0.2s',
+};
+
+const forgeDangerOutlineBtn = {
+  ...forgeOutlineBtn,
+  color: 'var(--forge-error)',
+  borderColor: 'rgba(255,71,87,0.3)',
+};
+
+const forgeGhostBtn = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  padding: '8px 14px',
+  borderRadius: 'var(--forge-radius-sm)',
+  backgroundColor: 'rgba(0,212,170,0.08)',
+  color: 'var(--forge-accent-primary)',
+  fontFamily: 'var(--forge-font-body)',
+  fontWeight: 500,
+  fontSize: '13px',
+  border: 'none',
+  cursor: 'pointer',
+  transition: 'background-color 0.2s',
+};
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Password strength colour mapping (FORGE semantic tokens)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const strengthColors = {
+  weak: 'var(--forge-error)',       // #FF4757
+  medium: 'var(--forge-warning)',   // #FFB547
+  good: 'var(--forge-info)',        // #4DA8DA
+  strong: 'var(--forge-success)',   // #00D4AA
+};
+
+/* ════════════════════════════════════════════════════════════════════════ */
 
 const AccountPage = () => {
   const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState('profile');
-  
-  // Mock data pro vývoj
+
+  // Mock data pro vyvoj
   const [profileData, setProfileData] = useState({
     firstName: 'Jan',
-    lastName: 'Novák',
+    lastName: 'Novak',
     email: 'jan.novak@example.com',
     phone: '+420 123 456 789',
     company: 'ModelPricer s.r.o.',
     ico: '12345678',
     dic: 'CZ12345678',
-    address: 'Hlavní 123',
+    address: 'Hlavni 123',
     city: 'Praha',
     zip: '110 00',
-    country: 'Česká republika'
+    country: 'Ceska republika'
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -39,79 +199,79 @@ const AccountPage = () => {
 
   const handleSaveProfile = () => {
     console.log('Saving profile:', profileData);
-    alert(language === 'cs' ? '✅ Profil uložen!' : '✅ Profile saved!');
+    alert(language === 'cs' ? 'Profil ulozen!' : 'Profile saved!');
   };
 
   const handleChangePassword = () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert(language === 'cs' ? '❌ Hesla se neshodují!' : '❌ Passwords do not match!');
+      alert(language === 'cs' ? 'Hesla se neshoduji!' : 'Passwords do not match!');
       return;
     }
     console.log('Changing password');
-    alert(language === 'cs' ? '✅ Heslo změněno!' : '✅ Password changed!');
+    alert(language === 'cs' ? 'Heslo zmeneno!' : 'Password changed!');
     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
   // Password strength calculation
   const getPasswordStrength = (password) => {
-    if (!password) return { level: 0, text: '', color: 'bg-gray-200' };
+    if (!password) return { level: 0, text: '', color: 'transparent', textColor: 'transparent' };
     let strength = 0;
     if (password.length >= 8) strength++;
     if (/[A-Z]/.test(password)) strength++;
     if (/[0-9]/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
-    
-    if (strength <= 1) return { level: 25, text: language === 'cs' ? 'Slabé' : 'Weak', color: 'bg-red-500' };
-    if (strength === 2) return { level: 50, text: language === 'cs' ? 'Střední' : 'Medium', color: 'bg-yellow-500' };
-    if (strength === 3) return { level: 75, text: language === 'cs' ? 'Dobré' : 'Good', color: 'bg-blue-500' };
-    return { level: 100, text: language === 'cs' ? 'Silné' : 'Strong', color: 'bg-green-500' };
+
+    if (strength <= 1) return { level: 25, text: language === 'cs' ? 'Slabe' : 'Weak', color: strengthColors.weak, textColor: strengthColors.weak };
+    if (strength === 2) return { level: 50, text: language === 'cs' ? 'Stredni' : 'Medium', color: strengthColors.medium, textColor: strengthColors.medium };
+    if (strength === 3) return { level: 75, text: language === 'cs' ? 'Dobre' : 'Good', color: strengthColors.good, textColor: strengthColors.good };
+    return { level: 100, text: language === 'cs' ? 'Silne' : 'Strong', color: strengthColors.strong, textColor: strengthColors.strong };
   };
 
   const passwordStrength = getPasswordStrength(passwordData.newPassword);
 
   const t = {
-    'account.title': language === 'cs' ? 'Nastavení účtu' : 'Account Settings',
-    'account.subtitle': language === 'cs' ? 'Spravujte informace o účtu a předvolby' : 'Manage your account information and preferences',
+    'account.title': language === 'cs' ? 'Nastaveni uctu' : 'Account Settings',
+    'account.subtitle': language === 'cs' ? 'Spravujte informace o uctu a predvolby' : 'Manage your account information and preferences',
     'tab.profile': language === 'cs' ? 'Profil' : 'Profile',
     'tab.company': language === 'cs' ? 'Firma' : 'Company',
-    'tab.security': language === 'cs' ? 'Zabezpečení' : 'Security',
-    'profile.title': language === 'cs' ? 'Osobní informace' : 'Personal Information',
-    'profile.firstName': language === 'cs' ? 'Jméno' : 'First Name',
-    'profile.lastName': language === 'cs' ? 'Příjmení' : 'Last Name',
-    'profile.email': language === 'cs' ? 'Emailová adresa' : 'Email Address',
-    'profile.phone': language === 'cs' ? 'Telefonní číslo' : 'Phone Number',
-    'company.title': language === 'cs' ? 'Informace o firmě' : 'Company Information',
-    'company.name': language === 'cs' ? 'Název firmy' : 'Company Name',
-    'company.ico': language === 'cs' ? 'IČO' : 'Company ID',
-    'company.dic': language === 'cs' ? 'DIČ' : 'VAT ID',
+    'tab.security': language === 'cs' ? 'Zabezpeceni' : 'Security',
+    'profile.title': language === 'cs' ? 'Osobni informace' : 'Personal Information',
+    'profile.firstName': language === 'cs' ? 'Jmeno' : 'First Name',
+    'profile.lastName': language === 'cs' ? 'Prijmeni' : 'Last Name',
+    'profile.email': language === 'cs' ? 'Emailova adresa' : 'Email Address',
+    'profile.phone': language === 'cs' ? 'Telefonni cislo' : 'Phone Number',
+    'company.title': language === 'cs' ? 'Informace o firme' : 'Company Information',
+    'company.name': language === 'cs' ? 'Nazev firmy' : 'Company Name',
+    'company.ico': language === 'cs' ? 'ICO' : 'Company ID',
+    'company.dic': language === 'cs' ? 'DIC' : 'VAT ID',
     'company.address': language === 'cs' ? 'Adresa' : 'Address',
-    'company.city': language === 'cs' ? 'Město' : 'City',
-    'company.zip': language === 'cs' ? 'PSČ' : 'ZIP Code',
-    'company.country': language === 'cs' ? 'Země' : 'Country',
-    'security.title': language === 'cs' ? 'Změnit heslo' : 'Change Password',
-    'security.current': language === 'cs' ? 'Současné heslo' : 'Current Password',
-    'security.new': language === 'cs' ? 'Nové heslo' : 'New Password',
-    'security.confirm': language === 'cs' ? 'Potvrdit nové heslo' : 'Confirm New Password',
-    'security.2fa.title': language === 'cs' ? 'Dvoufaktorové ověření' : 'Two-Factor Authentication',
-    'security.2fa.desc': language === 'cs' ? 'Přidejte další vrstvu zabezpečení k vašemu účtu' : 'Add an extra layer of security to your account',
+    'company.city': language === 'cs' ? 'Mesto' : 'City',
+    'company.zip': language === 'cs' ? 'PSC' : 'ZIP Code',
+    'company.country': language === 'cs' ? 'Zeme' : 'Country',
+    'security.title': language === 'cs' ? 'Zmenit heslo' : 'Change Password',
+    'security.current': language === 'cs' ? 'Soucasne heslo' : 'Current Password',
+    'security.new': language === 'cs' ? 'Nove heslo' : 'New Password',
+    'security.confirm': language === 'cs' ? 'Potvrdit nove heslo' : 'Confirm New Password',
+    'security.2fa.title': language === 'cs' ? 'Dvoufaktorove overeni' : 'Two-Factor Authentication',
+    'security.2fa.desc': language === 'cs' ? 'Pridejte dalsi vrstvu zabezpeceni k vasemu uctu' : 'Add an extra layer of security to your account',
     'security.2fa.enable': language === 'cs' ? 'Zapnout 2FA' : 'Enable 2FA',
-    'security.sessions.title': language === 'cs' ? 'Aktivní relace' : 'Active Sessions',
-    'security.sessions.desc': language === 'cs' ? 'Spravujte zařízení, na kterých jste přihlášeni' : 'Manage devices where you\'re currently logged in',
-    'security.sessions.current': language === 'cs' ? 'Toto zařízení' : 'This device',
-    'common.cancel': language === 'cs' ? 'Zrušit' : 'Cancel',
-    'common.save': language === 'cs' ? 'Uložit změny' : 'Save Changes',
-    'common.change': language === 'cs' ? 'Změnit heslo' : 'Change Password',
+    'security.sessions.title': language === 'cs' ? 'Aktivni relace' : 'Active Sessions',
+    'security.sessions.desc': language === 'cs' ? 'Spravujte zarizeni, na kterych jste prihlaseni' : 'Manage devices where you\'re currently logged in',
+    'security.sessions.current': language === 'cs' ? 'Toto zarizeni' : 'This device',
+    'common.cancel': language === 'cs' ? 'Zrusit' : 'Cancel',
+    'common.save': language === 'cs' ? 'Ulozit zmeny' : 'Save Changes',
+    'common.change': language === 'cs' ? 'Zmenit heslo' : 'Change Password',
     'tab.billing': language === 'cs' ? 'Fakturace' : 'Billing',
-    'billing.title': language === 'cs' ? 'Fakturace a předplatné' : 'Billing & Subscription',
-    'billing.plan.title': language === 'cs' ? 'Aktuální tarif' : 'Current Plan',
+    'billing.title': language === 'cs' ? 'Fakturace a predplatne' : 'Billing & Subscription',
+    'billing.plan.title': language === 'cs' ? 'Aktualni tarif' : 'Current Plan',
     'billing.plan.name': language === 'cs' ? 'Professional tarif' : 'Professional Plan',
-    'billing.plan.change': language === 'cs' ? 'Změnit tarif' : 'Change Plan',
-    'billing.plan.cancel': language === 'cs' ? 'Zrušit předplatné' : 'Cancel Subscription',
-    'billing.payment.title': language === 'cs' ? 'Platební metody' : 'Payment Methods',
-    'billing.payment.add': language === 'cs' ? 'Přidat platební metodu' : 'Add Payment Method',
+    'billing.plan.change': language === 'cs' ? 'Zmenit tarif' : 'Change Plan',
+    'billing.plan.cancel': language === 'cs' ? 'Zrusit predplatne' : 'Cancel Subscription',
+    'billing.payment.title': language === 'cs' ? 'Platebni metody' : 'Payment Methods',
+    'billing.payment.add': language === 'cs' ? 'Pridat platebni metodu' : 'Add Payment Method',
     'billing.payment.expires': language === 'cs' ? 'Platnost do' : 'Expires',
     'billing.history.title': language === 'cs' ? 'Historie faktur' : 'Billing History',
-    'billing.history.download': language === 'cs' ? 'Stáhnout PDF' : 'Download PDF',
+    'billing.history.download': language === 'cs' ? 'Stahnout PDF' : 'Download PDF',
   };
 
   const tabs = [
@@ -136,14 +296,24 @@ const AccountPage = () => {
     })
   };
 
-  // Reusable Input Component
+  /* ── Reusable FORGE Form Input ────────────────────────────────────────── */
+
   const FormInput = ({ icon, label, type = 'text', value, onChange, placeholder }) => (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
-      <div className="relative">
+    <div style={{ marginBottom: '0px' }}>
+      <label style={forgeLabelStyles}>{label}</label>
+      <div style={{ position: 'relative' }}>
         {icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-            <Icon name={icon} size={18} />
+          <div style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--forge-text-muted)',
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+          }}>
+            <Icon name={icon} size={16} />
           </div>
         )}
         <input
@@ -151,99 +321,162 @@ const AccountPage = () => {
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full ${icon ? 'pl-10' : 'pl-4'} pr-4 py-3 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm text-slate-900 placeholder-slate-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary hover:border-slate-300`}
+          style={icon ? forgeInputWithIconStyles : forgeInputStyles}
+          onFocus={(e) => {
+            e.target.style.borderColor = 'var(--forge-accent-primary)';
+            e.target.style.boxShadow = '0 0 0 2px rgba(0,212,170,0.15)';
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = '';
+            e.target.style.boxShadow = '';
+          }}
         />
       </div>
     </div>
   );
 
-  // Card Component
-  const Card = ({ icon, title, children, index = 0, className = '' }) => (
+  /* ── Reusable FORGE Card Component ────────────────────────────────────── */
+
+  const Card = ({ icon, title, children, index = 0, style = {} }) => (
     <motion.div
       custom={index}
       variants={cardVariants}
       initial="initial"
       animate="animate"
-      className={`bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl shadow-slate-200/50 overflow-hidden ${className}`}
+      style={{ ...forgeCardStyles, ...style }}
     >
-      <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-primary/5 to-transparent">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-            <Icon name={icon} size={20} />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <div style={forgeCardHeaderStyles}>
+        <div style={forgeCardHeaderIconBox}>
+          <Icon name={icon} size={18} />
         </div>
+        <h3 style={forgeCardTitle}>{title}</h3>
       </div>
-      <div className="p-6">
+      <div style={forgeCardBody}>
         {children}
       </div>
     </motion.div>
   );
 
+  /* ════════════════════════════════════════════════════════════════════════
+     RENDER
+     ════════════════════════════════════════════════════════════════════════ */
+
   return (
-    <div className="min-h-screen relative">
-      <BackgroundPattern />
-      
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-12">
-        {/* Header */}
-        <motion.div 
+    <div style={forgePageStyles}>
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: '960px', margin: '0 auto', padding: '48px 16px' }}>
+
+        {/* ── Header ─────────────────────────────────────────────────── */}
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          style={{ marginBottom: '40px' }}
         >
-          <div className="flex items-center gap-6">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             {/* Avatar */}
-            <div className="relative group">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-primary/30">
+            <div style={{ position: 'relative' }}>
+              <div style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: 'var(--forge-radius-lg)',
+                background: 'var(--forge-gradient-brand)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#08090C',
+                fontSize: '1.5rem',
+                fontFamily: 'var(--forge-font-heading)',
+                fontWeight: 700,
+                boxShadow: '0 0 24px rgba(0,212,170,0.18)',
+              }}>
                 {profileData.firstName[0]}{profileData.lastName[0]}
               </div>
-              <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-white shadow-md flex items-center justify-center text-slate-500 hover:text-primary transition-colors border border-slate-100">
-                <Icon name="Camera" size={14} />
+              <button style={{
+                position: 'absolute',
+                bottom: '-4px',
+                right: '-4px',
+                width: '26px',
+                height: '26px',
+                borderRadius: 'var(--forge-radius-sm)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--forge-text-muted)',
+                cursor: 'pointer',
+                padding: 0,
+              }}>
+                <Icon name="Camera" size={12} />
               </button>
             </div>
-            
+
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">{t['account.title']}</h1>
-              <p className="text-slate-500 mt-1">{t['account.subtitle']}</p>
+              <h1 style={{
+                fontFamily: 'var(--forge-font-heading)',
+                fontWeight: 700,
+                fontSize: 'var(--forge-text-2xl)',
+                color: 'var(--forge-text-primary)',
+                margin: 0,
+              }}>
+                {t['account.title']}
+              </h1>
+              <p style={{
+                color: 'var(--forge-text-secondary)',
+                fontSize: '14px',
+                marginTop: '4px',
+                margin: '4px 0 0',
+              }}>
+                {t['account.subtitle']}
+              </p>
             </div>
           </div>
         </motion.div>
 
-        {/* Pill Tabs */}
-        <motion.div 
+        {/* ── Tab Navigation (FORGE tech font, bottom-border style) ── */}
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="mb-8"
+          style={{ marginBottom: '32px' }}
         >
-          <div className="inline-flex p-1.5 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 shadow-lg shadow-slate-200/30">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
-                  activeTab === tab.id 
-                    ? 'text-white' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {activeTab === tab.id && (
-                  <motion.div
-                    layoutId="activeTabBg"
-                    className="absolute inset-0 bg-gradient-to-r from-primary to-violet-600 rounded-xl shadow-lg shadow-primary/30"
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-2">
-                  <Icon name={tab.icon} size={18} />
+          <div style={{
+            display: 'flex',
+            gap: '0',
+            borderBottom: '1px solid var(--forge-border-default)',
+          }}>
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    position: 'relative',
+                    padding: '12px 20px',
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontSize: '13px',
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: isActive ? '2px solid var(--forge-accent-primary)' : '2px solid transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'color 0.2s, border-color 0.2s',
+                    marginBottom: '-1px',
+                  }}
+                >
+                  <Icon name={tab.icon} size={16} />
                   {tab.label}
-                </span>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 
-        {/* Tab Content */}
+        {/* ── Tab Content ─────────────────────────────────────────── */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -253,11 +486,11 @@ const AccountPage = () => {
             exit="exit"
             transition={{ duration: 0.3 }}
           >
-            {/* PROFILE TAB */}
+            {/* ═══ PROFILE TAB ═══ */}
             {activeTab === 'profile' && (
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card icon="User" title={t['profile.title']} index={0} className="md:col-span-2">
-                  <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <Card icon="User" title={t['profile.title']} index={0}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
                     <FormInput
                       icon="User"
                       label={t['profile.firstName']}
@@ -289,14 +522,21 @@ const AccountPage = () => {
                       placeholder={t['profile.phone']}
                     />
                   </div>
-                  
-                  <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
-                    <button className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors">
+
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '12px',
+                    marginTop: '32px',
+                    paddingTop: '24px',
+                    borderTop: '1px solid var(--forge-border-default)',
+                  }}>
+                    <button style={forgeOutlineBtn}>
                       {t['common.cancel']}
                     </button>
-                    <button 
+                    <button
                       onClick={handleSaveProfile}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet-600 text-white font-medium shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
+                      style={forgePrimaryBtn}
                     >
                       {t['common.save']}
                     </button>
@@ -305,11 +545,11 @@ const AccountPage = () => {
               </div>
             )}
 
-            {/* COMPANY TAB */}
+            {/* ═══ COMPANY TAB ═══ */}
             {activeTab === 'company' && (
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card icon="Building2" title={language === 'cs' ? 'Základní údaje' : 'Basic Info'} index={0}>
-                  <div className="space-y-5">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                <Card icon="Building2" title={language === 'cs' ? 'Zakladni udaje' : 'Basic Info'} index={0}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <FormInput
                       icon="Building2"
                       label={t['company.name']}
@@ -317,7 +557,7 @@ const AccountPage = () => {
                       onChange={(e) => handleProfileChange('company', e.target.value)}
                       placeholder={t['company.name']}
                     />
-                    <div className="grid grid-cols-2 gap-4">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <FormInput
                         label={t['company.ico']}
                         value={profileData.ico}
@@ -333,9 +573,9 @@ const AccountPage = () => {
                     </div>
                   </div>
                 </Card>
-                
+
                 <Card icon="MapPin" title={language === 'cs' ? 'Adresa' : 'Address'} index={1}>
-                  <div className="space-y-5">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <FormInput
                       icon="MapPin"
                       label={t['company.address']}
@@ -343,7 +583,7 @@ const AccountPage = () => {
                       onChange={(e) => handleProfileChange('address', e.target.value)}
                       placeholder={t['company.address']}
                     />
-                    <div className="grid grid-cols-2 gap-4">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <FormInput
                         label={t['company.city']}
                         value={profileData.city}
@@ -357,30 +597,38 @@ const AccountPage = () => {
                         placeholder={t['company.zip']}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-slate-700">{t['company.country']}</label>
+                    <div>
+                      <label style={forgeLabelStyles}>{t['company.country']}</label>
                       <select
                         value={profileData.country}
                         onChange={(e) => handleProfileChange('country', e.target.value)}
-                        className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm text-slate-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary hover:border-slate-300 appearance-none cursor-pointer"
+                        style={forgeSelectStyles}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = 'var(--forge-accent-primary)';
+                          e.target.style.boxShadow = '0 0 0 2px rgba(0,212,170,0.15)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = '';
+                          e.target.style.boxShadow = '';
+                        }}
                       >
-                        <option>Česká republika</option>
+                        <option>Ceska republika</option>
                         <option>Slovensko</option>
                         <option>Polsko</option>
-                        <option>Německo</option>
+                        <option>Nemecko</option>
                         <option>Rakousko</option>
                       </select>
                     </div>
                   </div>
                 </Card>
-                
-                <div className="md:col-span-2 flex justify-end gap-3 mt-4">
-                  <button className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors">
+
+                <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                  <button style={forgeOutlineBtn}>
                     {t['common.cancel']}
                   </button>
-                  <button 
+                  <button
                     onClick={handleSaveProfile}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet-600 text-white font-medium shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
+                    style={forgePrimaryBtn}
                   >
                     {t['common.save']}
                   </button>
@@ -388,18 +636,18 @@ const AccountPage = () => {
               </div>
             )}
 
-            {/* SECURITY TAB */}
+            {/* ═══ SECURITY TAB ═══ */}
             {activeTab === 'security' && (
-              <div className="grid gap-6 md:grid-cols-2">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
                 <Card icon="Key" title={t['security.title']} index={0}>
-                  <div className="space-y-5">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <FormInput
                       icon="Lock"
                       label={t['security.current']}
                       type="password"
                       value={passwordData.currentPassword}
                       onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
-                      placeholder="••••••••"
+                      placeholder="--------"
                     />
                     <div>
                       <FormInput
@@ -408,19 +656,32 @@ const AccountPage = () => {
                         type="password"
                         value={passwordData.newPassword}
                         onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                        placeholder="••••••••"
+                        placeholder="--------"
                       />
                       {passwordData.newPassword && (
-                        <div className="mt-3">
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-slate-500">{language === 'cs' ? 'Síla hesla' : 'Password strength'}</span>
-                            <span className={`font-medium ${passwordStrength.color.replace('bg-', 'text-')}`}>{passwordStrength.text}</span>
+                        <div style={{ marginTop: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--forge-text-muted)' }}>
+                              {language === 'cs' ? 'Sila hesla' : 'Password strength'}
+                            </span>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: passwordStrength.textColor }}>
+                              {passwordStrength.text}
+                            </span>
                           </div>
-                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div style={{
+                            height: '4px',
+                            backgroundColor: 'var(--forge-bg-overlay)',
+                            borderRadius: '2px',
+                            overflow: 'hidden',
+                          }}>
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${passwordStrength.level}%` }}
-                              className={`h-full ${passwordStrength.color} rounded-full`}
+                              style={{
+                                height: '100%',
+                                backgroundColor: passwordStrength.color,
+                                borderRadius: '2px',
+                              }}
                               transition={{ duration: 0.3 }}
                             />
                           </div>
@@ -433,43 +694,86 @@ const AccountPage = () => {
                       type="password"
                       value={passwordData.confirmPassword}
                       onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                      placeholder="••••••••"
+                      placeholder="--------"
                     />
                   </div>
-                  
-                  <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
-                    <button 
+
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '12px',
+                    marginTop: '24px',
+                    paddingTop: '24px',
+                    borderTop: '1px solid var(--forge-border-default)',
+                  }}>
+                    <button
                       onClick={handleChangePassword}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet-600 text-white font-medium shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
+                      style={forgePrimaryBtn}
                     >
                       {t['common.change']}
                     </button>
                   </div>
                 </Card>
-                
-                <div className="space-y-6">
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                   <Card icon="ShieldCheck" title={t['security.2fa.title']} index={1}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-slate-500">{t['security.2fa.desc']}</p>
-                      </div>
-                      <button className="px-4 py-2 rounded-xl bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--forge-text-secondary)', margin: 0 }}>
+                        {t['security.2fa.desc']}
+                      </p>
+                      <button style={forgeGhostBtn}>
                         {t['security.2fa.enable']}
                       </button>
                     </div>
                   </Card>
-                  
+
                   <Card icon="Monitor" title={t['security.sessions.title']} index={2}>
-                    <p className="text-sm text-slate-500 mb-4">{t['security.sessions.desc']}</p>
-                    <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-100 flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600">
-                        <Icon name="Monitor" size={20} />
+                    <p style={{ fontSize: '13px', color: 'var(--forge-text-secondary)', margin: '0 0 16px' }}>
+                      {t['security.sessions.desc']}
+                    </p>
+                    <div style={{
+                      padding: '14px',
+                      borderRadius: 'var(--forge-radius-sm)',
+                      backgroundColor: 'var(--forge-bg-elevated)',
+                      border: '1px solid var(--forge-border-default)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '14px',
+                    }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: 'var(--forge-radius-sm)',
+                        backgroundColor: 'rgba(0,212,170,0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--forge-accent-primary)',
+                        flexShrink: 0,
+                      }}>
+                        <Icon name="Monitor" size={18} />
                       </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-slate-900">Windows PC - Chrome</div>
-                        <div className="text-xs text-slate-500">{language === 'cs' ? 'Praha, Česká republika' : 'Prague, Czech Republic'}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          color: 'var(--forge-text-primary)',
+                        }}>
+                          Windows PC - Chrome
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>
+                          {language === 'cs' ? 'Praha, Ceska republika' : 'Prague, Czech Republic'}
+                        </div>
                       </div>
-                      <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '100px',
+                        backgroundColor: 'rgba(0,212,170,0.1)',
+                        color: 'var(--forge-accent-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                      }}>
                         {t['security.sessions.current']}
                       </span>
                     </div>
@@ -478,74 +782,242 @@ const AccountPage = () => {
               </div>
             )}
 
-            {/* BILLING TAB */}
+            {/* ═══ BILLING TAB ═══ */}
             {activeTab === 'billing' && (
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card icon="CreditCard" title={t['billing.title']} index={0} className="md:col-span-2">
-                  <div className="flex flex-col md:flex-row gap-8">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <Card icon="CreditCard" title={t['billing.title']} index={0}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
                     {/* Current Plan */}
-                    <div className="flex-1 space-y-4">
-                      <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/5 to-violet-500/5 border border-primary/10">
-                        <div className="flex justify-between items-start mb-2">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{
+                        padding: '20px',
+                        borderRadius: 'var(--forge-radius-md)',
+                        backgroundColor: 'var(--forge-bg-elevated)',
+                        border: '1px solid var(--forge-border-highlight)',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <div>
-                             <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">{t['billing.plan.title']}</h4>
-                             <div className="text-2xl font-bold text-slate-900 mt-1">{t['billing.plan.name']}</div>
+                            <h4 style={{
+                              ...forgeLabelStyles,
+                              marginBottom: '4px',
+                            }}>
+                              {t['billing.plan.title']}
+                            </h4>
+                            <div style={{
+                              fontFamily: 'var(--forge-font-heading)',
+                              fontWeight: 700,
+                              fontSize: 'var(--forge-text-xl)',
+                              color: 'var(--forge-text-primary)',
+                            }}>
+                              {t['billing.plan.name']}
+                            </div>
                           </div>
-                          <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">ACTIVE</span>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '100px',
+                            backgroundColor: 'rgba(0,212,170,0.1)',
+                            color: 'var(--forge-accent-primary)',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                          }}>
+                            ACTIVE
+                          </span>
                         </div>
-                        <div className="text-3xl font-bold text-primary mt-4">1,299 Kč <span className="text-sm font-normal text-slate-500">/ měsíc</span></div>
+                        <div style={{ marginTop: '16px' }}>
+                          <span style={{
+                            fontFamily: 'var(--forge-font-heading)',
+                            fontWeight: 700,
+                            fontSize: 'var(--forge-text-2xl)',
+                            color: 'var(--forge-accent-primary)',
+                          }}>
+                            1,299 Kc
+                          </span>
+                          <span style={{
+                            fontSize: '13px',
+                            color: 'var(--forge-text-muted)',
+                            marginLeft: '4px',
+                          }}>
+                            / {language === 'cs' ? 'mesic' : 'month'}
+                          </span>
+                        </div>
                       </div>
-                      
-                      <div className="flex gap-3">
-                        <button className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200">
+
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button style={{ ...forgePrimaryBtn, flex: 1 }}>
                           {t['billing.plan.change']}
                         </button>
-                        <button className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 font-medium hover:bg-red-50 transition-colors">
+                        <button style={forgeDangerOutlineBtn}>
                           {t['billing.plan.cancel']}
                         </button>
                       </div>
                     </div>
 
                     {/* Payment Method */}
-                    <div className="flex-1 space-y-4">
-                       <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">{t['billing.payment.title']}</h4>
-                       
-                       <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-center gap-4">
-                          <div className="w-12 h-8 rounded bg-slate-100 flex items-center justify-center">
-                            <Icon name="CreditCard" size={20} className="text-slate-600" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-slate-900">Visa končící na 4242</div>
-                            <div className="text-xs text-slate-500">{t['billing.payment.expires']} 12/2025</div>
-                          </div>
-                          <button className="text-sm font-medium text-primary hover:text-primary/80">Upravit</button>
-                       </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <h4 style={forgeLabelStyles}>
+                        {t['billing.payment.title']}
+                      </h4>
 
-                       <button className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 font-medium hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2">
-                          <Icon name="Plus" size={18} />
-                          {t['billing.payment.add']}
-                       </button>
+                      <div style={{
+                        padding: '14px',
+                        borderRadius: 'var(--forge-radius-sm)',
+                        border: '1px solid var(--forge-border-default)',
+                        backgroundColor: 'var(--forge-bg-elevated)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                      }}>
+                        <div style={{
+                          width: '44px',
+                          height: '30px',
+                          borderRadius: 'var(--forge-radius-sm)',
+                          backgroundColor: 'var(--forge-bg-overlay)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--forge-text-muted)',
+                          flexShrink: 0,
+                        }}>
+                          <Icon name="CreditCard" size={18} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            color: 'var(--forge-text-primary)',
+                          }}>
+                            Visa {language === 'cs' ? 'koncici na' : 'ending in'} 4242
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>
+                            {t['billing.payment.expires']} 12/2025
+                          </div>
+                        </div>
+                        <button style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--forge-accent-primary)',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          fontFamily: 'var(--forge-font-body)',
+                        }}>
+                          {language === 'cs' ? 'Upravit' : 'Edit'}
+                        </button>
+                      </div>
+
+                      <button style={{
+                        width: '100%',
+                        padding: '12px',
+                        borderRadius: 'var(--forge-radius-sm)',
+                        border: '2px dashed var(--forge-border-default)',
+                        backgroundColor: 'transparent',
+                        color: 'var(--forge-text-muted)',
+                        fontFamily: 'var(--forge-font-body)',
+                        fontWeight: 500,
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'border-color 0.2s, color 0.2s',
+                      }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                          e.currentTarget.style.color = 'var(--forge-accent-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                          e.currentTarget.style.color = 'var(--forge-text-muted)';
+                        }}
+                      >
+                        <Icon name="Plus" size={16} />
+                        {t['billing.payment.add']}
+                      </button>
                     </div>
                   </div>
                 </Card>
 
-                <Card icon="FileText" title={t['billing.history.title']} index={1} className="md:col-span-2">
-                  <div className="space-y-1">
+                <Card icon="FileText" title={t['billing.history.title']} index={1}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     {[1, 2, 3].map((item) => (
-                      <div key={item} className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-white group-hover:shadow-sm transition-all">
-                            <Icon name="FileText" size={20} />
+                      <div
+                        key={item}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '14px',
+                          borderRadius: 'var(--forge-radius-sm)',
+                          transition: 'background-color 0.15s',
+                          cursor: 'default',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: 'var(--forge-radius-sm)',
+                            backgroundColor: 'var(--forge-bg-overlay)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--forge-text-muted)',
+                            flexShrink: 0,
+                          }}>
+                            <Icon name="FileText" size={16} />
                           </div>
                           <div>
-                            <div className="font-medium text-slate-900">Faktura #{2024000 + item}</div>
-                            <div className="text-xs text-slate-500">1. {item === 1 ? 'prosince' : item === 2 ? 'listopadu' : 'října'} 2024</div>
+                            <div style={{
+                              fontWeight: 600,
+                              fontSize: '14px',
+                              color: 'var(--forge-text-primary)',
+                            }}>
+                              {language === 'cs' ? 'Faktura' : 'Invoice'} #{2024000 + item}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>
+                              1. {item === 1 ? (language === 'cs' ? 'prosince' : 'December') : item === 2 ? (language === 'cs' ? 'listopadu' : 'November') : (language === 'cs' ? 'rijna' : 'October')} 2024
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div className="font-medium text-slate-900">1,299 Kč</div>
-                          <button className="p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors">
-                            <Icon name="Download" size={18} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            color: 'var(--forge-text-primary)',
+                            fontFamily: 'var(--forge-font-tech)',
+                          }}>
+                            1,299 Kc
+                          </div>
+                          <button style={{
+                            padding: '6px',
+                            borderRadius: 'var(--forge-radius-sm)',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'var(--forge-text-muted)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'color 0.15s',
+                          }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--forge-accent-primary)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--forge-text-muted)';
+                            }}
+                          >
+                            <Icon name="Download" size={16} />
                           </button>
                         </div>
                       </div>

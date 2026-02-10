@@ -297,7 +297,7 @@ export default function AdminCoupons() {
               checked={!!config?.enabled}
               onChange={(e) => updateConfig({ enabled: e.target.checked })}
             />
-            <span style={{ fontWeight: 700, color: '#111827' }}>
+            <span style={{ fontWeight: 700, color: 'var(--forge-text-primary)' }}>
               {cs ? 'Kupony a akce zapnuty' : 'Coupons & Promotions enabled'}
             </span>
           </label>
@@ -620,7 +620,7 @@ export default function AdminCoupons() {
                               type="color"
                               value={promo.banner_color || '#3b82f6'}
                               onChange={(e) => updatePromotion(idx, { banner_color: e.target.value })}
-                              style={{ width: 40, height: 36, border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', padding: 2 }}
+                              style={{ width: 40, height: 36, border: '1px solid var(--forge-border-default)', borderRadius: 8, cursor: 'pointer', padding: 2, background: 'var(--forge-bg-elevated)' }}
                             />
                             <input
                               className="input"
@@ -814,8 +814,8 @@ export default function AdminCoupons() {
           margin-bottom: 14px;
         }
 
-        h1 { margin: 0; font-size: 28px; font-weight: 600; color: #1a1a1a; }
-        .subtitle { margin: 4px 0 0 0; color: #666; font-size: 14px; max-width: 760px; }
+        h1 { margin: 0; font-size: 28px; font-weight: 600; color: var(--forge-text-primary); }
+        .subtitle { margin: 4px 0 0 0; color: var(--forge-text-secondary); font-size: 14px; max-width: 760px; }
 
         .header-actions {
           display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
@@ -823,69 +823,72 @@ export default function AdminCoupons() {
 
         .status-pill {
           display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
-          padding: 6px 10px; font-size: 12px; border: 1px solid #e6e6e6; background: #fafafa; color: #555;
+          padding: 6px 10px; font-size: 12px; border: 1px solid var(--forge-border-default); background: var(--forge-bg-surface); color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.08em;
         }
-        .status-pill.clean { border-color: #d7f0df; background: #f3fbf6; color: #1f6b3a; }
-        .status-pill.dirty { border-color: #ffe0b2; background: #fff7e6; color: #8a5a00; }
+        .status-pill.clean { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
+        .status-pill.dirty { border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.08); color: var(--forge-error); }
 
         .btn-primary {
-          background: #111827; color: white; border: 1px solid #111827; border-radius: 10px;
+          background: var(--forge-accent-primary); color: #0A0E17; border: 1px solid var(--forge-accent-primary); border-radius: var(--forge-radius-md);
           padding: 10px 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+          font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.04em; font-size: 13px;
         }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .btn-secondary {
-          background: white; color: #111827; border: 1px solid #e5e7eb; border-radius: 10px;
+          background: var(--forge-bg-elevated); color: var(--forge-text-primary); border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md);
           padding: 10px 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
         }
+        .btn-secondary:hover { background: var(--forge-bg-surface); border-color: var(--forge-accent-primary); }
         .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .banner {
           display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-          border-radius: 8px; margin: 10px 0 16px 0; font-size: 14px;
-          border: 1px solid #eaeaea; background: #fafafa; color: #444;
+          border-radius: var(--forge-radius-md); margin: 10px 0 16px 0; font-size: 14px;
+          border: 1px solid var(--forge-border-default); background: var(--forge-bg-surface); color: var(--forge-text-secondary);
         }
-        .banner.success { border-color: #d7f0df; background: #f3fbf6; }
-        .banner.error { border-color: #ffd7d7; background: #fff2f2; }
+        .banner.success { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
+        .banner.error { border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.08); color: var(--forge-error); }
 
         /* Tabs */
         .tab-bar {
-          display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #eee; padding-bottom: 0;
+          display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--forge-border-default); padding-bottom: 0;
         }
         .tab-btn {
           display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px;
           border: none; background: none; font-size: 14px; font-weight: 600;
-          color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent;
+          color: var(--forge-text-muted); cursor: pointer; border-bottom: 2px solid transparent;
           margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
         }
-        .tab-btn:hover { color: #111827; }
-        .tab-btn.active { color: #111827; border-bottom-color: #111827; }
+        .tab-btn:hover { color: var(--forge-text-primary); }
+        .tab-btn.active { color: var(--forge-accent-primary); border-bottom-color: var(--forge-accent-primary); }
 
         .badge {
           display: inline-flex; align-items: center; justify-content: center;
           min-width: 20px; height: 20px; border-radius: 10px;
-          background: #e5e7eb; color: #374151; font-size: 11px; font-weight: 700;
+          background: var(--forge-bg-elevated); color: var(--forge-text-secondary); font-size: 11px; font-weight: 700;
           padding: 0 6px;
         }
-        .tab-btn.active .badge { background: #111827; color: #fff; }
+        .tab-btn.active .badge { background: var(--forge-accent-primary); color: #0A0E17; }
 
         .tab-content { }
 
-        .admin-card { background: white; border: 1px solid #eee; border-radius: 12px; overflow: hidden; }
+        .admin-card { background: var(--forge-bg-surface); border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md); overflow: hidden; }
 
         .card-header {
           display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-          padding: 14px; border-bottom: 1px solid #eee; background: #fafafa;
+          padding: 14px; border-bottom: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated);
         }
-        .card-header h2 { margin: 0; font-size: 16px; font-weight: 800; color: #111827; }
-        .card-description { margin: 4px 0 0 0; font-size: 13px; color: #6b7280; max-width: 760px; }
+        .card-header h2 { margin: 0; font-size: 11px; font-weight: 800; color: var(--forge-text-muted); font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.08em; }
+        .card-description { margin: 4px 0 0 0; font-size: 13px; color: var(--forge-text-muted); max-width: 760px; }
         .card-body { padding: 14px; }
 
-        .empty-state { padding: 32px 18px; text-align: center; color: #6b7280; }
-        .empty-state h3 { margin: 10px 0 4px 0; color: #111827; font-size: 16px; }
+        .empty-state { padding: 32px 18px; text-align: center; color: var(--forge-text-muted); }
+        .empty-state h3 { margin: 10px 0 4px 0; color: var(--forge-text-primary); font-size: 16px; }
         .empty-state p { margin: 0; font-size: 13px; }
 
-        .muted { color: #6b7280; font-size: 12px; }
+        .muted { color: var(--forge-text-muted); font-size: 12px; }
 
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
@@ -896,35 +899,37 @@ export default function AdminCoupons() {
         }
 
         .field label {
-          display: block; font-size: 12px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: 0.04em; color: #374151; margin-bottom: 6px;
+          display: block; font-size: 11px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.08em; color: var(--forge-text-muted); margin-bottom: 6px;
+          font-family: var(--forge-font-tech);
         }
 
         .input {
-          width: 100%; border: 1px solid #e5e7eb; border-radius: 10px;
-          padding: 10px 12px; font-size: 14px; outline: none; background: #fff;
-          box-sizing: border-box;
+          width: 100%; border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md);
+          padding: 10px 12px; font-size: 14px; outline: none; background: var(--forge-bg-elevated);
+          box-sizing: border-box; color: var(--forge-text-primary);
         }
-        .input:focus { border-color: #111827; box-shadow: 0 0 0 2px rgba(17,24,39,0.08); }
-        .help { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .input:focus { border-color: var(--forge-accent-primary); box-shadow: 0 0 0 2px rgba(0,212,170,0.15); }
+        .help { font-size: 12px; color: var(--forge-text-muted); margin-top: 4px; }
 
-        .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #111827; cursor: pointer; }
+        .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--forge-text-primary); cursor: pointer; }
 
         .icon-btn {
-          border: 1px solid #e5e7eb; background: #fff; border-radius: 10px;
+          border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); border-radius: var(--forge-radius-md);
           padding: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+          color: var(--forge-text-secondary);
         }
-        .icon-btn:hover { background: #f9fafb; }
-        .icon-btn.danger:hover { background: #fff2f2; border-color: #fca5a5; color: #b91c1c; }
+        .icon-btn:hover { background: var(--forge-bg-surface); border-color: var(--forge-accent-primary); }
+        .icon-btn.danger:hover { background: rgba(255,71,87,0.1); border-color: var(--forge-error); color: var(--forge-error); }
 
         /* Item list (coupons + promotions) */
         .item-list { display: grid; gap: 14px; }
 
         .item-row {
-          border: 1px solid #eee; border-radius: 12px; padding: 14px; background: #fff;
+          border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md); padding: 14px; background: var(--forge-bg-surface);
           transition: border-color 0.15s;
         }
-        .item-row:hover { border-color: #d1d5db; }
+        .item-row:hover { border-color: var(--forge-accent-primary); }
 
         .item-header {
           display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -932,20 +937,21 @@ export default function AdminCoupons() {
         }
         .item-left { display: flex; flex-direction: column; gap: 4px; }
         .item-right { display: flex; align-items: center; gap: 8px; }
-        .item-name { font-weight: 700; color: #111827; font-family: monospace; font-size: 15px; letter-spacing: 0.02em; }
-        .item-name-text { font-weight: 700; color: #111827; font-size: 15px; }
+        .item-name { font-weight: 700; color: var(--forge-accent-primary); font-family: var(--forge-font-tech); font-size: 15px; letter-spacing: 0.02em; }
+        .item-name-text { font-weight: 700; color: var(--forge-text-primary); font-size: 15px; }
         .item-fields { }
 
         .usage-badge {
           display: inline-flex; align-items: center; padding: 3px 8px;
           border-radius: 6px; font-size: 11px; font-weight: 700;
-          background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb;
+          background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border: 1px solid var(--forge-border-default);
+          font-family: var(--forge-font-tech);
         }
 
         .auto-badge {
           display: inline-flex; align-items: center; padding: 1px 6px;
           border-radius: 4px; font-size: 10px; font-weight: 700;
-          background: #dbeafe; color: #1d4ed8; margin-left: 6px;
+          background: rgba(0,212,170,0.12); color: var(--forge-accent-primary); margin-left: 6px;
         }
 
         /* Settings tab */
@@ -953,16 +959,16 @@ export default function AdminCoupons() {
 
         .settings-row {
           display: flex; justify-content: space-between; align-items: center; gap: 16px;
-          padding: 16px 0; border-bottom: 1px solid #f1f1f1;
+          padding: 16px 0; border-bottom: 1px solid var(--forge-border-default);
         }
         .settings-row:last-child { border-bottom: none; }
 
         .settings-info { flex: 1; }
         .settings-label {
           display: flex; align-items: center; gap: 8px;
-          font-size: 14px; font-weight: 700; color: #111827;
+          font-size: 14px; font-weight: 700; color: var(--forge-text-primary);
         }
-        .settings-description { margin: 4px 0 0 26px; font-size: 13px; color: #6b7280; }
+        .settings-description { margin: 4px 0 0 26px; font-size: 13px; color: var(--forge-text-muted); }
 
         .settings-input-wrap { display: flex; align-items: center; gap: 6px; }
 
@@ -973,20 +979,21 @@ export default function AdminCoupons() {
         .switch input { opacity: 0; width: 0; height: 0; }
         .switch-slider {
           position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-          background-color: #d1d5db; transition: 0.2s; border-radius: 24px;
+          background-color: var(--forge-bg-elevated); transition: 0.2s; border-radius: 24px;
+          border: 1px solid var(--forge-border-default);
         }
         .switch-slider::before {
-          position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
-          background-color: white; transition: 0.2s; border-radius: 50%;
+          position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 2px;
+          background-color: var(--forge-text-muted); transition: 0.2s; border-radius: 50%;
         }
-        .switch input:checked + .switch-slider { background-color: #111827; }
-        .switch input:checked + .switch-slider::before { transform: translateX(20px); }
+        .switch input:checked + .switch-slider { background-color: var(--forge-accent-primary); border-color: var(--forge-accent-primary); }
+        .switch input:checked + .switch-slider::before { transform: translateX(20px); background-color: #0A0E17; }
 
         /* Info box */
         .info-box {
           display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
-          border: 1px solid #dbeafe; background: #eff6ff; border-radius: 10px;
-          font-size: 13px; color: #1e40af;
+          border: 1px solid rgba(0,212,170,0.2); background: rgba(0,212,170,0.05); border-radius: var(--forge-radius-md);
+          font-size: 13px; color: var(--forge-accent-primary);
         }
         .info-box strong { font-size: 13px; }
 

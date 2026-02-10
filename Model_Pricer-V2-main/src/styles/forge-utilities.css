@@ -67,3 +67,66 @@
   background: rgba(0, 212, 170, 0.12);
   color: var(--forge-success);
 }
+
+/* ---- Badge Accent (small pill) ---- */
+
+.forge-badge-accent {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-family: var(--forge-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 999px;
+  background: rgba(0, 212, 170, 0.12);
+  color: var(--forge-accent-primary);
+  letter-spacing: 0.02em;
+}
+
+/* ---- Leader Line (dotted connector for price breakdowns) ---- */
+
+.forge-leader-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+}
+
+.forge-leader-line::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px dotted var(--forge-border-active);
+  margin: 0 8px;
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+.forge-leader-line > :last-child {
+  order: 1;
+}
+
+/* ---- Callout Warning ---- */
+
+.forge-callout-warning {
+  background: rgba(255, 181, 71, 0.08);
+  border: 1px solid rgba(255, 181, 71, 0.2);
+  border-radius: var(--forge-radius-md);
+  padding: 12px 16px;
+}
+
+/* ---- Mono Bold (JetBrains Mono 700) ---- */
+
+.forge-mono-bold {
+  font-family: var(--forge-font-mono);
+  font-weight: 700;
+  color: var(--forge-text-primary);
+}
+
+/* ---- Price Large Display ---- */
+
+.forge-price-lg {
+  font-family: var(--forge-font-mono);
+  font-weight: 700;
+  font-size: 24px;
+  color: var(--forge-text-primary);
+  letter-spacing: -0.01em;
+}

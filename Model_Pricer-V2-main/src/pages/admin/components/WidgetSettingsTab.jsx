@@ -101,13 +101,13 @@ const WidgetSettingsTab = ({
 
       {/* Delete */}
       <div className="aw-settings-section aw-settings-danger">
-        <div className="aw-settings-label" style={{ color: '#b91c1c' }}>Smazat widget</div>
+        <div className="aw-settings-label" style={{ color: '#f87171' }}>Smazat widget</div>
         <div className="aw-muted" style={{ marginBottom: 10 }}>
           Trvale smaze widget a vsechny jeho nastaveni. Tuto akci nelze vratit.
         </div>
         {confirmDelete ? (
           <div className="aw-delete-confirm">
-            <span style={{ fontWeight: 700, color: '#b91c1c' }}>
+            <span style={{ fontWeight: 700, color: '#f87171' }}>
               Opravdu smazat "{widget.name}"?
             </span>
             <div style={{ display: 'flex', gap: 8 }}>

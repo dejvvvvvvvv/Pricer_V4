@@ -632,7 +632,15 @@ const TestKalkulacka = () => {
 
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: 'var(--forge-bg-void)',
+        color: 'var(--forge-text-primary)',
+        minHeight: '100vh',
+        fontFamily: 'var(--forge-font-body)',
+      }}
+    >
       <input
         type="file"
         ref={fileInputRef}
@@ -648,15 +656,29 @@ const TestKalkulacka = () => {
       <div>
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="mb-8">
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
-              <button onClick={() => navigate('/customer-dashboard')} className="hover:text-foreground transition-colors">
+            <div
+              className="flex items-center space-x-2 text-sm mb-2"
+              style={{ color: 'var(--forge-text-muted)' }}
+            >
+              <button
+                onClick={() => navigate('/customer-dashboard')}
+                className="transition-colors"
+                style={{ color: 'var(--forge-text-muted)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--forge-text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--forge-text-muted)'}
+              >
                 Dashboard
               </button>
               <Icon name="ChevronRight" size={16} />
-              <span className="text-foreground">Nahrání modelu</span>
+              <span style={{ color: 'var(--forge-text-primary)' }}>Nahrání modelu</span>
             </div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Nahrání 3D modelu</h1>
-            <p className="text-muted-foreground">
+            <h1
+              className="text-3xl font-bold mb-2"
+              style={{ color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}
+            >
+              Nahrání 3D modelu
+            </h1>
+            <p style={{ color: 'var(--forge-text-secondary)' }}>
               Nahrajte své 3D modely a nakonfigurujte parametry tisku.
             </p>
           </div>
@@ -668,27 +690,58 @@ const TestKalkulacka = () => {
                   <div key={step.id} className="flex items-center">
                     <div className="flex flex-col items-center">
                       <div
-                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${currentStep >= step.id
-                          ? 'bg-primary border-primary text-primary-foreground'
-                          : 'border-border text-muted-foreground'
-                          }`}
+                        className="flex items-center justify-center transition-colors"
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          border: '2px solid',
+                          borderColor: currentStep >= step.id
+                            ? 'var(--forge-accent-primary)'
+                            : 'var(--forge-border-active)',
+                          backgroundColor: currentStep >= step.id
+                            ? 'var(--forge-accent-primary)'
+                            : 'transparent',
+                          color: currentStep >= step.id
+                            ? 'var(--forge-bg-void)'
+                            : 'var(--forge-text-muted)',
+                        }}
                       >
-                        <Icon name={step.icon} size={20} />
+                        <Icon name={step.icon} size={18} />
                       </div>
                       <div className="mt-2 text-center">
                         <p
-                          className={`text-sm font-medium ${currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
-                            }`}
+                          style={{
+                            fontFamily: 'var(--forge-font-tech)',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            letterSpacing: '0.05em',
+                            textTransform: 'uppercase',
+                            color: currentStep >= step.id
+                              ? 'var(--forge-text-primary)'
+                              : 'var(--forge-text-muted)',
+                          }}
                         >
                           {step.title}
                         </p>
-                        <p className="text-xs text-muted-foreground">{step.description}</p>
+                        <p
+                          className="text-xs"
+                          style={{ color: 'var(--forge-text-muted)', fontSize: '10px' }}
+                        >
+                          {step.description}
+                        </p>
                       </div>
                     </div>
                     {index < steps.length - 1 && (
                       <div
-                        className={`w-24 h-0.5 mx-4 transition-colors ${currentStep > step.id ? 'bg-primary' : 'bg-border'
-                          }`}
+                        className="mx-4 transition-colors"
+                        style={{
+                          width: '4rem',
+                          height: 0,
+                          borderTop: currentStep > step.id
+                            ? '2px solid var(--forge-accent-primary)'
+                            : '2px dashed var(--forge-border-active)',
+                        }}
                       />
                     )}
                   </div>
@@ -730,13 +783,23 @@ const TestKalkulacka = () => {
 
                   {sliceAllProcessing && batchProgress.total > 0 && (
                     <div className="flex items-center gap-2 w-full max-w-[220px]">
-                      <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
+                      <div
+                        className="flex-1 rounded-full overflow-hidden"
+                        style={{ height: '6px', backgroundColor: 'var(--forge-bg-elevated)' }}
+                      >
                         <div
-                          className="h-full bg-primary rounded-full transition-all duration-300"
-                          style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%` }}
+                          className="rounded-full transition-all duration-300"
+                          style={{
+                            height: '100%',
+                            backgroundColor: 'var(--forge-accent-primary)',
+                            width: `${(batchProgress.done / batchProgress.total) * 100}%`,
+                          }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      <span
+                        className="whitespace-nowrap"
+                        style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}
+                      >
                         {batchProgress.done}/{batchProgress.total}
                       </span>
                     </div>
@@ -839,9 +902,21 @@ const TestKalkulacka = () => {
                 />
               )}
               {uploadedFiles.length > 0 && (
-                <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-4">
+                <div
+                  className="rounded-xl p-4 flex flex-col gap-4"
+                  style={{
+                    backgroundColor: 'var(--forge-bg-surface)',
+                    border: '1px solid var(--forge-border-default)',
+                    borderRadius: 'var(--forge-radius-lg)',
+                  }}
+                >
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold">Nahrané modely</h3>
+                    <h3
+                      className="font-semibold"
+                      style={{ color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}
+                    >
+                      Nahrané modely
+                    </h3>
                     <Button variant="ghost" size="icon" onClick={handleAddModelClick}>
                       <Icon name="Plus" size={16} />
                       <span className="sr-only">Přidání Modelu</span>
@@ -856,21 +931,31 @@ const TestKalkulacka = () => {
                           onClick={() => setSelectedFileId(file.id)}
                           className="w-full justify-start text-left h-auto py-2 px-3"
                           title={statusTooltips[file.status] || 'Neznámý stav'}
+                          style={
+                            selectedFile && selectedFile.id === file.id
+                              ? { backgroundColor: 'var(--forge-accent-primary)', color: 'var(--forge-bg-void)', borderColor: 'var(--forge-accent-primary)' }
+                              : { backgroundColor: 'var(--forge-bg-elevated)', color: 'var(--forge-text-primary)', borderColor: 'var(--forge-border-default)' }
+                          }
                         >
                           <div className="flex items-center gap-2 w-full">
                             {file.status === 'processing' && (
                               <Icon name="Loader" size={14} className="animate-spin flex-shrink-0" />
                             )}
-                            {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0 text-muted-foreground" />}
+                            {file.status === 'pending' && (
+                              <Icon name="Clock" size={14} className="flex-shrink-0" style={{ color: 'var(--forge-text-muted)' }} />
+                            )}
                             {file.status === 'completed' && (
-                              <Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" />
+                              <Icon name="CheckCircle" size={14} className="flex-shrink-0" style={{ color: 'var(--forge-success)' }} />
                             )}
                             {file.status === 'failed' && (
-                              <Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" />
+                              <Icon name="XCircle" size={14} className="flex-shrink-0" style={{ color: 'var(--forge-error)' }} />
                             )}
                             <span className="truncate flex-grow text-left">{file.name}</span>
                             {file.status === 'completed' && file.result?.metrics && (
-                              <span className="text-[11px] text-muted-foreground whitespace-nowrap ml-auto">
+                              <span
+                                className="whitespace-nowrap ml-auto"
+                                style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}
+                              >
                                 {Math.round((file.result.metrics.estimatedTimeSeconds || 0) / 60)} min
                               </span>
                             )}
@@ -878,19 +963,31 @@ const TestKalkulacka = () => {
                         </Button>
                         {file.status === 'processing' && (
                           <div className="mx-3 mt-1">
-                            <div className="h-1 bg-border rounded-full overflow-hidden">
-                              <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: '60%' }} />
+                            <div
+                              className="rounded-full overflow-hidden"
+                              style={{ height: '4px', backgroundColor: 'var(--forge-bg-elevated)' }}
+                            >
+                              <div
+                                className="rounded-full animate-pulse"
+                                style={{ height: '100%', width: '60%', backgroundColor: 'var(--forge-accent-primary)' }}
+                              />
                             </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">Vypočítávám…</p>
+                            <p style={{ fontSize: '10px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>Vypočítávám…</p>
                           </div>
                         )}
                         {file.status === 'failed' && file.error && (
                           <div className="mt-1 mx-3">
-                            <p className={`text-[10px] ${file.errorSeverity === 'warning' ? 'text-amber-500' : 'text-red-500'}`} title={file.errorRaw || file.error}>
+                            <p
+                              style={{
+                                fontSize: '10px',
+                                color: file.errorSeverity === 'warning' ? 'var(--forge-warning)' : 'var(--forge-error)',
+                              }}
+                              title={file.errorRaw || file.error}
+                            >
                               {file.error}
                             </p>
                             {file.errorCategory && file.errorCategory !== 'UNKNOWN' && (
-                              <span className="text-[9px] text-muted-foreground">{file.errorCategory}</span>
+                              <span style={{ fontSize: '9px', color: 'var(--forge-text-muted)' }}>{file.errorCategory}</span>
                             )}
                           </div>
                         )}
@@ -905,7 +1002,10 @@ const TestKalkulacka = () => {
 
           {/* Bottom navigation — hidden on step 5 (confirmation) */}
           {currentStep < 5 && (
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+            <div
+              className="flex items-center justify-between mt-8 pt-6"
+              style={{ borderTop: '1px solid var(--forge-border-default)' }}
+            >
               <Button
                 variant="outline"
                 onClick={handlePrevStep}

@@ -261,9 +261,9 @@ const AdminDashboard = () => {
     const current = getBranding(BRANDING_TENANT_ID);
     const defaults = getDefaultBranding();
     const tips = [];
-    if (!current?.logo) tips.push(language === 'cs' ? 'Přidej logo (zlepší důvěryhodnost widgetu).' : 'Add a logo (improves trust).');
-    if (!current?.businessName || current.businessName === defaults.businessName) tips.push(language === 'cs' ? 'Nastav název firmy v Brandingu.' : 'Set your business name in Branding.');
-    if (!current?.tagline || current.tagline === defaults.tagline) tips.push(language === 'cs' ? 'Doplň tagline (krátký popis).' : 'Add a tagline (short description).');
+    if (!current?.logo) tips.push(language === 'cs' ? 'Pridej logo (zlepsi duveryhodnost widgetu).' : 'Add a logo (improves trust).');
+    if (!current?.businessName || current.businessName === defaults.businessName) tips.push(language === 'cs' ? 'Nastav nazev firmy v Brandingu.' : 'Set your business name in Branding.');
+    if (!current?.tagline || current.tagline === defaults.tagline) tips.push(language === 'cs' ? 'Dopln tagline (kratky popis).' : 'Add a tagline (short description).');
     return tips.slice(0, 3);
   }, [refreshKey, language]);
 
@@ -288,14 +288,14 @@ const AdminDashboard = () => {
   const formatFeeType = (type) => {
     const map = {
       flat: 'fix',
-      per_gram: 'Kč/g',
-      per_minute: 'Kč/min',
+      per_gram: 'Kc/g',
+      per_minute: 'Kc/min',
       percent: '%',
-      per_cm3: 'Kč/cm³',
-      per_cm2: 'Kč/cm²',
-      per_model: 'Kč/ks',
-      per_layer: 'Kč/vr.',
-      per_mm_height: 'Kč/mm'
+      per_cm3: 'Kc/cm3',
+      per_cm2: 'Kc/cm2',
+      per_model: 'Kc/ks',
+      per_layer: 'Kc/vr.',
+      per_mm_height: 'Kc/mm'
     };
     return map[type] || type;
   };
@@ -327,7 +327,7 @@ const AdminDashboard = () => {
     updateDraft({ ...activeConfig, cards });
   };
 
-  
+
   const toggleLockCard = (id) => {
     if (!editing) return;
     const cards = activeConfig.cards.map((c) => (c.id === id ? { ...c, locked: !c.locked } : c));
@@ -354,7 +354,7 @@ const AdminDashboard = () => {
       id: uid('card'),
       metricKey,
       days: metric.supportsDays ? 30 : undefined,
-      color: metric.defaultColor || '#2563EB',
+      color: metric.defaultColor || '#00D4AA',
       titleOverride: '',
       layout: { x: pos.x, y: pos.y, w: 1, h: 1 },
     };
@@ -545,7 +545,7 @@ const AdminDashboard = () => {
         label: card.metricKey,
         icon: 'AlertTriangle',
         color: card.color || '#EF4444',
-        valueText: language === 'cs' ? 'Neznámé' : 'Unknown',
+        valueText: language === 'cs' ? 'Nezname' : 'Unknown',
         change: '',
         subtextNode: null,
       };
@@ -564,9 +564,22 @@ const AdminDashboard = () => {
     if (res.subtext && res.subtext.type === 'feeBreakdown') {
       const breakdown = res.subtext.breakdown || {};
       subtextNode = (
-        <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-1">
+        <div style={{
+          fontSize: 11,
+          fontFamily: 'var(--forge-font-mono)',
+          color: 'var(--forge-text-muted)',
+          marginTop: 4,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 4
+        }}>
           {Object.entries(breakdown).map(([type, count]) => (
-            <span key={type} className="bg-gray-100 px-1 rounded">
+            <span key={type} style={{
+              background: 'var(--forge-bg-elevated)',
+              padding: '2px 6px',
+              borderRadius: 'var(--forge-radius-sm, 4px)',
+              border: '1px solid var(--forge-border-default)'
+            }}>
               {count}x {formatFeeType(type)}
             </span>
           ))}
@@ -578,7 +591,7 @@ const AdminDashboard = () => {
       metric,
       label,
       icon: metric.icon || 'BarChart3',
-      color: card.color || metric.defaultColor || '#2563EB',
+      color: card.color || metric.defaultColor || '#00D4AA',
       valueText,
       change: res.change || '',
       subtextNode,
@@ -595,8 +608,26 @@ const AdminDashboard = () => {
     <div className={`admin-dashboard ${editing ? "editing" : ""}`} data-kpi-cols={gridCols}>
       <div className="dashboard-header">
         <div>
-          <h1>{language === 'cs' ? 'Dashboard' : 'Dashboard'}</h1>
-          <p>{language === 'cs' ? 'Přehled a rychlé statistiky' : 'Overview and quick stats'}</p>
+          <h1 style={{
+            margin: '0 0 4px 0',
+            fontSize: 28,
+            fontWeight: 700,
+            fontFamily: 'var(--forge-font-heading)',
+            color: 'var(--forge-text-primary)',
+            letterSpacing: '-0.02em'
+          }}>
+            {language === 'cs' ? 'Dashboard' : 'Dashboard'}
+          </h1>
+          <p style={{
+            margin: 0,
+            color: 'var(--forge-text-muted)',
+            fontSize: 13,
+            fontFamily: 'var(--forge-font-tech)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em'
+          }}>
+            {language === 'cs' ? 'Prehled a rychle statistiky' : 'Overview and quick stats'}
+          </p>
         </div>
 
         <div className="dashboard-actions">
@@ -627,18 +658,18 @@ const AdminDashboard = () => {
               </div>
               <button className="btn-secondary" onClick={() => setShowAddModal(true)}>
                 <Icon name="Plus" size={16} />
-                {language === 'cs' ? 'Přidat ukazatel' : 'Add KPI'}
+                {language === 'cs' ? 'Pridat ukazatel' : 'Add KPI'}
               </button>
               <button className="btn-secondary" onClick={resetToDefault}>
                 <Icon name="RotateCcw" size={16} />
                 {language === 'cs' ? 'Reset' : 'Reset'}
               </button>
               <button className="btn-secondary" onClick={cancelEdit}>
-                {language === 'cs' ? 'Zrušit' : 'Cancel'}
+                {language === 'cs' ? 'Zrusit' : 'Cancel'}
               </button>
               <button className="btn-primary" onClick={saveEdit}>
                 <Icon name="Save" size={16} />
-                {language === 'cs' ? 'Uložit' : 'Save'}
+                {language === 'cs' ? 'Ulozit' : 'Save'}
               </button>
             </>
           )}
@@ -654,7 +685,7 @@ const AdminDashboard = () => {
             </div>
             <div className="branding-banner-text">
               <div className="branding-banner-title">
-                {language === 'cs' ? 'Doporučení: dokonči Branding' : 'Tip: finish Branding'}
+                {language === 'cs' ? 'Doporuceni: dokonci Branding' : 'Tip: finish Branding'}
               </div>
               <ul className="branding-banner-list">
                 {brandingTips.map((tip, i) => <li key={i}>{tip}</li>)}
@@ -663,7 +694,7 @@ const AdminDashboard = () => {
           </div>
           <div className="branding-banner-actions">
             <button className="btn-secondary" onClick={() => navigate('/admin/branding')}>
-              {language === 'cs' ? 'Otevřít Branding' : 'Open Branding'}
+              {language === 'cs' ? 'Otevrit Branding' : 'Open Branding'}
             </button>
             <button className="banner-close" onClick={dismissBrandingBanner} aria-label="Dismiss">
               <Icon name="X" size={16} />
@@ -681,11 +712,11 @@ const AdminDashboard = () => {
           </label>
           <label className="toggle">
             <input type="checkbox" checked={!!activeConfig.sections?.quickStats} onChange={() => toggleSection('quickStats')} />
-            <span>{language === 'cs' ? 'Rychlé statistiky' : 'Quick stats'}</span>
+            <span>{language === 'cs' ? 'Rychle statistiky' : 'Quick stats'}</span>
           </label>
           <label className="toggle">
             <input type="checkbox" checked={!!activeConfig.sections?.brandingTips} onChange={() => toggleSection('brandingTips')} />
-            <span>{language === 'cs' ? 'Branding doporučení' : 'Branding tips'}</span>
+            <span>{language === 'cs' ? 'Branding doporuceni' : 'Branding tips'}</span>
           </label>
         </div>
       )}
@@ -715,14 +746,24 @@ const AdminDashboard = () => {
         onDragStop={(layout) => commitRglLayout(layout)}
         onResizeStop={(layout) => commitRglLayout(layout)}
       >
-        {activeConfig.cards.map((card) => {
+        {activeConfig.cards.map((card, cardIndex) => {
           const r = getCardMetricResult(card);
+          // Determine accent color for top border based on card index
+          const accentColors = ['#00D4AA', '#FF6B35', '#4DA8DA'];
+          const topBorderColor = card.color || accentColors[cardIndex % accentColors.length];
           return (
             <div key={card.id} className="rgl-item">
-              <div className="stat-card" style={{ borderColor: `${r.color}30`, background: card.bgColor || 'white' }}>
+              <div className="stat-card" style={{
+                borderTop: `2px solid ${topBorderColor}`,
+                borderRight: '1px solid var(--forge-border-default)',
+                borderBottom: '1px solid var(--forge-border-default)',
+                borderLeft: '1px solid var(--forge-border-default)',
+                background: card.bgColor || 'var(--forge-bg-surface)',
+                borderRadius: 'var(--forge-radius-md, 6px)'
+              }}>
                 {editing && (
                   <div className="card-edit-controls">
-                    <button className="icon-btn kpi-drag-handle" title={language === 'cs' ? 'Přetáhnout' : 'Drag'}>
+                    <button className="icon-btn kpi-drag-handle" title={language === 'cs' ? 'Pretahnout' : 'Drag'}>
                       <Icon name="GripVertical" size={14} />
                     </button>
                     <button
@@ -733,7 +774,7 @@ const AdminDashboard = () => {
                       <Icon name={card.locked ? 'Lock' : 'Unlock'} size={14} />
                     </button>
 
-                    <button className="icon-btn" onClick={() => openSettings(card.id)} title={language === 'cs' ? 'Nastavení' : 'Settings'}>
+                    <button className="icon-btn" onClick={() => openSettings(card.id)} title={language === 'cs' ? 'Nastaveni' : 'Settings'}>
                       <Icon name="Settings" size={14} />
                     </button>
                     <button className="icon-btn danger" onClick={() => removeCard(card.id)} title={language === 'cs' ? 'Odebrat' : 'Remove'}>
@@ -742,7 +783,7 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                <div className="stat-icon" style={{ background: `${r.color}20` }}>
+                <div className="stat-icon" style={{ background: `${r.color}15` }}>
                   <Icon name={r.icon} size={24} color={r.color} />
                 </div>
                 <div className="stat-content">
@@ -760,10 +801,15 @@ const AdminDashboard = () => {
       {/* Recent Activity */}
       {activeConfig.sections?.activity && (
         <div className="dashboard-section">
-          <h3>{language === 'cs' ? 'Poslední aktivita' : 'Recent Activity'}</h3>
+          <h3 style={{
+            fontFamily: 'var(--forge-font-heading)',
+            color: 'var(--forge-text-primary)'
+          }}>
+            {language === 'cs' ? 'Posledni aktivita' : 'Recent Activity'}
+          </h3>
           <div className="activity-list">
             {recentActivity.length === 0 ? (
-              <p className="empty-state">{language === 'cs' ? 'Žádná aktivita' : 'No activity'}</p>
+              <p className="empty-state">{language === 'cs' ? 'Zadna aktivita' : 'No activity'}</p>
             ) : (
               recentActivity.map((activity) => (
                 <div key={activity.id} className="activity-item">
@@ -771,7 +817,7 @@ const AdminDashboard = () => {
                   <div className="activity-content">
                     <p>{activity.text}</p>
                     <span className="activity-time">
-                      {activity.actor} • {activity.time}
+                      {activity.actor} &bull; {activity.time}
                     </span>
                   </div>
                 </div>
@@ -784,22 +830,27 @@ const AdminDashboard = () => {
       {/* Quick Stats */}
       {activeConfig.sections?.quickStats && (
         <div className="dashboard-section">
-          <h3>{language === 'cs' ? 'Rychlé statistiky' : 'Quick Stats'}</h3>
+          <h3 style={{
+            fontFamily: 'var(--forge-font-heading)',
+            color: 'var(--forge-text-primary)'
+          }}>
+            {language === 'cs' ? 'Rychle statistiky' : 'Quick Stats'}
+          </h3>
           <div className="quick-stats-grid">
-            <div className="quick-stat">
-              <span className="quick-stat-label">{language === 'cs' ? 'Průměrná cena (30d)' : 'Avg Price (30d)'}</span>
-              <span className="quick-stat-value">{analyticsByDays?.[30]?.metrics?.avg_price?.toFixed?.(0) || 0} Kč</span>
+            <div className="quick-stat" style={{ borderTop: '2px solid #00D4AA' }}>
+              <span className="quick-stat-label">{language === 'cs' ? 'Prumerna cena (30d)' : 'Avg Price (30d)'}</span>
+              <span className="quick-stat-value">{analyticsByDays?.[30]?.metrics?.avg_price?.toFixed?.(0) || 0} Kc</span>
             </div>
-            <div className="quick-stat">
-              <span className="quick-stat-label">{language === 'cs' ? 'Průměrný čas (30d)' : 'Avg Time (30d)'}</span>
+            <div className="quick-stat" style={{ borderTop: '2px solid #FF6B35' }}>
+              <span className="quick-stat-label">{language === 'cs' ? 'Prumerny cas (30d)' : 'Avg Time (30d)'}</span>
               <span className="quick-stat-value">{analyticsByDays?.[30]?.metrics?.avg_time_min?.toFixed?.(1) || 0} min</span>
             </div>
-            <div className="quick-stat">
-              <span className="quick-stat-label">{language === 'cs' ? 'Pending pozvánek' : 'Pending Invites'}</span>
+            <div className="quick-stat" style={{ borderTop: '2px solid #4DA8DA' }}>
+              <span className="quick-stat-label">{language === 'cs' ? 'Pending pozvanek' : 'Pending Invites'}</span>
               <span className="quick-stat-value">{teamSummary.pendingInvites}</span>
             </div>
-            <div className="quick-stat">
-              <span className="quick-stat-label">{language === 'cs' ? 'Nové objednávky' : 'New Orders'}</span>
+            <div className="quick-stat" style={{ borderTop: '2px solid #00D4AA' }}>
+              <span className="quick-stat-label">{language === 'cs' ? 'Nove objednavky' : 'New Orders'}</span>
               <span className="quick-stat-value">{ordersSummary.newOrders}</span>
             </div>
           </div>
@@ -811,7 +862,12 @@ const AdminDashboard = () => {
         <div className="modal-overlay" onMouseDown={() => setShowAddModal(false)}>
           <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{language === 'cs' ? 'Přidat ukazatel' : 'Add KPI'}</h3>
+              <h3 style={{
+                fontFamily: 'var(--forge-font-heading)',
+                color: 'var(--forge-text-primary)'
+              }}>
+                {language === 'cs' ? 'Pridat ukazatel' : 'Add KPI'}
+              </h3>
               <button className="icon-btn" onClick={() => setShowAddModal(false)}><Icon name="X" size={16} /></button>
             </div>
 
@@ -824,7 +880,7 @@ const AdminDashboard = () => {
                   onChange={(e) => setAddSearch(e.target.value)}
                 />
                 <select className="modal-select" value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
-                  <option value="all">{language === 'cs' ? 'Vše' : 'All'}</option>
+                  <option value="all">{language === 'cs' ? 'Vse' : 'All'}</option>
                   {DASHBOARD_CATEGORIES.map(c => (
                     <option key={c.key} value={c.key}>{labelByLang(c.label, language)}</option>
                   ))}
@@ -838,8 +894,8 @@ const AdminDashboard = () => {
                   return (
                     <button key={m.key} className="metric-row" onClick={() => addMetricCard(m.key)}>
                       <div className="metric-row-left">
-                        <div className="metric-row-icon" style={{ background: `${(m.defaultColor || '#2563EB')}20` }}>
-                          <Icon name={m.icon || 'BarChart3'} size={16} color={m.defaultColor || '#2563EB'} />
+                        <div className="metric-row-icon" style={{ background: `${(m.defaultColor || '#00D4AA')}15` }}>
+                          <Icon name={m.icon || 'BarChart3'} size={16} color={m.defaultColor || '#00D4AA'} />
                         </div>
                         <div className="metric-row-text">
                           <div className="metric-row-title">{label}</div>
@@ -875,7 +931,7 @@ const AdminDashboard = () => {
         .admin-dashboard {
           max-width: 1400px;
           padding: 24px;
-          background: #F9FAFB;
+          background: var(--forge-bg-void, #0A0E17);
           min-height: 100vh;
         }
 
@@ -884,19 +940,6 @@ const AdminDashboard = () => {
           justify-content: space-between;
           align-items: flex-start;
           margin-bottom: 20px;
-        }
-
-        .dashboard-header h1 {
-          margin: 0 0 4px 0;
-          font-size: 28px;
-          font-weight: 700;
-          color: #111827;
-        }
-
-        .dashboard-header p {
-          margin: 0;
-          color: #6B7280;
-          font-size: 14px;
         }
 
         .dashboard-actions {
@@ -909,25 +952,29 @@ const AdminDashboard = () => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          background: white;
-          border: 1px solid #E5E7EB;
+          background: var(--forge-bg-surface, #111827);
+          border: 1px solid var(--forge-border-default, #1E293B);
           padding: 8px 10px;
-          border-radius: 10px;
+          border-radius: var(--forge-radius-md, 6px);
         }
 
         .cols-label {
-          font-size: 12px;
-          color: #6B7280;
+          font-size: 11px;
+          color: var(--forge-text-muted, #64748B);
+          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
           font-weight: 600;
         }
 
         .cols-select {
-          border: 1px solid #E5E7EB;
-          background: #F9FAFB;
-          border-radius: 8px;
+          border: 1px solid var(--forge-border-default, #1E293B);
+          background: var(--forge-bg-void, #0A0E17);
+          border-radius: var(--forge-radius-md, 6px);
           padding: 6px 8px;
           font-size: 13px;
-          color: #111827;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-primary, #F1F5F9);
           outline: none;
         }
 
@@ -936,32 +983,36 @@ const AdminDashboard = () => {
           align-items: center;
           gap: 8px;
           padding: 10px 16px;
-          border-radius: 8px;
-          font-size: 14px;
+          border-radius: var(--forge-radius-md, 6px);
+          font-size: 13px;
+          font-family: var(--forge-font-tech, 'Space Mono', monospace);
           font-weight: 600;
           cursor: pointer;
           border: 1px solid transparent;
           transition: all 0.2s;
+          letter-spacing: 0.02em;
         }
 
         .btn-primary {
-          background: #2563EB;
-          color: white;
+          background: var(--forge-accent-primary, #00D4AA);
+          color: var(--forge-bg-void, #0A0E17);
         }
 
         .btn-primary:hover {
-          background: #1D4ED8;
+          background: #00E8BB;
+          box-shadow: 0 0 16px rgba(0, 212, 170, 0.25);
         }
 
         .btn-secondary {
-          background: white;
-          color: #374151;
-          border-color: #E5E7EB;
+          background: var(--forge-bg-surface, #111827);
+          color: var(--forge-text-secondary, #94A3B8);
+          border-color: var(--forge-border-default, #1E293B);
         }
 
         .btn-secondary:hover {
-          background: #F9FAFB;
-          border-color: #D1D5DB;
+          background: var(--forge-bg-elevated, #1E293B);
+          border-color: var(--forge-accent-primary, #00D4AA);
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         /* Branding banner */
@@ -969,12 +1020,12 @@ const AdminDashboard = () => {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          background: white;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
+          background: var(--forge-bg-surface, #111827);
+          border: 1px solid var(--forge-border-default, #1E293B);
+          border-left: 3px solid var(--forge-accent-primary, #00D4AA);
+          border-radius: var(--forge-radius-md, 6px);
           padding: 12px 14px;
           margin-bottom: 18px;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.06);
         }
 
         .branding-banner-left {
@@ -986,26 +1037,27 @@ const AdminDashboard = () => {
         .branding-banner-icon {
           width: 36px;
           height: 36px;
-          border-radius: 10px;
+          border-radius: var(--forge-radius-md, 6px);
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #EEF2FF;
-          color: #4F46E5;
+          background: rgba(0, 212, 170, 0.1);
+          color: var(--forge-accent-primary, #00D4AA);
           flex-shrink: 0;
         }
 
         .branding-banner-title {
           font-weight: 700;
-          color: #111827;
+          color: var(--forge-text-primary, #F1F5F9);
           margin-bottom: 4px;
           font-size: 14px;
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
         }
 
         .branding-banner-list {
           margin: 0;
           padding-left: 18px;
-          color: #4B5563;
+          color: var(--forge-text-secondary, #94A3B8);
           font-size: 13px;
         }
 
@@ -1018,14 +1070,19 @@ const AdminDashboard = () => {
         .banner-close {
           width: 34px;
           height: 34px;
-          border-radius: 8px;
-          border: 1px solid #E5E7EB;
-          background: #FFF;
+          border-radius: var(--forge-radius-md, 6px);
+          border: 1px solid var(--forge-border-default, #1E293B);
+          background: var(--forge-bg-surface, #111827);
+          color: var(--forge-text-muted, #64748B);
           cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .banner-close:hover {
-          background: #F9FAFB;
+          background: var(--forge-bg-elevated, #1E293B);
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         /* Edit toggles */
@@ -1033,28 +1090,28 @@ const AdminDashboard = () => {
           display: flex;
           gap: 16px;
           flex-wrap: wrap;
-          background: white;
-          border: 1px solid #E5E7EB;
+          background: var(--forge-bg-surface, #111827);
+          border: 1px solid var(--forge-border-default, #1E293B);
           padding: 10px 12px;
-          border-radius: 12px;
+          border-radius: var(--forge-radius-md, 6px);
           margin-bottom: 18px;
         }
         .toggle {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          color: #374151;
+          color: var(--forge-text-secondary, #94A3B8);
           font-size: 13px;
           user-select: none;
+        }
+
+        .toggle input[type="checkbox"] {
+          accent-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .stats-grid {
           position: relative;
           margin-bottom: 32px;
-        }
-
-        .stat-card {
-          height: 100%;
         }
 
         .kpi-drag-handle {
@@ -1067,19 +1124,20 @@ const AdminDashboard = () => {
 
         .stat-card {
           position: relative;
-          background: white;
-          border-radius: 12px;
+          height: 100%;
+          background: var(--forge-bg-surface, #111827);
+          border-radius: var(--forge-radius-md, 6px);
           padding: 24px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-          border: 1px solid #E5E7EB;
+          border: 1px solid var(--forge-border-default, #1E293B);
           display: flex;
           gap: 16px;
           transition: all 0.2s;
         }
 
         .stat-card:hover {
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          transform: translateY(-2px);
+          border-color: rgba(0, 212, 170, 0.3);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+          transform: translateY(-1px);
         }
 
         .card-edit-controls {
@@ -1088,43 +1146,50 @@ const AdminDashboard = () => {
           right: 10px;
           display: flex;
           gap: 6px;
-          background: rgba(255,255,255,0.9);
-          border: 1px solid #E5E7EB;
+          background: var(--forge-bg-elevated, #1E293B);
+          border: 1px solid var(--forge-border-default, #1E293B);
           padding: 6px;
-          border-radius: 10px;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+          border-radius: var(--forge-radius-md, 6px);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
         .icon-btn {
           width: 28px;
           height: 28px;
-          border-radius: 8px;
-          border: 1px solid #E5E7EB;
-          background: white;
+          border-radius: var(--forge-radius-md, 6px);
+          border: 1px solid var(--forge-border-default, #1E293B);
+          background: var(--forge-bg-surface, #111827);
           cursor: pointer;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: #374151;
+          color: var(--forge-text-secondary, #94A3B8);
         }
 
         .icon-btn:hover {
-          background: #F9FAFB;
+          background: var(--forge-bg-elevated, #1E293B);
+          color: var(--forge-text-primary, #F1F5F9);
+          border-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .icon-btn:disabled {
-          opacity: 0.5;
+          opacity: 0.35;
           cursor: not-allowed;
         }
 
         .icon-btn.danger {
-          color: #DC2626;
+          color: #EF4444;
+        }
+
+        .icon-btn.danger:hover {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: #EF4444;
         }
 
         .stat-icon {
           width: 56px;
           height: 56px;
-          border-radius: 12px;
+          border-radius: var(--forge-radius-md, 6px);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1138,8 +1203,11 @@ const AdminDashboard = () => {
 
         .stat-label {
           margin: 0 0 4px 0;
-          font-size: 13px;
-          color: #6B7280;
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted, #64748B);
           font-weight: 500;
         }
 
@@ -1147,13 +1215,15 @@ const AdminDashboard = () => {
           margin: 0 0 4px 0;
           font-size: 28px;
           font-weight: 700;
-          color: #111827;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         .stat-change {
           margin: 0;
-          font-size: 13px;
-          color: #6B7280;
+          font-size: 12px;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-muted, #64748B);
         }
 
         .stat-change.empty {
@@ -1161,10 +1231,10 @@ const AdminDashboard = () => {
         }
 
         .dashboard-section {
-          background: white;
-          border-radius: 12px;
+          background: var(--forge-bg-surface, #111827);
+          border-radius: var(--forge-radius-md, 6px);
           padding: 24px;
-          border: 1px solid #E5E7EB;
+          border: 1px solid var(--forge-border-default, #1E293B);
           margin-bottom: 24px;
         }
 
@@ -1172,7 +1242,8 @@ const AdminDashboard = () => {
           margin: 0 0 16px 0;
           font-size: 18px;
           font-weight: 700;
-          color: #111827;
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         .activity-list {
@@ -1185,6 +1256,13 @@ const AdminDashboard = () => {
           display: flex;
           gap: 12px;
           align-items: flex-start;
+          padding: 8px 10px;
+          border-radius: var(--forge-radius-md, 6px);
+          transition: background 0.15s;
+        }
+
+        .activity-item:hover {
+          background: var(--forge-bg-elevated, #1E293B);
         }
 
         .activity-dot {
@@ -1195,57 +1273,63 @@ const AdminDashboard = () => {
           flex-shrink: 0;
         }
 
-        .activity-dot.add { background: #10B981; }
-        .activity-dot.update { background: #3B82F6; }
+        .activity-dot.add { background: #00D4AA; }
+        .activity-dot.update { background: #4DA8DA; }
 
         .activity-content p {
           margin: 0 0 2px 0;
           font-size: 14px;
-          color: #111827;
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         .activity-time {
-          font-size: 12px;
-          color: #6B7280;
+          font-size: 11px;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-muted, #64748B);
         }
 
         .empty-state {
           margin: 0;
-          color: #6B7280;
+          color: var(--forge-text-muted, #64748B);
           font-size: 14px;
         }
 
         .quick-stats-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          grid-template-columns: 1.2fr 1fr 0.8fr 1fr;
           gap: 16px;
         }
 
         .quick-stat {
-          background: #F9FAFB;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
+          background: var(--forge-bg-void, #0A0E17);
+          border: 1px solid var(--forge-border-default, #1E293B);
+          border-radius: var(--forge-radius-md, 6px);
           padding: 16px;
         }
 
         .quick-stat-label {
           display: block;
-          font-size: 12px;
-          color: #6B7280;
+          font-size: 10px;
+          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted, #64748B);
           margin-bottom: 6px;
         }
 
         .quick-stat-value {
           font-size: 18px;
           font-weight: 700;
-          color: #111827;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         /* Modal */
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(17, 24, 39, 0.45);
+          background: rgba(0, 0, 0, 0.65);
+          backdrop-filter: blur(4px);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1257,10 +1341,10 @@ const AdminDashboard = () => {
           width: min(860px, 100%);
           max-height: min(80vh, 900px);
           overflow: hidden;
-          background: white;
-          border-radius: 14px;
-          border: 1px solid #E5E7EB;
-          box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+          background: var(--forge-bg-surface, #111827);
+          border-radius: var(--forge-radius-md, 6px);
+          border: 1px solid var(--forge-border-default, #1E293B);
+          box-shadow: 0 20px 60px rgba(0,0,0,0.5);
           display: flex;
           flex-direction: column;
         }
@@ -1270,14 +1354,15 @@ const AdminDashboard = () => {
           align-items: center;
           justify-content: space-between;
           padding: 14px 16px;
-          border-bottom: 1px solid #E5E7EB;
+          border-bottom: 1px solid var(--forge-border-default, #1E293B);
         }
 
         .modal-header h3 {
           margin: 0;
           font-size: 16px;
           font-weight: 800;
-          color: #111827;
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+          color: var(--forge-text-primary, #F1F5F9);
         }
 
         .modal-body {
@@ -1293,12 +1378,23 @@ const AdminDashboard = () => {
         }
 
         .modal-input, .modal-select {
-          border: 1px solid #E5E7EB;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default, #1E293B);
+          border-radius: var(--forge-radius-md, 6px);
           padding: 10px 12px;
           font-size: 14px;
           outline: none;
-          background: white;
+          background: var(--forge-bg-void, #0A0E17);
+          color: var(--forge-text-primary, #F1F5F9);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+        }
+
+        .modal-input::placeholder {
+          color: var(--forge-text-muted, #64748B);
+        }
+
+        .modal-input:focus, .modal-select:focus {
+          border-color: var(--forge-accent-primary, #00D4AA);
+          box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.15);
         }
 
         .modal-input {
@@ -1315,9 +1411,9 @@ const AdminDashboard = () => {
         .metric-row {
           width: 100%;
           text-align: left;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-          background: white;
+          border: 1px solid var(--forge-border-default, #1E293B);
+          border-radius: var(--forge-radius-md, 6px);
+          background: var(--forge-bg-surface, #111827);
           padding: 10px 12px;
           cursor: pointer;
           display: flex;
@@ -1327,8 +1423,8 @@ const AdminDashboard = () => {
         }
 
         .metric-row:hover {
-          background: #F9FAFB;
-          border-color: #D1D5DB;
+          background: var(--forge-bg-elevated, #1E293B);
+          border-color: var(--forge-accent-primary, #00D4AA);
         }
 
         .metric-row-left {
@@ -1341,7 +1437,7 @@ const AdminDashboard = () => {
         .metric-row-icon {
           width: 34px;
           height: 34px;
-          border-radius: 10px;
+          border-radius: var(--forge-radius-md, 6px);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1354,7 +1450,7 @@ const AdminDashboard = () => {
 
         .metric-row-title {
           font-weight: 700;
-          color: #111827;
+          color: var(--forge-text-primary, #F1F5F9);
           font-size: 14px;
           white-space: nowrap;
           overflow: hidden;
@@ -1362,24 +1458,26 @@ const AdminDashboard = () => {
         }
 
         .metric-row-sub {
-          color: #6B7280;
-          font-size: 12px;
+          color: var(--forge-text-muted, #64748B);
+          font-size: 11px;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
         }
 
         .metric-row-right {
           display: flex;
           align-items: center;
           gap: 10px;
-          color: #374151;
+          color: var(--forge-text-secondary, #94A3B8);
         }
 
         .pill {
-          font-size: 12px;
-          padding: 4px 8px;
+          font-size: 11px;
+          padding: 3px 8px;
           border-radius: 999px;
-          background: #F3F4F6;
-          border: 1px solid #E5E7EB;
-          color: #374151;
+          background: var(--forge-bg-elevated, #1E293B);
+          border: 1px solid var(--forge-border-default, #1E293B);
+          color: var(--forge-text-muted, #64748B);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
         }
 
         @media (max-width: 640px) {
@@ -1387,8 +1485,11 @@ const AdminDashboard = () => {
             flex-direction: column;
             gap: 12px;
           }
+          .quick-stats-grid {
+            grid-template-columns: 1fr 1fr;
+          }
         }
-      
+
         /* --- KPI grid readability (handles many columns) --- */
         .stat-card {
           height: 100%;
@@ -1427,14 +1528,28 @@ const AdminDashboard = () => {
           height: 18px;
         }
         .admin-dashboard.editing .react-resizable-handle::after {
-          border-right: 2px solid rgba(17,24,39,0.35);
-          border-bottom: 2px solid rgba(17,24,39,0.35);
+          border-right: 2px solid var(--forge-accent-primary, #00D4AA);
+          border-bottom: 2px solid var(--forge-accent-primary, #00D4AA);
         }
         .admin-dashboard.editing .rgl-item {
           overflow: visible;
         }
 
-`}</style>
+        /* Scrollbar styling for dark theme */
+        .modal-body::-webkit-scrollbar {
+          width: 6px;
+        }
+        .modal-body::-webkit-scrollbar-track {
+          background: var(--forge-bg-void, #0A0E17);
+        }
+        .modal-body::-webkit-scrollbar-thumb {
+          background: var(--forge-border-default, #1E293B);
+          border-radius: 3px;
+        }
+        .modal-body::-webkit-scrollbar-thumb:hover {
+          background: var(--forge-text-muted, #64748B);
+        }
+      `}</style>
     </div>
   );
 };
@@ -1444,18 +1559,41 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
   const supportsDays = !!metric?.supportsDays;
   const days = supportsDays ? (card.days || 30) : undefined;
 
+  const fieldLabelStyle = {
+    fontSize: 10,
+    fontFamily: 'var(--forge-font-tech, "Space Mono", monospace)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--forge-text-muted, #64748B)',
+    marginBottom: 6,
+  };
+
+  const colorInputStyle = {
+    width: 48,
+    height: 38,
+    border: '1px solid var(--forge-border-default, #1E293B)',
+    borderRadius: 'var(--forge-radius-md, 6px)',
+    padding: 4,
+    background: 'var(--forge-bg-void, #0A0E17)',
+  };
+
   return (
     <div className="modal-overlay" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{language === 'cs' ? 'Nastavení ukazatele' : 'KPI Settings'}</h3>
+          <h3 style={{
+            fontFamily: 'var(--forge-font-heading, "Space Grotesk", sans-serif)',
+            color: 'var(--forge-text-primary, #F1F5F9)'
+          }}>
+            {language === 'cs' ? 'Nastaveni ukazatele' : 'KPI Settings'}
+          </h3>
           <button className="icon-btn" onClick={onClose}><Icon name="X" size={16} /></button>
         </div>
         <div className="modal-body">
           <div style={{ display: 'grid', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
-                {language === 'cs' ? 'Vlastní název (volitelné)' : 'Custom title (optional)'}
+              <div style={fieldLabelStyle}>
+                {language === 'cs' ? 'Vlastni nazev (volitelne)' : 'Custom title (optional)'}
               </div>
               <input
                 className="modal-input"
@@ -1466,42 +1604,42 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
             </div>
 
             <div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
+              <div style={fieldLabelStyle}>
                 {language === 'cs' ? 'Barva' : 'Color'}
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="color"
-                  value={card.color || metric?.defaultColor || '#2563EB'}
+                  value={card.color || metric?.defaultColor || '#00D4AA'}
                   onChange={(e) => onChange({ color: e.target.value })}
-                  style={{ width: 48, height: 38, border: '1px solid #E5E7EB', borderRadius: 10, padding: 4, background: 'white' }}
+                  style={colorInputStyle}
                 />
                 <input
                   className="modal-input"
                   value={card.color || ''}
                   onChange={(e) => onChange({ color: e.target.value })}
-                  placeholder="#2563EB"
+                  placeholder="#00D4AA"
                   style={{ maxWidth: 220 }}
                 />
               </div>
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
-                {language === 'cs' ? 'Pozadí karty' : 'Card background'}
+              <div style={fieldLabelStyle}>
+                {language === 'cs' ? 'Pozadi karty' : 'Card background'}
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="color"
-                  value={(card.bgColor && card.bgColor.startsWith('#')) ? card.bgColor : '#FFFFFF'}
+                  value={(card.bgColor && card.bgColor.startsWith('#')) ? card.bgColor : '#111827'}
                   onChange={(e) => onChange({ bgColor: e.target.value })}
-                  style={{ width: 48, height: 38, border: '1px solid #E5E7EB', borderRadius: 10, padding: 4, background: 'white' }}
+                  style={colorInputStyle}
                 />
                 <input
                   className="modal-input"
                   value={card.bgColor || ''}
                   onChange={(e) => onChange({ bgColor: e.target.value })}
-                  placeholder={language === 'cs' ? 'např. #ffffff nebo prázdné' : 'e.g. #ffffff or empty'}
+                  placeholder={language === 'cs' ? 'napr. #111827 nebo prazdne' : 'e.g. #111827 or empty'}
                   style={{ maxWidth: 220 }}
                 />
                 <button
@@ -1510,42 +1648,49 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
                   onClick={() => onChange({ bgColor: '' })}
                   style={{ padding: '8px 12px' }}
                 >
-                  {language === 'cs' ? 'Vyčistit' : 'Clear'}
+                  {language === 'cs' ? 'Vycistit' : 'Clear'}
                 </button>
               </div>
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, color: '#111827' }}>
+              <label style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'center',
+                fontSize: 13,
+                color: 'var(--forge-text-primary, #F1F5F9)'
+              }}>
                 <input
                   type="checkbox"
                   checked={!!card.locked}
                   onChange={() => onChange({ locked: !card.locked })}
+                  style={{ accentColor: 'var(--forge-accent-primary, #00D4AA)' }}
                 />
-                {language === 'cs' ? 'Zamknout kartu (nelze přesouvat ani měnit velikost)' : 'Lock card (disable move/resize)'}
+                {language === 'cs' ? 'Zamknout kartu (nelze presouvat ani menit velikost)' : 'Lock card (disable move/resize)'}
               </label>
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
+              <div style={fieldLabelStyle}>
                 {language === 'cs' ? 'Velikost karty' : 'Card size'}
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: 1, h: 1 } })}>
-                  1×1
+                  1x1
                 </button>
                 <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: Math.min(2, gridCols), h: 1 } })}>
-                  2×1
+                  2x1
                 </button>
                 <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: 1, h: 2 } })}>
-                  1×2
+                  1x2
                 </button>
                 <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: Math.min(2, gridCols), h: 2 } })}>
-                  2×2
+                  2x2
                 </button>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginLeft: 6 }}>
-                  <div style={{ fontSize: 12, color: '#6B7280' }}>{language === 'cs' ? 'Šířka' : 'W'}</div>
+                  <div style={fieldLabelStyle}>{language === 'cs' ? 'Sirka' : 'W'}</div>
                   <select
                     className="modal-select"
                     value={card.layout?.w || 1}
@@ -1557,7 +1702,7 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
                     ))}
                   </select>
 
-                  <div style={{ fontSize: 12, color: '#6B7280' }}>{language === 'cs' ? 'Výška' : 'H'}</div>
+                  <div style={fieldLabelStyle}>{language === 'cs' ? 'Vyska' : 'H'}</div>
                   <select
                     className="modal-select"
                     value={card.layout?.h || 1}
@@ -1571,9 +1716,14 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
                 </div>
               </div>
 
-              <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
+              <div style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: 'var(--forge-text-muted, #64748B)',
+                fontFamily: 'var(--forge-font-mono, "JetBrains Mono", monospace)'
+              }}>
                 {language === 'cs'
-                  ? 'Tip: velikost můžeš změnit i tažením za roh karty (v režimu úprav).'
+                  ? 'Tip: velikost muzes zmenit i tazenim za roh karty (v rezimu uprav).'
                   : 'Tip: you can also resize by dragging the card corner (in edit mode).'}
               </div>
             </div>
@@ -1581,17 +1731,17 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
             {supportsDays && (
 
               <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
-                  {language === 'cs' ? 'Časový rozsah' : 'Time range'}
+                <div style={fieldLabelStyle}>
+                  {language === 'cs' ? 'Casovy rozsah' : 'Time range'}
                 </div>
                 <select
                   className="modal-select"
                   value={days}
                   onChange={(e) => onChange({ days: Number(e.target.value) })}
                 >
-                  <option value={7}>{language === 'cs' ? '7 dní' : '7 days'}</option>
-                  <option value={30}>{language === 'cs' ? '30 dní' : '30 days'}</option>
-                  <option value={90}>{language === 'cs' ? '90 dní' : '90 days'}</option>
+                  <option value={7}>{language === 'cs' ? '7 dni' : '7 days'}</option>
+                  <option value={30}>{language === 'cs' ? '30 dni' : '30 days'}</option>
+                  <option value={90}>{language === 'cs' ? '90 dni' : '90 days'}</option>
                 </select>
               </div>
             )}

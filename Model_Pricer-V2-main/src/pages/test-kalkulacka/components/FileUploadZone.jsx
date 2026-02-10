@@ -3,6 +3,130 @@ import { useDropzone } from 'react-dropzone';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
+const forgeStyles = {
+  uploadZone: {
+    background: 'var(--forge-bg-void)',
+    border: '2px dashed var(--forge-border-active)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '2rem',
+    textAlign: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s var(--forge-ease-out-expo)',
+  },
+  uploadZoneActive: {
+    border: '2px solid var(--forge-accent-primary)',
+    background: 'rgba(0, 212, 170, 0.04)',
+    transform: 'scale(1.02)',
+  },
+  uploadZoneHover: {
+    borderColor: 'rgba(0, 212, 170, 0.4)',
+  },
+  iconCircle: {
+    width: '4rem',
+    height: '4rem',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'var(--forge-bg-elevated)',
+    color: 'var(--forge-text-muted)',
+    transition: 'all 0.2s',
+  },
+  iconCircleActive: {
+    background: 'var(--forge-accent-primary)',
+    color: '#08090C',
+  },
+  heading: {
+    fontSize: 'var(--forge-text-xl)',
+    fontFamily: 'var(--forge-font-tech)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
+  subText: {
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-secondary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  mutedText: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  sectionLabel: {
+    fontSize: '12px',
+    fontFamily: 'var(--forge-font-body)',
+    fontWeight: 500,
+    color: 'var(--forge-text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  card: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '1rem',
+  },
+  progressBar: {
+    width: '100%',
+    height: '0.5rem',
+    background: 'var(--forge-bg-elevated)',
+    borderRadius: 'var(--forge-radius-sm)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    background: 'var(--forge-accent-primary)',
+    borderRadius: 'var(--forge-radius-sm)',
+    transition: 'width 0.3s var(--forge-ease-out-expo)',
+  },
+  fileIcon: {
+    width: '2.5rem',
+    height: '2.5rem',
+    background: 'rgba(0, 212, 170, 0.1)',
+    borderRadius: 'var(--forge-radius-md)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fileName: {
+    fontSize: 'var(--forge-text-base)',
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  fileMeta: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-success)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  infoBox: {
+    background: 'var(--forge-bg-elevated)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '1rem',
+  },
+  pill: {
+    display: 'inline-block',
+    fontSize: 'var(--forge-text-xs)',
+    fontFamily: 'var(--forge-font-mono)',
+    padding: '0.125rem 0.5rem',
+    borderRadius: '999px',
+    background: 'var(--forge-bg-elevated)',
+    color: 'var(--forge-text-secondary)',
+    border: '1px solid var(--forge-border-default)',
+  },
+};
+
 const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
   const [uploadProgress, setUploadProgress] = useState({});
 
@@ -76,35 +200,40 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Upload Zone */}
       <div
         {...getRootProps()}
-        className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 ${
-          isDragActive
-            ? 'border-primary bg-primary/5 scale-[1.02]'
-            : 'border-border hover:border-primary/50 hover:bg-muted/30'
-        }`}
+        style={{
+          ...forgeStyles.uploadZone,
+          ...(isDragActive ? forgeStyles.uploadZoneActive : {}),
+        }}
       >
         <input {...getInputProps()} />
 
-        <div className="flex flex-col items-center space-y-4">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
           <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${
-              isDragActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-            }`}
+            style={{
+              ...forgeStyles.iconCircle,
+              ...(isDragActive ? forgeStyles.iconCircleActive : {}),
+            }}
           >
             <Icon name="Upload" size={24} />
           </div>
 
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-foreground">
-              {isDragActive ? 'Pusťte soubory zde' : 'Nahrajte 3D modely'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <h3 style={forgeStyles.heading}>
+              {isDragActive ? 'Pus\u0165te soubory zde' : 'Nahrajte 3D modely'}
             </h3>
-            <p className="text-sm text-muted-foreground">
-              Přetáhněte STL nebo OBJ soubory nebo klikněte pro výběr
+            <p style={forgeStyles.subText}>
+              P\u0159et\u00e1hn\u011bte STL nebo OBJ soubory nebo klikn\u011bte pro v\u00fdb\u011br
             </p>
-            <p className="text-xs text-muted-foreground">Maximální velikost: 50MB na soubor</p>
+            <p style={forgeStyles.mutedText}>Maxim\u00e1ln\u00ed velikost: 50MB na soubor</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+            <span style={forgeStyles.pill}>.STL</span>
+            <span style={forgeStyles.pill}>.OBJ</span>
           </div>
 
           <Button variant="outline" size="sm">
@@ -116,16 +245,20 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
       {/* Upload Progress */}
       {Object.keys(uploadProgress).length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-foreground">Nahrávání souborů</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <h4 style={forgeStyles.sectionLabel}>Nahr\u00e1v\u00e1n\u00ed soubor\u016f</h4>
           {Object.entries(uploadProgress).map(([fileId, progress]) => (
-            <div key={fileId} className="bg-card border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-foreground">Nahrávání...</span>
-                <span className="text-sm text-muted-foreground">{progress}%</span>
+            <div key={fileId} style={forgeStyles.card}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: 'var(--forge-text-base)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
+                  Nahr\u00e1v\u00e1n\u00ed...
+                </span>
+                <span style={{ fontSize: 'var(--forge-text-base)', color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }}>
+                  {progress}%
+                </span>
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+              <div style={forgeStyles.progressBar}>
+                <div style={{ ...forgeStyles.progressFill, width: `${progress}%` }} />
               </div>
             </div>
           ))}
@@ -134,34 +267,36 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
       {/* Uploaded Files List */}
       {uploadedFiles?.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-foreground">Nahrané soubory ({uploadedFiles.length})</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h4 style={forgeStyles.sectionLabel}>
+              Nahran\u00e9 soubory ({uploadedFiles.length})
+            </h4>
             <Button variant="ghost" size="sm">
               <Icon name="MoreHorizontal" size={16} />
             </Button>
           </div>
 
-          <div className="space-y-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {uploadedFiles.map((file) => (
-              <div key={file?.id} className="bg-card border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <Icon name="Box" size={20} className="text-primary" />
+              <div key={file?.id} style={forgeStyles.card}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={forgeStyles.fileIcon}>
+                      <Icon name="Box" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{file?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatFileSize(file?.size)} • {file?.type}
+                      <p style={forgeStyles.fileName}>{file?.name}</p>
+                      <p style={forgeStyles.fileMeta}>
+                        {formatFileSize(file?.size)} {'\u2022'} {file?.type}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-1 text-success">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={forgeStyles.badge}>
                       <Icon name="CheckCircle" size={16} />
-                      <span className="text-xs">Hotovo</span>
+                      <span>Hotovo</span>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => onRemoveFile(file?.id)}>
                       <Icon name="X" size={16} />
@@ -175,13 +310,15 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
       )}
 
       {/* File Format Info */}
-      <div className="bg-muted/30 border border-border rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <Icon name="Info" size={16} className="text-primary mt-0.5" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Podporované formáty</p>
-            <p className="text-xs text-muted-foreground">
-              STL, OBJ soubory • Maximální velikost 50MB • Více souborů najednou
+      <div style={forgeStyles.infoBox}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+          <Icon name="Info" size={16} style={{ color: 'var(--forge-accent-primary)', marginTop: '2px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <p style={{ fontSize: 'var(--forge-text-base)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
+              Podporovan\u00e9 form\u00e1ty
+            </p>
+            <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>
+              STL, OBJ soubory {'\u2022'} Maxim\u00e1ln\u00ed velikost 50MB {'\u2022'} V\u00edce soubor\u016f najednou
             </p>
           </div>
         </div>

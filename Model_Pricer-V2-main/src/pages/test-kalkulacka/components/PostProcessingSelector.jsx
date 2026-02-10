@@ -11,47 +11,84 @@ export default function PostProcessingSelector({ fees = [], selectedFeeIds = new
 
   if (postProcessingFees.length === 0) return null;
 
+  const cardStyle = {
+    backgroundColor: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '16px',
+  };
+
+  const headingStyle = {
+    fontFamily: 'var(--forge-font-tech)',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '12px',
+  };
+
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-        <Icon name="Paintbrush" size={18} />
+    <div style={cardStyle}>
+      <h3 style={headingStyle}>
+        <Icon name="Paintbrush" size={18} style={{ color: 'var(--forge-text-muted)' }} />
         Post-Processing Services
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
         {postProcessingFees.map(fee => {
           const isSelected = selectedFeeIds.has(fee.id);
           return (
             <button
               key={fee.id}
               onClick={() => onToggleFee(fee.id)}
-              className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left ${
-                isSelected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/30'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: 'var(--forge-radius-sm)',
+                border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-border-default)',
+                backgroundColor: isSelected ? 'rgba(0, 212, 170, 0.06)' : 'var(--forge-bg-elevated)',
+                transition: 'all 150ms ease-out',
+                textAlign: 'left',
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0, 212, 170, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+              }}
             >
-              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
-              }`}>
-                {isSelected && <Icon name="Check" size={12} className="text-primary-foreground" />}
+              <div style={{
+                width: '18px', height: '18px', borderRadius: 'var(--forge-radius-sm)',
+                border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-text-disabled)',
+                backgroundColor: isSelected ? 'var(--forge-accent-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px',
+              }}>
+                {isSelected && <Icon name="Check" size={12} style={{ color: '#08090C' }} />}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm text-foreground">{fee.name}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>{fee.name}</div>
                 {fee.customer_description && (
-                  <div className="text-xs text-muted-foreground mt-0.5">{fee.customer_description}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', marginTop: '3px', fontFamily: 'var(--forge-font-body)' }}>{fee.customer_description}</div>
                 )}
                 {fee.processing_days > 0 && (
-                  <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <div style={{ fontSize: '11px', color: 'var(--forge-accent-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Icon name="Clock" size={10} />
                     +{fee.processing_days} days
                   </div>
                 )}
-                <div className="text-xs text-muted-foreground mt-1">
+                <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', marginTop: '4px', fontFamily: 'var(--forge-font-mono)' }}>
                   {fee.type === 'percent' ? `${fee.value}%` : `${fee.value} CZK`}
                 </div>
               </div>
               {fee.image_url && (
-                <img src={fee.image_url} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" loading="lazy" />
+                <img src={fee.image_url} alt="" style={{ width: '40px', height: '40px', borderRadius: 'var(--forge-radius-sm)', objectFit: 'cover', flexShrink: 0 }} loading="lazy" />
               )}
             </button>
           );

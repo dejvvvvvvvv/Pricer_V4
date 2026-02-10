@@ -446,8 +446,8 @@ const AdminWidget = () => {
               const isActive = w.status !== 'disabled';
               const isSelected = w.id === selectedId;
               const barColor = isActive
-                ? (w.primaryColorOverride || '#2563EB')
-                : '#9ca3af';
+                ? (w.primaryColorOverride || '#00D4AA')
+                : '#4a5568';
 
               return (
                 <div
@@ -670,7 +670,7 @@ const AdminWidget = () => {
                   autoFocus
                 />
                 {createError && (
-                  <div role="alert" style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>
+                  <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>
                     {createError}
                   </div>
                 )}
@@ -704,7 +704,7 @@ const AdminWidget = () => {
 
       <style>{`
         /* ============================================================= */
-        /*  AdminWidget — aw-* scoped styles                             */
+        /*  AdminWidget — aw-* scoped styles — FORGE Dark Theme          */
         /* ============================================================= */
 
         .aw-page {
@@ -714,7 +714,8 @@ const AdminWidget = () => {
         .aw-loading {
           padding: 40px;
           text-align: center;
-          color: #6b7280;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
         }
 
         /* ---- Top bar ---- */
@@ -730,11 +731,13 @@ const AdminWidget = () => {
           font-size: 22px;
           font-weight: 800;
           margin: 0;
-          color: #111827;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.02em;
         }
 
         .aw-subtitle {
-          color: #6b7280;
+          color: var(--forge-text-muted);
           margin: 4px 0 0 0;
           font-size: 14px;
         }
@@ -751,8 +754,9 @@ const AdminWidget = () => {
 
         .aw-plan-count {
           font-size: 13px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           font-weight: 600;
+          font-family: var(--forge-font-tech);
         }
 
         /* ---- Buttons ---- */
@@ -761,12 +765,14 @@ const AdminWidget = () => {
           align-items: center;
           gap: 6px;
           padding: 8px 14px;
-          border-radius: 8px;
+          border-radius: var(--forge-radius-md);
           cursor: pointer;
           font-weight: 600;
           font-size: 13px;
           border: 1px solid transparent;
           transition: all 0.15s;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.02em;
         }
 
         .aw-btn:disabled {
@@ -775,35 +781,37 @@ const AdminWidget = () => {
         }
 
         .aw-btn-primary {
-          background: #2563eb;
-          color: white;
+          background: var(--forge-accent-primary);
+          color: #0a0f1a;
         }
         .aw-btn-primary:hover:not(:disabled) {
-          background: #1d4ed8;
+          background: var(--forge-accent-hover, #00eabb);
+          box-shadow: 0 0 12px rgba(0,212,170,0.3);
         }
 
         .aw-btn-secondary {
-          background: white;
-          color: #374151;
-          border-color: #e5e7eb;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-secondary);
+          border-color: var(--forge-border-default);
         }
         .aw-btn-secondary:hover:not(:disabled) {
-          background: #f9fafb;
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-primary);
         }
 
         .aw-btn-danger {
-          background: #fee2e2;
-          color: #b91c1c;
-          border-color: #fecaca;
+          background: rgba(239,68,68,0.15);
+          color: #f87171;
+          border-color: rgba(239,68,68,0.3);
         }
         .aw-btn-danger:hover:not(:disabled) {
-          background: #fecaca;
+          background: rgba(239,68,68,0.25);
         }
 
         .aw-btn-success {
-          background: #dcfce7;
-          color: #166534;
-          border-color: #bbf7d0;
+          background: rgba(0,212,170,0.15);
+          color: var(--forge-accent-primary);
+          border-color: rgba(0,212,170,0.3);
         }
 
         .aw-btn-large {
@@ -818,15 +826,17 @@ const AdminWidget = () => {
           justify-content: center;
           width: 32px;
           height: 32px;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-          background: white;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
           cursor: pointer;
           transition: all 0.15s;
-          color: #374151;
+          color: var(--forge-text-secondary);
         }
         .aw-icon-btn:hover {
-          background: #f3f4f6;
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-primary);
+          border-color: var(--forge-text-muted);
         }
         .aw-icon-btn:disabled {
           opacity: 0.4;
@@ -834,11 +844,11 @@ const AdminWidget = () => {
         }
 
         .aw-icon-btn-danger {
-          border-color: #fecaca;
-          color: #b91c1c;
+          border-color: rgba(239,68,68,0.3);
+          color: #f87171;
         }
         .aw-icon-btn-danger:hover {
-          background: #fef2f2;
+          background: rgba(239,68,68,0.15);
         }
 
         /* ---- Dirty banner ---- */
@@ -848,9 +858,9 @@ const AdminWidget = () => {
           justify-content: space-between;
           gap: 12px;
           padding: 10px 14px;
-          border: 1px solid #fde68a;
-          background: #fffbeb;
-          border-radius: 10px;
+          border: 1px solid rgba(234,179,8,0.3);
+          background: rgba(234,179,8,0.08);
+          border-radius: var(--forge-radius-md);
           margin-bottom: 14px;
         }
 
@@ -858,9 +868,10 @@ const AdminWidget = () => {
           display: flex;
           align-items: center;
           gap: 8px;
-          color: #92400e;
+          color: #fbbf24;
           font-weight: 600;
           font-size: 13px;
+          font-family: var(--forge-font-tech);
         }
 
         .aw-dirty-actions {
@@ -894,10 +905,11 @@ const AdminWidget = () => {
           gap: 10px;
           align-items: flex-start;
           padding: 10px;
-          border-radius: 10px;
-          border: 1px solid #e5e7eb;
-          background: #f9fafb;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
           font-size: 13px;
+          color: var(--forge-text-secondary);
         }
 
         .aw-card-list {
@@ -909,21 +921,21 @@ const AdminWidget = () => {
         /* ---- Widget card ---- */
         .aw-widget-card {
           display: flex;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           overflow: hidden;
           cursor: pointer;
           transition: all 0.15s;
-          background: white;
+          background: var(--forge-bg-surface);
         }
         .aw-widget-card:hover {
-          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-          border-color: #d1d5db;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+          border-color: var(--forge-text-muted);
         }
 
         .aw-card-selected {
-          border-color: #93c5fd;
-          box-shadow: 0 4px 16px rgba(37,99,235,0.1);
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 4px 16px rgba(0,212,170,0.15);
         }
 
         .aw-card-bar {
@@ -948,7 +960,7 @@ const AdminWidget = () => {
         .aw-card-name {
           font-weight: 700;
           font-size: 14px;
-          color: #111827;
+          color: var(--forge-text-primary);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -961,22 +973,25 @@ const AdminWidget = () => {
           font-weight: 700;
           white-space: nowrap;
           flex-shrink: 0;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
 
         .aw-badge-active {
-          background: #dcfce7;
-          color: #166534;
+          background: rgba(0,212,170,0.15);
+          color: var(--forge-accent-primary);
         }
 
         .aw-badge-inactive {
-          background: #f3f4f6;
-          color: #6b7280;
+          background: rgba(255,255,255,0.05);
+          color: var(--forge-text-muted);
         }
 
         .aw-card-id {
-          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-family: var(--forge-font-mono);
           font-size: 11px;
-          color: #9ca3af;
+          color: var(--forge-text-muted);
           margin-bottom: 6px;
         }
 
@@ -987,9 +1002,9 @@ const AdminWidget = () => {
 
         /* ---- Right column ---- */
         .aw-right {
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           overflow: hidden;
           min-height: 400px;
         }
@@ -1000,15 +1015,15 @@ const AdminWidget = () => {
           justify-content: center;
           gap: 10px;
           padding: 60px 20px;
-          color: #9ca3af;
+          color: var(--forge-text-muted);
           font-size: 15px;
         }
 
         /* ---- Tabs ---- */
         .aw-tabs {
           display: flex;
-          border-bottom: 1px solid #e5e7eb;
-          background: #fafbfc;
+          border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
           overflow-x: auto;
         }
 
@@ -1019,7 +1034,7 @@ const AdminWidget = () => {
           padding: 12px 12px;
           font-size: 13px;
           font-weight: 600;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           background: transparent;
           border: none;
           border-bottom: 2px solid transparent;
@@ -1031,19 +1046,21 @@ const AdminWidget = () => {
           min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.04em;
         }
 
         .aw-tab:hover {
-          color: #374151;
-          background: #f3f4f6;
+          color: var(--forge-text-secondary);
+          background: rgba(255,255,255,0.03);
         }
 
         .aw-tab-active {
-          color: #2563eb;
-          border-bottom-color: #2563eb;
+          color: var(--forge-accent-primary);
+          border-bottom-color: var(--forge-accent-primary);
         }
         .aw-tab-active:hover {
-          color: #2563eb;
+          color: var(--forge-accent-primary);
           background: transparent;
         }
 
@@ -1054,8 +1071,8 @@ const AdminWidget = () => {
           justify-content: space-between;
           gap: 10px;
           padding: 10px 16px;
-          border-bottom: 1px solid #e5e7eb;
-          background: #fafbfc;
+          border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
         }
 
         .aw-save-title {
@@ -1064,7 +1081,7 @@ const AdminWidget = () => {
           gap: 8px;
           font-weight: 700;
           font-size: 14px;
-          color: #111827;
+          color: var(--forge-text-primary);
         }
 
         .aw-save-actions {
@@ -1084,38 +1101,41 @@ const AdminWidget = () => {
 
         .aw-label {
           display: block;
-          font-size: 13px;
+          font-size: 11px;
           font-weight: 700;
           margin-bottom: 6px;
-          color: #374151;
+          color: var(--forge-text-secondary);
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
         }
 
         .aw-input {
           width: 100%;
           padding: 9px 12px;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
           outline: none;
           font-size: 13px;
           transition: all 0.15s;
-          background: white;
-          color: #111827;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
           box-sizing: border-box;
         }
 
         .aw-input:focus {
-          border-color: #93c5fd;
-          box-shadow: 0 0 0 3px rgba(147,197,253,0.3);
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 0 0 3px rgba(0,212,170,0.15);
         }
 
         .aw-input-error {
-          border-color: #fca5a5;
-          box-shadow: 0 0 0 3px rgba(252,165,165,0.2);
+          border-color: #f87171;
+          box-shadow: 0 0 0 3px rgba(248,113,113,0.15);
         }
 
         .aw-input:disabled {
-          background: #f9fafb;
-          color: #9ca3af;
+          background: var(--forge-bg-void);
+          color: var(--forge-text-muted);
           cursor: not-allowed;
         }
 
@@ -1128,11 +1148,12 @@ const AdminWidget = () => {
         .aw-color-picker {
           width: 40px;
           height: 38px;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           padding: 2px;
           cursor: pointer;
           flex-shrink: 0;
+          background: var(--forge-bg-elevated);
         }
 
         .aw-inline-row {
@@ -1142,13 +1163,13 @@ const AdminWidget = () => {
         }
 
         .aw-error-text {
-          color: #b91c1c;
+          color: #f87171;
           font-size: 12px;
           margin-top: 4px;
         }
 
         .aw-muted {
-          color: #6b7280;
+          color: var(--forge-text-muted);
           font-size: 12px;
         }
 
@@ -1171,21 +1192,22 @@ const AdminWidget = () => {
         .aw-embed-title {
           font-weight: 700;
           font-size: 14px;
-          color: #111827;
+          color: var(--forge-text-primary);
           margin-bottom: 2px;
+          font-family: var(--forge-font-tech);
         }
 
         .aw-code-area {
           width: 100%;
           min-height: 200px;
-          border-radius: 10px;
-          border: 1px solid #1e293b;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
           padding: 12px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-family: var(--forge-font-mono);
           font-size: 12px;
           line-height: 1.6;
-          background: #0f172a;
-          color: #e2e8f0;
+          background: var(--forge-bg-void);
+          color: var(--forge-accent-primary);
           white-space: pre;
           resize: vertical;
           box-sizing: border-box;
@@ -1197,11 +1219,11 @@ const AdminWidget = () => {
           align-items: flex-start;
           margin-top: 12px;
           padding: 10px;
-          background: #f0f9ff;
-          border: 1px solid #bae6fd;
-          border-radius: 8px;
+          background: rgba(0,212,170,0.06);
+          border: 1px solid rgba(0,212,170,0.2);
+          border-radius: var(--forge-radius-md);
           font-size: 12px;
-          color: #0c4a6e;
+          color: var(--forge-text-secondary);
           line-height: 1.5;
         }
 
@@ -1226,7 +1248,7 @@ const AdminWidget = () => {
           gap: 6px;
           align-items: center;
           font-size: 12px;
-          color: #374151;
+          color: var(--forge-text-secondary);
           white-space: nowrap;
           cursor: pointer;
         }
@@ -1243,9 +1265,10 @@ const AdminWidget = () => {
           justify-content: space-between;
           align-items: center;
           gap: 10px;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
           padding: 10px 12px;
+          background: var(--forge-bg-elevated);
         }
 
         .aw-domain-info {}
@@ -1253,7 +1276,7 @@ const AdminWidget = () => {
         .aw-domain-name {
           font-weight: 700;
           font-size: 13px;
-          color: #111827;
+          color: var(--forge-text-primary);
         }
 
         .aw-domain-chip {
@@ -1262,8 +1285,9 @@ const AdminWidget = () => {
           border-radius: 999px;
           font-size: 11px;
           font-weight: 600;
-          background: #eff6ff;
-          color: #1d4ed8;
+          background: rgba(0,212,170,0.12);
+          color: var(--forge-accent-primary);
+          font-family: var(--forge-font-mono);
         }
 
         .aw-domain-actions {
@@ -1277,9 +1301,9 @@ const AdminWidget = () => {
           gap: 8px;
           align-items: center;
           padding: 14px;
-          border: 1px dashed #d1d5db;
-          border-radius: 10px;
-          color: #6b7280;
+          border: 1px dashed var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
+          color: var(--forge-text-muted);
           font-size: 13px;
         }
 
@@ -1297,7 +1321,7 @@ const AdminWidget = () => {
           width: 42px;
           height: 22px;
           border-radius: 999px;
-          background: #d1d5db;
+          background: var(--forge-border-default);
           position: relative;
           transition: background 0.2s;
         }
@@ -1306,18 +1330,19 @@ const AdminWidget = () => {
           width: 16px;
           height: 16px;
           border-radius: 999px;
-          background: white;
+          background: var(--forge-text-muted);
           position: absolute;
           top: 3px;
           left: 3px;
           transition: transform 0.2s;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         }
         .aw-toggle input:checked + span {
-          background: #2563eb;
+          background: var(--forge-accent-primary);
         }
         .aw-toggle input:checked + span::after {
           transform: translateX(20px);
+          background: #0a0f1a;
         }
 
         .aw-toggle-large span {
@@ -1341,7 +1366,7 @@ const AdminWidget = () => {
 
         .aw-settings-section {
           padding: 16px 0;
-          border-bottom: 1px solid #f3f4f6;
+          border-bottom: 1px solid var(--forge-border-default);
         }
         .aw-settings-section:last-child {
           border-bottom: none;
@@ -1350,9 +1375,9 @@ const AdminWidget = () => {
         .aw-settings-danger {
           margin-top: 8px;
           padding: 16px;
-          border: 1px solid #fecaca;
-          border-radius: 10px;
-          background: #fef2f2;
+          border: 1px solid rgba(239,68,68,0.3);
+          border-radius: var(--forge-radius-md);
+          background: rgba(239,68,68,0.06);
         }
 
         .aw-settings-row {
@@ -1366,7 +1391,7 @@ const AdminWidget = () => {
         .aw-settings-label {
           font-weight: 700;
           font-size: 14px;
-          color: #111827;
+          color: var(--forge-text-primary);
           margin-bottom: 4px;
         }
 
@@ -1376,10 +1401,11 @@ const AdminWidget = () => {
           gap: 6px;
           font-size: 12px;
           font-weight: 600;
+          font-family: var(--forge-font-tech);
         }
 
-        .aw-status-active { color: #166534; }
-        .aw-status-disabled { color: #6b7280; }
+        .aw-status-active { color: var(--forge-accent-primary); }
+        .aw-status-disabled { color: var(--forge-text-muted); }
 
         .aw-status-dot {
           width: 8px;
@@ -1388,10 +1414,10 @@ const AdminWidget = () => {
         }
 
         .aw-dot-green {
-          background: #22c55e;
-          box-shadow: 0 0 6px rgba(34,197,94,0.4);
+          background: var(--forge-accent-primary);
+          box-shadow: 0 0 6px rgba(0,212,170,0.4);
         }
-        .aw-dot-grey { background: #9ca3af; }
+        .aw-dot-grey { background: var(--forge-text-muted); }
 
         .aw-delete-confirm {
           display: flex;
@@ -1407,9 +1433,9 @@ const AdminWidget = () => {
           gap: 12px;
           align-items: center;
           padding: 20px 16px;
-          border: 1px dashed #d1d5db;
-          border-radius: 10px;
-          color: #6b7280;
+          border: 1px dashed var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
+          color: var(--forge-text-muted);
         }
 
         /* ---- Toast ---- */
@@ -1421,37 +1447,39 @@ const AdminWidget = () => {
           gap: 8px;
           align-items: center;
           padding: 10px 14px;
-          border-radius: 10px;
-          border: 1px solid #e5e7eb;
-          background: white;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
           z-index: 9999;
           font-weight: 600;
           font-size: 13px;
+          color: var(--forge-text-primary);
         }
-        .aw-toast-ok { border-color: #bbf7d0; }
-        .aw-toast-err { border-color: #fecaca; }
+        .aw-toast-ok { border-color: rgba(0,212,170,0.4); color: var(--forge-accent-primary); }
+        .aw-toast-err { border-color: rgba(239,68,68,0.4); color: #f87171; }
 
         /* ---- Modal ---- */
         .aw-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.35);
+          background: rgba(0,0,0,0.6);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 9998;
           padding: 16px;
+          backdrop-filter: blur(4px);
         }
 
         .aw-modal {
           width: 480px;
           max-width: 100%;
-          background: white;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
+          background: var(--forge-bg-surface);
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
           overflow: hidden;
-          box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
 
         .aw-modal-header {
@@ -1459,12 +1487,14 @@ const AdminWidget = () => {
           justify-content: space-between;
           align-items: center;
           padding: 14px 16px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--forge-border-default);
         }
 
         .aw-modal-title {
           font-weight: 800;
           font-size: 15px;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-tech);
         }
 
         .aw-modal-body {
@@ -1473,7 +1503,7 @@ const AdminWidget = () => {
 
         .aw-modal-footer {
           padding: 12px 16px;
-          border-top: 1px solid #e5e7eb;
+          border-top: 1px solid var(--forge-border-default);
           display: flex;
           justify-content: flex-end;
           gap: 8px;

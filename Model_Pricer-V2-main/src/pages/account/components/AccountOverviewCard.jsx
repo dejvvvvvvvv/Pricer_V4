@@ -1,9 +1,85 @@
 // src/pages/account/components/AccountOverviewCard.jsx
 import React, { useMemo, useState } from 'react';
-import { auth } from '../../../firebase'; // cesta podle tvého projektu
+import { auth } from '../../../firebase'; // cesta podle tveho projektu
 import { sendEmailVerification } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Link } from 'react-router-dom';
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FORGE inline styles
+   ────────────────────────────────────────────────────────────────────────── */
+
+const cardStyles = {
+  borderRadius: 'var(--forge-radius-md)',
+  border: '1px solid var(--forge-border-default)',
+  backgroundColor: 'var(--forge-bg-surface)',
+  padding: '20px',
+  boxShadow: 'var(--forge-shadow-sm)',
+};
+
+const skeletonBase = {
+  borderRadius: 'var(--forge-radius-sm)',
+  backgroundColor: 'var(--forge-bg-elevated)',
+};
+
+const badgeVerified = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  borderRadius: '100px',
+  border: '1px solid rgba(0,212,170,0.3)',
+  backgroundColor: 'rgba(0,212,170,0.08)',
+  padding: '2px 10px',
+  fontSize: '12px',
+  fontWeight: 500,
+  color: 'var(--forge-accent-primary)',
+  fontFamily: 'var(--forge-font-body)',
+};
+
+const badgeUnverified = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  borderRadius: '100px',
+  border: '1px solid rgba(255,181,71,0.3)',
+  backgroundColor: 'rgba(255,181,71,0.08)',
+  padding: '2px 10px',
+  fontSize: '12px',
+  fontWeight: 500,
+  color: 'var(--forge-warning)',
+  fontFamily: 'var(--forge-font-body)',
+};
+
+const actionBtnStyles = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  borderRadius: 'var(--forge-radius-sm)',
+  border: '1px solid var(--forge-border-default)',
+  backgroundColor: 'transparent',
+  padding: '6px 12px',
+  fontSize: '13px',
+  fontWeight: 500,
+  color: 'var(--forge-text-secondary)',
+  fontFamily: 'var(--forge-font-body)',
+  cursor: 'pointer',
+  transition: 'border-color 0.2s, color 0.2s, background-color 0.2s',
+  textDecoration: 'none',
+};
+
+const verifyBtnStyles = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  borderRadius: 'var(--forge-radius-sm)',
+  backgroundColor: 'var(--forge-accent-primary)',
+  color: '#08090C',
+  padding: '5px 12px',
+  fontSize: '12px',
+  fontWeight: 600,
+  border: 'none',
+  cursor: 'pointer',
+  fontFamily: 'var(--forge-font-body)',
+  transition: 'opacity 0.2s',
+};
+
+/* ──────────────────────────────────────────────────────────────────────── */
 
 function Avatar({ user }) {
   const letter = useMemo(() => (user?.displayName?.[0] || user?.email?.[0] || '?').toUpperCase(), [user]);
@@ -12,12 +88,31 @@ function Avatar({ user }) {
       <img
         src={user.photoURL}
         alt={user.displayName || user.email || 'User'}
-        className="w-16 h-16 rounded-full object-cover border border-border"
+        style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          objectFit: 'cover',
+          border: '1px solid var(--forge-border-default)',
+        }}
       />
     );
   }
   return (
-    <div className="w-16 h-16 rounded-full bg-muted text-foreground/80 flex items-center justify-center text-xl font-semibold border border-border">
+    <div style={{
+      width: '56px',
+      height: '56px',
+      borderRadius: '50%',
+      background: 'var(--forge-gradient-brand)',
+      color: '#08090C',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '1.25rem',
+      fontFamily: 'var(--forge-font-heading)',
+      fontWeight: 700,
+      flexShrink: 0,
+    }}>
       {letter}
     </div>
   );
@@ -32,10 +127,12 @@ export default function AccountOverviewCard() {
 
   if (!user) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div className="animate-pulse h-16 w-16 rounded-full bg-muted mb-4" />
-        <div className="h-4 bg-muted rounded w-1/3 mb-2" />
-        <div className="h-3 bg-muted rounded w-1/2" />
+      <div style={cardStyles}>
+        <div style={{ ...skeletonBase, width: '56px', height: '56px', borderRadius: '50%', marginBottom: '16px' }}>
+          {/* skeleton pulse — use CSS animation if available, otherwise static */}
+        </div>
+        <div style={{ ...skeletonBase, height: '16px', width: '33%', marginBottom: '8px' }} />
+        <div style={{ ...skeletonBase, height: '12px', width: '50%' }} />
       </div>
     );
   }
@@ -47,12 +144,12 @@ export default function AccountOverviewCard() {
     try {
       setSending(true);
       setMessage(null);
-      await sendEmailVerification(user); // Firebase v9 – pošle ověřovací e-mail
+      await sendEmailVerification(user);
       setSent(true);
-      setMessage('Ověřovací e-mail byl odeslán. Zkontrolujte svou schránku.');
+      setMessage('Overovaci e-mail byl odeslan. Zkontrolujte svou schranku.');
     } catch (e) {
       console.error(e);
-      setMessage('Nepodařilo se odeslat ověřovací e-mail. Zkuste to prosím znovu.');
+      setMessage('Nepodarilo se odeslat overovaci e-mail. Zkuste to prosim znovu.');
     } finally {
       setSending(false);
     }
@@ -63,74 +160,137 @@ export default function AccountOverviewCard() {
       setRevoking(true);
       setMessage(null);
       const functions = getFunctions();
-      const fn = httpsCallable(functions, 'revokeUserTokens'); // viz Cloud Function níže
+      const fn = httpsCallable(functions, 'revokeUserTokens');
       await fn({ uid: user.uid });
-      setMessage('Všechny relace budou odhlášeny během následující hodiny.');
+      setMessage('Vsechny relace budou odhlaseny behem nasledujici hodiny.');
     } catch (e) {
       console.error(e);
-      setMessage('Nepodařilo se odhlásit na všech zařízeních.');
+      setMessage('Nepodarilo se odhlasit na vsech zarizenich.');
     } finally {
       setRevoking(false);
     }
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-card text-card-foreground p-5 shadow-sm">
-      <div className="flex items-start gap-4">
+    <div style={cardStyles}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
         <Avatar user={user} />
-        <div className="flex-1">
-          <h2 className="text-xl font-semibold">{user.displayName || 'Uživatel'}</h2>
-          <div className="mt-1 text-sm text-muted-foreground break-all">{user.email}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{
+            fontFamily: 'var(--forge-font-heading)',
+            fontWeight: 700,
+            fontSize: 'var(--forge-text-xl)',
+            color: 'var(--forge-text-primary)',
+            margin: 0,
+          }}>
+            {user.displayName || 'Uzivatel'}
+          </h2>
+          <div style={{
+            marginTop: '4px',
+            fontSize: '14px',
+            color: 'var(--forge-text-secondary)',
+            wordBreak: 'break-all',
+          }}>
+            {user.email}
+          </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             {emailVerified ? (
-              <span className="inline-flex items-center rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs text-green-700">
-                E-mail ověřen
+              <span style={badgeVerified}>
+                E-mail overen
               </span>
             ) : (
               <>
-                <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                  E-mail neověřen
+                <span style={badgeUnverified}>
+                  E-mail neoveren
                 </span>
                 <button
                   onClick={handleSendVerification}
                   disabled={sending || sent}
-                  className="inline-flex items-center rounded-lg bg-black px-3 py-1.5 text-xs text-white hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    ...verifyBtnStyles,
+                    opacity: (sending || sent) ? 0.5 : 1,
+                    cursor: (sending || sent) ? 'default' : 'pointer',
+                  }}
                 >
-                  {sending ? 'Odesílám…' : sent ? 'Odesláno' : 'Poslat ověřovací e-mail'}
+                  {sending ? 'Odesilam...' : sent ? 'Odeslano' : 'Poslat overovaci e-mail'}
                 </button>
               </>
             )}
             {lastSignIn && (
-              <span className="ml-auto text-xs text-muted-foreground">Poslední přihlášení: {lastSignIn}</span>
+              <span style={{
+                marginLeft: 'auto',
+                fontSize: '12px',
+                color: 'var(--forge-text-muted)',
+              }}>
+                Posledni prihlaseni: {lastSignIn}
+              </span>
             )}
           </div>
 
           {/* Quick actions */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             <Link
               to="/account#profile"
-              className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              style={actionBtnStyles}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                e.currentTarget.style.color = 'var(--forge-accent-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                e.currentTarget.style.color = 'var(--forge-text-secondary)';
+              }}
             >
               Upravit profil
             </Link>
             <Link
               to="/account#security"
-              className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              style={actionBtnStyles}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                e.currentTarget.style.color = 'var(--forge-accent-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                e.currentTarget.style.color = 'var(--forge-text-secondary)';
+              }}
             >
-              Změnit heslo
+              Zmenit heslo
             </Link>
             <button
               onClick={handleRevokeAllSessions}
               disabled={revoking}
-              className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
-              title="Odhlásí vás postupně ze všech zařízení (po expiraci ID tokenu)."
+              style={{
+                ...actionBtnStyles,
+                opacity: revoking ? 0.5 : 1,
+                cursor: revoking ? 'default' : 'pointer',
+              }}
+              title="Odhlasi vas postupne ze vsech zarizeni (po expiraci ID tokenu)."
+              onMouseEnter={(e) => {
+                if (!revoking) {
+                  e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                  e.currentTarget.style.color = 'var(--forge-accent-primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                e.currentTarget.style.color = 'var(--forge-text-secondary)';
+              }}
             >
-              {revoking ? 'Probíhá…' : 'Odhlásit na všech zařízeních'}
+              {revoking ? 'Probiha...' : 'Odhlasit na vsech zarizenich'}
             </button>
           </div>
 
-          {message && <div className="mt-3 text-sm text-muted-foreground">{message}</div>}
+          {message && (
+            <div style={{
+              marginTop: '12px',
+              fontSize: '13px',
+              color: 'var(--forge-text-secondary)',
+            }}>
+              {message}
+            </div>
+          )}
         </div>
       </div>
     </div>

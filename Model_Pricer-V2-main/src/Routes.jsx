@@ -1,12 +1,12 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes as RouterRoutes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes as RouterRoutes, Route, Navigate } from 'react-router-dom';
 import Header from './components/ui/Header';
 import Footer from './components/ui/Footer';
 import SmoothScroll from './components/SmoothScroll';
 import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/home';
-import ModelUpload from './pages/model-upload';
 import TestKalkulacka from './pages/test-kalkulacka';
+import TestKalkulackaWhite from './pages/test-kalkulacka-white';
 import Pricing from './pages/pricing';
 import Support from './pages/support';
 import AccountPage from './pages/account';
@@ -62,8 +62,9 @@ export default function Routes() {
 
           {/* veřejné */}
           <Route path="/" element={<Home />} />
-          <Route path="/model-upload" element={<ModelUpload />} />
+          <Route path="/model-upload" element={<Navigate to="/test-kalkulacka-white" replace />} />
           <Route path="/test-kalkulacka" element={<TestKalkulacka />} />
+          <Route path="/test-kalkulacka-white" element={<TestKalkulackaWhite />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/support" element={<Support />} />
 

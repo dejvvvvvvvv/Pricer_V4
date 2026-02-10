@@ -47,7 +47,15 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
   };
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: '400px' }}>
+    <div
+      style={{
+        display: 'flex',
+        gap: '12px',
+        overflowX: 'auto',
+        paddingBottom: '16px',
+        minHeight: '400px',
+      }}
+    >
       {columns.map(col => (
         <KanbanColumn
           key={col.status}

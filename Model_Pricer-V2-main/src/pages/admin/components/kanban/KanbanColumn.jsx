@@ -29,29 +29,82 @@ export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`flex flex-col w-[280px] min-w-[280px] bg-gray-50 rounded-lg border ${
-        isDragOver ? 'border-blue-400 bg-blue-50/30' : 'border-gray-200'
-      }`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '280px',
+        minWidth: '280px',
+        backgroundColor: 'var(--forge-bg-surface)',
+        borderRadius: 'var(--forge-radius-lg)',
+        border: `1px solid ${isDragOver ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
+        transition: 'border-color var(--forge-duration-micro) ease, background-color var(--forge-duration-micro) ease',
+        ...(isDragOver ? { boxShadow: '0 0 16px rgba(0, 212, 170, 0.1)' } : {}),
+      }}
     >
-      <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-          <span className="font-medium text-sm text-gray-900">{label}</span>
+      {/* Column header */}
+      <div style={{
+        padding: '12px',
+        borderBottom: '1px solid var(--forge-border-default)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            backgroundColor: color,
+          }} />
+          <span style={{
+            fontFamily: 'var(--forge-font-tech)',
+            fontWeight: 600,
+            fontSize: '11px',
+            color: 'var(--forge-text-primary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}>
+            {label}
+          </span>
         </div>
-        <div className="flex items-center gap-1">
-          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-            isOverWip ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
-          }`}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{
+            fontSize: '11px',
+            fontFamily: 'var(--forge-font-mono)',
+            padding: '2px 8px',
+            borderRadius: '999px',
+            backgroundColor: isOverWip ? 'rgba(255, 71, 87, 0.15)' : 'var(--forge-bg-elevated)',
+            color: isOverWip ? 'var(--forge-error)' : 'var(--forge-text-secondary)',
+            border: `1px solid ${isOverWip ? 'rgba(255, 71, 87, 0.3)' : 'var(--forge-border-default)'}`,
+          }}>
             {orders.length}{wipLimit > 0 ? `/${wipLimit}` : ''}
           </span>
         </div>
       </div>
-      <div className="flex-1 p-2 flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-280px)]">
+
+      {/* Cards area */}
+      <div style={{
+        flex: 1,
+        padding: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        overflowY: 'auto',
+        maxHeight: 'calc(100vh - 280px)',
+      }}>
         {orders.map(order => (
           <KanbanCard key={order.id} order={order} onView={onViewOrder} />
         ))}
         {orders.length === 0 && (
-          <div className="text-center text-xs text-gray-400 py-8">
+          <div style={{
+            textAlign: 'center',
+            fontSize: '12px',
+            fontFamily: 'var(--forge-font-tech)',
+            color: 'var(--forge-text-muted)',
+            padding: '32px 0',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}>
             No orders
           </div>
         )}

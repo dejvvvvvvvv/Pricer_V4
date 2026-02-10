@@ -11,13 +11,33 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
 
   if (activeTiers.length === 0) return null;
 
+  const cardStyle = {
+    backgroundColor: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '16px',
+  };
+
+  const headingStyle = {
+    fontFamily: 'var(--forge-font-tech)',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '12px',
+  };
+
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-        <Icon name="Zap" size={18} />
+    <div style={cardStyle}>
+      <h3 style={headingStyle}>
+        <Icon name="Zap" size={18} style={{ color: 'var(--forge-accent-secondary)' }} />
         Delivery Speed
       </h3>
-      <div className="flex flex-col gap-2">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {activeTiers.map(tier => {
           const isSelected = tier.id === selectedTierId;
           const surchargeLabel = tier.surcharge_value > 0
@@ -29,24 +49,45 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
               key={tier.id}
               disabled={disabled}
               onClick={() => onSelectTier(tier.id)}
-              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${
-                isSelected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/30'
-              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: 'var(--forge-radius-sm)',
+                border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-border-default)',
+                backgroundColor: isSelected ? 'rgba(0, 212, 170, 0.06)' : 'var(--forge-bg-elevated)',
+                transition: 'all 150ms ease-out',
+                textAlign: 'left',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+                outline: 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected && !disabled) e.currentTarget.style.borderColor = 'rgba(0, 212, 170, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected && !disabled) e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+              }}
             >
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                isSelected ? 'border-primary' : 'border-muted-foreground/30'
-              }`}>
-                {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+              <div style={{
+                width: '16px', height: '16px', borderRadius: '50%',
+                border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-text-disabled)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--forge-accent-primary)' }} />}
               </div>
-              <div className="flex-1">
-                <div className="font-medium text-sm text-foreground">{tier.name}</div>
-                <div className="text-xs text-muted-foreground">
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>{tier.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)', marginTop: '2px' }}>
                   {tier.delivery_days > 0 ? `${tier.delivery_days} business days` : 'Standard delivery'}
                 </div>
               </div>
-              <span className={`text-sm font-medium ${tier.surcharge_value > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+              <span style={{
+                fontSize: '13px', fontWeight: 600,
+                fontFamily: 'var(--forge-font-mono)',
+                color: tier.surcharge_value > 0 ? 'var(--forge-accent-secondary)' : 'var(--forge-success)',
+              }}>
                 {surchargeLabel}
               </span>
             </button>

@@ -118,44 +118,54 @@ export default function AdminMigration() {
 
   const totalLocalData = migrations.reduce((s, m) => s + m.localDataSize, 0);
 
+  const modeColor = (mode) => {
+    if (mode === 'supabase') return { background: 'rgba(0,212,170,0.08)', color: 'var(--forge-success)', border: '1px solid rgba(0,212,170,0.3)' };
+    if (mode === 'dual-write') return { background: 'rgba(255,181,71,0.08)', color: 'var(--forge-warning)', border: '1px solid rgba(255,181,71,0.3)' };
+    return { background: 'var(--forge-bg-elevated)', color: 'var(--forge-text-secondary)', border: '1px solid var(--forge-border-default)' };
+  };
+
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8">
+    <div className="mig-page">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Database Migration</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="mig-title">Database Migration</h1>
+        <p className="mig-subtitle">
           Migrate data from localStorage to Supabase PostgreSQL
         </p>
       </div>
 
       {/* Connection Status */}
-      <div className={`p-4 rounded-lg border ${connection?.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-        <div className="flex items-center gap-2">
-          <span className={`w-2.5 h-2.5 rounded-full ${connection?.ok ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="font-medium text-sm">
+      <div className="mig-conn-status" style={{
+        padding: 16, borderRadius: 'var(--forge-radius-md)',
+        border: `1px solid ${connection?.ok ? 'rgba(0,212,170,0.3)' : 'rgba(255,71,87,0.3)'}`,
+        background: connection?.ok ? 'rgba(0,212,170,0.08)' : 'rgba(255,71,87,0.08)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: '50%', display: 'inline-block',
+            background: connection?.ok ? 'var(--forge-success)' : 'var(--forge-error)',
+          }} />
+          <span style={{ fontWeight: 600, fontSize: 14, color: connection?.ok ? 'var(--forge-success)' : 'var(--forge-error)' }}>
             {connection?.ok ? 'Supabase connected' : `Supabase: ${connection?.error || 'Checking...'}`}
           </span>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={handleBackup}
-          className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
+      <div className="mig-actions">
+        <button onClick={handleBackup} className="mig-btn mig-btn-secondary">
           Download Backup
         </button>
         <button
           onClick={handleDryRun}
           disabled={running || !connection?.ok}
-          className="px-4 py-2 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+          className="mig-btn mig-btn-outline"
         >
           {running ? 'Running...' : 'Dry Run'}
         </button>
         <button
           onClick={handleMigrate}
           disabled={running || !connection?.ok}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="mig-btn mig-btn-primary"
         >
           {running ? 'Migrating...' : 'Migrate to Supabase'}
         </button>
@@ -163,15 +173,17 @@ export default function AdminMigration() {
 
       {/* Progress */}
       {progress && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm text-gray-600">
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--forge-text-secondary)' }}>
             <span>{progress.migration}</span>
-            <span>{progress.current} / {progress.total}</span>
+            <span style={{ fontFamily: 'var(--forge-font-mono)' }}>{progress.current} / {progress.total}</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div style={{ width: '100%', background: 'var(--forge-bg-elevated)', borderRadius: 999, height: 8 }}>
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              style={{
+                height: 8, borderRadius: 999, background: 'var(--forge-accent-primary)',
+                transition: 'width 0.3s', width: `${(progress.current / progress.total) * 100}%`,
+              }}
             />
           </div>
         </div>
@@ -179,20 +191,24 @@ export default function AdminMigration() {
 
       {/* Results */}
       {results && (
-        <div className={`p-4 rounded-lg border ${results.ok ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-          <h3 className="font-medium text-sm mb-2">
+        <div style={{
+          padding: 16, borderRadius: 'var(--forge-radius-md)',
+          border: `1px solid ${results.ok ? 'rgba(0,212,170,0.3)' : 'rgba(255,181,71,0.3)'}`,
+          background: results.ok ? 'rgba(0,212,170,0.08)' : 'rgba(255,181,71,0.08)',
+        }}>
+          <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}>
             {results.dryRun ? 'Dry Run Results' : 'Migration Results'}
           </h3>
-          <div className="grid grid-cols-4 gap-4 text-sm">
-            <div><span className="text-gray-500">Total:</span> {results.total}</div>
-            <div><span className="text-green-600">Migrated:</span> {results.migrated}</div>
-            <div><span className="text-gray-500">Skipped:</span> {results.skipped}</div>
-            <div><span className="text-red-600">Errors:</span> {results.errors}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, fontSize: 14 }}>
+            <div><span style={{ color: 'var(--forge-text-muted)' }}>Total:</span> <span style={{ color: 'var(--forge-text-primary)' }}>{results.total}</span></div>
+            <div><span style={{ color: 'var(--forge-success)' }}>Migrated:</span> <span style={{ color: 'var(--forge-text-primary)' }}>{results.migrated}</span></div>
+            <div><span style={{ color: 'var(--forge-text-muted)' }}>Skipped:</span> <span style={{ color: 'var(--forge-text-primary)' }}>{results.skipped}</span></div>
+            <div><span style={{ color: 'var(--forge-error)' }}>Errors:</span> <span style={{ color: 'var(--forge-text-primary)' }}>{results.errors}</span></div>
           </div>
           {results.results?.some((r) => r.status === 'error') && (
-            <div className="mt-3 space-y-1">
+            <div style={{ marginTop: 12, display: 'grid', gap: 4 }}>
               {results.results.filter((r) => r.status === 'error').map((r) => (
-                <div key={r.migrationId} className="text-xs text-red-600">
+                <div key={r.migrationId} style={{ fontSize: 12, color: 'var(--forge-error)', fontFamily: 'var(--forge-font-mono)' }}>
                   {r.name}: {r.error}
                 </div>
               ))}
@@ -203,36 +219,36 @@ export default function AdminMigration() {
 
       {/* Migration Table */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Data Sources ({migrations.length})</h2>
-        <p className="text-xs text-gray-500 mb-3">
+        <h2 className="mig-section-title">Data Sources ({migrations.length})</h2>
+        <p style={{ fontSize: 12, color: 'var(--forge-text-muted)', marginBottom: 12, fontFamily: 'var(--forge-font-mono)' }}>
           Total localStorage data: {formatBytes(totalLocalData)}
         </p>
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+        <div className="mig-table-wrap">
+          <table className="mig-table">
+            <thead>
               <tr>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">Namespace</th>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">Table</th>
-                <th className="text-right px-4 py-2 font-medium text-gray-600">Size</th>
-                <th className="text-center px-4 py-2 font-medium text-gray-600">Has Data</th>
+                <th>Namespace</th>
+                <th>Table</th>
+                <th style={{ textAlign: 'right' }}>Size</th>
+                <th style={{ textAlign: 'center' }}>Has Data</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {migrations.map((m) => (
-                <tr key={m.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2">
-                    <div className="font-medium">{m.name}</div>
-                    <div className="text-xs text-gray-400">{m.namespace}</div>
+                <tr key={m.id}>
+                  <td>
+                    <div style={{ fontWeight: 600, color: 'var(--forge-text-primary)' }}>{m.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>{m.namespace}</div>
                   </td>
-                  <td className="px-4 py-2 text-gray-600 font-mono text-xs">{m.table}</td>
-                  <td className="px-4 py-2 text-right text-gray-600">
+                  <td style={{ fontFamily: 'var(--forge-font-mono)', fontSize: 12, color: 'var(--forge-text-secondary)' }}>{m.table}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-mono)' }}>
                     {m.hasLocalData ? formatBytes(m.localDataSize) : '-'}
                   </td>
-                  <td className="px-4 py-2 text-center">
+                  <td style={{ textAlign: 'center' }}>
                     {m.hasLocalData ? (
-                      <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--forge-success)' }} />
                     ) : (
-                      <span className="inline-block w-2 h-2 rounded-full bg-gray-300" />
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--forge-text-muted)' }} />
                     )}
                   </td>
                 </tr>
@@ -244,59 +260,57 @@ export default function AdminMigration() {
 
       {/* Feature Flags / Storage Modes */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Storage Mode per Namespace</h2>
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={handleEnableDualWrite}
-            className="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50"
-          >
+        <h2 className="mig-section-title">Storage Mode per Namespace</h2>
+        <div className="mig-actions" style={{ marginBottom: 16 }}>
+          <button onClick={handleEnableDualWrite} className="mig-btn mig-btn-warn-outline">
             Enable Dual-Write (all)
           </button>
-          <button
-            onClick={handleEnableSupabase}
-            className="px-3 py-1.5 text-xs border border-green-300 text-green-700 rounded hover:bg-green-50"
-          >
+          <button onClick={handleEnableSupabase} className="mig-btn mig-btn-success-outline">
             Switch to Supabase (all)
           </button>
-          <button
-            onClick={handleRollback}
-            className="px-3 py-1.5 text-xs border border-red-300 text-red-700 rounded hover:bg-red-50"
-          >
+          <button onClick={handleRollback} className="mig-btn mig-btn-danger-outline">
             Rollback to localStorage (all)
           </button>
         </div>
 
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+        <div className="mig-table-wrap">
+          <table className="mig-table">
+            <thead>
               <tr>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">Namespace</th>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">Current Mode</th>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">Actions</th>
+                <th>Namespace</th>
+                <th>Current Mode</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {Object.entries(storageModes).map(([ns, mode]) => (
-                <tr key={ns} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-mono text-xs">{ns}</td>
-                  <td className="px-4 py-2">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      mode === 'supabase' ? 'bg-green-100 text-green-800'
-                        : mode === 'dual-write' ? 'bg-amber-100 text-amber-800'
-                          : 'bg-gray-100 text-gray-800'
-                    }`}>
+                <tr key={ns}>
+                  <td style={{ fontFamily: 'var(--forge-font-mono)', fontSize: 12, color: 'var(--forge-text-secondary)' }}>{ns}</td>
+                  <td>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
+                      borderRadius: 'var(--forge-radius-sm)', fontSize: 12, fontWeight: 600,
+                      fontFamily: 'var(--forge-font-tech)',
+                      ...modeColor(mode),
+                    }}>
                       {mode}
                     </span>
                   </td>
-                  <td className="px-4 py-2 flex gap-1">
+                  <td style={{ display: 'flex', gap: 4 }}>
                     {['localStorage', 'dual-write', 'supabase'].map((m) => (
                       <button
                         key={m}
                         onClick={() => handleSetMode(ns, m)}
                         disabled={mode === m}
-                        className={`px-2 py-0.5 text-xs rounded ${
-                          mode === m ? 'bg-blue-100 text-blue-800 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
+                        style={{
+                          padding: '2px 8px', fontSize: 12, borderRadius: 'var(--forge-radius-sm)',
+                          border: '1px solid var(--forge-border-default)', cursor: mode === m ? 'default' : 'pointer',
+                          fontFamily: 'var(--forge-font-tech)',
+                          background: mode === m ? 'rgba(0,212,170,0.12)' : 'var(--forge-bg-elevated)',
+                          color: mode === m ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
+                          fontWeight: mode === m ? 600 : 400,
+                          opacity: mode === m ? 1 : 0.8,
+                        }}
                       >
                         {m}
                       </button>
@@ -308,6 +322,85 @@ export default function AdminMigration() {
           </table>
         </div>
       </div>
+
+      <style>{`
+        .mig-page {
+          max-width: 1024px; margin: 0 auto; padding: 24px;
+          display: grid; gap: 32px;
+          background: var(--forge-bg-void); min-height: 100vh;
+        }
+        .mig-title {
+          font-size: 24px; font-weight: 700; color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading); margin: 0;
+        }
+        .mig-subtitle {
+          font-size: 14px; color: var(--forge-text-secondary); margin: 4px 0 0 0;
+        }
+        .mig-section-title {
+          font-size: 11px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.08em; color: var(--forge-text-secondary);
+          font-family: var(--forge-font-tech); margin: 0 0 12px 0;
+        }
+        .mig-actions {
+          display: flex; flex-wrap: wrap; gap: 12px;
+        }
+        .mig-btn {
+          padding: 10px 14px; font-size: 13px; border-radius: var(--forge-radius-md);
+          cursor: pointer; font-weight: 600; font-family: var(--forge-font-tech);
+          letter-spacing: 0.02em;
+        }
+        .mig-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .mig-btn-secondary {
+          background: var(--forge-bg-elevated); color: var(--forge-text-primary);
+          border: 1px solid var(--forge-border-default);
+        }
+        .mig-btn-secondary:hover { background: var(--forge-bg-overlay); }
+        .mig-btn-outline {
+          background: transparent; color: var(--forge-accent-primary);
+          border: 1px solid rgba(0,212,170,0.3);
+        }
+        .mig-btn-outline:hover { background: rgba(0,212,170,0.06); }
+        .mig-btn-primary {
+          background: var(--forge-accent-primary); color: var(--forge-bg-void);
+          border: 1px solid var(--forge-accent-primary);
+        }
+        .mig-btn-primary:hover { background: var(--forge-accent-primary-h); }
+        .mig-btn-warn-outline {
+          background: transparent; color: var(--forge-warning);
+          border: 1px solid rgba(255,181,71,0.3);
+        }
+        .mig-btn-warn-outline:hover { background: rgba(255,181,71,0.06); }
+        .mig-btn-success-outline {
+          background: transparent; color: var(--forge-success);
+          border: 1px solid rgba(0,212,170,0.3);
+        }
+        .mig-btn-success-outline:hover { background: rgba(0,212,170,0.06); }
+        .mig-btn-danger-outline {
+          background: transparent; color: var(--forge-error);
+          border: 1px solid rgba(255,71,87,0.3);
+        }
+        .mig-btn-danger-outline:hover { background: rgba(255,71,87,0.06); }
+        .mig-table-wrap {
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg); overflow: hidden;
+        }
+        .mig-table {
+          width: 100%; font-size: 13px; border-collapse: collapse;
+          color: var(--forge-text-secondary);
+        }
+        .mig-table th {
+          text-align: left; padding: 8px 16px; font-weight: 800; font-size: 11px;
+          text-transform: uppercase; letter-spacing: 0.08em;
+          color: var(--forge-text-muted); background: var(--forge-bg-elevated);
+          font-family: var(--forge-font-tech);
+          border-bottom: 1px solid var(--forge-border-default);
+        }
+        .mig-table td {
+          padding: 8px 16px; border-bottom: 1px solid var(--forge-border-default);
+        }
+        .mig-table tr:last-child td { border-bottom: none; }
+        .mig-table tbody tr:hover { background: var(--forge-bg-elevated); }
+      `}</style>
     </div>
   );
 }

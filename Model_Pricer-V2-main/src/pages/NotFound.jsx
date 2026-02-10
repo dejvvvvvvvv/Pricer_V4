@@ -1,47 +1,66 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import Button from '@/components/ui/Button';
+import ForgeButton from '@/components/ui/forge/ForgeButton';
 import Icon from '@/components/AppIcon';
 
 const NotFound = () => {
   const navigate = useNavigate();
 
-  const handleGoHome = () => {
-    navigate('/');
+  const pageStyle = {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'var(--forge-bg-void)',
+    padding: '24px',
+  };
+
+  const codeStyle = {
+    fontFamily: 'var(--forge-font-mono)',
+    fontSize: '120px',
+    fontWeight: 700,
+    color: 'var(--forge-accent-primary)',
+    opacity: 0.15,
+    lineHeight: 1,
+    letterSpacing: '-0.04em',
+    userSelect: 'none',
+  };
+
+  const titleStyle = {
+    fontFamily: 'var(--forge-font-heading)',
+    fontSize: 'var(--forge-text-2xl)',
+    fontWeight: 700,
+    color: 'var(--forge-text-primary)',
+    marginTop: '-20px',
+    marginBottom: '8px',
+  };
+
+  const descStyle = {
+    fontFamily: 'var(--forge-font-body)',
+    fontSize: 'var(--forge-text-base)',
+    color: 'var(--forge-text-muted)',
+    marginBottom: '32px',
+    maxWidth: '400px',
+    textAlign: 'center',
+    lineHeight: 1.5,
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
-      <div className="text-center max-w-md">
-        <div className="flex justify-center mb-6">
-          <div className="relative">
-            <h1 className="text-9xl font-bold text-primary opacity-20">404</h1>
-          </div>
-        </div>
-
-        <h2 className="text-2xl font-medium text-onBackground mb-2">Page Not Found</h2>
-        <p className="text-onBackground/70 mb-8">
-          The page you're looking for doesn't exist. Let's get you back!
+    <div style={pageStyle}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={codeStyle}>404</div>
+        <h2 style={titleStyle}>Page Not Found</h2>
+        <p style={descStyle}>
+          The coordinates you entered don't match any known location in our system.
         </p>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button
-            variant="primary"
-            icon={<Icon name="ArrowLeft" />}
-            iconPosition="left"
-            onClick={() => window.history?.back()}
-          >
-            Go Back
-          </Button>
-
-          <Button
-            variant="outline"
-            icon={<Icon name="Home" />}
-            iconPosition="left"
-            onClick={handleGoHome}
-          >
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <ForgeButton variant="primary" onClick={() => navigate('/')}>
             Back to Home
-          </Button>
+          </ForgeButton>
+          <ForgeButton variant="outline" onClick={() => window.history?.back()}>
+            Go Back
+          </ForgeButton>
         </div>
       </div>
     </div>

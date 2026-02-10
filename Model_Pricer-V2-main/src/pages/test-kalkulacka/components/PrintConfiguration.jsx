@@ -6,6 +6,235 @@ import Select from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
+/* ── FORGE style objects ─────────────────────────────────────────────────── */
+const fg = {
+  card: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '1.5rem',
+  },
+  sectionTitle: {
+    fontSize: 'var(--forge-text-lg)',
+    fontFamily: 'var(--forge-font-tech)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '1rem',
+  },
+  label: {
+    fontSize: '12px',
+    fontFamily: 'var(--forge-font-body)',
+    fontWeight: 500,
+    color: 'var(--forge-text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  text: {
+    fontSize: 'var(--forge-text-base)',
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  textMuted: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  textSecondary: {
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-secondary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  mono: {
+    fontFamily: 'var(--forge-font-mono)',
+    color: 'var(--forge-accent-primary)',
+    fontWeight: 700,
+  },
+  presetBtn: {
+    background: 'var(--forge-bg-elevated)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    padding: '1rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  presetBtnHover: {
+    borderColor: 'var(--forge-accent-primary)',
+  },
+  colorBtn: (isSelected) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem',
+    borderRadius: 'var(--forge-radius-md)',
+    border: isSelected ? '1px solid var(--forge-accent-primary)' : '1px solid var(--forge-border-default)',
+    background: isSelected ? 'rgba(0, 212, 170, 0.06)' : 'var(--forge-bg-elevated)',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  }),
+  colorDot: (hex) => ({
+    width: '1rem',
+    height: '1rem',
+    borderRadius: '50%',
+    border: '1px solid var(--forge-border-default)',
+    backgroundColor: hex,
+    flexShrink: 0,
+  }),
+  colorName: {
+    fontSize: 'var(--forge-text-xs)',
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  slider: {
+    width: '100%',
+    height: '0.5rem',
+    borderRadius: 'var(--forge-radius-sm)',
+    appearance: 'none',
+    background: 'var(--forge-bg-elevated)',
+    outline: 'none',
+    cursor: 'pointer',
+  },
+  infillValue: {
+    fontFamily: 'var(--forge-font-mono)',
+    color: 'var(--forge-accent-primary)',
+    fontWeight: 700,
+  },
+  pill: {
+    display: 'inline-block',
+    fontSize: '11px',
+    fontFamily: 'var(--forge-font-mono)',
+    padding: '0.125rem 0.5rem',
+    borderRadius: '999px',
+    background: 'var(--forge-bg-elevated)',
+    color: 'var(--forge-text-muted)',
+    border: '1px solid var(--forge-border-default)',
+  },
+  feeCard: {
+    padding: '0.75rem',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-md)',
+    background: 'var(--forge-bg-surface)',
+  },
+  feeValue: {
+    fontSize: 'var(--forge-text-base)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  resultCard: {
+    background: 'var(--forge-bg-elevated)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '1.5rem',
+  },
+  resultMetricCircle: (bg) => ({
+    width: '3rem',
+    height: '3rem',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: bg,
+    margin: '0 auto 0.5rem auto',
+  }),
+  emptyState: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '2rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    width: '4rem',
+    height: '4rem',
+    background: 'var(--forge-bg-elevated)',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 1rem auto',
+  },
+  bannerError: {
+    marginBottom: '1rem',
+    borderRadius: 'var(--forge-radius-md)',
+    border: '1px solid var(--forge-error)',
+    background: 'rgba(255, 71, 87, 0.08)',
+    padding: '0.75rem 1rem',
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-error)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bannerRetry: {
+    marginLeft: '0.75rem',
+    fontSize: 'var(--forge-text-xs)',
+    fontWeight: 500,
+    padding: '0.25rem 0.75rem',
+    borderRadius: 'var(--forge-radius-sm)',
+    background: 'rgba(255, 71, 87, 0.15)',
+    color: 'var(--forge-error)',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+  },
+  bannerInfo: {
+    marginBottom: '1rem',
+    borderRadius: 'var(--forge-radius-md)',
+    border: '1px solid var(--forge-border-default)',
+    background: 'var(--forge-bg-elevated)',
+    padding: '0.75rem 1rem',
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-muted)',
+  },
+  priceLine: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontSize: 'var(--forge-text-base)',
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  priceValue: {
+    fontSize: 'var(--forge-text-xl)',
+    fontWeight: 700,
+    color: 'var(--forge-accent-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+};
+
+/* ── Slider custom CSS ──────────────────────────────────────────────────── */
+const sliderCSS = `
+.forge-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--forge-accent-primary);
+  cursor: pointer;
+  border: 2px solid var(--forge-bg-void);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.4);
+}
+.forge-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--forge-accent-primary);
+  cursor: pointer;
+  border: 2px solid var(--forge-bg-void);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.4);
+}
+`;
+
 const PrintConfiguration = ({
   onConfigChange,
   selectedFile,
@@ -29,14 +258,14 @@ const PrintConfiguration = ({
   const { language } = useLanguage();
 
   const presetUi = {
-    label: language === 'en' ? 'Slicing preset' : 'Preset pro slicování',
+    label: language === 'en' ? 'Slicing preset' : 'Preset pro slicov\u00e1n\u00ed',
     noPresets: language === 'en'
-      ? 'No presets available — using default profile (Admin/parameters).'
-      : 'Žádné presety nejsou k dispozici — používám default profil (Admin/parameters).',
+      ? 'No presets available \u2014 using default profile (Admin/parameters).'
+      : '\u017d\u00e1dn\u00e9 presety nejsou k dispozici \u2014 pou\u017e\u00edv\u00e1m default profil (Admin/parameters).',
     failed: language === 'en'
-      ? 'Failed to load presets — using default profile.'
-      : 'Presety se nepodařilo načíst — používám default profil.',
-    placeholder: language === 'en' ? 'Select preset…' : 'Vyber preset…',
+      ? 'Failed to load presets \u2014 using default profile.'
+      : 'Presety se nepoda\u0159ilo na\u010d\u00edst \u2014 pou\u017e\u00edv\u00e1m default profil.',
+    placeholder: language === 'en' ? 'Select preset\u2026' : 'Vyber preset\u2026',
   };
   const [config, setConfig] = useState(initialConfig || {
     material: 'pla',
@@ -66,14 +295,14 @@ const PrintConfiguration = ({
   const fallbackColors = useMemo(() => {
     // Simple palette is UI-only fallback (not a source of truth).
     return [
-      { id: 'ui_white', name: language === 'en' ? 'White' : 'Bílá', hex: '#F9FAFB' },
-      { id: 'ui_black', name: language === 'en' ? 'Black' : 'Černá', hex: '#111827' },
-      { id: 'ui_red', name: language === 'en' ? 'Red' : 'Červená', hex: '#EF4444' },
-      { id: 'ui_blue', name: language === 'en' ? 'Blue' : 'Modrá', hex: '#3B82F6' },
-      { id: 'ui_green', name: language === 'en' ? 'Green' : 'Zelená', hex: '#10B981' },
-      { id: 'ui_yellow', name: language === 'en' ? 'Yellow' : 'Žlutá', hex: '#F59E0B' },
-      { id: 'ui_orange', name: language === 'en' ? 'Orange' : 'Oranžová', hex: '#F97316' },
-      { id: 'ui_purple', name: language === 'en' ? 'Purple' : 'Fialová', hex: '#8B5CF6' },
+      { id: 'ui_white', name: language === 'en' ? 'White' : 'B\u00edl\u00e1', hex: '#F9FAFB' },
+      { id: 'ui_black', name: language === 'en' ? 'Black' : '\u010cern\u00e1', hex: '#111827' },
+      { id: 'ui_red', name: language === 'en' ? 'Red' : '\u010cerven\u00e1', hex: '#EF4444' },
+      { id: 'ui_blue', name: language === 'en' ? 'Blue' : 'Modr\u00e1', hex: '#3B82F6' },
+      { id: 'ui_green', name: language === 'en' ? 'Green' : 'Zelen\u00e1', hex: '#10B981' },
+      { id: 'ui_yellow', name: language === 'en' ? 'Yellow' : '\u017dlut\u00e1', hex: '#F59E0B' },
+      { id: 'ui_orange', name: language === 'en' ? 'Orange' : 'Oran\u017eov\u00e1', hex: '#F97316' },
+      { id: 'ui_purple', name: language === 'en' ? 'Purple' : 'Fialov\u00e1', hex: '#8B5CF6' },
     ];
   }, [language]);
 
@@ -201,7 +430,7 @@ const PrintConfiguration = ({
 
   const formatFeeValue = useCallback((fee) => {
     const v = Number(fee?.value || 0);
-    const sign = v >= 0 ? '+' : '−';
+    const sign = v >= 0 ? '+' : '\u2212';
     const abs = Math.abs(v);
 
     const unit = (s) => (language === 'en' ? s.en : s.cs);
@@ -210,29 +439,29 @@ const PrintConfiguration = ({
       case 'percent':
         return `${sign}${abs}%`;
       case 'per_gram':
-        return `${sign}${abs} ${unit({ cs: 'Kč/g', en: 'CZK/g' })}`;
+        return `${sign}${abs} ${unit({ cs: 'K\u010d/g', en: 'CZK/g' })}`;
       case 'per_minute':
-        return `${sign}${abs} ${unit({ cs: 'Kč/min', en: 'CZK/min' })}`;
+        return `${sign}${abs} ${unit({ cs: 'K\u010d/min', en: 'CZK/min' })}`;
       case 'per_cm3':
-        return `${sign}${abs} ${unit({ cs: 'Kč/cm³', en: 'CZK/cm³' })}`;
+        return `${sign}${abs} ${unit({ cs: 'K\u010d/cm\u00b3', en: 'CZK/cm\u00b3' })}`;
       case 'per_cm2':
-        return `${sign}${abs} ${unit({ cs: 'Kč/cm²', en: 'CZK/cm²' })}`;
+        return `${sign}${abs} ${unit({ cs: 'K\u010d/cm\u00b2', en: 'CZK/cm\u00b2' })}`;
       case 'per_piece':
-        return `${sign}${abs} ${unit({ cs: 'Kč/kus', en: 'CZK/piece' })}`;
+        return `${sign}${abs} ${unit({ cs: 'K\u010d/kus', en: 'CZK/piece' })}`;
       case 'flat':
       default:
-        return `${sign}${abs} ${unit({ cs: 'Kč', en: 'CZK' })}`;
+        return `${sign}${abs} ${unit({ cs: 'K\u010d', en: 'CZK' })}`;
     }
   }, [language]);
 
   const qualities = [
-    { value: 'nozzle_08', label: 'Extra hrubý (0.8mm)', description: 'Extrémně rychlý tisk pro robustní díly.' },
-    { value: 'nozzle_06', label: 'Hrubý (0.6mm)', description: 'Rychlý tisk ideální pro velké modely.' },
-    { value: 'nozzle_04', label: 'Rychlý (0.4mm)', description: 'Urychlený tisk pro méně detailní objekty.' },
-    { value: 'draft', label: 'Návrhový (0.3mm)', description: 'Nejrychlejší pro ověření konceptu, nízká kvalita.' },
-    { value: 'standard', label: 'Standardní (0.2mm)', description: 'Vyvážený poměr kvality a rychlosti.' },
-    { value: 'fine', label: 'Jemný (0.15mm)', description: 'Vysoká kvalita pro detailní modely.' },
-    { value: 'ultra', label: 'Ultra jemný (0.1mm)', description: 'Nejvyšší možná kvalita, velmi pomalý tisk.' }
+    { value: 'nozzle_08', label: 'Extra hrub\u00fd (0.8mm)', description: 'Extr\u00e9mn\u011b rychl\u00fd tisk pro robustn\u00ed d\u00edly.' },
+    { value: 'nozzle_06', label: 'Hrub\u00fd (0.6mm)', description: 'Rychl\u00fd tisk ide\u00e1ln\u00ed pro velk\u00e9 modely.' },
+    { value: 'nozzle_04', label: 'Rychl\u00fd (0.4mm)', description: 'Urychlen\u00fd tisk pro m\u00e9n\u011b detailn\u00ed objekty.' },
+    { value: 'draft', label: 'N\u00e1vrhov\u00fd (0.3mm)', description: 'Nejrychlej\u0161\u00ed pro ov\u011b\u0159en\u00ed konceptu, n\u00edzk\u00e1 kvalita.' },
+    { value: 'standard', label: 'Standardn\u00ed (0.2mm)', description: 'Vyv\u00e1\u017een\u00fd pom\u011br kvality a rychlosti.' },
+    { value: 'fine', label: 'Jemn\u00fd (0.15mm)', description: 'Vysok\u00e1 kvalita pro detailn\u00ed modely.' },
+    { value: 'ultra', label: 'Ultra jemn\u00fd (0.1mm)', description: 'Nejvy\u0161\u0161\u00ed mo\u017en\u00e1 kvalita, velmi pomal\u00fd tisk.' }
   ];
 
   const commitConfig = (nextConfig) => {
@@ -260,7 +489,7 @@ const PrintConfiguration = ({
   const qualityPresets = {
     basic: {
       name: 'Basic',
-      description: 'Rychlý tisk, nízká kvalita',
+      description: 'Rychl\u00fd tisk, n\u00edzk\u00e1 kvalita',
       settings: {
         quality: 'nozzle_06',
         infill: 15,
@@ -269,7 +498,7 @@ const PrintConfiguration = ({
     },
     middle: {
       name: 'Middle',
-      description: 'Vyvážená kvalita a rychlost',
+      description: 'Vyv\u00e1\u017een\u00e1 kvalita a rychlost',
       settings: {
         quality: 'standard',
         infill: 20,
@@ -278,7 +507,7 @@ const PrintConfiguration = ({
     },
     pro: {
       name: 'Pro',
-      description: 'Nejvyšší kvalita, pomalý tisk',
+      description: 'Nejvy\u0161\u0161\u00ed kvalita, pomal\u00fd tisk',
       settings: {
         quality: 'fine',
         infill: 30,
@@ -297,35 +526,39 @@ const PrintConfiguration = ({
 
   if (!selectedFile) {
     return (
-      <div className="bg-card border border-border rounded-xl p-8 text-center">
-        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-          <Icon name="Settings" size={24} className="text-muted-foreground" />
+      <div style={fg.emptyState}>
+        <div style={fg.emptyIcon}>
+          <Icon name="Settings" size={24} style={{ color: 'var(--forge-text-muted)' }} />
         </div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">Konfigurace tisku</h3>
-        <p className="text-sm text-muted-foreground">
-          Nejprve nahrajte 3D model pro konfiguraci parametrů tisku
+        <h3 style={{ ...fg.sectionTitle, justifyContent: 'center', marginBottom: '0.5rem' }}>
+          Konfigurace tisku
+        </h3>
+        <p style={fg.textSecondary}>
+          Nejprve nahrajte 3D model pro konfiguraci parametr\u016f tisku
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <style>{sliderCSS}</style>
+
       {/* Slicing preset selector (loaded from backend) */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Sliders" size={20} className="mr-2" />
+      <div style={fg.card}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Sliders" size={20} style={{ marginRight: '0.5rem' }} />
           {presetUi.label}
         </h3>
 
-        {/* Error / no presets banners — Bug 3 fix: retry button */}
+        {/* Error / no presets banners */}
         {presetsError && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center justify-between">
+          <div style={fg.bannerError}>
             <span>{presetUi.failed}</span>
             {onPresetsRetry && (
               <button
                 onClick={onPresetsRetry}
-                className="ml-3 text-xs font-medium px-3 py-1 rounded bg-red-100 hover:bg-red-200 text-red-800 transition-colors"
+                style={fg.bannerRetry}
               >
                 {language === 'en' ? 'Retry' : 'Zkusit znovu'}
               </button>
@@ -334,7 +567,7 @@ const PrintConfiguration = ({
         )}
 
         {!presetsError && !presetsLoading && (availablePresets?.length || 0) === 0 && (
-          <div className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          <div style={fg.bannerInfo}>
             {presetUi.noPresets}
           </div>
         )}
@@ -367,36 +600,40 @@ const PrintConfiguration = ({
       </div>
 
       {/* Quality Presets */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Zap" size={20} className="mr-2" />
-          Rychlé předvolby
+      <div style={fg.card}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Zap" size={20} style={{ marginRight: '0.5rem' }} />
+          RYCHL\u00c9 P\u0158EDVOLBY
         </h3>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
           {Object.entries(qualityPresets).map(([key, preset]) => (
             <button
               key={key}
               onClick={() => applyPreset(key)}
-              className="bg-muted hover:bg-muted/80 border border-border rounded-lg p-4 text-left transition-colors"
+              style={fg.presetBtn}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-default)'; }}
             >
-              <div className="font-semibold text-foreground mb-1">{preset.name}</div>
-              <div className="text-xs text-muted-foreground">{preset.description}</div>
+              <div style={{ fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                {preset.name}
+              </div>
+              <div style={fg.textMuted}>{preset.description}</div>
             </button>
           ))}
         </div>
       </div>
 
       {/* Material Selection */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Package" size={20} className="mr-2" />
-          Materiál a barva
+      <div style={fg.card}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Package" size={20} style={{ marginRight: '0.5rem' }} />
+          MATERI\u00c1L A BARVA
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <Select
-            label="Materiál"
+            label="MATERI\u00c1L"
             options={materialOptions}
             value={config?.material || ''}
             onChange={(value) => handleMaterialChange(value)}
@@ -404,52 +641,48 @@ const PrintConfiguration = ({
             disabled={disabled || materialOptions.length <= 1}
           />
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Barva</label>
-            <div className="grid grid-cols-4 gap-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={fg.label}>BARVA</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
               {uiColors?.map((color) => (
                 <button
                   key={color?.id}
                   onClick={() => handleColorChange(color?.id)}
                   disabled={disabled}
-                  className={`flex items-center space-x-2 p-2 rounded-lg border transition-colors ${config?.color === color?.id
-                    ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                    }`}
+                  style={fg.colorBtn(config?.color === color?.id)}
                 >
-                  <div
-                    className="w-4 h-4 rounded-full border border-border"
-                    style={{ backgroundColor: color?.hex }}
-                  />
-                  <span className="text-xs font-medium">{color?.name}</span>
+                  <div style={fg.colorDot(color?.hex)} />
+                  <span style={fg.colorName}>{color?.name}</span>
                 </button>
               ))}
             </div>
             {selectedMaterial && (!Array.isArray(selectedMaterial?.colors) || selectedMaterial.colors.length === 0) && (
-              <div className="text-xs text-muted-foreground">
-                {language === 'en' ? 'Using fallback palette (UI only).' : 'Používám fallback paletu (jen pro UI).'}
+              <div style={fg.textMuted}>
+                {language === 'en' ? 'Using fallback palette (UI only).' : 'Pou\u017e\u00edv\u00e1m fallback paletu (jen pro UI).'}
               </div>
             )}
           </div>
         </div>
       </div>
+
       {/* Print Quality */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Layers" size={20} className="mr-2" />
-          Kvalita tisku
+      <div style={fg.card}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Layers" size={20} style={{ marginRight: '0.5rem' }} />
+          KVALITA TISKU
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <Select
-            label="Kvalita vrstvy"
+            label="KVALITA VRSTVY"
             options={qualities}
             value={config?.quality}
             onChange={(value) => handleConfigChange('quality', value)}
           />
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Výplň: {config?.infill}%
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={fg.label}>
+              V\u00ddPL\u0147: <span style={fg.infillValue}>{config?.infill}%</span>
             </label>
             <input
               type="range"
@@ -458,58 +691,61 @@ const PrintConfiguration = ({
               step="5"
               value={config?.infill}
               onChange={(e) => handleConfigChange('infill', parseInt(e?.target?.value))}
-              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
+              className="forge-slider"
+              style={fg.slider}
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Rychlý (10%)</span>
-              <span>Pevný (100%)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={fg.textMuted}>Rychl\u00fd (10%)</span>
+              <span style={fg.textMuted}>Pevn\u00fd (100%)</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-4">
+        <div style={{ marginTop: '1rem' }}>
           <Checkbox
-            label="Podpěry"
-            description="Automatické generování podpěr pro převislé části"
+            label="Podp\u011bry"
+            description="Automatick\u00e9 generov\u00e1n\u00ed podp\u011br pro p\u0159evisl\u00e9 \u010d\u00e1sti"
             checked={config?.supports}
             onChange={(e) => handleConfigChange('supports', e?.target?.checked)}
           />
         </div>
       </div>
+
       {/* Quantity */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Package2" size={20} className="mr-2" />
-          Množství
+      <div style={fg.card}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Package2" size={20} style={{ marginRight: '0.5rem' }} />
+          MNO\u017dSTV\u00cd
         </h3>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <Input
-            label="Počet kusů"
+            label="PO\u010cET KUS\u016e"
             type="number"
             min="1"
             max="100"
             value={config?.quantity}
             onChange={(e) => handleConfigChange('quantity', parseInt(e?.target?.value) || 1)}
           />
-          <p className="text-xs text-muted-foreground">
-            Expresní příplatky a další služby nastavíš v <span className="font-medium">Admin / Fees</span>.
+          <p style={fg.textMuted}>
+            Expresn\u00ed p\u0159\u00edplatky a dal\u0161\u00ed slu\u017eby nastav\u00ed\u0161 v <span style={{ fontWeight: 500 }}>Admin / Fees</span>.
           </p>
         </div>
       </div>
+
       {/* Additional services (fees from AdminFees) */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Wrench" size={20} className="mr-2" />
-          Dodatečné služby
+      <div style={fg.card}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Wrench" size={20} style={{ marginRight: '0.5rem' }} />
+          DODATE\u010cN\u00c9 SLU\u017dBY
         </h3>
 
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {selectableFees.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
+            <div style={fg.textSecondary}>
               {language === 'en'
                 ? 'No selectable services configured. Add fees in Admin / Fees.'
-                : 'Žádné volitelné služby nejsou nastavené. Přidej je v Admin / Fees.'}
+                : '\u017d\u00e1dn\u00e9 voliteln\u00e9 slu\u017eby nejsou nastaven\u00e9. P\u0159idej je v Admin / Fees.'}
             </div>
           ) : (
             selectableFees.map((fee) => {
@@ -529,28 +765,28 @@ const PrintConfiguration = ({
               };
 
               return (
-                <div key={fee.id} className="p-3 border border-border rounded-lg">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
+                <div key={fee.id} style={fg.feeCard}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                       <Checkbox
                         checked={isSelected}
                         onChange={(e) => toggleFeeSelected(fee.id, !!e?.target?.checked)}
                       />
                       <div>
-                        <p className="text-sm font-medium text-foreground">{fee.name}</p>
+                        <p style={{ ...fg.text, fontWeight: 500 }}>{fee.name}</p>
                         {fee.description ? (
-                          <p className="text-xs text-muted-foreground">{fee.description}</p>
+                          <p style={fg.textMuted}>{fee.description}</p>
                         ) : null}
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                        <div style={{ marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <span style={fg.pill}>
                             {(fee.scope || 'MODEL').toUpperCase()}
                           </span>
                           {fee.charge_basis === 'PER_PIECE' ? (
-                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                            <span style={fg.pill}>
                               {language === 'en' ? 'Per piece' : 'Za kus'}
                             </span>
                           ) : (
-                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                            <span style={fg.pill}>
                               {language === 'en' ? 'Per file' : 'Za soubor'}
                             </span>
                           )}
@@ -558,33 +794,33 @@ const PrintConfiguration = ({
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">{formatFeeValue(fee)}</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={fg.feeValue}>{formatFeeValue(fee)}</p>
+                      <p style={fg.textMuted}>
                         {fee.type === 'percent'
                           ? (language === 'en' ? 'from subtotal' : 'ze subtotalu')
-                          : (language === 'en' ? 'in quote' : 'v ceně')}
+                          : (language === 'en' ? 'in quote' : 'v cen\u011b')}
                       </p>
                     </div>
                   </div>
 
                   {canTarget && isSelected && (
-                    <div className="mt-3 pl-7">
-                      <div className="text-xs text-muted-foreground mb-2">
+                    <div style={{ marginTop: '0.75rem', paddingLeft: '1.75rem' }}>
+                      <div style={{ ...fg.textMuted, marginBottom: '0.5rem' }}>
                         {language === 'en' ? 'Apply to:' : 'Aplikovat na:'}
                       </div>
-                      <div className="flex flex-wrap gap-4 text-sm">
-                        <label className="flex items-center gap-2">
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: 'var(--forge-text-base)', color: 'var(--forge-text-primary)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                           <input
                             type="radio"
                             name={`fee_target_${fee.id}`}
                             checked={targetUi === 'ALL'}
                             onChange={() => setFeeTargetAll(fee.id)}
                           />
-                          <span>{language === 'en' ? 'All models' : 'Všechny modely'}</span>
+                          <span>{language === 'en' ? 'All models' : 'V\u0161echny modely'}</span>
                         </label>
 
-                        <label className="flex items-center gap-2">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                           <input
                             type="radio"
                             name={`fee_target_${fee.id}`}
@@ -594,23 +830,23 @@ const PrintConfiguration = ({
                           <span>{language === 'en' ? 'This model' : 'Tento model'}</span>
                         </label>
 
-                        <label className="flex items-center gap-2">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                           <input
                             type="radio"
                             name={`fee_target_${fee.id}`}
                             checked={targetUi === 'SELECTED'}
                             onChange={() => setFeeTargetSelected(fee.id, ensureAtLeastOne(targetIds), 'SELECTED')}
                           />
-                          <span>{language === 'en' ? 'Selected models' : 'Vybrané modely'}</span>
+                          <span>{language === 'en' ? 'Selected models' : 'Vybran\u00e9 modely'}</span>
                         </label>
                       </div>
 
                       {targetUi === 'SELECTED' && (
-                        <div className="mt-2 grid grid-cols-1 gap-2">
+                        <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                           {(uploadedFiles || []).map((f) => {
                             const checked = targetIds.includes(f.id);
                             return (
-                              <label key={f.id} className="flex items-center gap-2 text-xs text-foreground">
+                              <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-primary)', cursor: 'pointer' }}>
                                 <input
                                   type="checkbox"
                                   checked={checked}
@@ -621,10 +857,18 @@ const PrintConfiguration = ({
                                     setFeeTargetSelected(fee.id, ensureAtLeastOne(Array.from(next)), 'SELECTED');
                                   }}
                                 />
-                                <span className="truncate max-w-[320px]">{f.name}</span>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '320px' }}>{f.name}</span>
                                 {f.id === currentId ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                                    {language === 'en' ? 'current' : 'aktuální'}
+                                  <span style={{
+                                    fontSize: '10px',
+                                    padding: '0.125rem 0.5rem',
+                                    borderRadius: '999px',
+                                    background: 'rgba(0, 212, 170, 0.1)',
+                                    color: 'var(--forge-accent-primary)',
+                                    border: '1px solid rgba(0, 212, 170, 0.2)',
+                                    fontFamily: 'var(--forge-font-mono)',
+                                  }}>
+                                    {language === 'en' ? 'current' : 'aktu\u00e1ln\u00ed'}
                                   </span>
                                 ) : null}
                               </label>
@@ -636,8 +880,8 @@ const PrintConfiguration = ({
                   )}
 
                   {!!fee?.apply_to_selected_models_enabled === false && isSelected ? (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {language === 'en' ? 'Applied to all models.' : 'Aplikováno na všechny modely.'}
+                    <div style={{ marginTop: '0.5rem', ...fg.textMuted }}>
+                      {language === 'en' ? 'Applied to all models.' : 'Aplikov\u00e1no na v\u0161echny modely.'}
                     </div>
                   ) : null}
                 </div>
@@ -646,25 +890,26 @@ const PrintConfiguration = ({
           )}
         </div>
       </div>
+
       {/* Estimated Results */}
-      <div className="bg-muted/30 border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-          <Icon name="Clock" size={20} className="mr-2" />
-          {selectedFile?.status === 'processing' ? 'Výpočet...' :
-            selectedFile?.status === 'completed' ? 'Výsledky slicingu' : 'Odhad tisku'}
+      <div style={fg.resultCard}>
+        <h3 style={fg.sectionTitle}>
+          <Icon name="Clock" size={20} style={{ marginRight: '0.5rem' }} />
+          {selectedFile?.status === 'processing' ? 'V\u00ddPO\u010cET...' :
+            selectedFile?.status === 'completed' ? 'V\u00ddSLEDKY SLICINGU' : 'ODHAD TISKU'}
         </h3>
 
         {selectedFile?.status === 'processing' && (
-          <div className="flex items-center justify-center py-8">
-            <Icon name="Loader" size={32} className="animate-spin text-primary" />
-            <span className="ml-3 text-muted-foreground">Zpracovávám model...</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 0' }}>
+            <Icon name="Loader" size={32} className="animate-spin" style={{ color: 'var(--forge-accent-primary)' }} />
+            <span style={{ marginLeft: '0.75rem', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-body)' }}>Zpracov\u00e1v\u00e1m model...</span>
           </div>
         )}
 
         {selectedFile?.status === 'failed' && (
-          <div className="text-center py-4">
-            <Icon name="XCircle" size={32} className="text-red-500 mx-auto mb-2" />
-            <p className="text-sm text-red-500">{selectedFile.error || 'Slicing se nezdařil'}</p>
+          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+            <Icon name="XCircle" size={32} style={{ color: 'var(--forge-error)', margin: '0 auto 0.5rem auto', display: 'block' }} />
+            <p style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-error)' }}>{selectedFile.error || 'Slicing se nezda\u0159il'}</p>
           </div>
         )}
 
@@ -679,58 +924,58 @@ const PrintConfiguration = ({
 
           return (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Icon name="Clock" size={20} className="text-primary" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={fg.resultMetricCircle('rgba(0, 212, 170, 0.1)')}>
+                  <Icon name="Clock" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
                 </div>
-                <p className="text-sm font-medium text-foreground">
-                  {timeSeconds > 0 ? `${Math.round(timeSeconds / 3600)}h ${Math.round((timeSeconds % 3600) / 60)}min` : '—'}
+                <p style={{ ...fg.text, fontWeight: 500, fontFamily: 'var(--forge-font-mono)' }}>
+                  {timeSeconds > 0 ? `${Math.round(timeSeconds / 3600)}h ${Math.round((timeSeconds % 3600) / 60)}min` : '\u2014'}
                 </p>
-                <p className="text-xs text-muted-foreground">Doba tisku</p>
+                <p style={fg.textMuted}>Doba tisku</p>
               </div>
 
-              <div className="text-center">
-                <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Icon name="Weight" size={20} className="text-success" />
+              <div style={{ textAlign: 'center' }}>
+                <div style={fg.resultMetricCircle('rgba(0, 212, 170, 0.1)')}>
+                  <Icon name="Weight" size={20} style={{ color: 'var(--forge-success)' }} />
                 </div>
-                <p className="text-sm font-medium text-foreground">{materialG > 0 ? `${Math.round(materialG)}g` : '—'}</p>
-                <p className="text-xs text-muted-foreground">Hmotnost</p>
+                <p style={{ ...fg.text, fontWeight: 500, fontFamily: 'var(--forge-font-mono)' }}>{materialG > 0 ? `${Math.round(materialG)}g` : '\u2014'}</p>
+                <p style={fg.textMuted}>Hmotnost</p>
               </div>
 
-              <div className="text-center">
-                <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Icon name="Layers" size={20} className="text-warning" />
+              <div style={{ textAlign: 'center' }}>
+                <div style={fg.resultMetricCircle('rgba(255, 181, 71, 0.1)')}>
+                  <Icon name="Layers" size={20} style={{ color: 'var(--forge-warning)' }} />
                 </div>
-                <p className="text-sm font-medium text-foreground">{layers > 0 ? layers : '—'}</p>
-                <p className="text-xs text-muted-foreground">Vrstvy</p>
+                <p style={{ ...fg.text, fontWeight: 500, fontFamily: 'var(--forge-font-mono)' }}>{layers > 0 ? layers : '\u2014'}</p>
+                <p style={fg.textMuted}>Vrstvy</p>
               </div>
 
-              <div className="text-center">
-                <div className="w-12 h-12 bg-error/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Icon name="Thermometer" size={20} className="text-error" />
+              <div style={{ textAlign: 'center' }}>
+                <div style={fg.resultMetricCircle('rgba(255, 71, 87, 0.1)')}>
+                  <Icon name="Thermometer" size={20} style={{ color: 'var(--forge-error)' }} />
                 </div>
-                <p className="text-sm font-medium text-foreground">
-                  {config?.material === 'pla' ? '200°C' :
-                    config?.material === 'abs' ? '250°C' :
-                      config?.material === 'petg' ? '230°C' :
-                        config?.material === 'tpu' ? '220°C' : '210°C'}
+                <p style={{ ...fg.text, fontWeight: 500, fontFamily: 'var(--forge-font-mono)' }}>
+                  {config?.material === 'pla' ? '200\u00b0C' :
+                    config?.material === 'abs' ? '250\u00b0C' :
+                      config?.material === 'petg' ? '230\u00b0C' :
+                        config?.material === 'tpu' ? '220\u00b0C' : '210\u00b0C'}
                 </p>
-                <p className="text-xs text-muted-foreground">Teplota</p>
+                <p style={fg.textMuted}>Teplota</p>
               </div>
             </div>
 
             {res.pricing && Array.isArray(res.pricing?.breakdown) && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-foreground">Cena za tisk:</span>
-                  <span className="text-lg font-bold text-primary">{price > 0 ? `${Math.round(price)} Kč` : '—'}</span>
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--forge-border-default)' }}>
+                <div style={fg.priceLine}>
+                  <span style={fg.priceLabel}>Cena za tisk:</span>
+                  <span style={fg.priceValue}>{price > 0 ? `${Math.round(price)} K\u010d` : '\u2014'}</span>
                 </div>
-                <div className="text-xs text-muted-foreground space-y-1">
+                <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   {res.pricing.breakdown.map((item, idx) => (
-                    <div key={idx} className="flex justify-between">
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
                       <span>{item?.label ?? ''}:</span>
-                      <span>{Number.isFinite(Number(item?.amount)) ? `${Math.round(Number(item.amount))} Kč` : '—'}</span>
+                      <span>{Number.isFinite(Number(item?.amount)) ? `${Math.round(Number(item.amount))} K\u010d` : '\u2014'}</span>
                     </div>
                   ))}
                 </div>
@@ -741,7 +986,7 @@ const PrintConfiguration = ({
         })()}
 
         {(!selectedFile?.result && selectedFile?.status !== 'processing' && selectedFile?.status !== 'failed') && (
-          <div className="text-center py-4 text-muted-foreground text-sm">
+          <div style={{ textAlign: 'center', padding: '1rem 0', color: 'var(--forge-text-secondary)', fontSize: 'var(--forge-text-sm)', fontFamily: 'var(--forge-font-body)' }}>
             Nastavte parametry a model se automaticky zpracuje
           </div>
         )}

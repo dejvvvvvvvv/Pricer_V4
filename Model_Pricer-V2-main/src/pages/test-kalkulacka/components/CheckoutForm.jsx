@@ -10,6 +10,141 @@ import { getCheckoutSchema } from '../schemas/checkoutSchema';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 import { loadOrders, saveOrders, nowIso } from '../../../utils/adminOrdersStorage';
 
+/* ── FORGE style objects ─────────────────────────────────────────────────── */
+const fg = {
+  card: {
+    background: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-xl)',
+    padding: '1.5rem',
+  },
+  sectionTitle: {
+    fontSize: 'var(--forge-text-lg)',
+    fontFamily: 'var(--forge-font-tech)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '1rem',
+  },
+  label: {
+    fontSize: '12px',
+    fontFamily: 'var(--forge-font-body)',
+    fontWeight: 500,
+    color: 'var(--forge-text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    display: 'block',
+    marginBottom: '0.25rem',
+  },
+  textarea: {
+    width: '100%',
+    borderRadius: 'var(--forge-radius-md)',
+    border: '1px solid var(--forge-border-default)',
+    background: 'var(--forge-bg-elevated)',
+    padding: '0.75rem',
+    fontSize: 'var(--forge-text-base)',
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+    minHeight: '80px',
+    resize: 'vertical',
+    outline: 'none',
+    transition: 'border-color 0.15s',
+  },
+  textareaPlaceholder: {
+    color: 'var(--forge-text-muted)',
+  },
+  error: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-error)',
+    marginTop: '0.25rem',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  gdprBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  gdprCheckbox: {
+    marginTop: '0.25rem',
+    width: '1rem',
+    height: '1rem',
+    borderRadius: 'var(--forge-radius-sm)',
+    accentColor: 'var(--forge-accent-primary)',
+  },
+  gdprLabel: {
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-secondary)',
+    fontFamily: 'var(--forge-font-body)',
+    cursor: 'pointer',
+    lineHeight: 1.5,
+  },
+  modelRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    padding: '0.5rem 0',
+    borderBottom: '1px solid var(--forge-border-default)',
+  },
+  modelName: {
+    fontSize: 'var(--forge-text-sm)',
+    fontWeight: 500,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  modelMeta: {
+    fontSize: 'var(--forge-text-xs)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  summaryLine: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-secondary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  summaryValue: {
+    fontFamily: 'var(--forge-font-mono)',
+    color: 'var(--forge-text-primary)',
+  },
+  totalRow: {
+    paddingTop: '0.5rem',
+    borderTop: '2px solid var(--forge-accent-primary)',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 'var(--forge-text-sm)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-tech)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  totalValue: {
+    fontSize: 'var(--forge-text-xl)',
+    fontWeight: 700,
+    color: 'var(--forge-accent-primary)',
+    fontFamily: 'var(--forge-font-mono)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: '2rem',
+    paddingTop: '1.5rem',
+    borderTop: '1px solid var(--forge-border-default)',
+  },
+};
+
 function formatCzk(amount) {
   const n = Number.isFinite(amount) ? amount : 0;
   try {
@@ -152,21 +287,21 @@ export default function CheckoutForm({
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div style={{ maxWidth: '56rem', margin: '0 auto' }}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
           {/* Left: Contact form */}
-          <div className="space-y-6">
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                <Icon name="User" size={20} className="mr-2" />
-                {t('Kontaktni udaje', 'Contact Information')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={fg.card}>
+              <h3 style={fg.sectionTitle}>
+                <Icon name="User" size={20} style={{ marginRight: '0.5rem' }} />
+                {t('KONTAKTN\u00cd \u00daDAJE', 'CONTACT INFORMATION')}
               </h3>
 
-              <div className="space-y-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
                   <Input
-                    label={t('Jmeno a prijmeni *', 'Full name *')}
+                    label={t('JM\u00c9NO A P\u0158\u00cdJMEN\u00cd *', 'FULL NAME *')}
                     placeholder={t('Jan Novak', 'John Doe')}
                     {...register('name')}
                     error={errors.name?.message}
@@ -175,7 +310,7 @@ export default function CheckoutForm({
 
                 <div>
                   <Input
-                    label={t('Email *', 'Email *')}
+                    label={t('EMAIL *', 'EMAIL *')}
                     type="email"
                     placeholder="jan@example.com"
                     {...register('email')}
@@ -185,7 +320,7 @@ export default function CheckoutForm({
 
                 <div>
                   <Input
-                    label={t('Telefon', 'Phone')}
+                    label={t('TELEFON', 'PHONE')}
                     type="tel"
                     placeholder="+420 777 123 456"
                     {...register('phone')}
@@ -195,7 +330,7 @@ export default function CheckoutForm({
 
                 <div>
                   <Input
-                    label={t('Firma', 'Company')}
+                    label={t('FIRMA', 'COMPANY')}
                     placeholder={t('Nazev firmy (nepovinne)', 'Company name (optional)')}
                     {...register('company')}
                     error={errors.company?.message}
@@ -203,31 +338,33 @@ export default function CheckoutForm({
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground block mb-1">
-                    {t('Poznamka k objednavce', 'Order note')}
+                  <label style={fg.label}>
+                    {t('POZN\u00c1MKA K OBJEDN\u00c1VCE', 'ORDER NOTE')}
                   </label>
                   <textarea
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[80px] resize-y"
+                    style={fg.textarea}
                     placeholder={t('Specialni pozadavky...', 'Special requirements...')}
+                    onFocus={(e) => { e.target.style.borderColor = 'var(--forge-accent-primary)'; }}
+                    onBlur={(e) => { e.target.style.borderColor = 'var(--forge-border-default)'; }}
                     {...register('note')}
                   />
                   {errors.note?.message && (
-                    <p className="text-xs text-red-500 mt-1">{errors.note.message}</p>
+                    <p style={fg.error}>{errors.note.message}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* GDPR consent */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-start gap-3">
+            <div style={fg.card}>
+              <div style={fg.gdprBox}>
                 <input
                   type="checkbox"
                   id="gdpr-consent"
-                  className="mt-1 h-4 w-4 rounded border-border"
+                  style={fg.gdprCheckbox}
                   {...register('gdprConsent')}
                 />
-                <label htmlFor="gdpr-consent" className="text-sm text-foreground cursor-pointer">
+                <label htmlFor="gdpr-consent" style={fg.gdprLabel}>
                   {t(
                     'Souhlasim se zpracovanim svych osobnich udaju za ucelem vyrizeni objednavky. Detaily o zpracovani osobnich udaju naleznete v nasich zasadach ochrany soukromi.',
                     'I consent to the processing of my personal data for the purpose of fulfilling this order. Details about data processing can be found in our privacy policy.'
@@ -235,64 +372,64 @@ export default function CheckoutForm({
                 </label>
               </div>
               {errors.gdprConsent?.message && (
-                <p className="text-xs text-red-500 mt-2 ml-7">{errors.gdprConsent.message}</p>
+                <p style={{ ...fg.error, marginLeft: '1.75rem' }}>{errors.gdprConsent.message}</p>
               )}
             </div>
           </div>
 
           {/* Right: Order summary */}
-          <div className="space-y-6">
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                <Icon name="ShoppingCart" size={20} className="mr-2" />
-                {t('Souhrn objednavky', 'Order Summary')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={fg.card}>
+              <h3 style={fg.sectionTitle}>
+                <Icon name="ShoppingCart" size={20} style={{ marginRight: '0.5rem' }} />
+                {t('SOUHRN OBJEDN\u00c1VKY', 'ORDER SUMMARY')}
               </h3>
 
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {(uploadedFiles || [])
                   .filter(f => f?.status === 'completed')
-                  .map(f => {
+                  .map((f, idx, arr) => {
                     const cfg = printConfigs?.[f.id] || {};
                     return (
-                      <div key={f.id} className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{f.name}</p>
-                          <p className="text-xs text-muted-foreground">
+                      <div key={f.id} style={{ ...fg.modelRow, ...(idx === arr.length - 1 ? { borderBottom: 'none' } : {}) }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={fg.modelName}>{f.name}</p>
+                          <p style={fg.modelMeta}>
                             {cfg.quantity || 1}x &middot; {(cfg.material || 'pla').toUpperCase()}
                           </p>
                         </div>
-                        <Icon name="CheckCircle" size={16} className="text-green-500 flex-shrink-0" />
+                        <Icon name="CheckCircle" size={16} style={{ color: 'var(--forge-success)', flexShrink: 0 }} />
                       </div>
                     );
                   })}
               </div>
 
               {quote && (
-                <div className="mt-4 pt-4 border-t border-border">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>{t('Material', 'Material')}</span>
-                      <span>{formatCzk(quote.simple?.material ?? 0)}</span>
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--forge-border-default)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={fg.summaryLine}>
+                      <span>{t('Materi\u00e1l', 'Material')}</span>
+                      <span style={fg.summaryValue}>{formatCzk(quote.simple?.material ?? 0)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>{t('Cas tisku', 'Print time')}</span>
-                      <span>{formatCzk(quote.simple?.time ?? 0)}</span>
+                    <div style={fg.summaryLine}>
+                      <span>{t('\u010cas tisku', 'Print time')}</span>
+                      <span style={fg.summaryValue}>{formatCzk(quote.simple?.time ?? 0)}</span>
                     </div>
                     {(quote.simple?.services ?? 0) !== 0 && (
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{t('Sluzby', 'Services')}</span>
-                        <span>{formatCzk(quote.simple.services)}</span>
+                      <div style={fg.summaryLine}>
+                        <span>{t('Slu\u017eby', 'Services')}</span>
+                        <span style={fg.summaryValue}>{formatCzk(quote.simple.services)}</span>
                       </div>
                     )}
                     {(quote.simple?.markup ?? 0) !== 0 && (
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{t('Prirazka', 'Markup')}</span>
-                        <span>{formatCzk(quote.simple.markup)}</span>
+                      <div style={fg.summaryLine}>
+                        <span>{t('P\u0159ir\u00e1\u017eka', 'Markup')}</span>
+                        <span style={fg.summaryValue}>{formatCzk(quote.simple.markup)}</span>
                       </div>
                     )}
-                    <div className="pt-2 border-t border-border flex justify-between items-center">
-                      <span className="text-sm font-semibold">{t('Celkem', 'Total')}</span>
-                      <span className="text-xl font-bold text-primary">{formatCzk(quote.total)}</span>
+                    <div style={fg.totalRow}>
+                      <span style={fg.totalLabel}>{t('Celkem', 'Total')}</span>
+                      <span style={fg.totalValue}>{formatCzk(quote.total)}</span>
                     </div>
                   </div>
                 </div>
@@ -302,9 +439,9 @@ export default function CheckoutForm({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+        <div style={fg.actions}>
           <Button variant="outline" type="button" onClick={onBack} iconName="ChevronLeft" iconPosition="left">
-            {t('Zpet', 'Back')}
+            {t('Zp\u011bt', 'Back')}
           </Button>
           <Button
             variant="default"
@@ -314,7 +451,7 @@ export default function CheckoutForm({
             iconName="Send"
             iconPosition="right"
           >
-            {isSubmitting ? t('Odesilam...', 'Submitting...') : t('Odeslat objednavku', 'Submit Order')}
+            {isSubmitting ? t('Odes\u00edl\u00e1m...', 'Submitting...') : t('Odeslat objedn\u00e1vku', 'Submit Order')}
           </Button>
         </div>
       </form>

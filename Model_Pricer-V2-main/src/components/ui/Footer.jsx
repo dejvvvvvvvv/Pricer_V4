@@ -26,7 +26,7 @@ const Footer = () => {
             <h4>{t('footer.nav.title')}</h4>
             <nav className="footer-nav">
               <Link to="/">{t('nav.home')}</Link>
-              <Link to="/model-upload">{t('nav.demo')}</Link>
+              <Link to="/test-kalkulacka">{t('nav.demo')}</Link>
               <Link to="/pricing">{t('nav.pricing')}</Link>
               <Link to="/support">{t('nav.support')}</Link>
             </nav>

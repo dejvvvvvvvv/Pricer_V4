@@ -57,9 +57,9 @@ const WidgetDomainsTab = ({
     return (
       <div className="aw-domains-tab">
         <div className="aw-limit-box">
-          <Icon name="Lock" size={18} />
+          <Icon name="Lock" size={18} style={{ color: 'var(--forge-text-muted)' }} />
           <div>
-            <strong>Whitelist domen neni dostupny</strong>
+            <strong style={{ color: 'var(--forge-text-primary)' }}>Whitelist domen neni dostupny</strong>
             <div className="aw-muted">
               Tato funkce neni dostupna v aktualnim tarifu. Pro povoleni whitelistu domen
               je potreba vyssi tarif.

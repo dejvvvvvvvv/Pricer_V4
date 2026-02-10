@@ -196,13 +196,13 @@ function GradientToggle({ checked, onChange, disabled = false }) {
           width: 44px;
           height: 24px;
           border-radius: 999px;
-          background: linear-gradient(to right, #fb7185, #ef4444);
-          box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+          background: linear-gradient(to right, var(--forge-error), #c0392b);
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
           position: relative;
           transition: background 0.3s ease;
         }
         .gradient-toggle input:checked + .gradient-toggle-track {
-          background: linear-gradient(to right, #10b981, #059669);
+          background: linear-gradient(to right, var(--forge-accent-primary), #00a886);
         }
         .gradient-toggle-track::after {
           content: '';
@@ -212,9 +212,9 @@ function GradientToggle({ checked, onChange, disabled = false }) {
           width: 20px;
           height: 20px;
           border-radius: 999px;
-          background: #f9fafb;
-          border: 1px solid rgba(0,0,0,0.1);
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+          background: var(--forge-text-primary);
+          border: 1px solid rgba(0,0,0,0.2);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
           transition: transform 0.3s ease;
           display: flex;
           align-items: center;
@@ -224,7 +224,7 @@ function GradientToggle({ checked, onChange, disabled = false }) {
           transform: translateX(20px);
         }
         .gradient-toggle input:focus + .gradient-toggle-track {
-          outline: 2px solid #6366f1;
+          outline: 2px solid var(--forge-accent-primary);
           outline-offset: 2px;
         }
       `}</style>
@@ -265,13 +265,13 @@ function Toggle({ checked, onChange, disabled = false, label, hint, rightSlot })
         }
         .toggle-title {
           font-weight: 600;
-          color: #111827;
+          color: var(--forge-text-primary);
           font-size: 14px;
         }
         .toggle-hint {
           margin-top: 4px;
           font-size: 12px;
-          color: #6B7280;
+          color: var(--forge-text-muted);
           line-height: 1.35;
         }
       `}</style>
@@ -291,14 +291,16 @@ function Badge({ children, tone = 'gray' }) {
           border-radius: 999px;
           font-size: 12px;
           font-weight: 600;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.04em;
           border: 1px solid transparent;
           white-space: nowrap;
         }
-        .badge.gray { background: #F3F4F6; color: #374151; border-color: #E5E7EB; }
-        .badge.blue { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
-        .badge.amber { background: #FFFBEB; color: #92400E; border-color: #FDE68A; }
-        .badge.red { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
-        .badge.green { background: #ECFDF5; color: #065F46; border-color: #A7F3D0; }
+        .badge.gray { background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-color: var(--forge-border-default); }
+        .badge.blue { background: rgba(0,212,170,0.1); color: var(--forge-accent-primary); border-color: rgba(0,212,170,0.25); }
+        .badge.amber { background: rgba(255,181,71,0.12); color: var(--forge-warning); border-color: rgba(255,181,71,0.3); }
+        .badge.red { background: rgba(255,71,87,0.12); color: var(--forge-error); border-color: rgba(255,71,87,0.3); }
+        .badge.green { background: rgba(0,212,170,0.12); color: var(--forge-success); border-color: rgba(0,212,170,0.3); }
       `}</style>
     </span>
   );
@@ -320,7 +322,7 @@ function ConfirmModal({ open, title, description, confirmText = 'Confirm', cance
         .modal-backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.35);
+          background: rgba(0,0,0,0.6);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -330,20 +332,22 @@ function ConfirmModal({ open, title, description, confirmText = 'Confirm', cance
         .modal {
           width: 100%;
           max-width: 520px;
-          background: #fff;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 20px;
-          box-shadow: 0 10px 35px rgba(0,0,0,0.25);
+          box-shadow: var(--forge-shadow-lg);
         }
         .modal-title {
           font-size: 18px;
           font-weight: 700;
-          color: #111827;
+          font-family: var(--forge-font-heading);
+          color: var(--forge-text-primary);
           margin-bottom: 8px;
         }
         .modal-desc {
           font-size: 14px;
-          color: #6B7280;
+          color: var(--forge-text-secondary);
           line-height: 1.45;
         }
         .modal-actions {
@@ -354,20 +358,22 @@ function ConfirmModal({ open, title, description, confirmText = 'Confirm', cance
         }
         .btn {
           padding: 10px 14px;
-          border-radius: 10px;
-          border: 1px solid #D1D5DB;
-          background: #fff;
+          border-radius: var(--forge-radius-lg);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
           cursor: pointer;
           font-weight: 600;
         }
         .btn.primary {
-          background: #2563EB;
-          border-color: #2563EB;
-          color: #fff;
+          background: var(--forge-accent-primary);
+          border-color: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
         }
         .btn.primary.danger {
-          background: #DC2626;
-          border-color: #DC2626;
+          background: var(--forge-error);
+          border-color: var(--forge-error);
+          color: #fff;
         }
       `}</style>
     </div>
@@ -385,10 +391,10 @@ function Hint({ children }) {
           align-items: center;
           gap: 8px;
           padding: 8px 10px;
-          border-radius: 10px;
-          border: 1px solid #E5E7EB;
-          background: #F9FAFB;
-          color: #374151;
+          border-radius: var(--forge-radius-lg);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-secondary);
           font-size: 13px;
         }
       `}</style>
@@ -671,15 +677,15 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
 
       <style>{`
         .lib-filter-panel {
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 14px 16px;
           margin-bottom: 16px;
           display: flex;
           flex-direction: column;
           gap: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+          box-shadow: var(--forge-shadow-sm);
         }
         .lib-filter-row-search {
           display: flex;
@@ -691,16 +697,16 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           display: flex;
           align-items: center;
           gap: 8px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          background: var(--forge-bg-elevated);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
           padding: 8px 12px;
           transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
         }
         .lib-search-box:focus-within {
-          border-color: #111827;
-          box-shadow: 0 0 0 3px rgba(17,24,39,0.06);
-          background: #fff;
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 0 0 3px rgba(0,212,170,0.1);
+          background: var(--forge-bg-overlay);
         }
         .lib-search-box input {
           flex: 1;
@@ -712,9 +718,10 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           height: auto !important;
           box-shadow: none !important;
           width: 100%;
+          color: var(--forge-text-primary);
         }
         .lib-search-box .lucide {
-          color: #9ca3af;
+          color: var(--forge-text-muted);
           flex-shrink: 0;
         }
         .lib-search-clear {
@@ -724,37 +731,43 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           border: none;
           background: none;
           cursor: pointer;
-          color: #9ca3af;
+          color: var(--forge-text-muted);
           padding: 2px;
           border-radius: 4px;
           transition: color 0.15s;
           flex-shrink: 0;
         }
         .lib-search-clear:hover {
-          color: #374151;
+          color: var(--forge-text-primary);
         }
         .lib-filter-result {
           display: flex;
           align-items: baseline;
           gap: 4px;
           font-size: 13px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           white-space: nowrap;
           flex-shrink: 0;
         }
         .lib-filter-result-count {
           font-weight: 800;
-          color: #111827;
+          color: var(--forge-accent-primary);
           font-size: 16px;
+          font-family: var(--forge-font-mono);
         }
         .lib-filter-result-sep {
-          color: #d1d5db;
+          color: var(--forge-text-disabled);
         }
         .lib-filter-result-total {
           font-weight: 600;
+          font-family: var(--forge-font-mono);
         }
         .lib-filter-result-label {
           margin-left: 2px;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          font-size: 10px;
+          letter-spacing: 0.08em;
         }
         .lib-filter-row-controls {
           display: flex;
@@ -773,30 +786,34 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           gap: 6px;
         }
         .lib-filter-select-label {
-          font-size: 12px;
-          color: #6b7280;
+          font-size: 11px;
+          color: var(--forge-text-muted);
           font-weight: 600;
           white-space: nowrap;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
         }
         .lib-filter-select-wrap select {
           height: 32px;
           padding: 0 28px 0 10px !important;
           font-size: 13px;
-          border-radius: 8px !important;
-          border: 1px solid #e5e7eb;
-          background: #fff;
+          border-radius: var(--forge-radius-md) !important;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
           font-weight: 500;
           cursor: pointer;
           min-width: 90px;
         }
         .lib-filter-select-wrap select:focus {
-          border-color: #111827;
-          box-shadow: 0 0 0 2px rgba(17,24,39,0.06);
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 0 0 2px rgba(0,212,170,0.1);
         }
         .lib-filter-divider {
           width: 1px;
           height: 24px;
-          background: #e5e7eb;
+          background: var(--forge-border-default);
           flex-shrink: 0;
         }
         .lib-filter-chips {
@@ -807,12 +824,12 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
         .lib-chip {
           height: 32px;
           padding: 0 12px;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-          background: #fff;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
           font-size: 13px;
           font-weight: 600;
-          color: #374151;
+          color: var(--forge-text-secondary);
           cursor: pointer;
           transition: all 0.15s;
           display: flex;
@@ -821,23 +838,23 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           white-space: nowrap;
         }
         .lib-chip:hover {
-          background: #f9fafb;
-          border-color: #d1d5db;
+          background: var(--forge-bg-overlay);
+          border-color: var(--forge-border-active);
         }
         .lib-chip.on {
-          background: #eff6ff;
-          border-color: #93c5fd;
-          color: #1d4ed8;
+          background: rgba(0,212,170,0.1);
+          border-color: rgba(0,212,170,0.3);
+          color: var(--forge-accent-primary);
         }
         .lib-filter-clear-btn {
           height: 32px;
           padding: 0 10px;
-          border-radius: 8px;
-          border: 1px solid #fecaca;
-          background: #fff;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid rgba(255,71,87,0.3);
+          background: var(--forge-bg-elevated);
           font-size: 12px;
           font-weight: 600;
-          color: #dc2626;
+          color: var(--forge-error);
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -847,23 +864,25 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           transition: all 0.15s;
         }
         .lib-filter-clear-btn:hover {
-          background: #fef2f2;
+          background: rgba(255,71,87,0.08);
         }
         select {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 10px;
+          background: var(--forge-bg-elevated);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
           padding: 10px 10px;
           font-size: 14px;
+          color: var(--forge-text-primary);
         }
         .btn {
           display: inline-flex;
           align-items: center;
           gap: 8px;
           padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid #D1D5DB;
-          background: #fff;
+          border-radius: var(--forge-radius-lg);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
           cursor: pointer;
           font-weight: 700;
           font-size: 13px;
@@ -873,14 +892,14 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           cursor: not-allowed;
         }
         .btn.primary {
-          background: #2563EB;
-          border-color: #2563EB;
-          color: #fff;
+          background: var(--forge-accent-primary);
+          border-color: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
         }
         .btn.danger {
-          background: #fff;
-          border-color: #FCA5A5;
-          color: #B91C1C;
+          background: var(--forge-bg-elevated);
+          border-color: rgba(255,71,87,0.4);
+          color: var(--forge-error);
         }
         @media (max-width: 768px) {
           .lib-filter-row-search {
@@ -898,9 +917,9 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           }
         }
         .bulk {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 14px;
           display: flex;
           gap: 12px;
@@ -913,10 +932,11 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           display: flex;
           align-items: baseline;
           gap: 10px;
+          color: var(--forge-text-primary);
         }
         .bulk-hint {
           font-size: 13px;
-          color: #6B7280;
+          color: var(--forge-text-muted);
         }
         .bulk-right {
           display: flex;
@@ -930,24 +950,25 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           gap: 14px;
         }
         .group-card {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           overflow: hidden;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          box-shadow: var(--forge-shadow-sm);
         }
         .group-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 14px 16px;
-          border-bottom: 1px solid #E5E7EB;
-          background: #F9FAFB;
+          border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
         }
         .group-title {
           font-size: 16px;
           font-weight: 800;
-          color: #111827;
+          font-family: var(--forge-font-heading);
+          color: var(--forge-text-primary);
         }
         .rows {
                   display: grid;
@@ -971,10 +992,10 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
           display: flex;
           align-items: center;
           gap: 10px;
-          color: #6B7280;
-          background: #fff;
-          border: 1px dashed #D1D5DB;
-          border-radius: 14px;
+          color: var(--forge-text-muted);
+          background: var(--forge-bg-surface);
+          border: 1px dashed var(--forge-border-active);
+          border-radius: var(--forge-radius-xl);
           padding: 16px;
         }
       `}</style>
@@ -1150,20 +1171,25 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
 
       <style>{`
         .paramCard {
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 12px;
           display: flex;
           flex-direction: column;
           gap: 10px;
-          box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+          box-shadow: var(--forge-shadow-sm);
           min-width: 0;
+          transition: border-color 0.15s;
+        }
+
+        .paramCard:hover {
+          border-color: var(--forge-border-active);
         }
 
         .paramCard.has-error {
-          border-color: #fca5a5;
-          box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.12);
+          border-color: rgba(255,71,87,0.5);
+          box-shadow: 0 0 0 3px rgba(255,71,87,0.1);
         }
 
         .top {
@@ -1175,6 +1201,7 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
 
         .select {
           margin-top: 2px;
+          accent-color: var(--forge-accent-primary);
         }
 
         .title {
@@ -1189,14 +1216,14 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          color: var(--forge-text-primary);
         }
 
         .key {
           margin-top: 2px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-            'Courier New', monospace;
+          font-family: var(--forge-font-mono);
           font-size: 12px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -1213,24 +1240,26 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
           font-size: 11px;
           padding: 2px 8px;
           border-radius: 999px;
-          background: #f3f4f6;
-          color: #374151;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-secondary);
           font-weight: 800;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.04em;
         }
 
         .badge.changed {
-          background: #eef2ff;
-          color: #3730a3;
+          background: rgba(0,212,170,0.1);
+          color: var(--forge-accent-primary);
         }
 
         .badge.muted {
-          background: #f8fafc;
-          color: #64748b;
+          background: var(--forge-bg-overlay);
+          color: var(--forge-text-disabled);
         }
 
         .badge.inactive {
-          background: #fff7ed;
-          color: #9a3412;
+          background: rgba(255,181,71,0.1);
+          color: var(--forge-warning);
         }
 
         .controls {
@@ -1261,17 +1290,19 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
         select {
           width: 100%;
           padding: 10px 12px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
           font-size: 14px;
           outline: none;
-          background: #fff;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-mono);
         }
 
         input:focus,
         select:focus {
-          border-color: #111827;
-          box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 0 0 3px rgba(0,212,170,0.1);
         }
 
         .unit {
@@ -1280,19 +1311,27 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
           top: 50%;
           transform: translateY(-50%);
           font-size: 12px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
           font-weight: 800;
+          font-family: var(--forge-font-tech);
           pointer-events: none;
         }
 
         .reset {
-          border: 1px solid #e5e7eb;
-          background: #fff;
-          border-radius: 12px;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-secondary);
+          border-radius: var(--forge-radius-lg);
           padding: 10px 12px;
           font-weight: 900;
           cursor: pointer;
           line-height: 1;
+          transition: border-color 0.15s, color 0.15s;
+        }
+
+        .reset:hover:not(:disabled) {
+          border-color: var(--forge-accent-primary);
+          color: var(--forge-accent-primary);
         }
 
         .reset:disabled {
@@ -1306,12 +1345,12 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
           justify-content: space-between;
           gap: 10px;
           font-size: 12px;
-          color: #6b7280;
+          color: var(--forge-text-muted);
         }
 
         .error {
           font-size: 12px;
-          color: #b91c1c;
+          color: var(--forge-error);
           font-weight: 900;
         }
       `}</style>
@@ -1392,22 +1431,23 @@ function OverviewPage({ language, draft }) {
         }
         .section {
           margin-top: 16px;
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 16px;
         }
         .section-title {
           font-size: 16px;
           font-weight: 800;
-          color: #111827;
+          font-family: var(--forge-font-heading);
+          color: var(--forge-text-primary);
           margin-bottom: 12px;
         }
         .empty {
           display: flex;
           align-items: center;
           gap: 10px;
-          color: #6B7280;
+          color: var(--forge-text-muted);
         }
         .activity {
           display: flex;
@@ -1419,17 +1459,24 @@ function OverviewPage({ language, draft }) {
           grid-template-columns: 180px 1fr;
           gap: 12px;
           padding: 12px;
-          border: 1px solid #F3F4F6;
-          border-radius: 12px;
-          background: #F9FAFB;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
+          background: var(--forge-bg-elevated);
+        }
+        .activity-row:hover {
+          background: var(--forge-bg-overlay);
         }
         .when {
           font-size: 12px;
-          color: #6B7280;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-mono);
         }
         .what {
           font-size: 13px;
-          color: #374151;
+          color: var(--forge-text-secondary);
+        }
+        .what strong {
+          color: var(--forge-text-primary);
         }
         .details {
           margin-top: 8px;
@@ -1441,18 +1488,19 @@ function OverviewPage({ language, draft }) {
           align-items: center;
           gap: 8px;
           font-size: 12px;
-          color: #374151;
+          color: var(--forge-text-secondary);
         }
         code {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          background: #fff;
-          border: 1px solid #E5E7EB;
+          font-family: var(--forge-font-mono);
+          background: var(--forge-bg-overlay);
+          border: 1px solid var(--forge-border-default);
           padding: 2px 6px;
-          border-radius: 8px;
+          border-radius: var(--forge-radius-md);
+          color: var(--forge-accent-primary);
         }
-        .arrow { color: #9CA3AF; }
-        .to { font-weight: 700; }
-        .more { font-size: 12px; color: #6B7280; }
+        .arrow { color: var(--forge-text-disabled); }
+        .to { font-weight: 700; color: var(--forge-text-primary); }
+        .more { font-size: 12px; color: var(--forge-text-muted); }
         @media (max-width: 1100px) {
           .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
@@ -1475,34 +1523,42 @@ function KpiCard({ title, value, icon }) {
       </div>
       <style>{`
         .kpi {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 14px;
           display: flex;
           align-items: center;
           gap: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          box-shadow: var(--forge-shadow-sm);
+          transition: border-color 0.15s;
+        }
+        .kpi:hover {
+          border-color: var(--forge-border-active);
         }
         .icon {
           width: 40px;
           height: 40px;
-          border-radius: 12px;
-          background: #F3F4F6;
+          border-radius: var(--forge-radius-lg);
+          background: var(--forge-bg-elevated);
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #374151;
+          color: var(--forge-accent-primary);
         }
         .title {
-          font-size: 12px;
-          color: #6B7280;
+          font-size: 11px;
+          color: var(--forge-text-muted);
           font-weight: 700;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
         }
         .value {
           font-size: 22px;
-          color: #111827;
+          color: var(--forge-text-primary);
           font-weight: 900;
+          font-family: var(--forge-font-mono);
           margin-top: 2px;
         }
       `}</style>
@@ -1602,11 +1658,11 @@ function WidgetPage({ language, draft, onPatchDraft }) {
           margin-bottom: 14px;
         }
         .card {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 16px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          box-shadow: var(--forge-shadow-sm);
         }
         .toolbar {
           display: flex;
@@ -1620,17 +1676,24 @@ function WidgetPage({ language, draft, onPatchDraft }) {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
+          background: var(--forge-bg-elevated);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
           padding: 10px 12px;
           min-width: 340px;
+          color: var(--forge-text-muted);
+        }
+        .search:focus-within {
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 0 0 3px rgba(0,212,170,0.1);
         }
         .search input {
           border: none;
           outline: none;
           width: 100%;
           font-size: 14px;
+          background: transparent;
+          color: var(--forge-text-primary);
         }
         .filters {
           display: flex;
@@ -1640,26 +1703,34 @@ function WidgetPage({ language, draft, onPatchDraft }) {
           justify-content: flex-end;
         }
         select {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 10px;
+          background: var(--forge-bg-elevated);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
           padding: 10px 10px;
           font-size: 14px;
+          color: var(--forge-text-primary);
+        }
+        select:focus {
+          border-color: var(--forge-accent-primary);
         }
         .chip {
-          border: 1px solid #D1D5DB;
-          background: #fff;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
           border-radius: 999px;
           padding: 9px 12px;
           cursor: pointer;
           font-weight: 600;
           font-size: 13px;
-          color: #374151;
+          color: var(--forge-text-secondary);
+          transition: all 0.15s;
+        }
+        .chip:hover {
+          border-color: var(--forge-border-active);
         }
         .chip.on {
-          background: #EFF6FF;
-          border-color: #BFDBFE;
-          color: #1D4ED8;
+          background: rgba(0,212,170,0.1);
+          border-color: rgba(0,212,170,0.3);
+          color: var(--forge-accent-primary);
         }
         .table {
           display: flex;
@@ -1843,11 +1914,15 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
 
       <style>{`
         .row {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 14px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          box-shadow: var(--forge-shadow-sm);
+          transition: border-color 0.15s;
+        }
+        .row:hover {
+          border-color: var(--forge-border-active);
         }
         .row.disabled {
           opacity: 0.85;
@@ -1861,7 +1936,7 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
         .name {
           font-size: 15px;
           font-weight: 900;
-          color: #111827;
+          color: var(--forge-text-primary);
         }
         .meta {
           margin-top: 6px;
@@ -1871,13 +1946,13 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           flex-wrap: wrap;
         }
         .key {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-family: var(--forge-font-mono);
           font-size: 12px;
           padding: 2px 8px;
           border-radius: 999px;
-          background: #F3F4F6;
-          color: #374151;
-          border: 1px solid #E5E7EB;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-muted);
+          border: 1px solid var(--forge-border-default);
         }
         .body {
           margin-top: 12px;
@@ -1888,7 +1963,7 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
         .advanced {
           margin-top: 12px;
           padding-top: 12px;
-          border-top: 1px solid #F3F4F6;
+          border-top: 1px solid var(--forge-border-default);
         }
         .advanced-grid {
           display: grid;
@@ -1905,17 +1980,26 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           grid-column: span 1;
         }
         label {
-          font-size: 12px;
-          color: #6B7280;
+          font-size: 11px;
+          color: var(--forge-text-muted);
           font-weight: 700;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
         }
         input, select {
           padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid #E5E7EB;
+          border-radius: var(--forge-radius-lg);
+          border: 1px solid var(--forge-border-default);
           outline: none;
           font-size: 14px;
-          background: #fff;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-mono);
+        }
+        input:focus, select:focus {
+          border-color: var(--forge-accent-primary);
+          box-shadow: 0 0 0 3px rgba(0,212,170,0.1);
         }
         .allowed {
           display: flex;
@@ -1924,30 +2008,34 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           flex-wrap: wrap;
         }
         .allowed input { max-width: 120px; }
-        .allowed .unit { font-size: 12px; color: #6B7280; }
+        .allowed .unit { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-tech); }
         .allowed.enum {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 8px;
           padding: 10px;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-          background: #F9FAFB;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
+          background: var(--forge-bg-elevated);
         }
         .opt {
           display: flex;
           align-items: center;
           gap: 8px;
           font-size: 13px;
-          color: #374151;
+          color: var(--forge-text-secondary);
+        }
+        .opt input[type="checkbox"] {
+          accent-color: var(--forge-accent-primary);
+          width: auto;
         }
         .allowed.note {
           padding: 10px;
-          border: 1px dashed #D1D5DB;
-          border-radius: 12px;
-          background: #F9FAFB;
+          border: 1px dashed var(--forge-border-active);
+          border-radius: var(--forge-radius-lg);
+          background: var(--forge-bg-elevated);
           font-size: 13px;
-          color: #6B7280;
+          color: var(--forge-text-muted);
         }
         .warn {
           margin-top: 10px;
@@ -1955,10 +2043,10 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           align-items: center;
           gap: 10px;
           padding: 10px;
-          border-radius: 12px;
-          background: #FFFBEB;
-          border: 1px solid #FDE68A;
-          color: #92400E;
+          border-radius: var(--forge-radius-lg);
+          background: rgba(255,181,71,0.08);
+          border: 1px solid rgba(255,181,71,0.3);
+          color: var(--forge-warning);
           font-size: 13px;
         }
         @media (max-width: 1000px) {
@@ -2005,38 +2093,40 @@ function ValidationPage({ language }) {
           align-items: center;
           gap: 10px;
           padding: 12px 14px;
-          border-radius: 14px;
-          background: #EFF6FF;
-          border: 1px solid #BFDBFE;
-          color: #1D4ED8;
+          border-radius: var(--forge-radius-xl);
+          background: rgba(77,168,218,0.08);
+          border: 1px solid rgba(77,168,218,0.3);
+          color: var(--forge-info);
           font-weight: 700;
           margin-bottom: 14px;
         }
         .card {
-          background: #fff;
-          border: 1px solid #E5E7EB;
-          border-radius: 14px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
           padding: 16px;
         }
         .title {
           font-size: 16px;
           font-weight: 900;
-          color: #111827;
+          font-family: var(--forge-font-heading);
+          color: var(--forge-text-primary);
           margin-bottom: 10px;
         }
-        ul { margin: 0; padding-left: 18px; color: #374151; }
+        ul { margin: 0; padding-left: 18px; color: var(--forge-text-secondary); }
         li { margin: 6px 0; }
         code {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          background: #F3F4F6;
+          font-family: var(--forge-font-mono);
+          background: var(--forge-bg-elevated);
           padding: 2px 6px;
-          border-radius: 8px;
-          border: 1px solid #E5E7EB;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          color: var(--forge-accent-primary);
         }
         .note {
           margin-top: 12px;
           font-size: 13px;
-          color: #6B7280;
+          color: var(--forge-text-muted);
         }
       `}</style>
     </div>
@@ -2330,12 +2420,13 @@ export default function AdminParameters() {
           margin: 0 0 8px 0;
           font-size: 32px;
           font-weight: 800;
-          color: #111827;
+          font-family: var(--forge-font-heading);
+          color: var(--forge-text-primary);
         }
         .subtitle {
           margin: 0;
           font-size: 14px;
-          color: #6B7280;
+          color: var(--forge-text-secondary);
           line-height: 1.45;
         }
         .header-actions {
@@ -2350,22 +2441,31 @@ export default function AdminParameters() {
           align-items: center;
           gap: 8px;
           padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid #D1D5DB;
-          background: #fff;
+          border-radius: var(--forge-radius-lg);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
           cursor: pointer;
           font-weight: 800;
           font-size: 13px;
-          color: #111827;
+          color: var(--forge-text-primary);
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .btn:hover:not(:disabled) {
+          border-color: var(--forge-border-active);
+          background: var(--forge-bg-overlay);
         }
         .btn:disabled {
           opacity: 0.6;
           cursor: not-allowed;
         }
         .btn.primary {
-          background: #2563EB;
-          border-color: #2563EB;
-          color: #fff;
+          background: var(--forge-accent-primary);
+          border-color: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
+        }
+        .btn.primary:hover:not(:disabled) {
+          background: var(--forge-accent-primary-h);
+          border-color: var(--forge-accent-primary-h);
         }
         .tabs {
           display: flex;
@@ -2379,24 +2479,30 @@ export default function AdminParameters() {
           align-items: center;
           gap: 8px;
           padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid #E5E7EB;
-          background: #fff;
+          border-radius: var(--forge-radius-lg);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
           cursor: pointer;
           font-weight: 800;
           font-size: 13px;
-          color: #374151;
+          font-family: var(--forge-font-tech);
+          color: var(--forge-text-secondary);
+          transition: all 0.15s;
+        }
+        .tab:hover {
+          border-color: var(--forge-border-active);
+          color: var(--forge-text-primary);
         }
         .tab.active {
-          background: #EFF6FF;
-          border-color: #BFDBFE;
-          color: #1D4ED8;
+          background: rgba(0,212,170,0.1);
+          border-color: rgba(0,212,170,0.3);
+          color: var(--forge-accent-primary);
         }
         .tabs-right {
           margin-left: auto;
         }
         .tab.link {
-          background: #F9FAFB;
+          background: var(--forge-bg-elevated);
         }
         @media (max-width: 700px) {
           .admin-parameters { max-width: none; }

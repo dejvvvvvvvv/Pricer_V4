@@ -2,6 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(*)",
+      "Bash(rm:*)",
+      "Bash(del:*)",
+      "Bash(rmdir:*)",
       "Edit(*)",
       "Write(*)",
       "WebFetch(*)",

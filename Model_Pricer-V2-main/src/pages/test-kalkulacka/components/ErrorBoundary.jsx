@@ -32,19 +32,71 @@ export default class ErrorBoundary extends React.Component {
 
     const message = this.state.error?.message || 'Neznama chyba';
 
+    const containerStyle = {
+      padding: '16px',
+      borderRadius: 'var(--forge-radius-md)',
+      border: '1px solid rgba(255, 71, 87, 0.2)',
+      backgroundColor: 'rgba(255, 71, 87, 0.06)',
+      color: 'var(--forge-text-primary)',
+    };
+
+    const titleStyle = {
+      fontFamily: 'var(--forge-font-heading)',
+      fontWeight: 600,
+      fontSize: '14px',
+      color: 'var(--forge-error)',
+      marginBottom: '4px',
+    };
+
+    const descStyle = {
+      fontSize: '13px',
+      color: 'var(--forge-text-muted)',
+      fontFamily: 'var(--forge-font-body)',
+      marginBottom: '12px',
+    };
+
+    const codeStyle = {
+      fontSize: '12px',
+      fontFamily: 'var(--forge-font-mono)',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      border: '1px solid rgba(255, 71, 87, 0.15)',
+      borderRadius: 'var(--forge-radius-sm)',
+      padding: '8px',
+      marginBottom: '12px',
+      overflow: 'auto',
+      color: 'var(--forge-text-secondary)',
+    };
+
+    const btnStyle = {
+      padding: '8px 14px',
+      borderRadius: 'var(--forge-radius-sm)',
+      border: '1px solid rgba(255, 71, 87, 0.2)',
+      backgroundColor: 'var(--forge-bg-surface)',
+      color: 'var(--forge-error)',
+      fontSize: '12px',
+      fontWeight: 600,
+      fontFamily: 'var(--forge-font-tech)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      cursor: 'pointer',
+      transition: 'background-color 150ms ease-out',
+    };
+
     return (
-      <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-800">
-        <div className="font-semibold mb-1">Neco se pokazilo</div>
-        <div className="text-sm opacity-90 mb-3">
+      <div style={containerStyle}>
+        <div style={titleStyle}>Neco se pokazilo</div>
+        <div style={descStyle}>
           Komponenta spadla (casto to zpusobi velmi slozity model v 3D nahledu).
         </div>
-        <div className="text-xs font-mono bg-white/60 border border-red-100 rounded p-2 mb-3 overflow-auto">
+        <div style={codeStyle}>
           {message}
         </div>
         <button
           type="button"
           onClick={this.handleReset}
-          className="px-3 py-2 rounded-md border border-red-200 bg-white hover:bg-red-50"
+          style={btnStyle}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 71, 87, 0.1)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--forge-bg-surface)'; }}
         >
           Zkusit znovu
         </button>

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import Header from '../../components/ui/Header';
 import RoleSelectionCard from './components/RoleSelectionCard';
 import RegistrationForm from './components/RegistrationForm';
 import LanguageToggle from './components/LanguageToggle';
 import ProgressSteps from './components/ProgressSteps';
-import Button from '../../components/ui/Button';
+import ForgeButton from '../../components/ui/forge/ForgeButton';
 import Icon from '../../components/AppIcon';
 
 const Register = () => {
@@ -23,34 +22,34 @@ const Register = () => {
   };
 
   const steps = [
-    { id: 'role', title: 'Role', description: 'Výběr role' },
-    { id: 'details', title: 'Údaje', description: 'Osobní info' },
-    { id: 'verification', title: 'Ověření', description: 'E-mail' }
+    { id: 'role', title: 'Role', description: 'Select role' },
+    { id: 'details', title: 'Details', description: 'Personal info' },
+    { id: 'verification', title: 'Verify', description: 'E-mail' }
   ];
 
   const roleOptions = [
     {
       role: 'customer',
-      title: 'Zákazník',
-      description: 'Potřebuji vytisknout 3D modely a hledám kvalitní tiskové služby.',
+      title: 'Customer',
+      description: 'I need to print 3D models and looking for quality print services.',
       icon: 'User',
       benefits: [
-        'Nahrávání 3D modelů (.stl, .obj)',
-        'Automatický výpočet ceny',
-        'Výběr z ověřených tiskáren',
-        'Sledování objednávek v reálném čase',
+        'Upload 3D models (.stl, .obj)',
+        'Automatic price calculation',
+        'Choose from verified printers',
+        'Real-time order tracking',
       ]
     },
     {
       role: 'host',
-      title: 'Poskytovatel',
-      description: 'Vlastním 3D tiskárny a chci je monetizovat prostřednictvím platformy.',
+      title: 'Provider',
+      description: 'I own 3D printers and want to monetize them through the platform.',
       icon: 'Printer',
       benefits: [
-        'Pasivní příjem z tiskáren',
-        'Automatické rozdělování objednávek',
-        'Detailní statistiky výdělků',
-        'Správa více tiskáren',
+        'Passive income from printers',
+        'Automatic order distribution',
+        'Detailed earnings statistics',
+        'Multi-printer management',
       ]
     }
   ];
@@ -71,73 +70,129 @@ const Register = () => {
     }
   };
 
+  const pageStyle = {
+    minHeight: '100vh',
+    backgroundColor: 'var(--forge-bg-void)',
+    color: 'var(--forge-text-primary)',
+  };
+
+  const containerStyle = {
+    maxWidth: '800px',
+    margin: '0 auto',
+    padding: '48px 24px',
+  };
+
+  const cardStyle = {
+    backgroundColor: 'var(--forge-bg-surface)',
+    border: '1px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-lg)',
+    padding: '32px',
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="text-center mb-8">
-          <div className="flex justify-between items-start mb-6">
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold text-foreground mb-2">Vytvořit účet</h1>
-                <p className="text-muted-foreground">
-                  Připojte se k největší 3D tiskové komunitě v České republice
+    <div style={pageStyle}>
+      <div style={containerStyle}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+            <div style={{ flex: 1 }}>
+              <h1 style={{
+                fontFamily: 'var(--forge-font-heading)',
+                fontSize: 'var(--forge-text-3xl)',
+                fontWeight: 700,
+                color: 'var(--forge-text-primary)',
+                margin: '0 0 8px 0',
+              }}>
+                Create Account
+              </h1>
+              <p style={{
+                fontFamily: 'var(--forge-font-body)',
+                fontSize: 'var(--forge-text-base)',
+                color: 'var(--forge-text-muted)',
+                margin: 0,
+              }}>
+                Join the 3D printing platform
+              </p>
+            </div>
+            <LanguageToggle
+              currentLanguage={currentLanguage}
+              onLanguageChange={handleLanguageChange}
+            />
+          </div>
+          <ProgressSteps currentStep={currentStep} totalSteps={3} steps={steps} />
+        </div>
+
+        <div style={cardStyle}>
+          {currentStep === 1 && (
+            <div>
+              <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                <h2 style={{
+                  fontFamily: 'var(--forge-font-heading)',
+                  fontSize: 'var(--forge-text-xl)',
+                  fontWeight: 600,
+                  color: 'var(--forge-text-primary)',
+                  margin: '0 0 8px 0',
+                }}>
+                  Select Your Role
+                </h2>
+                <p style={{
+                  fontFamily: 'var(--forge-font-body)',
+                  fontSize: 'var(--forge-text-base)',
+                  color: 'var(--forge-text-muted)',
+                  margin: 0,
+                }}>
+                  How do you want to use the platform?
                 </p>
               </div>
-              <LanguageToggle 
-                currentLanguage={currentLanguage}
-                onLanguageChange={handleLanguageChange}
-              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {roleOptions.map((option) => (
+                  <RoleSelectionCard
+                    key={option.role}
+                    {...option}
+                    isSelected={selectedRole === option.role}
+                    onSelect={handleRoleSelect}
+                  />
+                ))}
+              </div>
+              {selectedRole && (
+                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '24px' }}>
+                  <ForgeButton variant="primary" onClick={handleNextStep}>
+                    Continue
+                  </ForgeButton>
+                </div>
+              )}
             </div>
-            <ProgressSteps currentStep={currentStep} totalSteps={3} steps={steps} />
-          </div>
+          )}
 
-          <div className="bg-card rounded-xl shadow-lg border border-border p-8">
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                <div className="text-center mb-8">
-                  <h2 className="text-xl font-semibold text-foreground mb-2">Vyberte svou roli</h2>
-                  <p className="text-muted-foreground">Jak chcete používat naši platformu?</p>
+          {currentStep === 2 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <h2 style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: 'var(--forge-text-xl)',
+                    fontWeight: 600,
+                    color: 'var(--forge-text-primary)',
+                    margin: '0 0 4px 0',
+                  }}>
+                    Registration Details
+                  </h2>
+                  <p style={{
+                    fontFamily: 'var(--forge-font-body)',
+                    fontSize: 'var(--forge-text-base)',
+                    color: 'var(--forge-text-muted)',
+                    margin: 0,
+                  }}>
+                    {`Registering as ${selectedRole === 'host' ? 'Provider' : 'Customer'}`}
+                  </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {roleOptions.map((option) => (
-                    <RoleSelectionCard
-                      key={option.role}
-                      {...option}
-                      isSelected={selectedRole === option.role}
-                      onSelect={handleRoleSelect}
-                    />
-                  ))}
-                </div>
-                {selectedRole && (
-                  <div className="flex justify-center pt-6">
-                    <Button variant="default" size="lg" onClick={handleNextStep} iconName="ArrowRight" iconPosition="right">
-                      Pokračovat
-                    </Button>
-                  </div>
-                )}
+                <ForgeButton variant="ghost" size="sm" onClick={handlePreviousStep}>
+                  Back
+                </ForgeButton>
               </div>
-            )}
-
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-foreground">Registrační údaje</h2>
-                    <p className="text-muted-foreground">
-                      {`Registrace jako ${selectedRole === 'host' ? 'Poskytovatel' : 'Zákazník'}`}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={handlePreviousStep} iconName="ArrowLeft" iconPosition="left">
-                    Zpět
-                  </Button>
-                </div>
-                <RegistrationForm selectedRole={selectedRole} />
-              </div>
-            )}
-          </div>
-
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-             {/* Trust Indicators */}
-          </div>
+              <RegistrationForm selectedRole={selectedRole} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
