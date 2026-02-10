@@ -13,6 +13,7 @@
     - normalizePricingConfigV3(config): broader normalizer used by pricingService and storage
     - normalizeMaterialKey(key): canonicalize material key
     - getDefaultPricingConfigV3(): fallback defaults (demo-safe)
+    - getColorEffectivePrice(material, colorId): resolve per-color or material-default price
 */
 
 import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
@@ -62,6 +63,23 @@ export function normalizeMaterialKey(key) {
     .replace(/^_+|_+$/g, '')
     .replace(/_+/g, '_');
   return k;
+}
+
+/**
+ * Get the effective price per gram for a specific color of a material.
+ * If the color has a price_per_gram override, use that; otherwise fall back to the material's default.
+ * @param {object} material - Material object with price_per_gram and colors array
+ * @param {string} colorId - The color ID to look up
+ * @returns {number} Effective price per gram
+ */
+export function getColorEffectivePrice(material, colorId) {
+  if (!material) return 0;
+  const colors = Array.isArray(material.colors) ? material.colors : [];
+  const color = colorId ? colors.find(c => c.id === colorId) : null;
+  if (color && color.price_per_gram != null && Number.isFinite(Number(color.price_per_gram))) {
+    return Math.max(0, Number(color.price_per_gram));
+  }
+  return Math.max(0, Number(material.price_per_gram) || 0);
 }
 
 function buildMaterialPricesFromMaterials(materials) {
@@ -156,7 +174,9 @@ const DEFAULT_MATERIALS = [
     name: 'PLA',
     enabled: true,
     price_per_gram: 0.6,
-    colors: [],
+    colors: [
+      { id: 'clr-white', name: 'White', hex: '#FFFFFF', price_per_gram: null },
+    ],
   },
 ];
 
@@ -253,9 +273,25 @@ export function normalizePricingConfigForEngine(input) {
 
   if (!markup.enabled) markup.mode = 'off';
 
+  // Normalize color price_per_gram on materials (when called independently of normalizePricingConfigV3)
+  const materials = Array.isArray(cfg.materials)
+    ? cfg.materials.map((m) => {
+        if (!isObj(m)) return m;
+        if (!Array.isArray(m.colors) || m.colors.length === 0) return m;
+        return {
+          ...m,
+          colors: m.colors.map((c) => ({
+            ...c,
+            price_per_gram: c?.price_per_gram != null && Number.isFinite(Number(c.price_per_gram)) ? Math.max(0, Number(c.price_per_gram)) : null,
+          })),
+        };
+      })
+    : cfg.materials;
+
   return {
     ...cfg,
     ...(tenantPricingPresent ? { tenant_pricing: tenantPricing } : null),
+    ...(materials !== cfg.materials ? { materials } : null),
 
     // Engine root fields
     rate_per_hour,
@@ -296,7 +332,13 @@ export function normalizePricingConfigV3(input) {
       name: String(mm.name || key || '').trim() || (key ? key.toUpperCase() : 'MATERIAL'),
       enabled: mm.enabled !== false,
       price_per_gram: clampMin0(mm.price_per_gram ?? mm.price ?? 0),
-      colors: Array.isArray(mm.colors) ? mm.colors : [],
+      colors: (Array.isArray(mm.colors) ? mm.colors : []).map((c) => ({
+        ...c,
+        id: String(c?.id || ''),
+        name: String(c?.name || ''),
+        hex: String(c?.hex || '#000000'),
+        price_per_gram: c?.price_per_gram != null && Number.isFinite(Number(c.price_per_gram)) ? Math.max(0, Number(c.price_per_gram)) : null,
+      })),
     };
   });
 

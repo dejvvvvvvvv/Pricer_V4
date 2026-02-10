@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
+import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { deletePreset, listPresets, patchPreset, setDefaultPreset, uploadPreset } from '../../services/presetsApi';
 
 // =============================================================
@@ -30,8 +31,9 @@ function normalizePreset(raw) {
   const createdAt = raw?.createdAt ? String(raw.createdAt) : '';
   const updatedAt = raw?.updatedAt ? String(raw.updatedAt) : '';
   const sizeBytes = Number.isFinite(Number(raw?.sizeBytes)) ? Number(raw.sizeBytes) : null;
+  const materialKey = raw?.material_key ?? raw?.materialKey ?? null;
 
-  return { id, name, order, visibleInWidget, createdAt, updatedAt, sizeBytes };
+  return { id, name, order, visibleInWidget, createdAt, updatedAt, sizeBytes, material_key: materialKey ? String(materialKey) : null };
 }
 
 function readLocalFallback() {
@@ -135,6 +137,11 @@ export default function AdminPresets() {
       confirmYesDelete: pickLang(language, 'Ano, smazat', 'Yes, delete'),
       confirmCancel: pickLang(language, 'Zrušit', 'Cancel'),
       hintMax5mb: pickLang(language, 'Max 5 MB. Pouze .ini.', 'Max 5 MB. .ini only.'),
+      materialLabel: pickLang(language, 'Materi\u00e1l', 'Material'),
+      materialHint: pickLang(language, 'P\u0159i\u0159a\u010f preset ke konkr\u00e9tn\u00edmu materi\u00e1lu.', 'Assign preset to a specific material.'),
+      allMaterials: pickLang(language, '\u2014 V\u0161echny materi\u00e1ly \u2014', '\u2014 All materials \u2014'),
+      allMaterialsShort: pickLang(language, 'V\u0161echny', 'All'),
+      colMaterial: pickLang(language, 'Materi\u00e1l', 'Material'),
     }),
     [language]
   );
@@ -150,6 +157,7 @@ export default function AdminPresets() {
   const [uploadName, setUploadName] = useState('');
   const [uploadOrder, setUploadOrder] = useState(0);
   const [uploadVisibleInWidget, setUploadVisibleInWidget] = useState(true);
+  const [uploadMaterialKey, setUploadMaterialKey] = useState(null);
   const [uploading, setUploading] = useState(false);
 
   // Inline edits per preset id
@@ -160,6 +168,9 @@ export default function AdminPresets() {
 
   // Delete default modal
   const [deleteModal, setDeleteModal] = useState({ open: false, presetId: null });
+
+  // Materials from pricing config for preset-material linking
+  const [availableMaterials, setAvailableMaterials] = useState([]);
 
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -177,6 +188,15 @@ export default function AdminPresets() {
   const load = async () => {
     setLoading(true);
     setBackendError('');
+
+    // Load materials from pricing config for preset-material linking
+    try {
+      const pricingConfig = loadPricingConfigV3();
+      const mats = Array.isArray(pricingConfig?.materials)
+        ? pricingConfig.materials.filter(m => m?.enabled && m?.key && m?.name)
+        : [];
+      setAvailableMaterials(mats);
+    } catch { /* ignore pricing load errors */ }
 
     const res = await listPresets();
     if (res.ok) {
@@ -215,7 +235,7 @@ export default function AdminPresets() {
       const next = { ...prev };
       presets.forEach((p) => {
         if (!next[p.id]) {
-          next[p.id] = { name: p.name || '', order: p.order || 0, visibleInWidget: !!p.visibleInWidget };
+          next[p.id] = { name: p.name || '', order: p.order || 0, visibleInWidget: !!p.visibleInWidget, material_key: p.material_key || null };
         }
       });
       // Remove edits for presets that disappeared.
@@ -261,6 +281,7 @@ export default function AdminPresets() {
       name: uploadName?.trim() || undefined,
       order: Number.isFinite(Number(uploadOrder)) ? Number(uploadOrder) : 0,
       visibleInWidget: !!uploadVisibleInWidget,
+      material_key: uploadMaterialKey || null,
     };
 
     // Offline mode: store changes locally (localStorage) so the page is still usable without backend.
@@ -273,6 +294,7 @@ export default function AdminPresets() {
         name: meta.name || baseFromFile || id,
         order: meta.order ?? 0,
         visibleInWidget: meta.visibleInWidget ?? true,
+        material_key: meta.material_key || null,
         createdAt: nowIso,
         updatedAt: nowIso,
         sizeBytes: uploadFile?.size ?? null,
@@ -285,6 +307,7 @@ export default function AdminPresets() {
       setUploadName('');
       setUploadOrder(0);
       setUploadVisibleInWidget(true);
+      setUploadMaterialKey(null);
       setUploading(false);
       return;
     }
@@ -300,6 +323,7 @@ export default function AdminPresets() {
     setUploadName('');
     setUploadOrder(0);
     setUploadVisibleInWidget(true);
+    setUploadMaterialKey(null);
     await load();
     setUploading(false);
   };
@@ -311,7 +335,8 @@ export default function AdminPresets() {
     return (
       String(e.name || '').trim() !== String(p.name || '').trim() ||
       Number(e.order || 0) !== Number(p.order || 0) ||
-      Boolean(e.visibleInWidget) !== Boolean(p.visibleInWidget)
+      Boolean(e.visibleInWidget) !== Boolean(p.visibleInWidget) ||
+      String(e.material_key || '') !== String(p.material_key || '')
     );
   };
 
@@ -326,9 +351,11 @@ export default function AdminPresets() {
       const nextOrder = Number.parseInt(String(e.order ?? 0), 10) || 0;
       const nextVisible = !!e.visibleInWidget;
 
+      const nextMaterialKey = e.material_key || null;
+
       setPresets((prev) =>
         prev.map((p) =>
-          p.id === id ? { ...p, name: nextName, order: nextOrder, visibleInWidget: nextVisible, updatedAt: nowIso } : p
+          p.id === id ? { ...p, name: nextName, order: nextOrder, visibleInWidget: nextVisible, material_key: nextMaterialKey, updatedAt: nowIso } : p
         )
       );
 
@@ -341,6 +368,7 @@ export default function AdminPresets() {
       name: String(e.name || '').trim(),
       order: Number.parseInt(String(e.order ?? 0), 10) || 0,
       visibleInWidget: !!e.visibleInWidget,
+      material_key: e.material_key || null,
     });
     if (!res.ok) {
       showError(res.message);
@@ -532,6 +560,23 @@ export default function AdminPresets() {
             />
           </div>
 
+          <div className="field">
+            <div className="label">{strings.materialLabel}</div>
+            <select
+              className="input"
+              value={uploadMaterialKey || ''}
+              disabled={actionsDisabled || uploading}
+              title={actionsTitle}
+              onChange={(e) => setUploadMaterialKey(e.target.value || null)}
+            >
+              <option value="">{strings.allMaterials}</option>
+              {availableMaterials.map(m => (
+                <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
+              ))}
+            </select>
+            <div className="hint">{strings.materialHint}</div>
+          </div>
+
           <div className="field" style={{ alignSelf: 'end' }}>
             <label className="checkRow" title={actionsTitle}>
               <input
@@ -576,6 +621,7 @@ export default function AdminPresets() {
                 <tr>
                   <th>{strings.colName}</th>
                   <th style={{ width: 120 }}>{strings.colOrder}</th>
+                  <th style={{ width: 160 }}>{strings.colMaterial}</th>
                   <th style={{ width: 160 }}>{strings.colWidget}</th>
                   <th style={{ width: 300 }}>{strings.colActions}</th>
                 </tr>
@@ -590,7 +636,7 @@ export default function AdminPresets() {
                   })
                   .map((p) => {
                     const isDefault = defaultPresetId && p.id === defaultPresetId;
-                    const e = edits[p.id] || { name: p.name || '', order: p.order || 0, visibleInWidget: !!p.visibleInWidget };
+                    const e = edits[p.id] || { name: p.name || '', order: p.order || 0, visibleInWidget: !!p.visibleInWidget, material_key: p.material_key || null };
                     const dirty = isDirty(p.id);
                     const saving = !!savingById[p.id];
                     const defaulting = !!defaultingById[p.id];
@@ -616,6 +662,11 @@ export default function AdminPresets() {
                               {p.visibleInWidget ? (
                                 <span className="badge blue">{strings.badgeVisible}</span>
                               ) : null}
+                              {p.material_key && (
+                                <span className="badge blue" title={pickLang(language, `P\u0159i\u0159azeno k: ${p.material_key}`, `Assigned to: ${p.material_key}`)}>
+                                  {availableMaterials.find(m => m.key === p.material_key)?.name || p.material_key}
+                                </span>
+                              )}
                             </div>
                             <div className="muted small">ID: {p.id}</div>
                           </div>
@@ -634,6 +685,25 @@ export default function AdminPresets() {
                               }))
                             }
                           />
+                        </td>
+                        <td>
+                          <select
+                            className="input small"
+                            value={e.material_key || ''}
+                            disabled={actionsDisabled}
+                            title={actionsTitle}
+                            onChange={(ev) =>
+                              setEdits((s) => ({
+                                ...s,
+                                [p.id]: { ...e, material_key: ev.target.value || null },
+                              }))
+                            }
+                          >
+                            <option value="">{strings.allMaterialsShort}</option>
+                            {availableMaterials.map(m => (
+                              <option key={m.key} value={m.key}>{m.name}</option>
+                            ))}
+                          </select>
                         </td>
                         <td>
                           <label className="checkRow" title={actionsTitle}>
@@ -796,7 +866,7 @@ const css = `
   .nameLine { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
   .name { font-weight: 700; }
 
-  .uploadGrid { display:grid; grid-template-columns: 1.2fr 1.2fr 0.5fr 0.9fr auto; gap: 12px; align-items: start; }
+  .uploadGrid { display:grid; grid-template-columns: 1.2fr 1.2fr 0.5fr 0.8fr 0.9fr auto; gap: 12px; align-items: start; }
   @media (max-width: 980px) { .uploadGrid { grid-template-columns: 1fr; } }
   .field { display:flex; flex-direction:column; gap:6px; }
   .label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--forge-text-muted); font-family: var(--forge-font-tech); }

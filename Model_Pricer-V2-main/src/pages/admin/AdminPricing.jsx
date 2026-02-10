@@ -8,6 +8,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadPricingConfigV3, savePricingConfigV3 } from '../../utils/adminPricingStorage';
 
@@ -120,6 +121,7 @@ function createDefaultWhiteColor(stableId) {
     id: stableId || createStableId('clr'),
     name: DEFAULT_WHITE_COLOR.name,
     hex: DEFAULT_WHITE_COLOR.hex,
+    price_per_gram: null,
   };
 }
 
@@ -292,6 +294,8 @@ const AdminPricing = () => {
   const [banner, setBanner] = useState(null); // { type: 'info'|'error'|'success', text: string }
   const [savedSnapshot, setSavedSnapshot] = useState(''); // JSON snapshot
   const [touched, setTouched] = useState(false);
+  const [editingMaterialIndex, setEditingMaterialIndex] = useState(null); // null = closed, number = index
+  const [dialogDraft, setDialogDraft] = useState(null); // deep copy of material being edited
 
   const ui = useMemo(() => {
     const cs = language === 'cs';
@@ -347,17 +351,23 @@ const AdminPricing = () => {
   const colorHexRafRef = useRef(new Map()); // key => { raf, hex }
 
   const addMaterial = () => {
-    setMaterials((prev) => [
-      ...prev,
-      {
-        id: createStableId('mat'),
-        key: '',
-        name: '',
-        enabled: true,
-        price_per_gram: 0,
-        colors: [createDefaultWhiteColor()],
-      },
-    ]);
+    const newMat = {
+      id: createStableId('mat'),
+      key: '',
+      name: '',
+      enabled: true,
+      price_per_gram: 0,
+      colors: [createDefaultWhiteColor()],
+    };
+    setMaterials((prev) => {
+      const next = [...prev, newMat];
+      // Auto-open dialog for the new material
+      setTimeout(() => {
+        setEditingMaterialIndex(next.length - 1);
+        setDialogDraft(deepClone(newMat));
+      }, 0);
+      return next;
+    });
     setTouched(true);
   };
 
@@ -569,6 +579,70 @@ const AdminPricing = () => {
   const updateMaterialColor = updateColorInMaterial;
   const deleteMaterialColor = deleteColorFromMaterial;
 
+  // --- Dialog open/close/save handlers ---
+  const openMaterialDialog = (index) => {
+    setEditingMaterialIndex(index);
+    setDialogDraft(deepClone(materials[index]));
+  };
+
+  const closeMaterialDialog = () => {
+    setEditingMaterialIndex(null);
+    setDialogDraft(null);
+  };
+
+  const saveMaterialDialog = () => {
+    if (dialogDraft == null || editingMaterialIndex == null) return;
+    setMaterials(prev => prev.map((m, i) => i === editingMaterialIndex ? dialogDraft : m));
+    setTouched(true);
+    closeMaterialDialog();
+  };
+
+  // Dialog-local handlers that operate on dialogDraft instead of materials
+  const updateDialogDraft = (field, value) => {
+    setDialogDraft(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, [field]: value };
+      if (!Array.isArray(next.colors)) next.colors = [];
+      if (field === 'name' && !String(prev.key || '').trim()) {
+        const slug = slugifyMaterialKey(value);
+        if (slug) next.key = ensureUniqueMaterialKey(slug, materials, prev.id);
+      }
+      if (field === 'key') next.key = slugifyMaterialKey(value);
+      if (field === 'price_per_gram') next.price_per_gram = safeNum(value, 0);
+      return next;
+    });
+  };
+
+  const addColorToDialog = (name, hex) => {
+    if (!name || !isValidHex(hex)) return false;
+    setDialogDraft(prev => {
+      if (!prev) return prev;
+      const colors = Array.isArray(prev.colors) ? prev.colors : [];
+      return { ...prev, colors: [...colors, { id: createStableId('clr'), name, hex, price_per_gram: null }] };
+    });
+    return true;
+  };
+
+  const updateDialogColor = (colorId, field, value) => {
+    setDialogDraft(prev => {
+      if (!prev) return prev;
+      const colors = Array.isArray(prev.colors) ? prev.colors : [];
+      return {
+        ...prev,
+        colors: colors.map(c => c.id === colorId ? { ...c, [field]: field === 'hex' ? normalizeHex(value) : value } : c),
+      };
+    });
+  };
+
+  const deleteDialogColor = (colorId) => {
+    setDialogDraft(prev => {
+      if (!prev) return prev;
+      const colors = Array.isArray(prev.colors) ? prev.colors : [];
+      if (colors.length <= 1) return prev;
+      return { ...prev, colors: colors.filter(c => c.id !== colorId) };
+    });
+  };
+
   const currentConfigFull = useMemo(() => {
     const normalizedMaterials = ensureAtLeastOneMaterial(materials).map((m) => ({
       ...m,
@@ -579,6 +653,7 @@ const AdminPricing = () => {
             id: c.id,
             name: String(c.name || '').trim(),
             hex: normalizeHex(c.hex),
+            price_per_gram: c.price_per_gram != null ? clampMin0(c.price_per_gram) : null,
           }))
         : [createDefaultWhiteColor(`clr-${m.id}-white`)],
     }));
@@ -795,6 +870,7 @@ const AdminPricing = () => {
                 id: c?.id || createStableId('clr'),
                 name: String(c?.name || '').trim(),
                 hex: normalizeHex(c?.hex),
+                price_per_gram: c?.price_per_gram != null ? clampMin0(c.price_per_gram) : null,
               }))
             : [createDefaultWhiteColor(`clr-${id}-white`)],
         };
@@ -888,6 +964,7 @@ const AdminPricing = () => {
                 id: c?.id || createStableId('clr'),
                 name: String(c?.name || '').trim(),
                 hex: normalizeHex(c?.hex),
+                price_per_gram: c?.price_per_gram != null ? clampMin0(c.price_per_gram) : null,
               }))
             : [createDefaultWhiteColor(`clr-${id}-white`)],
         };
@@ -1009,6 +1086,32 @@ const AdminPricing = () => {
     return <div className="field-error">{language === 'cs' ? 'Zadej hodnotu ≥ 0' : 'Enter value ≥ 0'}</div>;
   };
 
+  const DialogAddColor = ({ language: lang, onAdd }) => {
+    const [name, setName] = useState('');
+    const [hex, setHex] = useState('#FFFFFF');
+
+    const handleAdd = () => {
+      if (!name.trim() || !isValidHex(hex)) return;
+      const ok = onAdd(name.trim(), normalizeHex(hex));
+      if (ok) { setName(''); setHex('#FFFFFF'); }
+    };
+
+    return (
+      <div className="color-add" style={{ marginTop: 12 }}>
+        <div className="muted" style={{ marginBottom: 8 }}>{lang === 'cs' ? 'Přidat novou barvu:' : 'Add a new color:'}</div>
+        <div className="dialog-color-add-row">
+          <input className="input" placeholder={lang === 'cs' ? 'Název nové barvy' : 'New color name'} value={name} onChange={(e) => setName(e.target.value)} />
+          <input type="color" className="color-picker" value={isValidHex(hex) ? hex : '#FFFFFF'} onChange={(e) => setHex(normalizeHex(e.target.value))} />
+          <input className="input mono" placeholder="#RRGGBB" value={hex} onChange={(e) => setHex(normalizeHex(e.target.value))} style={{ width: 100 }} />
+          <button className="btn-secondary" onClick={handleAdd} disabled={!name.trim() || !isValidHex(hex)}>
+            <Icon name="Plus" size={18} />
+            {lang === 'cs' ? 'Přidat' : 'Add'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="admin-page">
@@ -1071,15 +1174,15 @@ const AdminPricing = () => {
       <div className="pricing-layout">
         {/* LEFT: Cards */}
         <div className="cards">
-          {/* Card: Materials (existing) */}
+          {/* Card: Materials */}
           <div className="admin-card">
             <div className="card-header">
               <div>
                 <h2>{t('admin.pricing.materials')}</h2>
                 <p className="card-description">
                   {language === 'cs'
-                    ? 'Nastav materiály a cenu za gram (Kč/g).'
-                    : 'Configure materials and their price per gram.'}
+                    ? 'Nastav materiály, cenu za gram a barvy. Klikni na materiál pro úpravu.'
+                    : 'Configure materials, price per gram and colors. Click a material to edit.'}
                 </p>
               </div>
               <button className="btn-secondary" onClick={addMaterial}>
@@ -1092,239 +1195,218 @@ const AdminPricing = () => {
               <div className="empty-state">
                 <Icon name="Package" size={48} />
                 <h3>{language === 'cs' ? 'Žádné materiály nenakonfigurovány' : 'No materials configured'}</h3>
-                <p>
-                  {language === 'cs'
-                    ? 'Klikni na "Přidat materiál" a vytvoř první materiál.'
-                    : 'Click "Add Material" to create your first material.'}
-                </p>
+                <p>{language === 'cs' ? 'Klikni na "Přidat materiál" a vytvoř první materiál.' : 'Click "Add Material" to create your first material.'}</p>
               </div>
             ) : (
-              <div className="materials-grid">
+              <div className="materials-compact-grid">
                 {materials.map((material, index) => {
-                  const issues = materialIssues.byMaterialId?.[material.id] || {};
-                  const canDelete = materials.length > 1;
-                  const keyError = issues.keyMissing || issues.keyInvalid || issues.keyDuplicate;
-                  const nameError = issues.nameMissing;
-                  const priceError = issues.priceInvalid;
-                  const draft = colorDrafts?.[material.id] || { name: '', hex: '#FFFFFF' };
                   const matKeyLower = String(material.key || '').toLowerCase();
                   const isDefault = !!matKeyLower && matKeyLower === String(defaultMaterialKey || '').toLowerCase();
-                  const canSetDefault = !!matKeyLower && !keyError && material.enabled !== false;
+                  const issues = materialIssues.byMaterialId?.[material.id] || {};
+                  const hasIssue = issues.nameMissing || issues.keyMissing || issues.keyInvalid || issues.keyDuplicate || issues.priceInvalid;
+                  const colors = Array.isArray(material.colors) ? material.colors : [];
 
                   return (
-                    <div key={material.id} className="material-card">
-                      <div className="material-header">
-                        <input
-                          className={`material-name ${nameError ? 'input-error' : ''}`}
-                          placeholder={language === 'cs' ? 'Název materiálu (např. PLA, ABS)' : 'Material name (e.g. PLA, ABS)'}
-                          value={material.name}
-                          onChange={(e) => updateMaterial(index, 'name', e.target.value)}
-                        />
-                        <div className="material-actions">
-                          <label
-                            className={`default-radio ${isDefault ? 'is-default' : ''}`}
-                            title={
-                              !canSetDefault
-                                ? (language === 'cs'
-                                    ? 'Výchozí materiál musí být aktivní a mít validní klíč.'
-                                    : 'Default material must be enabled and have a valid key.')
-                                : (language === 'cs' ? 'Nastavit jako výchozí materiál' : 'Set as default material')
-                            }
-                          >
-                            <input
-                              type="radio"
-                              name="default-material"
-                              checked={isDefault}
-                              disabled={!canSetDefault}
-                              onChange={() => {
-                                setDefaultMaterialKey(matKeyLower);
-                                setTouched(true);
-                              }}
-                            />
-                            <span>{language === 'cs' ? 'Výchozí' : 'Default'}</span>
-                          </label>
-
-                          <button
-                            className="icon-btn"
-                            onClick={() => deleteMaterial(index)}
-                            disabled={!canDelete}
-                            title={
-                              !canDelete
-                                ? (language === 'cs' ? 'Nelze smazat poslední materiál' : 'You cannot delete the last material')
-                                : (language === 'cs' ? 'Smazat materiál' : 'Delete material')
-                            }
-                          >
-                            <Icon name="Trash2" size={16} />
-                          </button>
-                        </div>
+                    <div
+                      key={material.id}
+                      className={`material-compact-card ${hasIssue ? 'has-issue' : ''}`}
+                      onClick={() => openMaterialDialog(index)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openMaterialDialog(index); }}
+                    >
+                      <div className="mcc-header">
+                        <div className="mcc-name">{material.name || (language === 'cs' ? '(bez názvu)' : '(unnamed)')}</div>
+                        <Icon name="Pencil" size={14} className="mcc-edit-icon" />
                       </div>
-
-                      {nameError ? (
-                        <div className="field-error">{language === 'cs' ? 'Název je povinný' : 'Name is required'}</div>
-                      ) : null}
-
-                      <div className="field">
-                        <label>{language === 'cs' ? 'Klíč (slug)' : 'Key (slug)'}</label>
-                        <input
-                          className={`input ${keyError ? 'input-error' : ''}`}
-                          placeholder={language === 'cs' ? 'např. pla, petg_carbon' : 'e.g. pla, petg_carbon'}
-                          value={material.key || ''}
-                          onChange={(e) => updateMaterial(index, 'key', e.target.value)}
-                        />
-                        {issues.keyMissing ? (
-                          <div className="field-error">{language === 'cs' ? 'Klíč je povinný' : 'Key is required'}</div>
-                        ) : issues.keyInvalid ? (
-                          <div className="field-error">
-                            {language === 'cs'
-                              ? 'Klíč musí obsahovat jen a-z, 0-9 a podtržítka.'
-                              : 'Key may contain only a-z, 0-9 and underscores.'}
+                      <div className="mcc-key">{material.key || '\u2014'}</div>
+                      <div className="mcc-badges">
+                        {isDefault && <span className="mcc-badge default">{language === 'cs' ? 'Výchozí' : 'Default'}</span>}
+                        <span className={`mcc-badge ${material.enabled ? 'active' : 'inactive'}`}>
+                          {material.enabled ? (language === 'cs' ? 'Aktivní' : 'Active') : (language === 'cs' ? 'Neaktivní' : 'Inactive')}
+                        </span>
+                        {hasIssue && <span className="mcc-badge error">{language === 'cs' ? 'Chyba' : 'Error'}</span>}
+                      </div>
+                      <div className="mcc-price">
+                        <span className="mcc-price-value">{clampMin0(material.price_per_gram)}</span>
+                        <span className="mcc-price-unit">Kč/g</span>
+                      </div>
+                      <div className="mcc-colors">
+                        {colors.slice(0, 6).map(c => (
+                          <div key={c.id} className="mcc-color-chip">
+                            <span className="mcc-color-dot" style={{ backgroundColor: isValidHex(c.hex) ? c.hex : '#888' }} />
+                            <span className="mcc-color-name">{c.name || '?'}</span>
+                            {c.price_per_gram != null && (
+                              <span className="mcc-color-price">{c.price_per_gram} Kč</span>
+                            )}
                           </div>
-                        ) : issues.keyDuplicate ? (
-                          <div className="field-error">{language === 'cs' ? 'Klíč musí být unikátní' : 'Key must be unique'}</div>
-                        ) : (
-                          <p className="help-text">
-                            {language === 'cs'
-                              ? 'Klíč se používá v kalkulaci a nemění se automaticky při přejmenování.'
-                              : "Key is used for calculation and won't change automatically when renaming."}
-                          </p>
+                        ))}
+                        {colors.length > 6 && (
+                          <span className="mcc-color-more">+{colors.length - 6}</span>
                         )}
                       </div>
-
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={material.enabled}
-                        onChange={(e) => updateMaterial(index, 'enabled', e.target.checked)}
-                      />
-                      <span>{language === 'cs' ? 'Aktivní' : 'Active'}</span>
-                    </label>
-
-                    <div className="field">
-                      <label>{language === 'cs' ? 'Cena za gram' : 'Price per gram'}</label>
-                      <div className="input-with-unit">
-                        <input
-                          type="number"
-                          min="0"
-                          className={`input ${priceError ? 'input-error' : ''}`}
-                          value={material.price_per_gram}
-                          onChange={(e) => updateMaterial(index, 'price_per_gram', safeNum(e.target.value, 0))}
-                        />
-                        <span className="unit">Kč/g</span>
-                      </div>
-                      <FieldError show={priceError} />
                     </div>
-
-                    <div className="divider" />
-
-                    <div className="colors-section">
-                      <div className="colors-title">{language === 'cs' ? 'Barvy materiálu' : 'Material colors'}</div>
-
-                      {Array.isArray(material.colors) && material.colors.length > 0 ? (
-                        <div className="colors-list">
-                          {material.colors.map((c) => {
-                            const cIssues = issues.colors?.[c.id] || {};
-                            const hexVal = c.hex || '#FFFFFF';
-                            const canDeleteColor = (Array.isArray(material.colors) ? material.colors.length : 0) > 1;
-
-                            return (
-                              <div key={c.id} className="color-row">
-                                <input
-                                  className={`input ${cIssues.nameMissing ? 'input-error' : ''}`}
-                                  placeholder={language === 'cs' ? 'Název barvy' : 'Color name'}
-                                  value={c.name || ''}
-                                  onChange={(e) => updateMaterialColor(index, c.id, 'name', e.target.value)}
-                                />
-                                <input
-                                  type="color"
-                                  className="color-picker"
-                                  value={isValidHex(hexVal) ? hexVal : '#FFFFFF'}
-                                  onChange={(e) => scheduleColorHexUpdate(index, c.id, e.target.value)}
-                                />
-                                <input
-                                  className={`input mono ${cIssues.hexInvalid ? 'input-error' : ''}`}
-                                  placeholder="#RRGGBB"
-                                  value={c.hex || ''}
-                                  onChange={(e) => updateMaterialColor(index, c.id, 'hex', e.target.value)}
-                                />
-                                <button
-                                  className="icon-btn"
-                                  onClick={() => deleteMaterialColor(index, c.id)}
-                                  disabled={!canDeleteColor}
-                                  title={
-                                    !canDeleteColor
-                                      ? (language === 'cs' ? 'Nelze smazat poslední barvu' : 'You cannot delete the last color')
-                                      : (language === 'cs' ? 'Smazat barvu' : 'Delete color')
-                                  }
-                                >
-                                  <Icon name="Trash2" size={16} />
-                                </button>
-
-                                {cIssues.nameMissing || cIssues.hexInvalid ? (
-                                  <div className="color-row-errors">
-                                    {cIssues.nameMissing ? (
-                                      <span>{language === 'cs' ? 'Název povinný' : 'Name required'}</span>
-                                    ) : null}
-                                    {cIssues.hexInvalid ? (
-                                      <span>{language === 'cs' ? 'Hex neplatný' : 'Invalid hex'}</span>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="help-text">
-                          {language === 'cs'
-                            ? 'Zatím nejsou definované žádné barvy. Přidej první barvu níže.'
-                            : 'No colors defined yet. Add your first color below.'}
-                        </p>
-                      )}
-
-                      <div className="color-add">
-                        <div className="muted" style={{ marginBottom: 8 }}>
-                          {language === 'cs' ? 'Přidat novou barvu:' : 'Add a new color:'}
-                        </div>
-                        <div className="color-add-row">
-                          <input
-                            className={`input ${draft?.name?.trim() ? '' : 'input-error'}`}
-                            placeholder={language === 'cs' ? 'Název nové barvy' : 'New color name'}
-                            value={draft.name}
-                            onChange={(e) => setColorDraft(material.id, 'name', e.target.value)}
-                          />
-                          <input
-                            type="color"
-                            className="color-picker"
-                            value={isValidHex(draft.hex) ? draft.hex : '#FFFFFF'}
-                            onChange={(e) => setColorDraft(material.id, 'hex', normalizeHex(e.target.value))}
-                          />
-                          <input
-                            className={`input mono ${draft.hex && !isValidHex(draft.hex) ? 'input-error' : ''}`}
-                            placeholder="#RRGGBB"
-                            value={draft.hex}
-                            onChange={(e) => setColorDraft(material.id, 'hex', normalizeHex(e.target.value))}
-                          />
-                          <button
-                            className="btn-secondary"
-                            onClick={() => addMaterialColor(index)}
-                            disabled={!draft?.name?.trim() || !isValidHex(draft.hex)}
-                          >
-                            <Icon name="Plus" size={18} />
-                            {language === 'cs' ? 'Přidat' : 'Add'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {draft.name && draft.hex && !isValidHex(draft.hex) ? (
-                        <div className="field-error">{language === 'cs' ? 'Hex musí být ve formátu #RRGGBB' : 'Hex must be in #RRGGBB format'}</div>
-                      ) : null}
-                    </div>
-                  </div>
                   );
                 })}
               </div>
             )}
           </div>
+
+          {/* Material Edit Dialog */}
+          <ForgeDialog
+            open={editingMaterialIndex != null && dialogDraft != null}
+            onClose={closeMaterialDialog}
+            title={dialogDraft?.name || (language === 'cs' ? 'Nový materiál' : 'New material')}
+            maxWidth="50vw"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={closeMaterialDialog}>
+                  {language === 'cs' ? 'Zrušit' : 'Cancel'}
+                </button>
+                <button className="btn-primary" onClick={saveMaterialDialog}>
+                  <Icon name="Save" size={16} />
+                  {language === 'cs' ? 'Uložit změny' : 'Save changes'}
+                </button>
+              </>
+            }
+          >
+            {dialogDraft && (() => {
+              const mat = dialogDraft;
+              const draftIssues = materialIssues.byMaterialId?.[mat.id] || {};
+              const keyError = draftIssues.keyMissing || draftIssues.keyInvalid || draftIssues.keyDuplicate;
+              const nameError = draftIssues.nameMissing;
+              const priceError = draftIssues.priceInvalid;
+              const draftColors = Array.isArray(mat.colors) ? mat.colors : [];
+
+              return (
+                <div className="dialog-material-form">
+                  <div className="field">
+                    <label>{language === 'cs' ? 'Název materiálu' : 'Material name'}</label>
+                    <input
+                      className={`input ${nameError ? 'input-error' : ''}`}
+                      placeholder={language === 'cs' ? 'Název materiálu (např. PLA, ABS)' : 'Material name (e.g. PLA, ABS)'}
+                      value={mat.name || ''}
+                      onChange={(e) => updateDialogDraft('name', e.target.value)}
+                    />
+                    {nameError && <div className="field-error">{language === 'cs' ? 'Název je povinný' : 'Name is required'}</div>}
+                  </div>
+
+                  <div className="field">
+                    <label>{language === 'cs' ? 'Klíč (slug)' : 'Key (slug)'}</label>
+                    <input
+                      className={`input ${keyError ? 'input-error' : ''}`}
+                      placeholder={language === 'cs' ? 'např. pla, petg_carbon' : 'e.g. pla, petg_carbon'}
+                      value={mat.key || ''}
+                      onChange={(e) => updateDialogDraft('key', e.target.value)}
+                    />
+                    {draftIssues.keyMissing && <div className="field-error">{language === 'cs' ? 'Klíč je povinný' : 'Key is required'}</div>}
+                    {draftIssues.keyInvalid && <div className="field-error">{language === 'cs' ? 'Klíč musí obsahovat jen a-z, 0-9 a podtržítka.' : 'Key may contain only a-z, 0-9 and underscores.'}</div>}
+                    {draftIssues.keyDuplicate && <div className="field-error">{language === 'cs' ? 'Klíč musí být unikátní' : 'Key must be unique'}</div>}
+                  </div>
+
+                  <div className="dialog-row-2">
+                    <label className="toggle">
+                      <input type="checkbox" checked={mat.enabled} onChange={(e) => updateDialogDraft('enabled', e.target.checked)} />
+                      <span>{language === 'cs' ? 'Aktivní' : 'Active'}</span>
+                    </label>
+
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>{language === 'cs' ? 'Výchozí cena za gram' : 'Default price per gram'}</label>
+                      <div className="input-with-unit">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={`input ${priceError ? 'input-error' : ''}`}
+                          value={mat.price_per_gram}
+                          onChange={(e) => updateDialogDraft('price_per_gram', safeNum(e.target.value, 0))}
+                        />
+                        <span className="unit">Kč/g</span>
+                      </div>
+                      <p className="help-text">{language === 'cs' ? 'Tato cena se použije pro všechny barvy, pokud nemají vlastní cenu.' : 'This price is used for all colors unless they have a custom override.'}</p>
+                    </div>
+                  </div>
+
+                  <div className="divider" />
+
+                  <div className="dialog-colors-section">
+                    <div className="colors-title">{language === 'cs' ? 'Barvy materiálu' : 'Material colors'}</div>
+                    <p className="help-text" style={{ marginTop: 0, marginBottom: 12 }}>
+                      {language === 'cs'
+                        ? 'Můžeš nastavit specifickou cenu pro každou barvu. Pokud cenu nezadáš, použije se výchozí cena materiálu.'
+                        : 'You can set a specific price for each color. If not set, the default material price is used.'}
+                    </p>
+
+                    {draftColors.map(c => {
+                      const cIssues = draftIssues.colors?.[c.id] || {};
+                      const hexVal = c.hex || '#FFFFFF';
+                      const canDeleteColor = draftColors.length > 1;
+
+                      return (
+                        <div key={c.id} className="dialog-color-row">
+                          <input
+                            className={`input ${cIssues.nameMissing ? 'input-error' : ''}`}
+                            placeholder={language === 'cs' ? 'Název barvy' : 'Color name'}
+                            value={c.name || ''}
+                            onChange={(e) => updateDialogColor(c.id, 'name', e.target.value)}
+                          />
+                          <input
+                            type="color"
+                            className="color-picker"
+                            value={isValidHex(hexVal) ? hexVal : '#FFFFFF'}
+                            onChange={(e) => updateDialogColor(c.id, 'hex', e.target.value)}
+                          />
+                          <input
+                            className={`input mono ${cIssues.hexInvalid ? 'input-error' : ''}`}
+                            placeholder="#RRGGBB"
+                            value={c.hex || ''}
+                            onChange={(e) => updateDialogColor(c.id, 'hex', e.target.value)}
+                            style={{ width: 100 }}
+                          />
+                          <div className="dialog-color-price-field">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="input"
+                              placeholder={`${clampMin0(mat.price_per_gram)}`}
+                              value={c.price_per_gram != null ? c.price_per_gram : ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? null : safeNum(e.target.value, 0);
+                                updateDialogColor(c.id, 'price_per_gram', val);
+                              }}
+                              title={language === 'cs' ? 'Vlastní cena za gram (prázdné = výchozí)' : 'Custom price per gram (empty = default)'}
+                            />
+                            <span className="unit">Kč/g</span>
+                          </div>
+                          <button
+                            className="icon-btn"
+                            onClick={() => deleteDialogColor(c.id)}
+                            disabled={!canDeleteColor}
+                            title={!canDeleteColor ? (language === 'cs' ? 'Nelze smazat poslední barvu' : 'Cannot delete the last color') : (language === 'cs' ? 'Smazat barvu' : 'Delete color')}
+                          >
+                            <Icon name="Trash2" size={16} />
+                          </button>
+
+                          {(cIssues.nameMissing || cIssues.hexInvalid) && (
+                            <div className="color-row-errors">
+                              {cIssues.nameMissing && <span>{language === 'cs' ? 'Název povinný' : 'Name required'}</span>}
+                              {cIssues.hexInvalid && <span>{language === 'cs' ? 'Hex neplatný' : 'Invalid hex'}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <DialogAddColor
+                      language={language}
+                      onAdd={(name, hex) => addColorToDialog(name, hex)}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+          </ForgeDialog>
 
           {/* Card 1: Time rate + min billed minutes */}
           <div className="admin-card">
@@ -2289,6 +2371,231 @@ const AdminPricing = () => {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
           gap: 12px;
+        }
+
+        /* Compact material overview grid */
+        .materials-compact-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+        }
+
+        @media (max-width: 900px) {
+          .materials-compact-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 560px) {
+          .materials-compact-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .material-compact-card {
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: var(--forge-radius-md, 8px);
+          padding: 12px;
+          background: var(--forge-bg-void, #0a0a0f);
+          cursor: pointer;
+          transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
+          position: relative;
+        }
+
+        .material-compact-card:hover {
+          border-color: rgba(0, 212, 170, 0.3);
+          background: var(--forge-bg-elevated, #1a1a2e);
+          box-shadow: 0 0 12px rgba(0, 212, 170, 0.08);
+        }
+
+        .material-compact-card.has-issue {
+          border-color: rgba(255, 68, 68, 0.3);
+        }
+
+        .mcc-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 2px;
+        }
+
+        .mcc-name {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .mcc-edit-icon {
+          color: var(--forge-text-muted, #666680);
+          opacity: 0;
+          transition: opacity 120ms;
+          flex-shrink: 0;
+        }
+
+        .material-compact-card:hover .mcc-edit-icon {
+          opacity: 1;
+        }
+
+        .mcc-key {
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          color: var(--forge-text-muted, #666680);
+          margin-bottom: 6px;
+        }
+
+        .mcc-badges {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+          margin-bottom: 6px;
+        }
+
+        .mcc-badge {
+          font-size: 10px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          padding: 2px 6px;
+          border-radius: 999px;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+        }
+
+        .mcc-badge.default {
+          background: rgba(0, 212, 170, 0.1);
+          color: var(--forge-accent-primary, #00D4AA);
+          border-color: rgba(0, 212, 170, 0.3);
+        }
+
+        .mcc-badge.active {
+          background: rgba(0, 212, 170, 0.06);
+          color: var(--forge-accent-primary, #00D4AA);
+          border-color: rgba(0, 212, 170, 0.2);
+        }
+
+        .mcc-badge.inactive {
+          background: rgba(255, 170, 0, 0.06);
+          color: #ffaa00;
+          border-color: rgba(255, 170, 0, 0.2);
+        }
+
+        .mcc-badge.error {
+          background: rgba(255, 68, 68, 0.06);
+          color: #ff4444;
+          border-color: rgba(255, 68, 68, 0.2);
+        }
+
+        .mcc-price {
+          display: flex;
+          align-items: baseline;
+          gap: 4px;
+          margin-bottom: 8px;
+        }
+
+        .mcc-price-value {
+          font-size: 18px;
+          font-weight: 800;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+        }
+
+        .mcc-price-unit {
+          font-size: 11px;
+          color: var(--forge-text-muted, #666680);
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+        }
+
+        .mcc-colors {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+
+        .mcc-color-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: var(--forge-bg-surface, #12121a);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          font-size: 11px;
+          color: var(--forge-text-secondary, #a0a0a0);
+        }
+
+        .mcc-color-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 2px;
+          flex-shrink: 0;
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .mcc-color-name {
+          max-width: 60px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .mcc-color-price {
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          font-size: 10px;
+          color: var(--forge-accent-primary, #00D4AA);
+        }
+
+        .mcc-color-more {
+          font-size: 11px;
+          color: var(--forge-text-muted, #666680);
+          padding: 2px 6px;
+        }
+
+        /* Dialog material form */
+        .dialog-material-form .field {
+          margin-top: 14px;
+        }
+
+        .dialog-material-form .field:first-child {
+          margin-top: 0;
+        }
+
+        .dialog-row-2 {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+          margin-top: 14px;
+        }
+
+        .dialog-colors-section {
+          margin-top: 4px;
+        }
+
+        .dialog-color-row {
+          display: grid;
+          grid-template-columns: 1fr 44px 100px 1fr auto;
+          gap: 8px;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .dialog-color-price-field {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .dialog-color-price-field .input {
+          width: 80px;
+        }
+
+        .dialog-color-add-row {
+          display: grid;
+          grid-template-columns: 1fr 44px 100px auto;
+          gap: 8px;
+          align-items: center;
         }
 
         .material-card {

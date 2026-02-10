@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>ModelPricer - Designový Audit Report</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 900px; margin: 0 auto; padding: 40px 20px; background: #f8f9fa; color: #1a1a2e; line-height: 1.7; }
+  h1 { color: #0d1b2a; border-bottom: 3px solid #00d4aa; padding-bottom: 12px; font-size: 28px; }
+  h2 { color: #1b263b; margin-top: 40px; font-size: 20px; border-left: 4px solid #00d4aa; padding-left: 12px; }
+  .severity { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; margin-left: 8px; }
+  .critical { background: #dc3545; color: white; }
+  .high { background: #fd7e14; color: white; }
+  .medium { background: #ffc107; color: #333; }
+  .fix { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 12px 16px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+  .screenshot-note { background: #e3f2fd; border-left: 4px solid #2196f3; padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 14px; }
+  .section { background: white; padding: 24px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .meta { color: #666; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { padding: 10px 14px; border: 1px solid #dee2e6; text-align: left; font-size: 14px; }
+  th { background: #1b263b; color: white; }
+  tr:nth-child(even) { background: #f1f3f5; }
+  .summary-box { background: linear-gradient(135deg, #1b263b, #0d1b2a); color: white; padding: 24px; border-radius: 8px; margin: 24px 0; }
+  .summary-box h3 { color: #00d4aa; margin-top: 0; }
+</style>
+</head>
+<body>
+<h1>🔍 ModelPricer — Designový Audit Report</h1>
+<p class="meta">Datum: 10. 2. 2026 | Auditor: Senior Design Specialist | Web: localhost:4028 | Verze: v3.2</p>
+<p class="meta">Auditované stránky: Homepage (/), Demo kalkulačky (/test-kalkulacka), Ceník (/pricing), Podpora (/support)</p>
+
+<div class="summary-box">
+<h3>📊 Shrnutí nalezených problémů</h3>
+<table style="color: white; border-color: rgba(255,255,255,0.2);">
+<tr><th style="background: rgba(255,255,255,0.1);">Závažnost</th><th style="background: rgba(255,255,255,0.1);">Počet</th></tr>
+<tr><td>🔴 Kritické</td><td>4</td></tr>
+<tr><td>🟠 Vysoké</td><td>6</td></tr>
+<tr><td>🟡 Střední</td><td>8</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>1. Horizontální přetečení stránky <span class="severity critical">KRITICKÉ</span></h2>
+<p>Celá stránka má viditelný horizontální scrollbar. Dokument má šířku 1160 px, zatímco viewport je 926 px. Viník je marquee (běžící pásek s texty jako PrusaSlicer CLI, Shopify, WooCommerce) v trust baru, který se roztahuje na cca 2660 px bez správného ořezu.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>01-horizontalni-scrollbar-cela-stranka.png</strong> — Celá homepage s viditelným scrollbarem dole.<br>📸 Screenshot: <strong>01-detail-horizontalni-scrollbar.png</strong> — Zoom na horizontální scrollbar ve spodní části stránky.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Marquee kontejner potřebuje overflow: hidden na rodičovském prvku na úrovni celé stránky. Přidat overflow-x: hidden na body/html. Fatální z hlediska prvního dojmu.</div>
+</div>
+
+<div class="section">
+<h2>2. Konflikt světlého headeru a tmavého webu <span class="severity critical">KRITICKÉ</span></h2>
+<p>Header (navigace) má bílé poloprůhledné pozadí (rgba(255,255,255,0.7) s backdrop-blur) a tmavý text (rgb(10,10,10)), zatímco veškerý obsah pod ním je v dark-mode. Vzniká extrémně tvrdý vizuální přechod — bílý pruh nahoře, pak okamžitě neprůhledná temnota. Header vypadá, jako by patřil ke zcela jinému webu.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>02-svetly-header-na-tmavem-webu.png</strong> — Zoom na header s bílým pozadím kontrastujícím s tmavým obsahem.<br>📸 Screenshot: <strong>02-cela-homepage-header-kontrast.png</strong> — Celá homepage ukazující ostrý přechod header→obsah.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Sjednotit header s dark-mode estetikou: rgba(8,9,12,0.85) s blur efektem, světlé texty navigace, jemný border-bottom rgba(255,255,255,0.08).</div>
+</div>
+
+<div class="section">
+<h2>3. Rozbitá diakritika na stránce Demo kalkulačky <span class="severity critical">KRITICKÉ</span></h2>
+<p>Na stránce /test-kalkulacka se zobrazují unicode escape sekvence místo českých znaků: "P\u0159et\u00e1hn\u011bte", "Maxim\u00e1ln\u00ed", "Podporovan\u00e9 form\u00e1ty". Uživatel vidí nesmyslné řetězce místo srozumitelného textu.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>03-encoding-chyby-cela-stranka.png</strong> — Celá stránka Demo kalkulačky s viditelnými encoding chybami.<br>📸 Screenshot: <strong>03-detail-encoding-unicode-escape.png</strong> — Zoom na oblast s unicode escape sekvencemi.<br>📸 Screenshot: <strong>03-detail-encoding-podporovane-formaty.png</strong> — Druhý blok s rozbitou diakritikou ("Podporovan\u00e9 form\u00e1ty").</div>
+<div class="fix"><strong>✅ Oprava:</strong> Kompletní audit všech textových řetězců na stránce /test-kalkulacka. Zajistit správné kódování UTF-8 pro české znaky (háčky, čárky).</div>
+</div>
+
+<div class="section">
+<h2>4. Nekonzistence měny: $ na homepage vs. Kč na Ceníku <span class="severity critical">KRITICKÉ</span></h2>
+<p>Na homepage v sekci "Cenové plány" jsou ceny v dolarech: $0, $49, $199. Na dedikované stránce Ceník (/pricing) jsou ceny v korunách: 499 Kč, 999 Kč, "Na míru". Nejen, že se liší měna, ale i samotné hodnoty neodpovídají — $49 ≠ 999 Kč.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>04-homepage-pricing-dolary.png</strong> — Pricing sekce na homepage s cenami v $.<br>📸 Screenshot: <strong>04-cenik-stranka-koruny.png</strong> — Pricing na stránce Ceník s cenami v Kč.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Sjednotit měnu napříč celým webem. Pro český trh (CS jazyk) používat Kč všude. Homepage pricing = Ceník pricing.</div>
+</div>
+
+<div class="section">
+<h2>5. Dvě patičky (duplikovaný footer) <span class="severity high">VYSOKÉ</span></h2>
+<p>Na stránce existují dva elementy footer naskládané přes sebe. První je tmavý ("[ MODEL.PRICER ] · v3.2" + HOME, PRICING, SUPPORT anglicky). Druhý má šedé pozadí (rgb(31,41,55)) s logem, navigací, právními odkazy a copyrightem česky. Navíc druhý footer obsahuje inline style tagy přímo v textovém obsahu.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>05-dva-footery-cela-spodek.png</strong> — Spodní část stránky se dvěma footery (tmavý + šedý).</div>
+<div class="fix"><strong>✅ Oprava:</strong> Sloučit do jednoho koherentního footeru. Zachovat terminálový podtón jako dekorativní prvek, ale mít jednu kompletní patičku s navigací a právními údaji.</div>
+</div>
+
+<div class="section">
+<h2>6. Jazykový chaos — angličtina vs. čeština <span class="severity high">VYSOKÉ</span></h2>
+<p>Web je nastaven na češtinu (přepínač CZ CS), ale obsah je mix: Hero headline anglicky ("Precision Pricing for 3D Manufacturing"), CTA anglicky ("Start Building", "See Demo"), badge "Recommended" anglicky, sekce labels anglicky (ABOUT, PROCESS, CAPABILITIES, PLANS, FAQ), první footer anglicky (HOME, PRICING, SUPPORT). Zbytek obsahu je česky.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>06-hero-anglicky-text.png</strong> — Hero sekce s anglickým headlinem na česky nastaveném webu.<br>📸 Screenshot: <strong>06-about-label-anglicky.png</strong> — Sekce s anglickým "ABOUT" labelem a českým obsahem.<br>📸 Screenshot: <strong>06-recommended-badge-anglicky.png</strong> — Badge "Recommended" anglicky na pricing kartě.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Kompletní jazykový audit. Všechno musí být v češtině když je přepnuto na CS: hero headline, CTA, labels, badges, footer linky.</div>
+</div>
+
+<div class="section">
+<h2>7. Hero sekce — prázdná pravá strana, chybí vizuální kotva <span class="severity high">VYSOKÉ</span></h2>
+<p>Hero sekce zabírá celou výšku viewportu, ale pravá polovina je zcela prázdná — jen tmavé pozadí s grid patternem. Nadpis a CTA obsazují pouze cca 40% šířky. Chybí vizuální prvek vysvětlující produkt (screenshot, mockup, 3D vizualizace).</p>
+<div class="screenshot-note">📸 Screenshot: <strong>07-hero-prazdna-prava-strana.png</strong> — Hero sekce s prázdnou pravou polovinou.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Přidat vizuální prvek na pravou stranu — screenshot kalkulačky, mockup widgetu na e-shopu, nebo stylizovanou 3D vizualizaci.</div>
+</div>
+
+<div class="section">
+<h2>8. Typografická nekonzistence mezi stránkami <span class="severity high">VYSOKÉ</span></h2>
+<p>Hlavní stránky používají "Space Grotesk" pro headingy. Stránka Demo kalkulačky má stepper labely ve fontu "Space Mono"/"JetBrains Mono" (monospace) s uppercase transform. Upload area headline "NAHRAJTE 3D MODELY" je v monospace uppercase. Vizuální nesoulad — hlavní stránky = čistý moderní look, demo = terminálový interface.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>08-stepper-monospace-font.png</strong> — Stepper na demo stránce v monospace fontu.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Stepper labely v Space Grotesk (shodně s navigací). Monospace pouze pro technické údaje (.STL, .OBJ badges).</div>
+</div>
+
+<div class="section">
+<h2>9. Kontrastní problémy a čitelnost textu <span class="severity high">VYSOKÉ</span></h2>
+<p>Popisné texty mají šedou barvu (rgb(92,99,112)) na tmavém pozadí (rgb(8,9,12)). Kontrastní poměr jen cca 3.5:1, nesplňuje WCAG AA standard (vyžadující 4.5:1 pro běžný text). "See Demo" tlačítko má barvu rgb(155,163,176) — na hranici čitelnosti.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>09-seda-text-nízký-kontrast.png</strong> — Sekce "Co je ModelPricer?" s šedým textem na tmavém pozadí.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Zvýšit jasnost sekundárních textů min. na rgb(170,178,190). Vytvořit design token systém: primary text ~rgb(232,236,241), secondary ~rgb(180,188,200).</div>
+</div>
+
+<div class="section">
+<h2>10. Nekonzistentní CTA texty na pricing kartách <span class="severity high">VYSOKÉ</span></h2>
+<p>Homepage Pro plán má CTA "Doporučeno" — to není akce, to je popisek. Na Ceníku je u Starter "Začít zdarma" u 499 Kč tarifu — zavádějící. Pricing data se liší mezi homepage a Ceníkem (různé ceny, různé features, různé CTA).</p>
+<div class="screenshot-note">📸 Screenshot: <strong>10-homepage-cta-doporuceno.png</strong> — CTA tlačítko "Doporučeno" na homepage pricing.<br>📸 Screenshot: <strong>10-cenik-zacit-zdarma-499kc.png</strong> — "Začít zdarma" u placeného 499 Kč tarifu na Ceníku.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Každé CTA musí komunikovat akci: "Vyzkoušet Starter", "Aktivovat Pro", "Kontaktovat nás". Sjednotit pricing data.</div>
+</div>
+
+<div class="section">
+<h2>11. Stat karty — vertikální layout místo horizontálního <span class="severity medium">STŘEDNÍ</span></h2>
+<p>Sekce s čísly "8s", "60%", "24/7" na homepage je rozložená vertikálně (tři karty pod sebou na celou šířku). Při šířce 926+ px to plýtvá prostorem. Na stránce Ceník jsou stejné statistiky správně zobrazeny horizontálně vedle sebe.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>11-stat-karty-vertikalne.png</strong> — Stat karty na homepage roztažené vertikálně.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Přepracovat na 3 sloupce horizontálně (shodně s Ceníkem).</div>
+</div>
+
+<div class="section">
+<h2>12. Capabilities grid — nerovnoměrný layout 2+1 <span class="severity medium">STŘEDNÍ</span></h2>
+<p>Sekce "Capabilities" má 3 karty: 2 v řádku + 1 sama dole. Asymetrický, neukončený vzhled — jako by chyběla čtvrtá karta.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>12-capabilities-2plus1-grid.png</strong> — Celá capabilities sekce s nerovnoměrným rozložením karet.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Přidat 4. kartu (symetrický 2×2 grid), nebo přepracovat na 3 sloupce v jednom řádku.</div>
+</div>
+
+<div class="section">
+<h2>13. Přepoužití zelené akcentové barvy bez hierarchie <span class="severity medium">STŘEDNÍ</span></h2>
+<p>Zelená/tyrkysová (rgb(0,212,170)) je použitá pro VŠECHNO: CTA tlačítka, stat čísla, ikony, labels, badge, checkmarks, FAQ ikony, hover stavy. Barva ztrácí schopnost přitáhnout pozornost ke klíčovým prvkům.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>13-zelena-vsude-pricing.png</strong> — Pricing sekce kde je zelená na checkmarks, badge i CTA současně.</div>
+<div class="fix"><strong>✅ Oprava:</strong> Plná zelená pouze pro primární CTA. Stat čísla — světlejší odstín. Section labels — tlumená zelená nebo šedá.</div>
+</div>
+
+<div class="section">
+<h2>14. Chybějící vizuální oddělovače mezi sekcemi <span class="severity medium">STŘEDNÍ</span></h2>
+<p>Přechody mezi sekcemi jsou řešeny pouze vertikálním paddingem. Všechny sekce mají stejné tmavé pozadí bez vizuálního odlišení. Uživatel ztrácí orientaci kde jedna sekce končí a druhá začíná.</p>
+<div class="fix"><strong>✅ Oprava:</strong> Alternující pozadí (střídání rgb(8,9,12) a rgb(12,14,18)), gradient přechody, nebo subtilní horizontální linky mezi sekcemi.</div>
+</div>
+
+<div class="section">
+<h2>15. Anglické section labels na českém webu <span class="severity medium">STŘEDNÍ</span></h2>
+<p>Popisky sekcí ABOUT, PROCESS, CAPABILITIES, PLANS, FAQ jsou všechny anglicky na jinak česky nastaveném webu. Navíc jsou u KAŽDÉ sekce — některé jsou redundantní (PROCESS nad "Jak to funguje").</p>
+<div class="screenshot-note">📸 Screenshot: <strong>15-anglicke-section-labels.png</strong> — PROCESS label nad českým "Jak to funguje".</div>
+<div class="fix"><strong>✅ Oprava:</strong> Přeložit na O NÁS, PROCES, FUNKCE, PLÁNY, DOTAZY. Zvážit odstranění u sekcí s jasným nadpisem.</div>
+</div>
+
+<div class="section">
+<h2>16. Navigace — "Přihlásit se" oříznuté a vizuálně oddělené <span class="severity medium">STŘEDNÍ</span></h2>
+<p>"Přihlásit se" v pravém horním rohu je vizuálně odříznuté scrollbarem, chybí mu jasné tlačítkové zpracování — vypadá jako text. Přepínač jazyka je umístěn mezi navigací a přihlášením nelogicky.</p>
+<div class="screenshot-note">📸 Screenshot: <strong>16-prihlasit-se-oriznute.png</strong> — Zoom na pravý roh headeru s oříznutým "Přihlásit se".</div>
+<div class="fix"><strong>✅ Oprava:</strong> "Přihlásit se" jako outlined button, přesunout přepínač jazyka. Opravit overflow.</div>
+</div>
+
+<div class="section">
+<h2>17. FAQ — chybějící vizuální feedback <span class="severity medium">STŘEDNÍ</span></h2>
+<p>FAQ otázky nemají jasnou hover indikaci. "+" ikona je malá. Odkaz "Zobrazit všechny otázky →" je v šedé barvě — nekonzistentní s jinak zelenými interaktivními prvky.</p>
+<div class="fix"><strong>✅ Oprava:</strong> Hover efekt na FAQ řádky, větší "+" ikona, zelený odkaz "Zobrazit všechny otázky".</div>
+</div>
+
+<div class="section">
+<h2>18. Chybějící social proof <span class="severity medium">STŘEDNÍ</span></h2>
+<p>Trust bar říká "Trusted by 120+ print farms", ale žádná loga firem, žádné testimonials, žádné case studies. Běžící text s features (PrusaSlicer CLI, Shopify) není social proof — to jsou vlastní funkce.</p>
+<div class="fix"><strong>✅ Oprava:</strong> Přidat loga zákazníků, 2-3 testimonials, konkrétní metriky ("Zpracováno 50 000+ nabídek").</div>
+</div>
+
+<div class="summary-box">
+<h3>🎯 Prioritní plán oprav</h3>
+<p><strong>Fáze 1 (okamžitě):</strong> Horizontální overflow, rozbitá diakritika, sjednocení headeru s dark theme</p>
+<p><strong>Fáze 2 (tento týden):</strong> Odstranění duplicitního footeru, sjednocení jazyka a měny</p>
+<p><strong>Fáze 3 (příští sprint):</strong> Hero vizuál, typografická konzistence, kontrastní problémy, CTA texty</p>
+<p><strong>Fáze 4 (backlog):</strong> Section oddělovače, accent barva hierarchie, social proof, FAQ feedback</p>
+</div>
+
+<p class="meta" style="text-align: center; margin-top: 40px;">© 2026 Designový Audit | Vygenerováno pro ModelPricer v3.2</p>
+</body>
+</html>
