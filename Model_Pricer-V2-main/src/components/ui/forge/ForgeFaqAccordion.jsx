@@ -28,6 +28,9 @@ function FaqRow({ question, answer }) {
         className="w-full flex items-center justify-between py-5 text-left forge-transition-micro group"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
+        style={{ borderRadius: 'var(--forge-radius-sm)' }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--forge-bg-surface)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
       >
         <span
           style={{
@@ -35,6 +38,7 @@ function FaqRow({ question, answer }) {
             fontSize: 'var(--forge-text-lg)',
             fontWeight: 500,
             color: 'var(--forge-text-primary)',
+            paddingLeft: 8,
           }}
         >
           {question}
@@ -43,10 +47,12 @@ function FaqRow({ question, answer }) {
           className="shrink-0 ml-4 forge-transition-micro"
           style={{
             fontFamily: 'var(--forge-font-mono)',
-            fontSize: 'var(--forge-text-lg)',
-            color: 'var(--forge-accent-primary)',
+            fontSize: '24px',
+            lineHeight: 1,
+            color: isOpen ? 'var(--forge-accent-secondary)' : 'var(--forge-accent-primary)',
             transform: isOpen ? 'rotate(45deg)' : 'rotate(0deg)',
             display: 'inline-block',
+            paddingRight: 8,
           }}
         >
           +
@@ -66,6 +72,7 @@ function FaqRow({ question, answer }) {
             fontSize: 'var(--forge-text-base)',
             color: 'var(--forge-text-secondary)',
             lineHeight: '1.6',
+            paddingLeft: 8,
           }}
         >
           {answer}

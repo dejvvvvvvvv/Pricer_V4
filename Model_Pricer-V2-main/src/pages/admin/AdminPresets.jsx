@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -11,6 +12,19 @@ import { deletePreset, listPresets, patchPreset, setDefaultPreset, uploadPreset 
 // =============================================================
 
 const LOCAL_FALLBACK_NAMESPACE = 'presets:v1';
+
+const PRINT_OVERRIDE_FIELDS = [
+  { key: 'layer_height', type: 'number', step: 0.01, label_cs: 'V\u00fd\u0161ka vrstvy (mm)', label_en: 'Layer height (mm)' },
+  { key: 'perimeters', type: 'number', step: 1, label_cs: 'Po\u010det perimetr\u016f', label_en: 'Perimeters' },
+  { key: 'infill_sparse_density', type: 'number', step: 1, label_cs: 'Infill (%)', label_en: 'Infill (%)' },
+  { key: 'fill_pattern', type: 'select', options: ['rectilinear', 'grid', 'triangles', 'stars', 'cubic', 'gyroid', 'honeycomb', 'line', 'concentric', 'hilbertcurve', 'archimedeanchords', 'octagramspiral'], label_cs: 'Vzor v\u00fdpln\u011b', label_en: 'Fill pattern' },
+  { key: 'support_material', type: 'boolean', label_cs: 'Supporty', label_en: 'Supports' },
+  { key: 'support_material_threshold', type: 'number', step: 1, label_cs: '\u00dahel pro supporty (\u00b0)', label_en: 'Support threshold (\u00b0)' },
+  { key: 'first_layer_height', type: 'number', step: 0.01, label_cs: 'Prvn\u00ed vrstva (mm)', label_en: 'First layer height (mm)' },
+  { key: 'temperature', type: 'number', step: 1, label_cs: 'Teplota trysky (\u00b0C)', label_en: 'Nozzle temperature (\u00b0C)' },
+  { key: 'bed_temperature', type: 'number', step: 1, label_cs: 'Teplota podlo\u017eky (\u00b0C)', label_en: 'Bed temperature (\u00b0C)' },
+  { key: 'max_print_speed', type: 'number', step: 1, label_cs: 'Max rychlost (mm/s)', label_en: 'Max print speed (mm/s)' },
+];
 
 function pickLang(language, cs, en) {
   return String(language || '').toLowerCase().startsWith('en') ? en : cs;
@@ -32,8 +46,9 @@ function normalizePreset(raw) {
   const updatedAt = raw?.updatedAt ? String(raw.updatedAt) : '';
   const sizeBytes = Number.isFinite(Number(raw?.sizeBytes)) ? Number(raw.sizeBytes) : null;
   const materialKey = raw?.material_key ?? raw?.materialKey ?? null;
+  const printOverrides = (raw?.print_overrides && typeof raw.print_overrides === 'object' && !Array.isArray(raw.print_overrides)) ? raw.print_overrides : {};
 
-  return { id, name, order, visibleInWidget, createdAt, updatedAt, sizeBytes, material_key: materialKey ? String(materialKey) : null };
+  return { id, name, order, visibleInWidget, createdAt, updatedAt, sizeBytes, material_key: materialKey ? String(materialKey) : null, print_overrides: printOverrides };
 }
 
 function readLocalFallback() {
@@ -142,6 +157,14 @@ export default function AdminPresets() {
       allMaterials: pickLang(language, '\u2014 V\u0161echny materi\u00e1ly \u2014', '\u2014 All materials \u2014'),
       allMaterialsShort: pickLang(language, 'V\u0161echny', 'All'),
       colMaterial: pickLang(language, 'Materi\u00e1l', 'Material'),
+      dialogTitle: pickLang(language, 'Editace presetu', 'Edit preset'),
+      dialogCancel: pickLang(language, 'Zru\u0161it', 'Cancel'),
+      dialogSave: pickLang(language, 'Ulo\u017eit zm\u011bny', 'Save changes'),
+      sectionMeta: pickLang(language, 'Metadata', 'Metadata'),
+      sectionOverrides: pickLang(language, 'P\u0159eps\u00e1n\u00ed tiskov\u00fdch parametr\u016f', 'Print parameter overrides'),
+      overrideHint: pickLang(language, '\u2014 v\u00fdchoz\u00ed z .ini \u2014', '\u2014 default from .ini \u2014'),
+      overrideYes: pickLang(language, 'Ano', 'Yes'),
+      overrideNo: pickLang(language, 'Ne', 'No'),
     }),
     [language]
   );
@@ -168,6 +191,10 @@ export default function AdminPresets() {
 
   // Delete default modal
   const [deleteModal, setDeleteModal] = useState({ open: false, presetId: null });
+
+  // ForgeDialog editing state
+  const [editingPresetId, setEditingPresetId] = useState(null);
+  const [presetDraft, setPresetDraft] = useState(null);
 
   // Materials from pricing config for preset-material linking
   const [availableMaterials, setAvailableMaterials] = useState([]);
@@ -479,6 +506,83 @@ export default function AdminPresets() {
     await runDelete(id);
   };
 
+  const openPresetDialog = (presetId) => {
+    const p = presets.find(x => x.id === presetId);
+    if (!p) return;
+    const e = edits[presetId] || { name: p.name || '', order: p.order || 0, visibleInWidget: !!p.visibleInWidget, material_key: p.material_key || null };
+    setPresetDraft({
+      name: e.name,
+      order: e.order,
+      visibleInWidget: e.visibleInWidget,
+      material_key: e.material_key,
+      print_overrides: p.print_overrides ? { ...p.print_overrides } : {},
+    });
+    setEditingPresetId(presetId);
+  };
+
+  const closePresetDialog = () => {
+    setEditingPresetId(null);
+    setPresetDraft(null);
+  };
+
+  const savePresetDialog = async () => {
+    if (!editingPresetId || !presetDraft) return;
+    // Sync draft back to edits
+    setEdits(s => ({
+      ...s,
+      [editingPresetId]: {
+        name: presetDraft.name,
+        order: presetDraft.order,
+        visibleInWidget: presetDraft.visibleInWidget,
+        material_key: presetDraft.material_key,
+      },
+    }));
+    // Save via existing onSave mechanism + print_overrides
+    const e = {
+      name: String(presetDraft.name || '').trim(),
+      order: Number.parseInt(String(presetDraft.order ?? 0), 10) || 0,
+      visibleInWidget: !!presetDraft.visibleInWidget,
+      material_key: presetDraft.material_key || null,
+      print_overrides: presetDraft.print_overrides || {},
+    };
+
+    if (offlineMode) {
+      const nowIso = new Date().toISOString();
+      setPresets(prev =>
+        prev.map(p =>
+          p.id === editingPresetId ? { ...p, name: e.name, order: e.order, visibleInWidget: e.visibleInWidget, material_key: e.material_key, print_overrides: e.print_overrides, updatedAt: nowIso } : p
+        )
+      );
+      showToast('ok', strings.toastSaved);
+    } else {
+      const res = await patchPreset(editingPresetId, e);
+      if (!res.ok) {
+        showError(res.message);
+        return;
+      }
+      showToast('ok', strings.toastSaved);
+      await load();
+    }
+    closePresetDialog();
+  };
+
+  const updatePresetDraft = (field, value) => {
+    setPresetDraft(prev => prev ? { ...prev, [field]: value } : prev);
+  };
+
+  const updatePresetOverride = (key, value) => {
+    setPresetDraft(prev => {
+      if (!prev) return prev;
+      const overrides = { ...(prev.print_overrides || {}) };
+      if (value === '' || value === null || value === undefined) {
+        delete overrides[key];
+      } else {
+        overrides[key] = value;
+      }
+      return { ...prev, print_overrides: overrides };
+    });
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -642,7 +746,7 @@ export default function AdminPresets() {
                     const defaulting = !!defaultingById[p.id];
                     const deleting = !!deletingById[p.id];
                     return (
-                      <tr key={p.id}>
+                      <tr key={p.id} onClick={() => openPresetDialog(p.id)} style={{ cursor: 'pointer' }}>
                         <td>
                           <div className="nameCell">
                             <div className="nameLine">
@@ -651,6 +755,7 @@ export default function AdminPresets() {
                                 value={e.name}
                                 disabled={actionsDisabled}
                                 title={actionsTitle}
+                                onClick={(ev) => ev.stopPropagation()}
                                 onChange={(ev) =>
                                   setEdits((s) => ({
                                     ...s,
@@ -678,6 +783,7 @@ export default function AdminPresets() {
                             value={Number.isFinite(Number(e.order)) ? e.order : 0}
                             disabled={actionsDisabled}
                             title={actionsTitle}
+                            onClick={(ev) => ev.stopPropagation()}
                             onChange={(ev) =>
                               setEdits((s) => ({
                                 ...s,
@@ -692,6 +798,7 @@ export default function AdminPresets() {
                             value={e.material_key || ''}
                             disabled={actionsDisabled}
                             title={actionsTitle}
+                            onClick={(ev) => ev.stopPropagation()}
                             onChange={(ev) =>
                               setEdits((s) => ({
                                 ...s,
@@ -706,7 +813,7 @@ export default function AdminPresets() {
                           </select>
                         </td>
                         <td>
-                          <label className="checkRow" title={actionsTitle}>
+                          <label className="checkRow" title={actionsTitle} onClick={(ev) => ev.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={!!e.visibleInWidget}
@@ -722,7 +829,7 @@ export default function AdminPresets() {
                           </label>
                         </td>
                         <td>
-                          <div className="actions">
+                          <div className="actions" onClick={(ev) => ev.stopPropagation()}>
                             <button
                               className="btnSmall"
                               onClick={() => onSave(p.id)}
@@ -804,6 +911,152 @@ export default function AdminPresets() {
           <span>{toast.msg}</span>
         </div>
       ) : null}
+
+      <ForgeDialog
+        open={!!editingPresetId}
+        onClose={closePresetDialog}
+        title={presetDraft?.name || strings.dialogTitle}
+        maxWidth="600px"
+        footer={
+          <>
+            <button className="btn" onClick={closePresetDialog}>
+              {strings.dialogCancel}
+            </button>
+            <button className="btn primary" onClick={savePresetDialog}>
+              <Icon name="Save" size={16} />
+              {strings.dialogSave}
+            </button>
+          </>
+        }
+      >
+        {presetDraft && (
+          <div>
+            {/* Section 1: Metadata */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', marginBottom: 12 }}>
+                {strings.sectionMeta}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="field">
+                  <div className="label">{strings.colName}</div>
+                  <input
+                    className="input"
+                    value={presetDraft.name}
+                    onChange={(e) => updatePresetDraft('name', e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <div className="label">{strings.orderLabel}</div>
+                  <input
+                    className="input"
+                    type="number"
+                    value={presetDraft.order}
+                    onChange={(e) => updatePresetDraft('order', Number(e.target.value))}
+                  />
+                </div>
+                <div className="field">
+                  <div className="label">{strings.materialLabel}</div>
+                  <select
+                    className="input"
+                    value={presetDraft.material_key || ''}
+                    onChange={(e) => updatePresetDraft('material_key', e.target.value || null)}
+                  >
+                    <option value="">{strings.allMaterials}</option>
+                    {availableMaterials.map(m => (
+                      <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <label className="checkRow">
+                    <input
+                      type="checkbox"
+                      checked={!!presetDraft.visibleInWidget}
+                      onChange={(e) => updatePresetDraft('visibleInWidget', e.target.checked)}
+                    />
+                    <span>{strings.visibleInWidget}</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid var(--forge-border-default)', margin: '16px 0' }} />
+
+            {/* Section 2: Print Parameter Overrides */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', marginBottom: 12 }}>
+                {strings.sectionOverrides}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {PRINT_OVERRIDE_FIELDS.map(field => {
+                  const currentVal = presetDraft.print_overrides?.[field.key];
+                  const hasValue = currentVal !== undefined && currentVal !== null && currentVal !== '';
+                  const label = pickLang(language, field.label_cs, field.label_en);
+
+                  if (field.type === 'boolean') {
+                    return (
+                      <div className="field" key={field.key}>
+                        <div className="label">{label}</div>
+                        <select
+                          className="input"
+                          value={hasValue ? (currentVal ? 'true' : 'false') : ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '') updatePresetOverride(field.key, null);
+                            else updatePresetOverride(field.key, v === 'true');
+                          }}
+                        >
+                          <option value="">{strings.overrideHint}</option>
+                          <option value="true">{strings.overrideYes}</option>
+                          <option value="false">{strings.overrideNo}</option>
+                        </select>
+                      </div>
+                    );
+                  }
+
+                  if (field.type === 'select') {
+                    return (
+                      <div className="field" key={field.key}>
+                        <div className="label">{label}</div>
+                        <select
+                          className="input"
+                          value={hasValue ? currentVal : ''}
+                          onChange={(e) => updatePresetOverride(field.key, e.target.value || null)}
+                        >
+                          <option value="">{strings.overrideHint}</option>
+                          {field.options.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+
+                  // number
+                  return (
+                    <div className="field" key={field.key}>
+                      <div className="label">{label}</div>
+                      <input
+                        className="input"
+                        type="number"
+                        step={field.step || 1}
+                        placeholder={strings.overrideHint}
+                        value={hasValue ? currentVal : ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === '') updatePresetOverride(field.key, null);
+                          else updatePresetOverride(field.key, Number(v));
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </ForgeDialog>
 
       <style>{css}</style>
     </div>

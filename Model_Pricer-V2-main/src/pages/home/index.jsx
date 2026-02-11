@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeStatusIndicator from '../../components/ui/forge/ForgeStatusIndicator';
@@ -34,13 +33,15 @@ const Home = () => {
     'API ready',
   ];
 
+  /* Bug 4 fix: Correct pricing structure confirmed by user.
+     Dollar prices rounded up per user request. */
   const plans = [
     {
       name: 'STARTER',
-      price: '$0',
+      price: language === 'cs' ? '499 Kč' : '$20',
       period: t('home.forge.plans.period'),
-      ctaText: t('home.hero.cta.secondary'),
-      ctaTo: '/test-kalkulacka',
+      ctaText: language === 'cs' ? 'Vyzkoušet Starter' : 'Try Starter',
+      ctaTo: '/register',
       recommended: false,
       features: [
         t('home.forge.plans.starter.f1'),
@@ -49,10 +50,10 @@ const Home = () => {
       ],
     },
     {
-      name: 'PRO',
-      price: '$49',
+      name: 'PROFESSIONAL',
+      price: language === 'cs' ? '1 999 Kč' : '$80',
       period: t('home.forge.plans.period'),
-      ctaText: t('home.forge.plans.pro.cta'),
+      ctaText: language === 'cs' ? 'Začít s Professional' : 'Start Professional',
       ctaTo: '/register',
       recommended: true,
       features: [
@@ -64,9 +65,9 @@ const Home = () => {
     },
     {
       name: 'ENTERPRISE',
-      price: '$199',
-      period: t('home.forge.plans.period'),
-      ctaText: t('home.forge.plans.enterprise.cta'),
+      price: language === 'cs' ? 'Na míru' : 'Custom',
+      period: language === 'cs' ? '' : '',
+      ctaText: language === 'cs' ? 'Kontaktovat nás' : 'Contact Us',
       ctaTo: '/support',
       recommended: false,
       features: [
@@ -85,31 +86,15 @@ const Home = () => {
   ];
 
   const howItWorksSteps = [
-    {
-      number: '01',
-      title: t('home.howItWorks.step1.title'),
-      desc: t('home.howItWorks.step1.desc'),
-    },
-    {
-      number: '02',
-      title: t('home.howItWorks.step2.title'),
-      desc: t('home.howItWorks.step2.desc'),
-    },
-    {
-      number: '03',
-      title: t('home.howItWorks.step3.title'),
-      desc: t('home.howItWorks.step3.desc'),
-    },
-    {
-      number: '04',
-      title: t('home.howItWorks.step4.title'),
-      desc: t('home.howItWorks.step4.desc'),
-    },
+    { number: '01', title: t('home.howItWorks.step1.title'), desc: t('home.howItWorks.step1.desc') },
+    { number: '02', title: t('home.howItWorks.step2.title'), desc: t('home.howItWorks.step2.desc') },
+    { number: '03', title: t('home.howItWorks.step3.title'), desc: t('home.howItWorks.step3.desc') },
+    { number: '04', title: t('home.howItWorks.step4.title'), desc: t('home.howItWorks.step4.desc') },
   ];
 
   return (
     <div className="forge-grain" style={forgePageStyles}>
-      {/* ========== HERO (UNTOUCHED) ========== */}
+      {/* ========== HERO ========== */}
       <section
         className="relative overflow-hidden forge-grid-bg"
         style={{ minHeight: '90vh', display: 'flex', alignItems: 'center' }}
@@ -126,49 +111,47 @@ const Home = () => {
             <div className="relative z-10">
               <ForgeStatusIndicator status="printing" className="mb-6" />
 
+              {/* Bug 6 fix: Use t() for hero title */}
               <h1 className="forge-h1" style={{ maxWidth: 540 }}>
-                Precision Pricing for{' '}
-                <br className="hidden sm:block" />
-                3D{' '}
-                <span className="relative inline-block">
-                  Manufacturing.
-                  <ForgeSquiggle className="absolute -bottom-2 left-0 w-full h-3" />
-                </span>
+                {t('home.hero.title')}
               </h1>
 
+              {/* Bug 6 fix: Use t() for hero subtitle */}
               <p
                 className="forge-body-lg mt-6"
                 style={{ color: 'var(--forge-text-secondary)', maxWidth: 480 }}
               >
-                Automated quoting for FDM, SLA, and SLS print farms.
-                Upload models, configure parameters, get instant pricing.
+                {t('home.hero.subtitle')}
               </p>
 
+              {/* Bug 6 fix: Use t() for CTA buttons */}
               <div className="flex flex-wrap gap-3 mt-8">
                 <ForgeButton to="/register" variant="primary" size="lg">
-                  Start Building
+                  {t('home.hero.cta.primary')}
                 </ForgeButton>
                 <ForgeButton to="/test-kalkulacka" variant="outline" size="lg">
-                  See Demo
+                  {t('home.hero.cta.secondary')}
                 </ForgeButton>
               </div>
             </div>
           </Reveal>
 
+          {/* Bug 7 fix: Ensure printer SVG is visible with proper sizing */}
           <Reveal delay={0.1}>
-            <div className="relative z-10 hidden lg:flex justify-center">
-              <ForgePrinterSVG />
+            <div className="relative z-10 hidden lg:flex justify-center" style={{ minHeight: 350 }}>
+              <ForgePrinterSVG className="w-full max-w-[420px] h-auto" />
             </div>
           </Reveal>
         </div>
       </section>
 
       {/* ========== TRUST STRIP ========== */}
+      {/* Bug 18 fix: Replace vague "120+ print farms" with concrete metrics */}
       <section
         className="overflow-hidden py-5"
         style={{ borderTop: '1px solid var(--forge-border-default)', borderBottom: '1px solid var(--forge-border-default)' }}
       >
-        <div className="flex items-center">
+        <div className="flex items-center overflow-hidden max-w-full">
           <span
             className="whitespace-nowrap px-8 shrink-0"
             style={{
@@ -178,37 +161,41 @@ const Home = () => {
               letterSpacing: '0.05em',
             }}
           >
-            Trusted by 120+ print farms
+            {t('home.trust.label')}
           </span>
-          <div className="flex forge-marquee whitespace-nowrap">
-            {[...trustItems, ...trustItems].map((item, i) => (
-              <span
-                key={i}
-                className="mx-8 shrink-0 forge-transition-micro"
-                style={{
-                  fontFamily: 'var(--forge-font-body)',
-                  fontSize: 'var(--forge-text-sm)',
-                  color: 'var(--forge-text-muted)',
-                  opacity: 0.4,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = 0.7; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.4; }}
-              >
-                {item}
-              </span>
-            ))}
+          <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+            <div className="flex forge-marquee whitespace-nowrap">
+              {[...trustItems, ...trustItems].map((item, i) => (
+                <span
+                  key={i}
+                  className="mx-8 shrink-0 forge-transition-micro"
+                  style={{
+                    fontFamily: 'var(--forge-font-body)',
+                    fontSize: 'var(--forge-text-sm)',
+                    color: 'var(--forge-text-muted)',
+                    opacity: 0.4,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = 0.7; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.4; }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* ========== WHAT WE DO — About Section ========== */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
-        <Reveal>
-          <ForgeSectionLabel text="ABOUT" className="mb-4 block" />
-          <h2 className="forge-h2 mb-10">{t('home.whatWeDo.title')}</h2>
-        </Reveal>
+      {/* Bug 14 fix: Alternating bg — About gets surface bg */}
+      <section style={{ background: 'var(--forge-bg-surface)' }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
+          <Reveal>
+            <ForgeSectionLabel text={t('home.section.about')} className="mb-4 block" />
+            <h2 className="forge-h2 mb-10">{t('home.whatWeDo.title')}</h2>
+          </Reveal>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10 lg:gap-16">
+          {/* Bug 11 fix: Stat cards below text as horizontal row, not vertical sidebar */}
           <Reveal delay={0.02}>
             <div>
               <p className="forge-body-lg mb-6" style={{ color: 'var(--forge-text-secondary)', lineHeight: '1.7' }}>
@@ -221,7 +208,7 @@ const Home = () => {
           </Reveal>
 
           <Reveal delay={0.08}>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-8">
               {[
                 { value: '8s', label: t('home.whatWeDo.stat1') },
                 { value: '60%', label: t('home.whatWeDo.stat2') },
@@ -231,14 +218,14 @@ const Home = () => {
                   key={i}
                   className="p-5"
                   style={{
-                    background: 'var(--forge-bg-surface)',
+                    background: 'var(--forge-bg-elevated)',
                     border: '1px solid var(--forge-border-default)',
                     borderRadius: 'var(--forge-radius-md)',
                   }}
                 >
                   <span
                     className="forge-mono-bold block mb-1"
-                    style={{ fontSize: 'var(--forge-text-2xl)', color: 'var(--forge-accent-primary)' }}
+                    style={{ fontSize: 'var(--forge-text-2xl)', color: 'var(--forge-accent-primary-medium, var(--forge-accent-primary))' }}
                   >
                     {stat.value}
                   </span>
@@ -259,7 +246,7 @@ const Home = () => {
       >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <Reveal>
-            <ForgeSectionLabel text="PROCESS" className="mb-4 block" />
+            <ForgeSectionLabel text={t('home.section.process')} className="mb-4 block" />
             <h2 className="forge-h2 mb-12">
               <span className="relative inline-block">
                 {t('home.howItWorks.title')}
@@ -283,56 +270,79 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ========== CAPABILITIES — Numbered Feature Cards ========== */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
-        <Reveal>
-          <ForgeSectionLabel text="CAPABILITIES" className="mb-10 block" />
-        </Reveal>
-
-        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5">
-          <Reveal delay={0.02}>
-            <ForgeNumberedCard
-              number="01"
-              icon={
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="4" y="4" width="24" height="24" rx="2" />
-                  <path d="M4 16h24M16 4v24" />
-                  <circle cx="16" cy="16" r="3" />
-                </svg>
-              }
-              title={t('home.forge.feature1.title')}
-              description={t('home.forge.feature1.desc')}
-              className="md:row-span-2 h-full"
-            />
+      {/* ========== CAPABILITIES — 2x2 Grid ========== */}
+      {/* Bug 12 fix: Changed from 2fr+1fr to symmetric 2x2 grid with 4th card */}
+      {/* Bug 14 fix: Surface bg for visual separation */}
+      <section style={{ background: 'var(--forge-bg-surface)' }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-24">
+          <Reveal>
+            <ForgeSectionLabel text={t('home.section.capabilities')} className="mb-10 block" />
           </Reveal>
 
-          <Reveal delay={0.06}>
-            <ForgeNumberedCard
-              number="02"
-              icon={
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 4l4 8h8l-6 5 2 9-8-5-8 5 2-9-6-5h8z" />
-                </svg>
-              }
-              title={t('home.forge.feature2.title')}
-              description={t('home.forge.feature2.desc')}
-            />
-          </Reveal>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Reveal delay={0.02}>
+              <ForgeNumberedCard
+                number="01"
+                icon={
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="4" width="24" height="24" rx="2" />
+                    <path d="M4 16h24M16 4v24" />
+                    <circle cx="16" cy="16" r="3" />
+                  </svg>
+                }
+                title={t('home.forge.feature1.title')}
+                description={t('home.forge.feature1.desc')}
+                className="h-full"
+              />
+            </Reveal>
 
-          <Reveal delay={0.1}>
-            <ForgeNumberedCard
-              number="03"
-              icon={
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="16" cy="16" r="10" />
-                  <circle cx="16" cy="16" r="4" />
-                  <path d="M16 6v4M16 22v4M6 16h4M22 16h4" />
-                </svg>
-              }
-              title={t('home.forge.feature3.title')}
-              description={t('home.forge.feature3.desc')}
-            />
-          </Reveal>
+            <Reveal delay={0.06}>
+              <ForgeNumberedCard
+                number="02"
+                icon={
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 4l4 8h8l-6 5 2 9-8-5-8 5 2-9-6-5h8z" />
+                  </svg>
+                }
+                title={t('home.forge.feature2.title')}
+                description={t('home.forge.feature2.desc')}
+                className="h-full"
+              />
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <ForgeNumberedCard
+                number="03"
+                icon={
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="16" cy="16" r="10" />
+                    <circle cx="16" cy="16" r="4" />
+                    <path d="M16 6v4M16 22v4M6 16h4M22 16h4" />
+                  </svg>
+                }
+                title={t('home.forge.feature3.title')}
+                description={t('home.forge.feature3.desc')}
+                className="h-full"
+              />
+            </Reveal>
+
+            <Reveal delay={0.14}>
+              <ForgeNumberedCard
+                number="04"
+                icon={
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="6" width="26" height="20" rx="2" />
+                    <path d="M3 12h26" />
+                    <path d="M9 18h6M9 22h4" />
+                    <circle cx="23" cy="20" r="3" />
+                  </svg>
+                }
+                title={t('home.forge.feature4.title')}
+                description={t('home.forge.feature4.desc')}
+                className="h-full"
+              />
+            </Reveal>
+          </div>
         </div>
       </section>
 
@@ -340,7 +350,7 @@ const Home = () => {
       <section className="forge-skewed-bg py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
           <Reveal>
-            <ForgeSectionLabel text="PLANS" className="mb-4 block text-center" />
+            <ForgeSectionLabel text={t('home.section.plans')} className="mb-4 block text-center" />
             <h2 className="forge-h2 text-center mb-12">
               {t('home.forge.plans.title')}
             </h2>
@@ -387,47 +397,7 @@ const Home = () => {
         </Reveal>
       </section>
 
-      {/* ========== FOOTER BRANDING ========== */}
-      <footer
-        className="py-8 text-center"
-        style={{ borderTop: '1px solid var(--forge-border-default)' }}
-      >
-        <span
-          style={{
-            fontFamily: 'var(--forge-font-tech)',
-            fontSize: 'var(--forge-text-sm)',
-            color: 'var(--forge-text-muted)',
-            letterSpacing: '0.05em',
-          }}
-        >
-          [ MODEL.PRICER ] &middot; v3.2
-        </span>
-        <div className="mt-3 flex justify-center gap-6">
-          {[
-            { label: 'HOME', to: '/' },
-            { label: 'PRICING', to: '/pricing' },
-            { label: 'SUPPORT', to: '/support' },
-          ].map((link) => (
-            <Link
-              key={link.label}
-              to={link.to}
-              className="forge-transition-micro"
-              style={{
-                fontFamily: 'var(--forge-font-tech)',
-                fontSize: 'var(--forge-text-xs)',
-                color: 'var(--forge-text-muted)',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--forge-accent-primary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </footer>
+      {/* Bug 5 fix: Removed inline footer — shared Footer.jsx component handles it */}
     </div>
   );
 };

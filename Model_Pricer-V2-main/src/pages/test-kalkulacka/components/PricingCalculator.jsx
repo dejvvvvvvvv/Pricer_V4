@@ -13,7 +13,7 @@ const fg = {
   },
   sectionTitle: {
     fontSize: 'var(--forge-text-lg)',
-    fontFamily: 'var(--forge-font-tech)',
+    fontFamily: 'var(--forge-font-heading)',
     fontWeight: 600,
     color: 'var(--forge-text-primary)',
     textTransform: 'uppercase',
@@ -119,7 +119,7 @@ function formatCzk(amount) {
       maximumFractionDigits: 2,
     }).format(n);
   } catch {
-    return `${n.toFixed(2)} K\u010d`;
+    return `${n.toFixed(2)} Kč`;
   }
 }
 
@@ -146,10 +146,10 @@ function formatFeeLabel(fee) {
   const abs = Math.abs(Number.isFinite(v) ? v : 0);
 
   if (type === 'flat') return `${s} ${formatCzk(abs)}`;
-  if (type === 'per_gram') return `${s} ${abs} K\u010d/g`;
-  if (type === 'per_minute') return `${s} ${abs} K\u010d/min`;
-  if (type === 'per_cm3') return `${s} ${abs} K\u010d/cm\u00b3`;
-  if (type === 'per_cm2') return `${s} ${abs} K\u010d/cm\u00b2`;
+  if (type === 'per_gram') return `${s} ${abs} Kč/g`;
+  if (type === 'per_minute') return `${s} ${abs} Kč/min`;
+  if (type === 'per_cm3') return `${s} ${abs} Kč/cm³`;
+  if (type === 'per_cm2') return `${s} ${abs} Kč/cm²`;
   if (type === 'per_piece') return `${s} ${formatCzk(abs)} / kus`;
   return `${s} ${abs}`;
 }
@@ -234,7 +234,7 @@ export default function PricingCalculator({
           <div>
             <CardTitle style={fg.sectionTitle}>CENA A SOUHRN</CardTitle>
             <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', marginTop: '0.25rem', fontFamily: 'var(--forge-font-body)' }}>
-              V\u00fdpo\u010det pou\u017e\u00edv\u00e1 Admin Pricing + Admin Fees (tenant) a pipeline base \u2192 fees \u2192 markup \u2192 minima \u2192 rounding.
+              Výpočet používá Admin Pricing + Admin Fees (tenant) a pipeline base → fees → markup → minima → rounding.
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -245,7 +245,7 @@ export default function PricingCalculator({
               iconName="Code2"
               iconPosition="left"
             >
-              {showDeveloper ? 'Z\u00e1kaznick\u00fd' : 'Developer'}
+              {showDeveloper ? 'Zákaznický' : 'Developer'}
             </Button>
           </div>
         </div>
@@ -263,7 +263,7 @@ export default function PricingCalculator({
             iconName="Layers"
             iconPosition="left"
           >
-            P\u0159epo\u010d\u00edtat v\u0161e
+            Přepočítat vše
           </Button>
           <Button
             variant="outline"
@@ -273,7 +273,7 @@ export default function PricingCalculator({
             iconName="RefreshCw"
             iconPosition="left"
           >
-            P\u0159epo\u010d\u00edtat vybran\u00fd
+            Přepočítat vybraný
           </Button>
         </div>
 
@@ -285,21 +285,21 @@ export default function PricingCalculator({
               <div>
                 <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
                   {readyModels.length > 0
-                    ? `Pr\u016fb\u011b\u017en\u00e1 cena (${readyModels.length}/${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} model\u016f)`
-                    : '\u010cek\u00e1m na dokon\u010den\u00ed slicov\u00e1n\u00ed'}
+                    ? `Průběžná cena (${readyModels.length}/${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} modelů)`
+                    : 'Čekám na dokončení slicování'}
                 </p>
                 <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', marginTop: '0.25rem', fontFamily: 'var(--forge-font-mono)' }}>
                   Hotovo: {readyModels.length} / {Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels}
-                  {readyModels.length > 0 && ' \u2014 cena se aktualizuje s ka\u017ed\u00fdm dal\u0161\u00edm modelem'}
+                  {readyModels.length > 0 && ' — cena se aktualizuje s každým dalším modelem'}
                 </p>
                 {incompleteModels.length > 0 && (
                   <ul style={{ marginTop: '0.5rem', fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', listStyleType: 'disc', paddingLeft: '1.25rem', fontFamily: 'var(--forge-font-mono)' }}>
                     {incompleteModels.slice(0, 4).map((f) => (
                       <li key={f.id} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {f.name} \u2014 {f.status === 'processing' ? 'vypo\u010d\u00edt\u00e1v\u00e1m\u2026' : f.status === 'failed' ? 'chyba' : '\u010dek\u00e1'}
+                        {f.name} — {f.status === 'processing' ? 'vypočítávám…' : f.status === 'failed' ? 'chyba' : 'čeká'}
                       </li>
                     ))}
-                    {incompleteModels.length > 4 && <li>\u2026a dal\u0161\u00ed</li>}
+                    {incompleteModels.length > 4 && <li>…a další</li>}
                   </ul>
                 )}
               </div>
@@ -308,7 +308,7 @@ export default function PricingCalculator({
         )}
         {quoteState.error ? (
           <div style={fg.errorBox}>
-            <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-error)' }}>Chyba v\u00fdpo\u010dtu ceny</p>
+            <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-error)' }}>Chyba výpočtu ceny</p>
             <p style={{ fontSize: 'var(--forge-text-xs)', marginTop: '0.25rem', color: 'var(--forge-error)', wordBreak: 'break-word', fontFamily: 'var(--forge-font-mono)' }}>{quoteState.error}</p>
           </div>
         ) : null}
@@ -319,30 +319,30 @@ export default function PricingCalculator({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <p style={fg.totalLabel}>
-                  {quoteState.isPartial ? `Pr\u016fb\u011b\u017en\u011b (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'CELKEM'}
+                  {quoteState.isPartial ? `Průběžně (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'CELKEM'}
                 </p>
                 <p style={{ ...fg.totalValue, color: quoteState.isPartial ? 'var(--forge-text-muted)' : 'var(--forge-accent-primary)' }}>{formatCzk(quote.total)}</p>
                 {(quote.flags?.min_order_total_applied || quote.flags?.clamped_to_zero) && (
                   <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {quote.flags?.min_order_total_applied && (
-                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>Aplikov\u00e1no minimum objedn\u00e1vky</p>
+                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>Aplikováno minimum objednávky</p>
                     )}
                     {quote.flags?.clamped_to_zero && (
-                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>Sleva byla omezena, aby celkem nebylo z\u00e1porn\u00e9</p>
+                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>Sleva byla omezena, aby celkem nebylo záporné</p>
                     )}
                   </div>
                 )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <MiniRow label="Materi\u00e1l" value={formatCzk(quote.simple.material)} />
-                <MiniRow label="\u010cas tisku" value={formatCzk(quote.simple.time)} />
-                <MiniRow label="Slu\u017eby" value={formatSignedCzk(quote.simple.services)} />
+                <MiniRow label="Materiál" value={formatCzk(quote.simple.material)} />
+                <MiniRow label="Čas tisku" value={formatCzk(quote.simple.time)} />
+                <MiniRow label="Služby" value={formatSignedCzk(quote.simple.services)} />
                 <MiniRow label="Sleva" value={formatSignedCzk(quote.simple.discount)} />
                 {quote.flags?.volume_discount_applied && quote.volumeDiscount && (
                   <div style={fg.volumeDiscountBox}>
                     <MiniRow
-                      label={`Mno\u017estevn\u00ed sleva (${quote.volumeDiscount.mode === 'percent' ? '%' : 'fixn\u00ed'})`}
+                      label={`Množstevní sleva (${quote.volumeDiscount.mode === 'percent' ? '%' : 'fixní'})`}
                       value={`- ${formatCzk(quote.volumeDiscount.totalSavings)}`}
                     />
                     {quote.volumeDiscount.details
@@ -351,7 +351,7 @@ export default function PricingCalculator({
                       .map((d) => (
                         <p key={d.modelId} style={{ fontSize: '11px', color: 'var(--forge-accent-primary)', marginTop: '0.125rem', fontFamily: 'var(--forge-font-mono)' }}>
                           {d.tier.min_qty}+ ks: {quote.volumeDiscount.mode === 'percent'
-                            ? `\u2212${d.tier.value}%`
+                            ? `−${d.tier.value}%`
                             : `${formatCzk(d.tier.value)}/ks`}
                           {d.tier.label ? ` (${d.tier.label})` : ''}
                         </p>
@@ -370,8 +370,8 @@ export default function PricingCalculator({
         {quote && !showDeveloper && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h4 style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rozpis objedn\u00e1vky</h4>
-              <span style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>{Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} model\u016f</span>
+              <h4 style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, fontFamily: 'var(--forge-font-heading)', color: 'var(--forge-text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rozpis objednávky</h4>
+              <span style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>{Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} modelů</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -381,7 +381,7 @@ export default function PricingCalculator({
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
                       <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
-                        {m.quantity}\u00d7 \u2022 {m.base.materialKey} \u2022 {Math.round(m.base.billedMinutes)} min
+                        {m.quantity}× • {m.base.materialKey} • {Math.round(m.base.billedMinutes)} min
                       </p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -394,7 +394,7 @@ export default function PricingCalculator({
 
                   <details style={{ marginTop: '0.5rem' }}>
                     <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>
-                      Slu\u017eby (model)
+                      Služby (model)
                     </summary>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       {m.fees
@@ -404,14 +404,14 @@ export default function PricingCalculator({
                             <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <span style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                               {f.required && (
-                                <span style={fg.pill}>V cen\u011b</span>
+                                <span style={fg.pill}>V ceně</span>
                               )}
                             </div>
                             <span style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{formatSignedCzk(f.amount)}</span>
                           </div>
                         ))}
                       {m.fees.filter((f) => f.applied && (f.amount !== 0 || f.required)).length === 0 && (
-                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>\u017d\u00e1dn\u00e9 slu\u017eby pro tento model.</p>
+                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>Žádné služby pro tento model.</p>
                       )}
                     </div>
                   </details>
@@ -421,7 +421,7 @@ export default function PricingCalculator({
 
             {quote.orderFees?.some((f) => f.applied && (f.amount !== 0 || f.required)) && (
               <div style={fg.modelCard}>
-                <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Poplatky (objedn\u00e1vka)</p>
+                <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Poplatky (objednávka)</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   {quote.orderFees
                     .filter((f) => f.applied && (f.amount !== 0 || f.required))
@@ -430,7 +430,7 @@ export default function PricingCalculator({
                         <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           {f.name}
                           {f.required && (
-                            <span style={fg.pill}>V cen\u011b</span>
+                            <span style={fg.pill}>V ceně</span>
                           )}
                         </span>
                         <span style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{formatSignedCzk(f.amount)}</span>
@@ -446,14 +446,14 @@ export default function PricingCalculator({
         {quote && showDeveloper && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={fg.devCard}>
-              <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Developer breakdown</p>
+              <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Developer breakdown</p>
               <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', marginTop: '0.25rem', fontFamily: 'var(--forge-font-body)' }}>
-                U ka\u017ed\u00e9 fee uvid\u00ed\u0161 MATCH/NO MATCH a d\u016fvody v\u010detn\u011b vyhodnocen\u00ed conditions.
+                U každé fee uvidíš MATCH/NO MATCH a důvody včetně vyhodnocení conditions.
               </p>
             </div>
 
             <details style={fg.devCard} open>
-              <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase' }}>Order totals (raw)</summary>
+              <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase' }}>Order totals (raw)</summary>
               <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: 'var(--forge-text-xs)' }}>
                 <MiniRow label="modelsTotal" value={formatCzk(quote.totals.modelsTotal)} />
                 {quote.totals.volumeDiscountTotal > 0 && (
@@ -468,7 +468,7 @@ export default function PricingCalculator({
             </details>
 
             <details style={fg.devCard} open>
-              <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase' }}>Model breakdown</summary>
+              <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase' }}>Model breakdown</summary>
               <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {quote.models.map((m) => (
                   <details key={m.id} style={fg.devCard} open={false}>
@@ -476,7 +476,7 @@ export default function PricingCalculator({
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
                         <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
-                          {m.status} \u2022 {m.quantity}\u00d7 \u2022 {m.base.materialKey} \u2022 {Math.round(m.base.billedMinutes)} min
+                          {m.status} • {m.quantity}× • {m.base.materialKey} • {Math.round(m.base.billedMinutes)} min
                         </p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -486,13 +486,13 @@ export default function PricingCalculator({
 
                     <div style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
                       <div style={fg.devInnerCard}>
-                        <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Base</p>
+                        <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Base</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: 'var(--forge-text-xs)' }}>
                           <MiniRow label="filamentGrams" value={`${m.base.filamentGrams.toFixed(2)} g`} />
                           <MiniRow label="estimatedTimeSeconds" value={`${Math.round(m.base.estimatedTimeSeconds)} s`} />
                           <MiniRow label="billedMinutes" value={`${Math.round(m.base.billedMinutes)} min`} />
-                          <MiniRow label="pricePerGram" value={`${m.base.pricePerGram} K\u010d/g`} />
-                          <MiniRow label="ratePerHour" value={`${m.base.ratePerHour} K\u010d/h`} />
+                          <MiniRow label="pricePerGram" value={`${m.base.pricePerGram} Kč/g`} />
+                          <MiniRow label="ratePerHour" value={`${m.base.ratePerHour} Kč/h`} />
                           <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--forge-border-default)' }} />
                           <MiniRow label="materialCostPerPiece" value={formatCzk(m.base.materialCostPerPiece)} />
                           <MiniRow label="timeCostPerPiece" value={formatCzk(m.base.timeCostPerPiece)} />
@@ -502,7 +502,7 @@ export default function PricingCalculator({
                       </div>
 
                       <div style={fg.devInnerCard}>
-                        <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>MODEL fees</p>
+                        <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>MODEL fees</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                           {m.fees.map((f) => (
                             <details key={f.id} style={{ padding: '0.5rem', borderRadius: 'var(--forge-radius-sm)', border: '1px solid var(--forge-border-default)', background: 'var(--forge-bg-surface)' }} open={false}>
@@ -510,7 +510,7 @@ export default function PricingCalculator({
                                 <div style={{ minWidth: 0 }}>
                                   <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</p>
                                   <p style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
-                                    {(f.reason?.surface_unavailable ? 'SKIPPED' : (f.applied ? 'MATCH' : 'NO MATCH'))} \u2022 {f.scope} \u2022 {formatFeeLabel(f)}
+                                    {(f.reason?.surface_unavailable ? 'SKIPPED' : (f.applied ? 'MATCH' : 'NO MATCH'))} • {f.scope} • {formatFeeLabel(f)}
                                   </p>
                                 </div>
                                 <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{formatSignedCzk(f.amount)}</p>
@@ -531,7 +531,7 @@ export default function PricingCalculator({
 
                                 {Array.isArray(f.reason?.conditions) && f.reason.conditions.length > 0 && (
                                   <div>
-                                    <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase' }}>Conditions</p>
+                                    <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase' }}>Conditions</p>
                                     <div style={{ marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                       {f.reason.conditions.map((c, idx) => (
                                         <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
@@ -554,7 +554,7 @@ export default function PricingCalculator({
             </details>
 
             <details style={fg.devCard} open={false}>
-              <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase' }}>ORDER fees</summary>
+              <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase' }}>ORDER fees</summary>
               <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {quote.orderFees.map((f) => (
                   <details key={f.id} style={{ padding: '0.5rem', borderRadius: 'var(--forge-radius-sm)', border: '1px solid var(--forge-border-default)', background: 'var(--forge-bg-surface)' }} open={false}>
@@ -562,7 +562,7 @@ export default function PricingCalculator({
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</p>
                         <p style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
-                          {(f.reason?.surface_unavailable ? 'SKIPPED' : (f.applied ? 'MATCH' : 'NO MATCH'))} \u2022 {f.scope} \u2022 {formatFeeLabel(f)}
+                          {(f.reason?.surface_unavailable ? 'SKIPPED' : (f.applied ? 'MATCH' : 'NO MATCH'))} • {f.scope} • {formatFeeLabel(f)}
                         </p>
                       </div>
                       <p style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{formatSignedCzk(f.amount)}</p>
@@ -584,7 +584,7 @@ export default function PricingCalculator({
 
                       {Array.isArray(f.reason?.models) && f.reason.models.length > 0 && (
                         <div>
-                          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase' }}>Per-model matching</p>
+                          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase' }}>Per-model matching</p>
                           <div style={{ marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             {f.reason.models.map((m, idx) => (
                               <div key={idx} style={{ padding: '0.5rem', borderRadius: 'var(--forge-radius-sm)', border: '1px solid var(--forge-border-default)', background: 'rgba(14, 16, 21, 0.4)' }}>

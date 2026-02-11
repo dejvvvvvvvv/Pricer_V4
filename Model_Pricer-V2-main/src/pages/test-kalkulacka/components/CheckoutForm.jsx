@@ -20,7 +20,7 @@ const fg = {
   },
   sectionTitle: {
     fontSize: 'var(--forge-text-lg)',
-    fontFamily: 'var(--forge-font-tech)',
+    fontFamily: 'var(--forge-font-heading)',
     fontWeight: 600,
     color: 'var(--forge-text-primary)',
     textTransform: 'uppercase',
@@ -295,13 +295,13 @@ export default function CheckoutForm({
             <div style={fg.card}>
               <h3 style={fg.sectionTitle}>
                 <Icon name="User" size={20} style={{ marginRight: '0.5rem' }} />
-                {t('KONTAKTN\u00cd \u00daDAJE', 'CONTACT INFORMATION')}
+                {t('KONTAKTNÍ ÚDAJE', 'CONTACT INFORMATION')}
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
                   <Input
-                    label={t('JM\u00c9NO A P\u0158\u00cdJMEN\u00cd *', 'FULL NAME *')}
+                    label={t('JMÉNO A PŘÍJMENÍ *', 'FULL NAME *')}
                     placeholder={t('Jan Novak', 'John Doe')}
                     {...register('name')}
                     error={errors.name?.message}
@@ -339,7 +339,7 @@ export default function CheckoutForm({
 
                 <div>
                   <label style={fg.label}>
-                    {t('POZN\u00c1MKA K OBJEDN\u00c1VCE', 'ORDER NOTE')}
+                    {t('POZNÁMKA K OBJEDNÁVCE', 'ORDER NOTE')}
                   </label>
                   <textarea
                     style={fg.textarea}
@@ -382,7 +382,7 @@ export default function CheckoutForm({
             <div style={fg.card}>
               <h3 style={fg.sectionTitle}>
                 <Icon name="ShoppingCart" size={20} style={{ marginRight: '0.5rem' }} />
-                {t('SOUHRN OBJEDN\u00c1VKY', 'ORDER SUMMARY')}
+                {t('SOUHRN OBJEDNÁVKY', 'ORDER SUMMARY')}
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -408,22 +408,22 @@ export default function CheckoutForm({
                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--forge-border-default)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={fg.summaryLine}>
-                      <span>{t('Materi\u00e1l', 'Material')}</span>
+                      <span>{t('Materiál', 'Material')}</span>
                       <span style={fg.summaryValue}>{formatCzk(quote.simple?.material ?? 0)}</span>
                     </div>
                     <div style={fg.summaryLine}>
-                      <span>{t('\u010cas tisku', 'Print time')}</span>
+                      <span>{t('Čas tisku', 'Print time')}</span>
                       <span style={fg.summaryValue}>{formatCzk(quote.simple?.time ?? 0)}</span>
                     </div>
                     {(quote.simple?.services ?? 0) !== 0 && (
                       <div style={fg.summaryLine}>
-                        <span>{t('Slu\u017eby', 'Services')}</span>
+                        <span>{t('Služby', 'Services')}</span>
                         <span style={fg.summaryValue}>{formatCzk(quote.simple.services)}</span>
                       </div>
                     )}
                     {(quote.simple?.markup ?? 0) !== 0 && (
                       <div style={fg.summaryLine}>
-                        <span>{t('P\u0159ir\u00e1\u017eka', 'Markup')}</span>
+                        <span>{t('Přirážka', 'Markup')}</span>
                         <span style={fg.summaryValue}>{formatCzk(quote.simple.markup)}</span>
                       </div>
                     )}
@@ -441,7 +441,7 @@ export default function CheckoutForm({
         {/* Actions */}
         <div style={fg.actions}>
           <Button variant="outline" type="button" onClick={onBack} iconName="ChevronLeft" iconPosition="left">
-            {t('Zp\u011bt', 'Back')}
+            {t('Zpět', 'Back')}
           </Button>
           <Button
             variant="default"
@@ -451,7 +451,7 @@ export default function CheckoutForm({
             iconName="Send"
             iconPosition="right"
           >
-            {isSubmitting ? t('Odes\u00edl\u00e1m...', 'Submitting...') : t('Odeslat objedn\u00e1vku', 'Submit Order')}
+            {isSubmitting ? t('Odesílám...', 'Submitting...') : t('Odeslat objednávku', 'Submit Order')}
           </Button>
         </div>
       </form>

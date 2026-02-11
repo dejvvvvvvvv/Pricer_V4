@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeSquiggle from '../../components/ui/forge/ForgeSquiggle';
@@ -25,9 +24,9 @@ const Pricing = () => {
   const plans = [
     {
       name: t('pricing.plan.starter'),
-      price: language === 'cs' ? '499 Kč' : '$0',
+      price: language === 'cs' ? '499 Kč' : '$20',
       period: t('pricing.monthly'),
-      ctaText: language === 'cs' ? 'Začít zdarma' : 'Start free',
+      ctaText: language === 'cs' ? 'Vyzkoušet Starter' : 'Try Starter',
       ctaTo: '/register',
       recommended: false,
       features: language === 'cs'
@@ -48,34 +47,34 @@ const Pricing = () => {
     },
     {
       name: t('pricing.plan.professional'),
-      price: language === 'cs' ? '999 Kč' : '$49',
+      price: language === 'cs' ? '1 999 Kč' : '$80',
       period: t('pricing.monthly'),
-      ctaText: language === 'cs' ? 'Vyzkoušet zdarma' : 'Try free',
+      ctaText: language === 'cs' ? 'Začít s Professional' : 'Start Professional',
       ctaTo: '/register',
       recommended: true,
       features: language === 'cs'
         ? [
-            'Až 500 kalkulací měsíčně',
+            'Neomezené kalkulace',
             'Plný branding + vlastní doména',
             'Neomezené widgety',
+            'Widget builder',
             'Pokročilé poplatky a pravidla',
             'Prioritní podpora',
-            'Uložení modelů 5 GB',
           ]
         : [
-            'Up to 500 calculations / month',
+            'Unlimited calculations',
             'Full branding + custom domain',
             'Unlimited widgets',
+            'Widget builder',
             'Advanced fees & rules',
             'Priority support',
-            '5 GB model storage',
           ],
     },
     {
       name: t('pricing.plan.enterprise'),
-      price: null,
+      price: language === 'cs' ? 'Na míru' : 'Custom',
       period: t('pricing.custom'),
-      ctaText: language === 'cs' ? 'Kontaktovat' : 'Contact',
+      ctaText: language === 'cs' ? 'Kontaktovat nás' : 'Contact Us',
       ctaTo: '/support',
       recommended: false,
       features: language === 'cs'
@@ -348,47 +347,7 @@ const Pricing = () => {
         </Reveal>
       </section>
 
-      {/* ========== FOOTER ========== */}
-      <footer
-        className="py-8 text-center"
-        style={{ borderTop: '1px solid var(--forge-border-default)' }}
-      >
-        <span
-          style={{
-            fontFamily: 'var(--forge-font-tech)',
-            fontSize: 'var(--forge-text-sm)',
-            color: 'var(--forge-text-muted)',
-            letterSpacing: '0.05em',
-          }}
-        >
-          [ MODEL.PRICER ] &middot; v3.2
-        </span>
-        <div className="mt-3 flex justify-center gap-6">
-          {[
-            { label: 'HOME', to: '/' },
-            { label: 'PRICING', to: '/pricing' },
-            { label: 'SUPPORT', to: '/support' },
-          ].map((link) => (
-            <Link
-              key={link.label}
-              to={link.to}
-              className="forge-transition-micro"
-              style={{
-                fontFamily: 'var(--forge-font-tech)',
-                fontSize: 'var(--forge-text-xs)',
-                color: 'var(--forge-text-muted)',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--forge-accent-primary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </footer>
+      {/* Footer handled by shared Footer.jsx component */}
     </div>
   );
 };

@@ -1,27 +1,30 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import Icon from '../AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import logoImg from '../../assets/logo.png';
 
 const Footer = () => {
   const { t } = useLanguage();
-  
+
   return (
     <footer className="footer">
-      <div className="container">
+      <div className="footer-container">
         <div className="footer-content">
-          {/* LEVÁ ČÁST */}
+          {/* LEFT — Logo + Description */}
           <div className="footer-column">
             <div className="footer-logo">
-              <div className="logo-icon">
-                <Icon name="Layers3" size={24} color="white" />
-              </div>
+              <img
+                src={logoImg}
+                alt="ModelPricer"
+                style={{ width: 40, height: 40, mixBlendMode: 'lighten', objectFit: 'contain' }}
+              />
               <span className="logo-text">ModelPricer</span>
             </div>
             <p className="footer-description">{t('footer.description')}</p>
+            <span className="footer-version">[ MODEL.PRICER ] &middot; v3.2</span>
           </div>
 
-          {/* STŘED - Navigace */}
+          {/* CENTER — Navigation */}
           <div className="footer-column">
             <h4>{t('footer.nav.title')}</h4>
             <nav className="footer-nav">
@@ -32,7 +35,7 @@ const Footer = () => {
             </nav>
           </div>
 
-          {/* PRAVÁ ČÁST - Právní */}
+          {/* RIGHT — Legal */}
           <div className="footer-column">
             <h4>{t('footer.legal.title')}</h4>
             <nav className="footer-nav">
@@ -50,13 +53,14 @@ const Footer = () => {
 
       <style>{`
         .footer {
-          background: #1F2937;
-          color: #D1D5DB;
+          background: var(--forge-bg-surface, #0E1015);
+          color: var(--forge-text-secondary, #9BA3B0);
           padding: 60px 0 24px 0;
-          margin-top: 80px;
+          margin-top: 0;
+          border-top: 1px solid var(--forge-border-default, #1E2230);
         }
 
-        .container {
+        .footer-container {
           max-width: 1280px;
           margin: 0 auto;
           padding: 0 24px;
@@ -70,12 +74,13 @@ const Footer = () => {
         }
 
         .footer-column h4 {
+          font-family: var(--forge-font-heading, 'Space Grotesk', system-ui, sans-serif);
           font-size: 14px;
           font-weight: 600;
-          color: white;
+          color: var(--forge-text-primary, #E8ECF1);
           margin: 0 0 16px 0;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.05em;
         }
 
         .footer-logo {
@@ -85,26 +90,25 @@ const Footer = () => {
           margin-bottom: 12px;
         }
 
-        .logo-icon {
-          width: 40px;
-          height: 40px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
         .logo-text {
+          font-family: var(--forge-font-heading, 'Space Grotesk', system-ui, sans-serif);
           font-size: 20px;
           font-weight: 700;
-          color: white;
+          color: var(--forge-text-primary, #E8ECF1);
         }
 
         .footer-description {
+          font-family: var(--forge-font-body, 'IBM Plex Sans', system-ui, sans-serif);
           font-size: 14px;
-          color: #9CA3AF;
-          margin: 0;
+          color: var(--forge-text-muted, #7A8291);
+          margin: 0 0 12px 0;
+        }
+
+        .footer-version {
+          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+          font-size: 11px;
+          color: var(--forge-text-muted, #7A8291);
+          letter-spacing: 0.05em;
         }
 
         .footer-nav {
@@ -114,32 +118,32 @@ const Footer = () => {
         }
 
         .footer-nav a {
-          color: #D1D5DB;
+          color: var(--forge-text-secondary, #9BA3B0);
           text-decoration: none;
+          font-family: var(--forge-font-body, 'IBM Plex Sans', system-ui, sans-serif);
           font-size: 14px;
-          transition: color 0.2s;
+          transition: color 0.15s;
         }
 
         .footer-nav a:hover {
-          color: white;
+          color: var(--forge-accent-primary, #00D4AA);
         }
 
         .footer-bottom {
           padding-top: 24px;
-          border-top: 1px solid #374151;
+          border-top: 1px solid var(--forge-border-default, #1E2230);
           text-align: center;
         }
 
         .footer-bottom p {
           margin: 0;
           font-size: 14px;
-          color: #9CA3AF;
+          color: var(--forge-text-muted, #7A8291);
         }
 
         @media (max-width: 768px) {
           .footer {
             padding: 40px 0 20px 0;
-            margin-top: 60px;
           }
 
           .footer-content {

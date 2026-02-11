@@ -1,6 +1,6 @@
 {
-  "short_name": "commun-printing",
-  "name": "commun-printing",
+  "short_name": "ModelPricer",
+  "name": "ModelPricer",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,6 +10,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#08090C",
+  "background_color": "#08090C"
 }

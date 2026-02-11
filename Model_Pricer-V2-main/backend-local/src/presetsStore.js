@@ -61,7 +61,16 @@ export async function createPresetFromIni(workspaceRoot, tenantId, iniBufferOrSt
   const content = Buffer.isBuffer(iniBufferOrString) ? iniBufferOrString : Buffer.from(String(iniBufferOrString || ""), "utf8");
   await fs.writeFile(iniPath, content);
 
-  const preset = { id, name, order, visibleInWidget, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  const preset = {
+    id,
+    name,
+    order,
+    visibleInWidget,
+    material_key: meta?.material_key ? String(meta.material_key) : null,
+    print_overrides: (meta?.print_overrides && typeof meta.print_overrides === 'object' && !Array.isArray(meta.print_overrides)) ? meta.print_overrides : {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
   state.presets = [...state.presets.filter((p) => p.id !== id), preset];
   // If this is the first preset, make it default
   if (!state.defaultPresetId) state.defaultPresetId = id;
@@ -81,6 +90,12 @@ export async function updatePresetMeta(workspaceRoot, tenantId, presetId, patch)
     name: patch?.name != null ? String(patch.name) : prev.name,
     order: patch?.order != null ? Number(patch.order) : prev.order,
     visibleInWidget: patch?.visibleInWidget != null ? Boolean(patch.visibleInWidget) : prev.visibleInWidget,
+    material_key: patch?.material_key !== undefined ? (patch.material_key ? String(patch.material_key) : null) : prev.material_key,
+    print_overrides: patch?.print_overrides !== undefined ? (
+      (patch.print_overrides && typeof patch.print_overrides === 'object' && !Array.isArray(patch.print_overrides))
+        ? patch.print_overrides
+        : {}
+    ) : (prev.print_overrides || {}),
     updatedAt: new Date().toISOString()
   };
 
@@ -145,6 +160,8 @@ function normalizeState(s) {
         name: String(p?.name || "Preset"),
         order: Number.isFinite(Number(p?.order)) ? Number(p.order) : 0,
         visibleInWidget: Boolean(p?.visibleInWidget),
+        material_key: p?.material_key ? String(p.material_key) : null,
+        print_overrides: (p?.print_overrides && typeof p.print_overrides === 'object' && !Array.isArray(p.print_overrides)) ? p.print_overrides : {},
         createdAt: p?.createdAt || undefined,
         updatedAt: p?.updatedAt || undefined
       }))

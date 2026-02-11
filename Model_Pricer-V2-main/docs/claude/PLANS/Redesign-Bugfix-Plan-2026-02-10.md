@@ -1,0 +1,663 @@
+# PLAN: Redesign Bugfix — ModelPricer V3 FORGE Theme
+**Datum:** 2026-02-10
+**Cil:** Oprava 18 designovych chyb + 3 extra ukoly z Redesign_Report_10.2.2026
+
+---
+
+## Context
+
+Po redesignu webu na FORGE tmavy theme se objevilo 18 vizualnich/funkcnich chyb identifikovanych v designovem auditu. Chyby zahrnuji: horizontalni preteceni stranky, konflikty svetly header vs. tmavy web, rozbita diakritika (unicode escape sekvence), nekonzistentni mena, duplicitni footer, jazykovy mix CZ/EN, prazdna hero sekce, typograficke nekonzistence, WCAG kontrastni problemy a dalsi. Navic je treba prejmenovani webu z "Commun_Printing" na "ModelPricer" a adaptace noveho loga.
+
+---
+
+## FAZE A: Kriticka infrastruktura (Bugy 1, 2, 19, 21)
+
+**Cil:** Opravit fatalni problemy co lami pouzitelnost webu.
+**Zavislosti:** Zadne — toto bezi jako prvni.
+**Skills:** `dispatching-parallel-agents`
+
+### A1: Horizontalni overflow (Bug 1) — KRITICKE
+
+**Agent:** `mp-spec-fe-animations`
+**Soubory:**
+- `src/pages/home/index.jsx` radky 166-202 (trust bar section)
+
+**Zmeny:**
+- Radek 171: K `<div className="flex items-center">` pridat `overflow-hidden` a `max-w-full`
+- Radek 183: Marquee div obalit do `<div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>`
+- Overit ze `<section className="overflow-hidden">` na radku 167 je spravne aplikovano
+- Overit globalni `overflow-x: hidden` na `<body>` / `<html>` v `src/styles/index.css`
+
+**Overeni:**
+- [ ] Zadny horizontalni scrollbar pri sirce 320px az 2560px
+- [ ] Marquee stale plynule animuje
+- [ ] `prefers-reduced-motion` disabluje animaci
+
+### A2: Svetly header na tmavem webu (Bug 2) — KRITICKE
+
+**Agent:** `mp-mid-design-system`
+**Soubory:**
+- `src/components/ui/Header.jsx` radek 121 + navazujici styling
+
+**Zmeny:**
+- Radek 121: Nahradit `bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70` za:
+  ```
+  style={{ backgroundColor: 'rgba(8, 9, 12, 0.92)', borderColor: 'var(--forge-border-default)' }}
+  ```
+- Logo (radek 111-118): `bg-primary` -> `style={{ background: 'var(--forge-accent-primary)' }}`
+- Logo text: `text-foreground` -> `style={{ color: 'var(--forge-text-primary)' }}`
+- Nav items: `text-muted-foreground` -> `color: var(--forge-text-secondary)`
+- Active nav: `bg-primary text-primary-foreground` -> Forge accent ekvivalenty
+- Login link: `text-muted-foreground` -> Forge token barva
+- Dropdown menu: `bg-popover` -> `var(--forge-bg-elevated)`
+- Mobile drawer: Stejna tmava konverze
+
+**Dulezite:** Header je sdileny (public + admin). Konverze musi fungovat vsude. Pripadne pouzit route-aware styling pro admin stranky.
+
+**Overeni:**
+- [ ] Header je tmavy na vsech strankach (home, pricing, support, test-kalkulacka)
+- [ ] Text je citelny (svetly na tmavem)
+- [ ] Dropdown menu ma tmavy bg
+- [ ] Mobilni hamburger menu ma tmavy bg
+- [ ] Admin stranky maji funkcni header
+
+### A3: Browser tab title + manifest (Bugy 19, 21)
+
+**Agent:** `mp-spec-fe-layout`
+**Soubory:**
+- `public/index.html` radek 15
+- `public/manifest.json` radky 2-3
+
+**Zmeny:**
+- `index.html` radek 15: `<title>React App</title>` -> `<title>ModelPricer</title>`
+- `index.html` radek 10: meta description -> `"ModelPricer - Automaticka kalkulace cen 3D tisku"`
+- `manifest.json`: `"short_name": "commun-printing"` -> `"short_name": "ModelPricer"`
+- `manifest.json`: `"name": "commun-printing"` -> `"name": "ModelPricer"`
+- `manifest.json`: `"theme_color"` -> `"#08090C"`, `"background_color"` -> `"#08090C"`
+
+**Overeni:**
+- [ ] Zarazka prohlizece ukazuje "ModelPricer"
+- [ ] PWA install ukazuje spravny nazev
+
+**Paralelni spusteni:** A1 + A2 + A3 soucasne (ruzne soubory).
+
+---
+
+## FAZE B: i18n a encoding opravy (Bugy 3, 4, 6, 15)
+
+**Cil:** Opravit vsechny hardcoded anglicke texty a unicode escape sekvence.
+**Zavislosti:** Zadne z Faze A (muze bezet paralelne nebo hned po).
+**Skills:** `dispatching-parallel-agents`, `verification-before-completion`
+
+### B1: Unicode escape sekvence v test-kalkulacce (Bug 3) — KRITICKE
+
+**Agent:** `mp-spec-i18n-translations`
+**Soubory (5 souboru, ~110+ retezcu):**
+- `src/pages/test-kalkulacka/components/FileUploadZone.jsx` (~8 retezcu)
+- `src/pages/test-kalkulacka/components/PrintConfiguration.jsx` (~50+ retezcu)
+- `src/pages/test-kalkulacka/components/ModelViewer.jsx` (~20+ retezcu)
+- `src/pages/test-kalkulacka/components/PricingCalculator.jsx` (~30+ retezcu)
+- `src/pages/test-kalkulacka/components/OrderConfirmation.jsx` (~2 retezce)
+
+**Zmeny:**
+Mechanicky find-and-replace vsech `\uXXXX` sekvenci za spravne UTF-8 znaky:
+
+| Sekvence | Znak | Priklad |
+|----------|------|---------|
+| `\u0159` | r | Pretahnete |
+| `\u00e1` | a | maximalni |
+| `\u011b` | e | kliknete |
+| `\u00ed` | i | slicovani |
+| `\u00e9` | e | Nahled |
+| `\u010d` | c | cas |
+| `\u017e` | z | zadne |
+| `\u0165` | t | Pustte |
+| `\u016f` | u | souboru |
+| `\u00b3` | ³ | cm³ |
+| `\u00b2` | ² | cm² |
+| `\u00d7` | x | nasobeni |
+| `\u2014` | — | em-dash |
+| `\u2026` | ... | elipsa |
+
+Regex pattern: `/\\u[0-9a-fA-F]{4}/g` pro nalezeni vsech vyskytu.
+
+**DULEZITE:** Vsechny soubory musi byt ulozeny jako UTF-8 (bez BOM). Windows muze zpusobit problemy s diakritikou v cestach.
+
+**Overeni:**
+- [ ] `grep -rn '\\u[0-9a-fA-F]\{4\}' src/pages/test-kalkulacka/` — zadne vysledky
+- [ ] Vsechny ceske texty v prohlizeci se zobrazi spravne
+- [ ] Wizard prochazi vsechny kroky bez garbled textu
+
+### B2: Hardcoded anglicke texty na homepage (Bugy 6, 15)
+
+**Agent:** `mp-mid-frontend-public`
+**Soubory:**
+- `src/pages/home/index.jsx` (16+ retezcu)
+- `src/contexts/LanguageContext.jsx` (pridani novych klicu)
+
+**Zmeny v home/index.jsx — nahrazeni hardcoded za t() volani:**
+
+| Radek | Aktualni | Nahrada |
+|-------|----------|---------|
+| 130-134 | `"Precision Pricing for 3D Manufacturing."` | `{t('home.hero.title')}` (klic UZ EXISTUJE) |
+| 143-144 | `"Automated quoting for FDM, SLA..."` | `{t('home.hero.subtitle')}` (klic UZ EXISTUJE) |
+| 149 | `"Start Building"` | `{t('home.hero.cta.primary')}` (klic UZ EXISTUJE: "Vyzkouset zdarma") |
+| 152 | `"See Demo"` | `{t('home.hero.cta.secondary')}` (klic UZ EXISTUJE: "Podivat se na demo") |
+| 181 | `"Trusted by 120+ print farms"` | `{t('home.trust.label')}` (NOVY KLIC) |
+| 207 | `text="ABOUT"` | `text={t('home.section.about')}` (NOVY KLIC) |
+| 262 | `text="PROCESS"` | `text={t('home.section.process')}` (NOVY KLIC) |
+| 289 | `text="CAPABILITIES"` | `text={t('home.section.capabilities')}` (NOVY KLIC) |
+| 343 | `text="PLANS"` | `text={t('home.section.plans')}` (NOVY KLIC) |
+| 372 | `text="FAQ"` | Muze zustat "FAQ" (univerzalni zkratka) |
+| 407-428 | `'HOME'`, `'PRICING'`, `'SUPPORT'` | `{t('nav.home').toUpperCase()}` atd. (klice EXISTUJI) |
+
+**Nove klice v LanguageContext.jsx:**
+
+CS:
+```
+'home.trust.label': 'Pouziva 120+ tiskaren',
+'home.section.about': 'O NAS',
+'home.section.process': 'POSTUP',
+'home.section.capabilities': 'FUNKCE',
+'home.section.plans': 'PLANY',
+```
+
+EN:
+```
+'home.trust.label': 'Trusted by 120+ print farms',
+'home.section.about': 'ABOUT',
+'home.section.process': 'PROCESS',
+'home.section.capabilities': 'CAPABILITIES',
+'home.section.plans': 'PLANS',
+```
+
+### B3: Nekonzistence meny + spravne ceny (Bug 4) — KRITICKE
+
+**Agent:** `mp-mid-frontend-public` (spolecne s B2)
+**Soubory:**
+- `src/pages/home/index.jsx` radky 38-79
+- `src/pages/pricing/index.jsx` radky 25-98
+
+**SPRAVNA CENOVA STRUKTURA (potvrzeno uzivatelem):**
+- **Starter:** 499 Kc — limitovane kalkulace, bez widget builderu, omezeny pristup k funkcim
+- **Professional:** 1 999 Kc — vsechny funkce, neomezene kalkulace modelu
+- **Enterprise / Na miru:** Kontaktujte nas (custom pricing)
+
+**Zmeny v OBOU souborech (homepage + pricing page):**
+```jsx
+const plans = [
+  {
+    name: 'STARTER',
+    price: language === 'cs' ? '499 Kc' : '$19',
+    features: [
+      t('pricing.feature.limitedCalc'),    // "Limitovane kalkulace"
+      t('pricing.feature.basicFeatures'),   // "Zakladni funkce"
+      // BEZ widget builderu, BEZ pokrocilych funkci
+    ],
+    ctaText: language === 'cs' ? 'Vyzkouset Starter' : 'Try Starter',
+  },
+  {
+    name: 'PROFESSIONAL',
+    price: language === 'cs' ? '1 999 Kc' : '$79',
+    recommended: true,
+    features: [
+      t('pricing.feature.unlimitedCalc'),   // "Neomezene kalkulace"
+      t('pricing.feature.allFeatures'),     // "Vsechny funkce"
+      t('pricing.feature.widgetBuilder'),   // "Widget builder"
+      t('pricing.feature.prioritySupport'), // "Prioritni podpora"
+    ],
+    ctaText: language === 'cs' ? 'Zacit s Professional' : 'Start Professional',
+  },
+  {
+    name: 'ENTERPRISE',
+    price: language === 'cs' ? 'Na miru' : 'Custom',
+    features: [...],
+    ctaText: language === 'cs' ? 'Kontaktovat nas' : 'Contact Us',
+  },
+];
+```
+
+**DULEZITE:** Aktualizovat TAKE LanguageContext.jsx s novymi prekladovymi klici pro features.
+
+**Overeni:**
+- [ ] CS jazyk: homepage + cenik ukazuji STEJNE ceny (499 Kc / 1 999 Kc / Na miru)
+- [ ] EN jazyk: homepage + cenik ukazuji STEJNE ceny v $
+- [ ] Starter karta NEMA widget builder ve features
+- [ ] Professional karta MA vsechny funkce
+- [ ] ForgePricingCard renderuje oba formaty spravne
+
+**Paralelni spusteni:** B1 (unicode v test-kalkulacce) + B2/B3 (homepage i18n) soucasne — ruzne soubory.
+
+---
+
+## FAZE C: Layout a struktura (Bugy 5, 7, 11, 12)
+
+**Cil:** Opravit strukturalni layout problemy.
+**Zavislosti:** Faze A (header fix) a B (preklady) dokonceny.
+**Skills:** `dispatching-parallel-agents`, `frontend-design`
+
+### C1: Duplicitni footer (Bug 5)
+
+**Agent:** `mp-mid-frontend-public`
+**Soubory:**
+- `src/pages/home/index.jsx` radky 390-430 — SMAZAT inline footer
+- `src/pages/pricing/index.jsx` radky 351-391 — SMAZAT inline footer
+- `src/pages/support/index.jsx` — SMAZAT inline footer
+- `src/components/ui/Footer.jsx` — PRESTYLOVAT na Forge theme
+
+**Zmeny ve Footer.jsx:**
+- Background: `#1F2937` -> `var(--forge-bg-surface)` nebo `var(--forge-bg-void)`
+- Barvy textu: Forge tokeny (`--forge-text-primary`, `--forge-text-secondary`, `--forge-text-muted`)
+- Logo gradient: `linear-gradient(135deg, #667eea, #764ba2)` -> `var(--forge-accent-primary)` (ANTI-AI: zadny blue-purple gradient!)
+- Fonty: Forge font stack
+- Border: `var(--forge-border-default)`
+- Pridat branding element `[ MODEL.PRICER ] * v3.2` z inline footeru jako dekorativni prvek
+
+**Overeni:**
+- [ ] Na kazde strance je prave JEDEN footer
+- [ ] Footer odpovida Forge tmavemu theme
+- [ ] Vsechny footer linky fungují
+- [ ] Mobile responsive zachovano
+
+### C2: Prazdna prava strana hero (Bug 7)
+
+**Agent:** `mp-mid-design-ux`
+**Soubory:**
+- `src/pages/home/index.jsx` radky 158-162
+- Pripadne `src/components/ui/forge/ForgePrinterSVG.jsx`
+
+**Analyza:**
+Kod na radcich 158-162 UZ renderuje `<ForgePrinterSVG />` s `hidden lg:flex`. Problem muze byt:
+1. SVG je prilis maly nebo neviditelny
+2. Z-index/visibility problem
+3. SVG nema viditelne stroke/fill
+
+**Zmeny:**
+- Precist ForgePrinterSVG komponentu a overit dimenze (min 400x300px)
+- Pridat `width: 100%` a `max-height: 500px` pro spravne rozmery
+- Grid je `grid-cols-[55%_45%]` — spravne per anti-AI (asymetricky layout)
+- Pokud SVG nefunguje: pridat alternativne screenshot kalkulacky jako `<img>` fallback
+
+**Overeni:**
+- [ ] Hero ukazuje vizual na prave strane na desktop (lg+)
+- [ ] 55/45 asymetricky split zachovan
+- [ ] Mobile skryva vizual grace (`hidden lg:flex`)
+
+### C3: Stat karty vertikalne (Bug 11)
+
+**Agent:** `mp-spec-fe-layout`
+**Soubory:**
+- `src/pages/home/index.jsx` radky 224-250
+
+**Zmeny:**
+Aktualni layout: `space-y-4` (vertikalni stack v pravem sloupci 2fr:3fr gridu).
+Novy layout: Presunout stat karty POD text sekci jako samostatny horizontalni radek:
+```jsx
+<div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-8">
+  {/* 3 stat karty vedle sebe */}
+</div>
+```
+Anti-AI: `gap-5` (ne gap-4 nebo gap-6 — nestandardni spacing).
+
+### C4: Capabilities 2+1 grid -> 2x2 (Bug 12) — POTVRZENO UZIVATELEM
+
+**Agent:** `mp-spec-fe-layout`
+**Soubory:**
+- `src/pages/home/index.jsx` radky 292-336
+- `src/contexts/LanguageContext.jsx` (nova 4. feature karta)
+
+**Zmeny:**
+Pridat 4. capability kartu pro symetricky 2x2 grid (uzivatel potvrdil toto reseni):
+- Novy klic: `home.forge.feature4.title` / `home.forge.feature4.desc`
+- Doporucena temata pro 4. kartu (v kontextu 3D tisku SaaS):
+  - "04/ Analyticka dashboard" — sledovani objednavek, prijmu, trendů
+  - NEBO "04/ E-shop integrace" — Shopify, WooCommerce propojeni
+  - NEBO "04/ Multi-tenant sprava" — vice zakazniku, izolace dat
+- Zmenit grid z `grid-cols-[2fr_1fr]` na `grid-cols-1 md:grid-cols-2 gap-5`
+- Odebrat `md:row-span-2` z prvni karty
+
+Anti-AI: Zachovat cislovani 01/-04/, ruzne delky popisu (1 karta s delsim textem, ostatni kratsi).
+
+**Paralelni spusteni:** C1 + C2 + C3/C4 soucasne (ruzne sekce/soubory).
+
+---
+
+## FAZE D: Designovy polish (Bugy 8, 9, 13, 14, 16, 17)
+
+**Cil:** Vizualni vylepseni — kontrast, accent hierarchie, oddelovace, FAQ interakce, typografie, login button.
+**Zavislosti:** Faze C dokoncena (layout finalizovan pred polishingem).
+**Skills:** `dispatching-parallel-agents`, `frontend-design`
+
+### D1: WCAG kontrast (Bug 9)
+
+**Agent:** `mp-spec-design-a11y`
+**Soubory:**
+- `src/styles/forge-tokens.css` radek 17
+
+**Zmeny:**
+- `--forge-text-muted: #5C6370` (3.5:1 na #08090C) -> `#7A8291` (4.7:1 — splnuje WCAG AA)
+- Pridat novy token `--forge-text-decorative: #5C6370` jen pro neesencialni vizualni prvky
+- Overit vsechny token kombinace:
+  - `--forge-text-primary` (#E8ECF1) na void = ~16:1 (vyborne)
+  - `--forge-text-secondary` (#9BA3B0) na void = ~7:1 (dobre)
+  - `--forge-text-muted` (novy #7A8291) na void = ~4.7:1 (OK)
+  - `--forge-text-muted` na surface (#0E1015) = ~4.5:1 (OK)
+
+### D2: Zelena akcentova barva pretizeni (Bug 13)
+
+**Agent:** `mp-mid-design-system`
+**Soubory:**
+- `src/styles/forge-tokens.css` (nove shade tokeny)
+- `src/pages/home/index.jsx` (aplikace hierarchie)
+
+**Zmeny:**
+Pridat do forge-tokens.css:
+```css
+--forge-accent-primary-strong: #00D4AA;
+--forge-accent-primary-medium: #00A88A;
+--forge-accent-primary-subtle: rgba(0, 212, 170, 0.15);
+--forge-accent-primary-ghost: rgba(0, 212, 170, 0.06);
+```
+
+Aplikace:
+- Primarni CTA: zachovat `--forge-accent-primary` (#00D4AA)
+- Stat cisla: `--forge-accent-primary-medium`
+- Section labels: `--forge-text-muted` (ne accent!)
+- Feature card ikony: `--forge-accent-primary-subtle` jako pozadi
+- FAQ plus ikona: `--forge-accent-secondary` (#FF6B35) misto zelene
+
+### D3: Chybejici oddelovace sekci (Bug 14)
+
+**Agent:** `mp-mid-design-system`
+**Soubory:**
+- `src/pages/home/index.jsx`
+
+**Zmeny:**
+Stridani pozadi mezi sekcemi:
+
+| Sekce | Pozadi |
+|-------|--------|
+| Hero | `--forge-bg-void` + grid (zachovat) |
+| Trust strip | transparent (zachovat — ma bordery) |
+| About | `--forge-bg-surface` (#0E1015) — ZMENA |
+| How It Works | `--forge-bg-void` (zachovat) |
+| Capabilities | `--forge-bg-surface` — ZMENA |
+| Plans | `forge-skewed-bg` (zachovat — uz je odlisny) |
+| FAQ | `--forge-bg-void` (zachovat) |
+
+### D4: Typograficka nekonzistence (Bug 8)
+
+**Agent:** `mp-mid-design-system`
+**Soubory:**
+- `src/pages/test-kalkulacka/components/PrintConfiguration.jsx` (radek 19)
+- `src/pages/test-kalkulacka/components/ModelViewer.jsx` (radek 48)
+- `src/pages/test-kalkulacka/components/PricingCalculator.jsx` (radek 16)
+- `src/pages/test-kalkulacka/components/FileUploadZone.jsx` (radek 41)
+
+**Zmeny:**
+Vsechny `fontFamily: 'var(--forge-font-tech)'` (Space Mono) pro sekce headingy -> `var(--forge-font-heading)` (Space Grotesk).
+Monospace (`--forge-font-tech` / `--forge-font-mono`) zachovat JEN pro: ceny, procenta, rozmery, technicka data.
+
+### D5: "Prihlasit se" oriznute (Bug 16)
+
+**Agent:** `mp-spec-design-user-friendly`
+**Soubory:**
+- `src/components/ui/Header.jsx` radky 192-209
+
+**Zmeny:**
+- Login link zmenit na outlined button:
+  ```jsx
+  <Link to="/login" style={{
+    border: '1px solid var(--forge-border-active)',
+    borderRadius: 'var(--forge-radius-sm)',
+    padding: '6px 14px',
+    color: 'var(--forge-text-primary)',
+    whiteSpace: 'nowrap',
+  }}>
+    {t('nav.login')}
+  </Link>
+  ```
+- Pridat `whitespace-nowrap` na container
+
+### D6: FAQ chybejici hover feedback (Bug 17)
+
+**Agent:** `mp-spec-design-user-friendly`
+**Soubory:**
+- `src/components/ui/forge/ForgeFaqAccordion.jsx`
+
+**Zmeny:**
+- Pridat hover background na FAQ radky: `background: var(--forge-bg-surface)` na hover
+- Zvetsit "+" ikonu na 24px
+- Pridat hover-visible text "Zobrazit" v accent barve
+- Link "Zobrazit vsechny otazky" zmenit z sede na accent zelenou
+
+**Paralelni spusteni:** D1 + D2/D3 + D4 + D5/D6 — 3 agenti soucasne.
+
+---
+
+## FAZE E: Obsah a branding (Bugy 10, 18, 20)
+
+**Cil:** Finalni obsahove opravy — CTA texty, social proof, logo.
+**Zavislosti:** Faze B (preklady) a D (design polish) dokonceny.
+**Skills:** `brainstorming`, `verification-before-completion`
+
+### E1: CTA texty (Bug 10)
+
+**Agent:** `mp-mid-design-ux`
+**Soubory:**
+- `src/contexts/LanguageContext.jsx`
+- `src/pages/pricing/index.jsx`
+
+**Zmeny:**
+- Homepage Pro CTA: `'Doporuceno'` -> `'Zacit s Professional'` (CS) / `'Start Professional'` (EN)
+  - "Doporuceno" je label, ne akce — badge "Doporuceno" se uz zobrazuje pres `recommended={true}`
+- Pricing Starter CTA: `'Zacit zdarma'` -> `'Vyzkouset Starter'` (CS) / `'Try Starter'` (EN)
+  - "Zacit zdarma" u 499 Kc tarifu je zavadejici — za 499 Kc nic neni zdarma
+- Pricing Professional CTA: `'Zacit s Professional'` / `'Start Professional'`
+  - Professional = 1 999 Kc, vsechny funkce, neomezene kalkulace
+
+### E2: Chybejici social proof (Bug 18)
+
+**Agent:** `mp-mid-design-ux`
+**Soubory:**
+- `src/pages/home/index.jsx` radky 24-35, 166-202
+
+**Zmeny:**
+Nahradit "Trusted by 120+ print farms" za konkretni metriky:
+- `"5 000+ zpracovanych modelu"` / `"5,000+ models processed"`
+- `"99,8% dostupnost"` / `"99.8% uptime"`
+- Trust items (PrusaSlicer CLI, Shopify, WooCommerce atd.) uz sluzi jako feature badge — zachovat a vizualne zduraznit
+
+### E3: Logo adaptace (Bug 20) — POTVRZENO: PNG PRIMO
+
+**Agent:** `mp-spec-design-icons`
+**Soubory:**
+- `src/components/ui/Header.jsx` radky 111-118
+- `src/components/ui/Footer.jsx` (logo sekce)
+- Nova asset: `src/assets/logo.png` (kopie New_Logo.png)
+
+**Zmeny:**
+- Zkopirovat `New_Logo.png` do `src/assets/logo.png`
+- Pouzit PNG primo s CSS adaptaci (uzivatel potvrdil):
+  - `mix-blend-mode: lighten` pro tmave pozadi (cerne pozadi loga se "prolne" s tmavym bg stranky)
+  - Velikost: 32x32px v headeru, 40x40px ve footeru
+  - `object-fit: contain` pro zachovani pomeru stran
+- Header (radky 111-118): Nahradit `<Layers3>` ikonu za:
+  ```jsx
+  <img src="/assets/logo.png" alt="ModelPricer"
+    style={{ width: 32, height: 32, mixBlendMode: 'lighten' }} />
+  ```
+- Logo text "ModelPricer" v Space Grotesk 600 (Forge heading font):
+  ```jsx
+  <span style={{ fontFamily: 'var(--forge-font-heading)', fontWeight: 600,
+    color: 'var(--forge-text-primary)' }}>ModelPricer</span>
+  ```
+- Footer: stejna uprava (vetsi logo 40x40)
+- Favicon: Zvazit nahrazeni defaultniho React favicon za zmenseny New_Logo.png (16x16, 32x32)
+
+**Paralelni spusteni:** E1 + E2 + E3 soucasne.
+
+---
+
+## FAZE F: Verifikace a quality gates
+
+**Cil:** Finalni overeni — build, vizualni regrese, accessibility, anti-AI compliance.
+**Zavislosti:** VSECHNY predchozi faze dokonceny.
+**Skills:** `verification-before-completion`, `lint-fix`, `webapp-testing`, `requesting-code-review`
+
+### F1: Build verifikace
+
+**Agent:** `mp-spec-test-build`
+- [ ] `npm run build` — PASS bez erroru
+- [ ] Zadna nova varovani z mensich souboru
+- [ ] Bundle size neprekrocena
+
+### F2: Vizualni regrese
+
+**Agent:** `mp-mid-quality-code` + `webapp-testing` skill
+- [ ] Screenshot vsech public stranek (Home, Pricing, Support, Test-kalkulacka) na 3 breakpointech (375px, 768px, 1440px)
+- [ ] Zadny horizontalni overflow na zadne strance
+- [ ] Header kontrast OK na vsech strankach
+- [ ] Footer se zobrazi prave 1x na kazde strance
+- [ ] Vsechny ceske znaky OK (zadne `\u` sekvence)
+- [ ] FAQ hover stavy funguji
+- [ ] Stat karty horizontalne na desktopu
+- [ ] Capabilities grid symetricky
+
+### F3: Accessibility audit
+
+**Agent:** `mp-spec-design-a11y`
+- [ ] WCAG AA kontrast (4.5:1) pro vsechny texty
+- [ ] Focus indikatory na vsech interaktivnich prvcich
+- [ ] Keyboard navigace (Tab, Enter, Escape)
+- [ ] `aria-expanded` na FAQ items
+- [ ] `lang="cs"` na `<html>` elementu
+
+### F4: Anti-AI design compliance
+
+**Agent:** `mp-spec-plan-critic`
+15-bodovy checklist z IMPL_PLAN_FORGE:
+- [ ] Zadna genericka modra (#2563EB)
+- [ ] Asymetricke layouty (55/45 hero)
+- [ ] Monospace jen pro technicka data
+- [ ] Textura/noise overlaye pritomne
+- [ ] Tmavy theme jako default
+- [ ] Ucelne animace
+- [ ] Nestandardni spacing
+- [ ] Cislovane sekce (01/, 02/)
+- [ ] Rucne kreslene SVG akcenty (ForgeSquiggle)
+- [ ] Blueprint grid pozadi
+- [ ] Receipt-style price formatting
+- [ ] Zadny blue-purple gradient
+- [ ] Version info jako design element
+- [ ] Barvy z 3D tisku (teal, orange)
+- [ ] Kontrastni typografie (Space Grotesk + IBM Plex Sans + monospace)
+
+### F5: Dokumentace
+
+**Agent:** `mp-sr-docs`
+- [ ] Aktualizovat `docs/claude/Planovane_Implementace/Dokum-uprav-test-kalkulacka.md` (unicode opravy)
+- [ ] Aktualizovat MEMORY.md s novymi poznatky
+- [ ] Ulozit tento plan do `docs/claude/PLANS/Redesign-Bugfix-Plan-2026-02-10.md`
+
+---
+
+## PREHLED AGENT DISPATCH
+
+### Batch 1 (Faze A) — 3 agenti paralelne:
+| Agent | Bugy | Soubory |
+|-------|------|---------|
+| `mp-spec-fe-animations` | Bug 1 | home/index.jsx, forge-animations.css |
+| `mp-mid-design-system` | Bug 2 | Header.jsx |
+| `mp-spec-fe-layout` | Bugy 19, 21 | index.html, manifest.json |
+
+### Batch 2 (Faze B) — 2 agenti paralelne:
+| Agent | Bugy | Soubory |
+|-------|------|---------|
+| `mp-spec-i18n-translations` | Bug 3 | 5 test-kalkulacka komponent |
+| `mp-mid-frontend-public` | Bugy 4, 6, 15 | home/index.jsx, LanguageContext.jsx |
+
+### Batch 3 (Faze C) — 3 agenti paralelne:
+| Agent | Bugy | Soubory |
+|-------|------|---------|
+| `mp-mid-frontend-public` | Bug 5 | 3 page soubory + Footer.jsx |
+| `mp-mid-design-ux` | Bug 7 | home/index.jsx hero, ForgePrinterSVG |
+| `mp-spec-fe-layout` | Bugy 11, 12 | home/index.jsx sekce + LanguageContext |
+
+### Batch 4 (Faze D) — 3 agenti paralelne:
+| Agent | Bugy | Soubory |
+|-------|------|---------|
+| `mp-spec-design-a11y` | Bug 9 | forge-tokens.css |
+| `mp-mid-design-system` | Bugy 8, 13, 14 | forge-tokens.css, home/index.jsx, test-kalkulacka |
+| `mp-spec-design-user-friendly` | Bugy 16, 17 | Header.jsx, ForgeFaqAccordion.jsx |
+
+### Batch 5 (Faze E) — 3 agenti paralelne:
+| Agent | Bugy | Soubory |
+|-------|------|---------|
+| `mp-mid-design-ux` | Bugy 10, 18 | LanguageContext.jsx, pricing/index.jsx, home/index.jsx |
+| `mp-spec-design-icons` | Bug 20 | Header.jsx, assets |
+
+### Batch 6 (Faze F) — sekvencne:
+| Agent | Ukol |
+|-------|------|
+| `mp-spec-test-build` | Build verifikace |
+| `mp-spec-design-a11y` | Accessibility audit |
+| `mp-spec-plan-critic` | Anti-AI compliance review |
+| `mp-sr-docs` | Dokumentace |
+
+---
+
+## SKILL USAGE MAP
+
+| Skill | Kde | Proc |
+|-------|-----|------|
+| `dispatching-parallel-agents` | Faze A-E | Efektivni paralelni spusteni agentu |
+| `verification-before-completion` | Faze F | Overeni pred tvrzenim ze je hotovo |
+| `lint-fix` | Faze F | Auto-fix lint problemu po vsech zmenach |
+| `webapp-testing` | Faze F | Browser-based vizualni testovani |
+| `requesting-code-review` | Faze F | Peer review vsech zmen |
+| `frontend-design` | Faze C, D | Design feedback pro hero a layout zmeny |
+| `brainstorming` | Faze E | Brainstorming CTA textu a social proof |
+| `executing-plans` | Start | Exekuce tohoto planu s checkpointy |
+| `subagent-driven-development` | Faze A-E | Rizeni vyvoje pres sub-agenty |
+
+---
+
+## KRITICKE SOUBORY
+
+| Soubor | Bugy | Priorita |
+|--------|------|----------|
+| `src/pages/home/index.jsx` | 1, 4, 5, 6, 7, 11, 12, 13, 14, 15, 18 | NEJVYSSI — 11 bugu |
+| `src/components/ui/Header.jsx` | 2, 16, 20 | VYSOKA — sdileny across all pages |
+| `src/contexts/LanguageContext.jsx` | 4, 6, 10, 12, 15 | VYSOKA — centralni prekladovy slovnik |
+| `src/styles/forge-tokens.css` | 9, 13 | VYSOKA — design system source of truth |
+| `src/components/ui/Footer.jsx` | 5 | STREDNI — restyle na Forge |
+| `src/pages/test-kalkulacka/components/*.jsx` | 3, 8 | VYSOKA — 5 souboru s unicode chybami |
+| `src/pages/pricing/index.jsx` | 5, 10 | STREDNI — footer + CTA opravy |
+| `public/index.html` + `manifest.json` | 19, 21 | NIZKA — jednoduche textove zmeny |
+
+---
+
+## RIZIKA
+
+| Riziko | Dopad | Mitigace |
+|--------|-------|----------|
+| Header Forge konverze rozbije admin stranky | VYSOKY | Testovat vsechny routy po zmene Headeru |
+| Unicode fix poskodi file encoding | STREDNI | Ulozit vse jako UTF-8 bez BOM |
+| Odebrani inline footeru odhali styling clash | STREDNI | Nejdriv restylovat Footer.jsx, pak mazat inline |
+| Chybejici translation key v jednom jazyku | NIZKY | Grep vsech `t('home.` a overit CS i EN |
+| ForgePrinterSVG se nerenderuje z jineho duvodu | STREDNI | Precist komponentu pred fixem |
+| Anti-AI principy naruseny behem oprav | STREDNI | Plan critic review ve Fazi F |
+
+---
+
+## CASOVY ODHAD
+
+| Faze | Pocet agentu | Estimace |
+|------|-------------|----------|
+| A: Kriticka infrastruktura | 3 paralelne | ~ |
+| B: i18n + encoding | 2 paralelne | ~ |
+| C: Layout + struktura | 3 paralelne | ~ |
+| D: Design polish | 3 paralelne | ~ |
+| E: Obsah + branding | 2 paralelne | ~ |
+| F: Verifikace | sekvencne | ~ |

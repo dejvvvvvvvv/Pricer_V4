@@ -42,7 +42,7 @@ const forgeStyles = {
   },
   title: {
     fontSize: 'var(--forge-text-2xl)',
-    fontFamily: 'var(--forge-font-tech)',
+    fontFamily: 'var(--forge-font-heading)',
     fontWeight: 700,
     color: 'var(--forge-text-primary)',
     textTransform: 'uppercase',
@@ -84,7 +84,7 @@ const forgeStyles = {
   },
   sectionTitle: {
     fontSize: 'var(--forge-text-lg)',
-    fontFamily: 'var(--forge-font-tech)',
+    fontFamily: 'var(--forge-font-heading)',
     fontWeight: 600,
     color: 'var(--forge-text-primary)',
     textTransform: 'uppercase',
@@ -234,11 +234,11 @@ export default function OrderConfirmation({ order, onStartNew }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div>
             <span style={forgeStyles.contactLabel}>{t('Jmeno', 'Name')}:</span>
-            <p style={forgeStyles.contactValue}>{customer.name || '\u2014'}</p>
+            <p style={forgeStyles.contactValue}>{customer.name || '—'}</p>
           </div>
           <div>
             <span style={forgeStyles.contactLabel}>Email:</span>
-            <p style={forgeStyles.contactValue}>{customer.email || '\u2014'}</p>
+            <p style={forgeStyles.contactValue}>{customer.email || '—'}</p>
           </div>
           {customer.phone && (
             <div>

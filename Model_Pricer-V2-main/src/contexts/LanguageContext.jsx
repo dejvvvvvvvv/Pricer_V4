@@ -132,6 +132,13 @@ const translations = {
     'home.howItWorks.step4.title': 'Okamžitá nabídka',
     'home.howItWorks.step4.desc': 'Zákazník vidí detailní rozpis ceny a může rovnou objednat.',
 
+    // Home — Section Labels (Bug 6 fix)
+    'home.trust.label': '5 000+ zpracovaných modelů · 99,8% dostupnost',
+    'home.section.about': 'O NÁS',
+    'home.section.process': 'POSTUP',
+    'home.section.capabilities': 'FUNKCE',
+    'home.section.plans': 'PLÁNY',
+
     // Home — Feature Cards (fixed)
     'home.forge.feature1.title': 'Přesný cenotvorný engine',
     'home.forge.feature1.desc': 'Kalkulace založená na objemu s přehledným rozpisem. Nastav ceny materiálů, časové sazby a vlastní poplatky.',
@@ -139,6 +146,8 @@ const translations = {
     'home.forge.feature2.desc': 'Nahrávej STL modely přímo. Server-side PrusaSlicer vrátí čas tisku, spotřebu materiálu a počet vrstev.',
     'home.forge.feature3.title': 'White-label widget',
     'home.forge.feature3.desc': 'Embedovatelná cenová kalkulačka s vlastním brandingem. Nastav barvy, logo a whitelist domén pro e-shop integraci.',
+    'home.forge.feature4.title': 'Analytický dashboard',
+    'home.forge.feature4.desc': 'Sleduj objednávky, příjmy a trendy v reálném čase. Exportuj data a optimalizuj cenotvorbu.',
 
     // Home — Plans
     'home.forge.plans.title': 'Cenové plány',
@@ -150,7 +159,7 @@ const translations = {
     'home.forge.plans.pro.f2': '500 kalkulací / měsíc',
     'home.forge.plans.pro.f3': 'Plný branding',
     'home.forge.plans.pro.f4': 'Prioritní podpora',
-    'home.forge.plans.pro.cta': 'Doporučeno',
+    'home.forge.plans.pro.cta': 'Začít s Professional',
     'home.forge.plans.enterprise.f1': 'Vše z Pro',
     'home.forge.plans.enterprise.f2': 'White-label řešení',
     'home.forge.plans.enterprise.f3': 'SLA + dedikovaná podpora',
@@ -640,6 +649,13 @@ const translations = {
     'home.howItWorks.step4.title': 'Instant Quote',
     'home.howItWorks.step4.desc': 'Customer sees a detailed price breakdown and can order right away.',
 
+    // Home — Section Labels (Bug 6 fix)
+    'home.trust.label': '5,000+ models processed · 99.8% uptime',
+    'home.section.about': 'ABOUT',
+    'home.section.process': 'PROCESS',
+    'home.section.capabilities': 'CAPABILITIES',
+    'home.section.plans': 'PLANS',
+
     // Home — Feature Cards (fixed)
     'home.forge.feature1.title': 'Precision Pricing Engine',
     'home.forge.feature1.desc': 'Volume-based calculations with receipt-style breakdowns. Configure material costs, time rates, and custom fees.',
@@ -647,6 +663,8 @@ const translations = {
     'home.forge.feature2.desc': 'Upload STL models directly. Server-side PrusaSlicer returns print time, material usage, and layer count.',
     'home.forge.feature3.title': 'White-Label Widget',
     'home.forge.feature3.desc': 'Embeddable pricing calculator with custom branding. Set colors, logo, and domain whitelist for e-shop integration.',
+    'home.forge.feature4.title': 'Analytics Dashboard',
+    'home.forge.feature4.desc': 'Track orders, revenue, and trends in real time. Export data and optimize your pricing strategy.',
 
     // Home — Plans
     'home.forge.plans.title': 'Pricing Plans',
@@ -655,10 +673,10 @@ const translations = {
     'home.forge.plans.starter.f2': '100 calculations / month',
     'home.forge.plans.starter.f3': 'Email support',
     'home.forge.plans.pro.f1': 'Unlimited widgets',
-    'home.forge.plans.pro.f2': '500 calculations / month',
+    'home.forge.plans.pro.f2': 'Unlimited calculations',
     'home.forge.plans.pro.f3': 'Full branding',
     'home.forge.plans.pro.f4': 'Priority support',
-    'home.forge.plans.pro.cta': 'Recommended',
+    'home.forge.plans.pro.cta': 'Start Professional',
     'home.forge.plans.enterprise.f1': 'Everything in Pro',
     'home.forge.plans.enterprise.f2': 'White-label solution',
     'home.forge.plans.enterprise.f3': 'SLA + dedicated support',

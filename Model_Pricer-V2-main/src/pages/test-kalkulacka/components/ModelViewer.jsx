@@ -45,7 +45,7 @@ const fg = {
   emptyTitle: {
     fontWeight: 600,
     color: 'var(--forge-text-primary)',
-    fontFamily: 'var(--forge-font-tech)',
+    fontFamily: 'var(--forge-font-heading)',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
     marginTop: '1rem',
@@ -381,7 +381,7 @@ const FullScreenViewer = ({ fileUrl, onClose }) => {
         <div style={fg.fullscreenClose}>
           <button
             onClick={onClose}
-            aria-label="Zav\u0159\u00edt cel\u00e9 okno"
+            aria-label="Zavřít celé okno"
             style={fg.fullscreenBtn}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.4)'; }}
@@ -533,9 +533,9 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
           <div style={fg.emptyIcon}>
             <Icon name="Scan" size={40} style={{ color: 'var(--forge-text-muted)' }} />
           </div>
-          <h3 style={fg.emptyTitle}>N\u00e1hled modelu</h3>
+          <h3 style={fg.emptyTitle}>Náhled modelu</h3>
           <p style={fg.emptyText}>
-            Po nahr\u00e1n\u00ed souboru se zde zobraz\u00ed n\u00e1hled a metriky ze sliceru.
+            Po nahrání souboru se zde zobrazí náhled a metriky ze sliceru.
           </p>
         </div>
       </div>
@@ -558,7 +558,7 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
               variant="ghost"
               size="icon"
               onClick={() => setIsFullScreen(true)}
-              aria-label="Cel\u00e1 obrazovka"
+              aria-label="Celá obrazovka"
             >
               <Icon name="Expand" size={16} />
             </Button>
@@ -577,15 +577,15 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
           <ErrorBoundary>
             {(!fileObj || !previewSupported) ? (
               <div style={fg.fallbackWrap}>
-                N\u00e1hled je dostupn\u00fd jen pro STL soubory.
+                Náhled je dostupný jen pro STL soubory.
                 <br />
-                Pro data pou\u017eijte \u201eMetriky ze sliceru\u201c.
+                Pro data použijte „Metriky ze sliceru".
               </div>
             ) : tooLargeForPreview ? (
               <div style={fg.fallbackWrap}>
-                N\u00e1hled je vypnut\u00fd (velk\u00fd soubor ~{sizeMb.toFixed(1)} MB).
+                Náhled je vypnutý (velký soubor ~{sizeMb.toFixed(1)} MB).
                 <br />
-                Pro data pou\u017eijte \u201eMetriky ze sliceru\u201c.
+                Pro data použijte „Metriky ze sliceru".
               </div>
             ) : (
           <STLCanvas file={fileObj} computeSurface={canComputeSurfaceSafe} onSurfaceComputed={handleSurfaceComputed} />
@@ -605,20 +605,20 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {(dims?.x || dims?.y || dims?.z || volumeCm3 != null) && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 1rem', fontSize: 'var(--forge-text-xs)' }}>
-                  <div style={fg.metricLabel}>Rozm\u011bry:</div>
+                  <div style={fg.metricLabel}>Rozměry:</div>
                   <div style={fg.metricValue}>
-                    {Number(dims?.x || 0).toFixed(2)} \u00d7 {Number(dims?.y || 0).toFixed(2)} \u00d7 {Number(dims?.z || 0).toFixed(2)} mm
+                    {Number(dims?.x || 0).toFixed(2)} × {Number(dims?.y || 0).toFixed(2)} × {Number(dims?.z || 0).toFixed(2)} mm
                   </div>
                   {volumeCm3 != null && (
                     <>
                       <div style={fg.metricLabel}>Objem:</div>
-                      <div style={fg.metricValue}>{volumeCm3.toFixed(2)} cm\u00b3</div>
+                      <div style={fg.metricValue}>{volumeCm3.toFixed(2)} cm³</div>
                     </>
                   )}
                   {surfaceCm2 != null && (
                     <>
                       <div style={fg.metricLabel}>Povrch:</div>
-                      <div style={fg.metricValue}>{surfaceCm2.toFixed(2)} cm\u00b2</div>
+                      <div style={fg.metricValue}>{surfaceCm2.toFixed(2)} cm²</div>
                     </>
                   )}
                 </div>
@@ -628,13 +628,13 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed }) => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                   <div style={fg.metricCard}>
                     <p style={fg.metricCardValue}>{formatDuration(metrics?.estimatedTimeSeconds)}</p>
-                    <p style={fg.metricCardLabel}>\u010cas tisku</p>
+                    <p style={fg.metricCardLabel}>Čas tisku</p>
                   </div>
                   <div style={fg.metricCard}>
                     <p style={fg.metricCardValue}>
                       {Number.isFinite(Number(metrics?.filamentGrams)) ? `${Number(metrics.filamentGrams).toFixed(1)} g` : '-'}
                     </p>
-                    <p style={fg.metricCardLabel}>Materi\u00e1l</p>
+                    <p style={fg.metricCardLabel}>Materiál</p>
                   </div>
                 </div>
               )}

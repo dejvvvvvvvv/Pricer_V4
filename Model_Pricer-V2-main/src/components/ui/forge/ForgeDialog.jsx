@@ -105,6 +105,7 @@ export default function ForgeDialog({
     padding: '24px',
     maxHeight: 'calc(85vh - 140px)',
     overflowY: 'auto',
+    overscrollBehavior: 'contain',
     flex: 1,
   };
 

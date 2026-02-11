@@ -38,7 +38,7 @@ const forgeStyles = {
   },
   heading: {
     fontSize: 'var(--forge-text-xl)',
-    fontFamily: 'var(--forge-font-tech)',
+    fontFamily: 'var(--forge-font-heading)',
     fontWeight: 600,
     color: 'var(--forge-text-primary)',
     textTransform: 'uppercase',
@@ -223,12 +223,12 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <h3 style={forgeStyles.heading}>
-              {isDragActive ? 'Pus\u0165te soubory zde' : 'Nahrajte 3D modely'}
+              {isDragActive ? 'Pusťte soubory zde' : 'Nahrajte 3D modely'}
             </h3>
             <p style={forgeStyles.subText}>
-              P\u0159et\u00e1hn\u011bte STL nebo OBJ soubory nebo klikn\u011bte pro v\u00fdb\u011br
+              Přetáhněte STL nebo OBJ soubory nebo klikněte pro výběr
             </p>
-            <p style={forgeStyles.mutedText}>Maxim\u00e1ln\u00ed velikost: 50MB na soubor</p>
+            <p style={forgeStyles.mutedText}>Maximální velikost: 50MB na soubor</p>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
@@ -246,12 +246,12 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
       {/* Upload Progress */}
       {Object.keys(uploadProgress).length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <h4 style={forgeStyles.sectionLabel}>Nahr\u00e1v\u00e1n\u00ed soubor\u016f</h4>
+          <h4 style={forgeStyles.sectionLabel}>Nahrávání souborů</h4>
           {Object.entries(uploadProgress).map(([fileId, progress]) => (
             <div key={fileId} style={forgeStyles.card}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: 'var(--forge-text-base)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
-                  Nahr\u00e1v\u00e1n\u00ed...
+                  Nahrávání...
                 </span>
                 <span style={{ fontSize: 'var(--forge-text-base)', color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }}>
                   {progress}%
@@ -270,7 +270,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h4 style={forgeStyles.sectionLabel}>
-              Nahran\u00e9 soubory ({uploadedFiles.length})
+              Nahrané soubory ({uploadedFiles.length})
             </h4>
             <Button variant="ghost" size="sm">
               <Icon name="MoreHorizontal" size={16} />
@@ -288,7 +288,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                     <div>
                       <p style={forgeStyles.fileName}>{file?.name}</p>
                       <p style={forgeStyles.fileMeta}>
-                        {formatFileSize(file?.size)} {'\u2022'} {file?.type}
+                        {formatFileSize(file?.size)} {'•'} {file?.type}
                       </p>
                     </div>
                   </div>
@@ -315,10 +315,10 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
           <Icon name="Info" size={16} style={{ color: 'var(--forge-accent-primary)', marginTop: '2px' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <p style={{ fontSize: 'var(--forge-text-base)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
-              Podporovan\u00e9 form\u00e1ty
+              Podporované formáty
             </p>
             <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>
-              STL, OBJ soubory {'\u2022'} Maxim\u00e1ln\u00ed velikost 50MB {'\u2022'} V\u00edce soubor\u016f najednou
+              STL, OBJ soubory {'•'} Maximální velikost 50MB {'•'} Více souborů najednou
             </p>
           </div>
         </div>

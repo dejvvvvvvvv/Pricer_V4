@@ -14,12 +14,17 @@
   /* ---- Text ---- */
   --forge-text-primary: #E8ECF1;
   --forge-text-secondary: #9BA3B0;
-  --forge-text-muted: #5C6370;
+  --forge-text-muted: #7A8291;          /* Bug 9: WCAG AA — 4.7:1 on void */
+  --forge-text-decorative: #5C6370;     /* Non-essential visual elements only */
   --forge-text-disabled: #3A3F4A;
 
   /* ---- Accents ---- */
   --forge-accent-primary: #00D4AA;
   --forge-accent-primary-h: #00F0C0;
+  --forge-accent-primary-strong: #00D4AA;
+  --forge-accent-primary-medium: #00A88A;
+  --forge-accent-primary-subtle: rgba(0, 212, 170, 0.15);
+  --forge-accent-primary-ghost: rgba(0, 212, 170, 0.06);
   --forge-accent-secondary: #FF6B35;
   --forge-accent-tertiary: #6C63FF;
 

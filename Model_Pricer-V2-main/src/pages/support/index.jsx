@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeSquiggle from '../../components/ui/forge/ForgeSquiggle';
@@ -352,47 +351,7 @@ const Support = () => {
         </Reveal>
       </section>
 
-      {/* ========== FOOTER ========== */}
-      <footer
-        className="py-8 text-center"
-        style={{ borderTop: '1px solid var(--forge-border-default)' }}
-      >
-        <span
-          style={{
-            fontFamily: 'var(--forge-font-tech)',
-            fontSize: 'var(--forge-text-sm)',
-            color: 'var(--forge-text-muted)',
-            letterSpacing: '0.05em',
-          }}
-        >
-          [ MODEL.PRICER ] &middot; v3.2
-        </span>
-        <div className="mt-3 flex justify-center gap-6">
-          {[
-            { label: 'HOME', to: '/' },
-            { label: 'PRICING', to: '/pricing' },
-            { label: 'SUPPORT', to: '/support' },
-          ].map((link) => (
-            <Link
-              key={link.label}
-              to={link.to}
-              className="forge-transition-micro"
-              style={{
-                fontFamily: 'var(--forge-font-tech)',
-                fontSize: 'var(--forge-text-xs)',
-                color: 'var(--forge-text-muted)',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--forge-accent-primary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </footer>
+      {/* Footer handled by shared Footer.jsx component */}
     </div>
   );
 };

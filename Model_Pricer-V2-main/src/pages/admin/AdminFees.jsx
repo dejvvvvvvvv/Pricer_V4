@@ -2,12 +2,13 @@
 // ------------------------------------------------------------
 // Scope of this page (Chat C): /admin/fees only
 // - Single source of truth: tenant-scoped V3 storage (namespace: fees:v3)
-// - UX redesign: 2-column layout (List + Editor)
+// - UX: Full-width list + ForgeDialog modal editor with 5 tabs
 // - Fee model supports: negative discounts, scope MODEL|ORDER, charge_basis PER_PIECE|PER_FILE,
 //   typed conditions, apply-to-selected-models toggle (stored; calculator will use later)
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadFeesConfigV3, saveFeesConfigV3, normalizeFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -65,13 +66,13 @@ const NUM_OPERATORS = [
   { value: 'gt', label: '>' },
   { value: 'lt', label: '<' },
   { value: 'eq', label: '=' },
-  { value: 'gte', label: '≥' },
-  { value: 'lte', label: '≤' },
+  { value: 'gte', label: '>=' },
+  { value: 'lte', label: '<=' },
 ];
 
 const TEXT_OPERATORS = [
   { value: 'eq', label: '=' },
-  { value: 'neq', label: '≠' },
+  { value: 'neq', label: '!=' },
 ];
 
 function safeNum(v, fallback = 0) {
@@ -195,7 +196,7 @@ function mapLegacyOp(opRaw) {
 
 function formatMoneyCzk(n) {
   const v = safeNum(n, 0);
-  return `${v.toFixed(2)} Kč`;
+  return `${v.toFixed(2)} Kc`;
 }
 
 function formatFeeValueForList(fee) {
@@ -234,8 +235,8 @@ function evaluateCondition(cond, ctx) {
     if (op === 'gt') return { ok: got > want, details: `${got} > ${want}` };
     if (op === 'lt') return { ok: got < want, details: `${got} < ${want}` };
     if (op === 'eq') return { ok: got === want, details: `${got} = ${want}` };
-    if (op === 'gte') return { ok: got >= want, details: `${got} ≥ ${want}` };
-    if (op === 'lte') return { ok: got <= want, details: `${got} ≤ ${want}` };
+    if (op === 'gte') return { ok: got >= want, details: `${got} >= ${want}` };
+    if (op === 'lte') return { ok: got <= want, details: `${got} <= ${want}` };
 
     return { ok: false, details: `unknown op (${op})` };
   }
@@ -244,7 +245,7 @@ function evaluateCondition(cond, ctx) {
   const got = String(valueFromCtx ?? '').trim().toLowerCase();
   const want = String(rawVal ?? '').trim().toLowerCase();
 
-  if (op === 'neq') return { ok: got !== want, details: `${got} ≠ ${want}` };
+  if (op === 'neq') return { ok: got !== want, details: `${got} != ${want}` };
   if (op === 'contains') return { ok: got.includes(want), details: `${got} contains ${want}` };
 
   return { ok: got === want, details: `${got} = ${want}` };
@@ -275,8 +276,24 @@ function simulateFeeAmount(fee, ctx) {
   if (f.type === 'per_piece') units = 1;
   if (f.type === 'flat') units = 1;
 
-  return { amount: safeNum(f.value, 0) * units * multiplier, note: `units=${units} × mult=${multiplier}` };
+  return { amount: safeNum(f.value, 0) * units * multiplier, note: `units=${units} x mult=${multiplier}` };
 }
+
+/* ------------------------------------------------------------------ */
+/* Tab definitions                                                     */
+/* ------------------------------------------------------------------ */
+
+const TABS = [
+  { id: 'basics', icon: 'Settings', label_cs: 'Zaklad', label_en: 'Basics' },
+  { id: 'calc', icon: 'Calculator', label_cs: 'Vypocet', label_en: 'Calculation' },
+  { id: 'widget', icon: 'Eye', label_cs: 'Widget', label_en: 'Widget' },
+  { id: 'conditions', icon: 'Filter', label_cs: 'Podminky', label_en: 'Conditions' },
+  { id: 'preview', icon: 'Play', label_cs: 'Preview', label_en: 'Preview' },
+];
+
+/* ================================================================== */
+/* Component                                                           */
+/* ================================================================== */
 
 const AdminFees = () => {
   const { t, language } = useLanguage();
@@ -286,7 +303,6 @@ const AdminFees = () => {
   const [saving, setSaving] = useState(false);
 
   const [fees, setFees] = useState([]);
-  const [activeId, setActiveId] = useState(null);
 
   const [selectedIds, setSelectedIds] = useState([]); // bulk selection
 
@@ -297,6 +313,11 @@ const AdminFees = () => {
 
   const [banner, setBanner] = useState(null); // { type, text }
   const [savedSnapshot, setSavedSnapshot] = useState('');
+
+  /* --- Dialog states --- */
+  const [editingFeeId, setEditingFeeId] = useState(null);
+  const [feeDraft, setFeeDraft] = useState(null);
+  const [activeTab, setActiveTab] = useState('basics');
 
   const [materials, setMaterials] = useState([]);
 
@@ -314,12 +335,15 @@ const AdminFees = () => {
     modelSelected: true,
   });
 
+  /* ---------------------------------------------------------------- */
+  /* Init                                                              */
+  /* ---------------------------------------------------------------- */
+
   useEffect(() => {
     try {
       const cfg = loadFeesConfigV3();
       const normalized = normalizeFeesConfigV3(cfg);
       setFees(normalized.fees || []);
-      setActiveId(normalized.fees?.[0]?.id || null);
       setSavedSnapshot(JSON.stringify(normalized.fees || []));
 
       const pricing = loadPricingConfigV3();
@@ -334,19 +358,18 @@ const AdminFees = () => {
     } catch (e) {
       console.error('[AdminFees] Failed to init', e);
       setLoading(false);
-      setBanner({ type: 'error', text: cs ? 'Nepodařilo se načíst Fees konfiguraci.' : 'Failed to load fees config.' });
+      setBanner({ type: 'error', text: cs ? 'Nepodarilo se nacist Fees konfiguraci.' : 'Failed to load fees config.' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ---------------------------------------------------------------- */
+  /* Derived / memos                                                   */
+  /* ---------------------------------------------------------------- */
+
   const dirty = useMemo(() => {
     return savedSnapshot !== JSON.stringify((fees || []).map((f, idx) => normalizeFeeUi(f, idx)));
   }, [fees, savedSnapshot]);
-
-  const activeFee = useMemo(() => {
-    const hit = (fees || []).find((f) => f?.id === activeId);
-    return hit ? normalizeFeeUi(hit) : null;
-  }, [fees, activeId]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -395,20 +418,20 @@ const AdminFees = () => {
     return {
       title: cs ? 'Fees (Poplatky)' : 'Fees',
       subtitle: cs
-        ? 'Vytvoř poplatky/slevy, nastav scope (MODEL/ORDER), způsob výpočtu, charge basis (PER_PIECE/PER_FILE) a typed podmínky (AND).'
+        ? 'Vytvor poplatky/slevy, nastav scope (MODEL/ORDER), zpusob vypoctu, charge basis (PER_PIECE/PER_FILE) a typed podminky (AND).'
         : 'Create fees/discounts, configure scope (MODEL/ORDER), calculation, charge basis (PER_PIECE/PER_FILE) and typed AND conditions.',
 
-      newFee: cs ? 'Nový poplatek' : 'New fee',
-      save: cs ? 'Uložit' : 'Save',
-      saving: cs ? 'Ukládám…' : 'Saving…',
-      saved: cs ? 'Uloženo' : 'Saved',
-      unsaved: cs ? 'Neuložené změny' : 'Unsaved changes',
-      invalid: cs ? 'Oprav chyby ve formuláři (např. název / podmínky).' : 'Fix form errors (e.g. name / conditions).',
+      newFee: cs ? 'Novy poplatek' : 'New fee',
+      save: cs ? 'Ulozit' : 'Save',
+      saving: cs ? 'Ukladam...' : 'Saving...',
+      saved: cs ? 'Ulozeno' : 'Saved',
+      unsaved: cs ? 'Neulozene zmeny' : 'Unsaved changes',
+      invalid: cs ? 'Oprav chyby ve formulari (napr. nazev / podminky).' : 'Fix form errors (e.g. name / conditions).',
 
-      search: cs ? 'Hledat…' : 'Search…',
+      search: cs ? 'Hledat...' : 'Search...',
       filters: cs ? 'Filtry' : 'Filters',
 
-      bulk: cs ? 'Hromadné akce' : 'Bulk actions',
+      bulk: cs ? 'Hromadne akce' : 'Bulk actions',
       enable: cs ? 'Zapnout' : 'Enable',
       disable: cs ? 'Vypnout' : 'Disable',
       duplicate: cs ? 'Duplikovat' : 'Duplicate',
@@ -417,30 +440,122 @@ const AdminFees = () => {
       editorTitle: cs ? 'Editor poplatku' : 'Fee editor',
       emptyEditor: cs ? 'Vyber poplatek vlevo.' : 'Select a fee on the left.',
 
-      sectionBasic: cs ? 'Základ' : 'Basics',
-      sectionCalc: cs ? 'Výpočet' : 'Calculation',
+      sectionBasic: cs ? 'Zaklad' : 'Basics',
+      sectionCalc: cs ? 'Vypocet' : 'Calculation',
       sectionWidget: cs ? 'Viditelnost ve widgetu' : 'Widget visibility',
-      sectionConditions: cs ? 'Podmínky (AND)' : 'Conditions (AND)',
+      sectionConditions: cs ? 'Podminky (AND)' : 'Conditions (AND)',
       sectionPreview: cs ? 'Preview / Simulator' : 'Preview / Simulator',
 
-      required: cs ? 'Povinný (vždy zahrnutý)' : 'Required (always included)',
-      selectable: cs ? 'Volitelný (checkbox ve widgetu)' : 'Optional (checkbox in widget)',
-      selectedByDefault: cs ? 'Zaškrtnuto defaultně' : 'Selected by default',
+      required: cs ? 'Povinny (vzdy zahrnuty)' : 'Required (always included)',
+      selectable: cs ? 'Volitelny (checkbox ve widgetu)' : 'Optional (checkbox in widget)',
+      selectedByDefault: cs ? 'Zaskrtnuto defaultne' : 'Selected by default',
       applyToSelected: cs ? 'Apply pouze na selected models' : 'Apply only to selected models',
 
-      confirmDelete: cs ? 'Opravdu smazat vybrané položky?' : 'Delete selected items?',
-      noFees: cs ? 'Zatím žádné fees' : 'No fees yet',
-      noFeesHint: cs ? 'Klikni na „Nový poplatek“.' : 'Click “New fee”.',
+      confirmDelete: cs ? 'Opravdu smazat vybrane polozky?' : 'Delete selected items?',
+      noFees: cs ? 'Zatim zadne fees' : 'No fees yet',
+      noFeesHint: cs ? 'Klikni na "Novy poplatek".' : 'Click "New fee".',
 
       match: cs ? 'MATCH' : 'MATCH',
       noMatch: cs ? 'NO MATCH' : 'NO MATCH',
       discount: cs ? 'Sleva' : 'Discount',
 
       simHint: cs
-        ? 'Simulator počítá pouze hodnotu jednoho fee (ne celý pricing). Pro percent zadej base částku (subtotal bez percent položek v daném scope).'
+        ? 'Simulator pocita pouze hodnotu jednoho fee (ne cely pricing). Pro percent zadej base castku (subtotal bez percent polozek v danem scope).'
         : 'Simulator computes only this fee (not full pricing). For percent, provide base amount (subtotal without percent fees in the same scope).',
     };
   }, [cs]);
+
+  const materialOptions = useMemo(() => {
+    const enabled = (materials || []).filter((m) => m?.enabled !== false);
+    return enabled.map((m) => ({ value: m.key, label: `${m.name} (${m.key})` }));
+  }, [materials]);
+
+  /* ---------------------------------------------------------------- */
+  /* Draft validation                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const draftValid = useMemo(() => {
+    if (!feeDraft) return false;
+    if (!String(feeDraft.name || '').trim()) return false;
+    if (!Number.isFinite(Number(feeDraft.value))) return false;
+    for (const c of (feeDraft.conditions || [])) {
+      const key = String(c?.key || '').trim();
+      if (!key) return false;
+      if (BOOL_KEYS.has(key)) continue;
+      const op = mapLegacyOp(c?.op || c?.operator);
+      if (!op) return false;
+      const v = c?.value;
+      if (v === null || v === undefined || v === '') return false;
+    }
+    return true;
+  }, [feeDraft]);
+
+  /* ---------------------------------------------------------------- */
+  /* Simulator result (uses feeDraft)                                  */
+  /* ---------------------------------------------------------------- */
+
+  const simResult = useMemo(() => {
+    if (!feeDraft) return null;
+    const ctx = {
+      material: sim.material,
+      supports_enabled: !!sim.supports_enabled,
+      infill_percent: safeNum(sim.infill_percent, 0),
+      quality_preset: sim.quality_preset,
+      filamentGrams: safeNum(sim.filamentGrams, 0),
+      estimatedTimeSeconds: safeNum(sim.estimatedTimeSeconds, 0),
+      volumeCm3: safeNum(sim.volumeCm3, 0),
+      surfaceCm2: safeNum(sim.surfaceCm2, 0),
+      quantity: clampMin1(sim.quantity),
+      percentBase: safeNum(sim.percentBase, 0),
+      modelSelected: !!sim.modelSelected,
+    };
+
+    const conds = feeDraft.conditions || [];
+    const results = conds.map((c) => {
+      const r = evaluateCondition(c, ctx);
+      return { cond: c, ok: r.ok, details: r.details };
+    });
+
+    const match = results.every((r) => r.ok);
+    const amt = match ? simulateFeeAmount(feeDraft, ctx) : { amount: 0, note: 'NO MATCH' };
+
+    return {
+      match,
+      results,
+      amount: amt.amount,
+      note: amt.note,
+    };
+  }, [feeDraft, sim]);
+
+  /* ---------------------------------------------------------------- */
+  /* conditionUi helper                                                */
+  /* ---------------------------------------------------------------- */
+
+  const conditionUi = (cond, idx) => {
+    const key = String(cond?.key || '').trim();
+    const op = mapLegacyOp(cond?.op || cond?.operator);
+
+    const isBool = BOOL_KEYS.has(key);
+    const isNum = NUMERIC_KEYS.has(key);
+    const isEnum = ENUM_KEYS.has(key);
+
+    const ops = isNum ? NUM_OPERATORS : isBool ? [{ value: 'eq', label: '=' }] : TEXT_OPERATORS;
+
+    return {
+      key,
+      op: op || (isNum ? 'gte' : 'eq'),
+      ops,
+      isBool,
+      isNum,
+      isEnum,
+      value: cond?.value,
+      idx,
+    };
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Fee CRUD handlers (list-level)                                    */
+  /* ---------------------------------------------------------------- */
 
   const setFee = (feeId, patch) => {
     setFees((prev) => {
@@ -457,7 +572,7 @@ const AdminFees = () => {
     const id = createId('fee');
     const next = normalizeFeeUi({
       id,
-      name: cs ? 'Nový poplatek' : 'New fee',
+      name: cs ? 'Novy poplatek' : 'New fee',
       active: true,
       type: 'flat',
       value: 0,
@@ -472,7 +587,9 @@ const AdminFees = () => {
       conditions: [],
     });
     setFees((prev) => [next, ...(prev || [])]);
-    setActiveId(id);
+    setFeeDraft(deepClone(next));
+    setEditingFeeId(id);
+    setActiveTab('basics');
     setBanner(null);
   };
 
@@ -485,6 +602,100 @@ const AdminFees = () => {
       active: src.active,
     });
   };
+
+  const removeFee = (id) => {
+    const ok = window.confirm(cs ? 'Smazat tento poplatek?' : 'Delete this fee?');
+    if (!ok) return;
+    setFees((prev) => (prev || []).filter((f) => f?.id !== id));
+    setSelectedIds((prev) => prev.filter((x) => x !== id));
+    if (editingFeeId === id) {
+      setEditingFeeId(null);
+      setFeeDraft(null);
+    }
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Dialog open / close / save                                        */
+  /* ---------------------------------------------------------------- */
+
+  const openFeeDialog = (feeId) => {
+    const raw = (fees || []).find(f => f?.id === feeId);
+    if (!raw) return;
+    const draft = normalizeFeeUi(deepClone(raw));
+    setFeeDraft(draft);
+    setEditingFeeId(feeId);
+    setActiveTab('basics');
+  };
+
+  const closeFeeDialog = () => {
+    setEditingFeeId(null);
+    setFeeDraft(null);
+  };
+
+  const saveFeeDialog = () => {
+    if (!feeDraft || !editingFeeId) return;
+    setFees(prev => (prev || []).map((raw, idx) => {
+      const f = normalizeFeeUi(raw, idx);
+      if (f.id !== editingFeeId) return raw;
+      return normalizeFeeUi(feeDraft, idx);
+    }));
+    closeFeeDialog();
+  };
+
+  const updateFeeDraft = (patch) => {
+    setFeeDraft(prev => {
+      if (!prev) return prev;
+      return normalizeFeeUi({ ...prev, ...(patch || {}) });
+    });
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Draft condition handlers                                          */
+  /* ---------------------------------------------------------------- */
+
+  const addDraftCondition = () => {
+    if (!feeDraft) return;
+    const fallbackKey = materialOptions?.[0]?.value ? 'material' : 'quality_preset';
+    const next = { key: fallbackKey, op: 'eq', value: fallbackKey === 'quality_preset' ? 'standard' : materialOptions?.[0]?.value || '' };
+    updateFeeDraft({ conditions: [...(feeDraft.conditions || []), next] });
+  };
+
+  const updateDraftCondition = (idx, patch) => {
+    if (!feeDraft) return;
+    const list = [...(feeDraft.conditions || [])];
+    const cur = list[idx] || {};
+    const next = { ...cur, ...(patch || {}) };
+    const key = String(next.key || '').trim();
+    if (BOOL_KEYS.has(key)) {
+      next.op = 'eq';
+      if (next.value !== true && next.value !== false) next.value = false;
+    }
+    if (NUMERIC_KEYS.has(key)) {
+      next.op = mapLegacyOp(next.op) || 'gte';
+      next.value = safeNum(next.value, 0);
+    }
+    if (key === 'material') {
+      next.op = mapLegacyOp(next.op) || 'eq';
+      if (next.value === undefined || next.value === null) next.value = '';
+    }
+    if (key === 'quality_preset') {
+      next.op = 'eq';
+      if (!next.value) next.value = 'standard';
+    }
+    list[idx] = next;
+    updateFeeDraft({ conditions: list });
+  };
+
+  const removeDraftCondition = (idx) => {
+    if (!feeDraft) return;
+    const list = [...(feeDraft.conditions || [])];
+    list.splice(idx, 1);
+    updateFeeDraft({ conditions: list });
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Bulk selection                                                    */
+  /* ---------------------------------------------------------------- */
 
   const toggleSelect = (feeId) => {
     setSelectedIds((prev) => {
@@ -514,7 +725,6 @@ const AdminFees = () => {
     setBanner({ type: 'success', text: enabled ? (cs ? 'Zapnuto.' : 'Enabled.') : cs ? 'Vypnuto.' : 'Disabled.' });
   };
 
-  // N5: quick tags (scope / required) in bulkbar
   const bulkSetScope = (nextScope) => {
     if (selectedIds.length === 0) return;
     const scope = String(nextScope || '').toUpperCase() === 'ORDER' ? 'ORDER' : 'MODEL';
@@ -544,7 +754,7 @@ const AdminFees = () => {
         return { ...f, required: false, selectable: true, selected_by_default: false };
       })
     );
-    setBanner({ type: 'success', text: required ? (cs ? 'Nastaveno: Povinné' : 'Set: Required') : cs ? 'Nastaveno: Volitelné' : 'Set: Optional' });
+    setBanner({ type: 'success', text: required ? (cs ? 'Nastaveno: Povinne' : 'Set: Required') : cs ? 'Nastaveno: Volitelne' : 'Set: Optional' });
   };
 
   const bulkDuplicate = () => {
@@ -554,7 +764,7 @@ const AdminFees = () => {
       .map((f) => duplicateFee(f));
     if (!copies.length) return;
     setFees((prev) => [...copies, ...(prev || [])]);
-    setBanner({ type: 'success', text: cs ? 'Duplikováno.' : 'Duplicated.' });
+    setBanner({ type: 'success', text: cs ? 'Duplikovano.' : 'Duplicated.' });
   };
 
   const bulkDelete = () => {
@@ -562,10 +772,17 @@ const AdminFees = () => {
     const ok = window.confirm(ui.confirmDelete);
     if (!ok) return;
     setFees((prev) => (prev || []).filter((f) => !selectedSet.has(f?.id)));
-    if (selectedSet.has(activeId)) setActiveId(null);
+    if (selectedSet.has(editingFeeId)) {
+      setEditingFeeId(null);
+      setFeeDraft(null);
+    }
     clearSelection();
-    setBanner({ type: 'success', text: cs ? 'Smazáno.' : 'Deleted.' });
+    setBanner({ type: 'success', text: cs ? 'Smazano.' : 'Deleted.' });
   };
+
+  /* ---------------------------------------------------------------- */
+  /* Save to storage                                                   */
+  /* ---------------------------------------------------------------- */
 
   const handleSave = () => {
     setBanner(null);
@@ -585,120 +802,13 @@ const AdminFees = () => {
     } catch (e) {
       console.error('[AdminFees] Save failed', e);
       setSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Uložení selhalo.' : 'Save failed.' });
+      setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
     }
   };
 
-  const materialOptions = useMemo(() => {
-    const enabled = (materials || []).filter((m) => m?.enabled !== false);
-    return enabled.map((m) => ({ value: m.key, label: `${m.name} (${m.key})` }));
-  }, [materials]);
-
-  const simResult = useMemo(() => {
-    if (!activeFee) return null;
-    const ctx = {
-      material: sim.material,
-      supports_enabled: !!sim.supports_enabled,
-      infill_percent: safeNum(sim.infill_percent, 0),
-      quality_preset: sim.quality_preset,
-      filamentGrams: safeNum(sim.filamentGrams, 0),
-      estimatedTimeSeconds: safeNum(sim.estimatedTimeSeconds, 0),
-      volumeCm3: safeNum(sim.volumeCm3, 0),
-      surfaceCm2: safeNum(sim.surfaceCm2, 0),
-      quantity: clampMin1(sim.quantity),
-      percentBase: safeNum(sim.percentBase, 0),
-      modelSelected: !!sim.modelSelected,
-    };
-
-    const conds = activeFee.conditions || [];
-    const results = conds.map((c) => {
-      const r = evaluateCondition(c, ctx);
-      return { cond: c, ok: r.ok, details: r.details };
-    });
-
-    const match = results.every((r) => r.ok);
-    const amt = match ? simulateFeeAmount(activeFee, ctx) : { amount: 0, note: 'NO MATCH' };
-
-    return {
-      match,
-      results,
-      amount: amt.amount,
-      note: amt.note,
-    };
-  }, [activeFee, sim]);
-
-  const conditionUi = (cond, idx) => {
-    const key = String(cond?.key || '').trim();
-    const op = mapLegacyOp(cond?.op || cond?.operator);
-
-    const isBool = BOOL_KEYS.has(key);
-    const isNum = NUMERIC_KEYS.has(key);
-    const isEnum = ENUM_KEYS.has(key);
-
-    const ops = isNum ? NUM_OPERATORS : isBool ? [{ value: 'eq', label: '=' }] : TEXT_OPERATORS;
-
-    return {
-      key,
-      op: op || (isNum ? 'gte' : 'eq'),
-      ops,
-      isBool,
-      isNum,
-      isEnum,
-      value: cond?.value,
-      idx,
-    };
-  };
-
-  const addCondition = () => {
-    if (!activeFee) return;
-    const fallbackKey = materialOptions?.[0]?.value ? 'material' : 'quality_preset';
-    const next = { key: fallbackKey, op: 'eq', value: fallbackKey === 'quality_preset' ? 'standard' : materialOptions?.[0]?.value || '' };
-    setFee(activeFee.id, { conditions: [...(activeFee.conditions || []), next] });
-  };
-
-  const updateCondition = (idx, patch) => {
-    if (!activeFee) return;
-    const list = [...(activeFee.conditions || [])];
-    const cur = list[idx] || {};
-    const next = { ...cur, ...(patch || {}) };
-
-    // normalize key-specific defaults
-    const key = String(next.key || '').trim();
-    if (BOOL_KEYS.has(key)) {
-      next.op = 'eq';
-      if (next.value !== true && next.value !== false) next.value = false;
-    }
-    if (NUMERIC_KEYS.has(key)) {
-      next.op = mapLegacyOp(next.op) || 'gte';
-      next.value = safeNum(next.value, 0);
-    }
-    if (key === 'material') {
-      next.op = mapLegacyOp(next.op) || 'eq';
-      if (next.value === undefined || next.value === null) next.value = '';
-    }
-    if (key === 'quality_preset') {
-      next.op = 'eq';
-      if (!next.value) next.value = 'standard';
-    }
-
-    list[idx] = next;
-    setFee(activeFee.id, { conditions: list });
-  };
-
-  const removeCondition = (idx) => {
-    if (!activeFee) return;
-    const list = [...(activeFee.conditions || [])];
-    list.splice(idx, 1);
-    setFee(activeFee.id, { conditions: list });
-  };
-
-  const removeFee = (id) => {
-    const ok = window.confirm(cs ? 'Smazat tento poplatek?' : 'Delete this fee?');
-    if (!ok) return;
-    setFees((prev) => (prev || []).filter((f) => f?.id !== id));
-    setSelectedIds((prev) => prev.filter((x) => x !== id));
-    if (activeId === id) setActiveId(null);
-  };
+  /* ================================================================ */
+  /* Render: loading                                                   */
+  /* ================================================================ */
 
   if (loading) {
     return (
@@ -707,13 +817,17 @@ const AdminFees = () => {
           <div className="card-body" style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="Loader2" size={18} />
-              <span>{cs ? 'Načítám…' : 'Loading…'}</span>
+              <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
             </div>
           </div>
         </div>
       </div>
     );
   }
+
+  /* ================================================================ */
+  /* Render: main                                                      */
+  /* ================================================================ */
 
   return (
     <div className="admin-page">
@@ -754,7 +868,7 @@ const AdminFees = () => {
       ) : null}
 
       <div className="fees-layout">
-        {/* LEFT: LIST */}
+        {/* FULL-WIDTH LIST */}
         <div className="fees-panel">
           <div className="panel-header">
             <div className="panel-title">
@@ -770,21 +884,21 @@ const AdminFees = () => {
 
               <div className="filters">
                 <select value={filterScope} onChange={(e) => setFilterScope(e.target.value)}>
-                  <option value="ALL">{cs ? 'Scope: vše' : 'Scope: all'}</option>
+                  <option value="ALL">{cs ? 'Scope: vse' : 'Scope: all'}</option>
                   <option value="MODEL">MODEL</option>
                   <option value="ORDER">ORDER</option>
                 </select>
 
                 <select value={filterActive} onChange={(e) => setFilterActive(e.target.value)}>
-                  <option value="ALL">{cs ? 'Stav: vše' : 'Status: all'}</option>
-                  <option value="ACTIVE">{cs ? 'Aktivní' : 'Active'}</option>
-                  <option value="INACTIVE">{cs ? 'Neaktivní' : 'Inactive'}</option>
+                  <option value="ALL">{cs ? 'Stav: vse' : 'Status: all'}</option>
+                  <option value="ACTIVE">{cs ? 'Aktivni' : 'Active'}</option>
+                  <option value="INACTIVE">{cs ? 'Neaktivni' : 'Inactive'}</option>
                 </select>
 
                 <select value={filterRequired} onChange={(e) => setFilterRequired(e.target.value)}>
-                  <option value="ALL">{cs ? 'Widget: vše' : 'Widget: all'}</option>
-                  <option value="REQUIRED">{cs ? 'Povinné' : 'Required'}</option>
-                  <option value="OPTIONAL">{cs ? 'Volitelné' : 'Optional'}</option>
+                  <option value="ALL">{cs ? 'Widget: vse' : 'Widget: all'}</option>
+                  <option value="REQUIRED">{cs ? 'Povinne' : 'Required'}</option>
+                  <option value="OPTIONAL">{cs ? 'Volitelne' : 'Optional'}</option>
                 </select>
               </div>
             </div>
@@ -797,10 +911,10 @@ const AdminFees = () => {
                     checked={selectedIds.length > 0 && selectedIds.length === filteredFees.length}
                     onChange={(e) => (e.target.checked ? selectAllFiltered() : clearSelection())}
                   />
-                  <span>{cs ? 'Vybrat vše' : 'Select all'}</span>
+                  <span>{cs ? 'Vybrat vse' : 'Select all'}</span>
                 </label>
 
-                {selectedIds.length ? <span className="muted">{cs ? `Vybráno: ${selectedIds.length}` : `Selected: ${selectedIds.length}`}</span> : null}
+                {selectedIds.length ? <span className="muted">{cs ? `Vybrano: ${selectedIds.length}` : `Selected: ${selectedIds.length}`}</span> : null}
               </div>
 
               {selectedIds.length ? (
@@ -829,8 +943,8 @@ const AdminFees = () => {
                       <button type="button" onClick={() => bulkSetScope('ORDER')}>ORDER</button>
                     </div>
                     <div className="segmented" title={cs ? 'Widget' : 'Widget'}>
-                      <button type="button" onClick={() => bulkSetRequired(true)}>{cs ? 'Povinné' : 'Required'}</button>
-                      <button type="button" onClick={() => bulkSetRequired(false)}>{cs ? 'Volitelné' : 'Optional'}</button>
+                      <button type="button" onClick={() => bulkSetRequired(true)}>{cs ? 'Povinne' : 'Required'}</button>
+                      <button type="button" onClick={() => bulkSetRequired(false)}>{cs ? 'Volitelne' : 'Optional'}</button>
                     </div>
                   </div>
                 </div>
@@ -848,14 +962,14 @@ const AdminFees = () => {
             ) : (
               <div className="fee-list">
                 {filteredFees.map((f) => {
-                  const isActive = f.id === activeId;
+                  const isActive = f.id === editingFeeId;
                   const isSelected = selectedSet.has(f.id);
                   const isDiscount = safeNum(f.value, 0) < 0;
                   const typeLabel = labelFor(FEE_TYPES, f.type, cs);
                   const scopeLabel = labelFor(SCOPE_OPTIONS, f.scope, cs);
 
                   return (
-                    <div key={f.id} className={`fee-row ${isActive ? 'active' : ''}`} onClick={() => setActiveId(f.id)}>
+                    <div key={f.id} className={`fee-row ${isActive ? 'active' : ''}`} onClick={() => openFeeDialog(f.id)}>
                       <div className="fee-row-left" onClick={(e) => e.stopPropagation()}>
                         <label className="checkbox">
                           <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(f.id)} />
@@ -878,7 +992,7 @@ const AdminFees = () => {
                         <div className="fee-row-bottom">
                           <span className="chip">{scopeLabel}</span>
                           <span className="chip">{typeLabel}</span>
-                          <span className="chip">{f.required ? (cs ? 'Povinné' : 'Required') : cs ? 'Volitelné' : 'Optional'}</span>
+                          <span className="chip">{f.required ? (cs ? 'Povinne' : 'Required') : cs ? 'Volitelne' : 'Optional'}</span>
                           {f.scope === 'MODEL' ? <span className="chip">{f.charge_basis}</span> : null}
                           {f.apply_to_selected_models_enabled ? <span className="chip">apply-to-selected</span> : null}
                           <span className={`value ${isDiscount ? 'discount' : ''}`}>{formatFeeValueForList(f)}</span>
@@ -892,555 +1006,542 @@ const AdminFees = () => {
             )}
           </div>
         </div>
+      </div>
 
-        {/* RIGHT: EDITOR */}
-        <div className="fees-editor">
-          {!activeFee ? (
-            <div className="admin-card">
-              <div className="card-body" style={{ padding: 16 }}>
-                <div className="empty-editor">
-                  <Icon name="MousePointer2" size={44} />
-                  <h3>{ui.editorTitle}</h3>
-                  <p>{ui.emptyEditor}</p>
-                </div>
-              </div>
+      {/* ============================================================ */}
+      {/* ForgeDialog — fee editor modal with 5 tabs                    */}
+      {/* ============================================================ */}
+
+      <ForgeDialog
+        open={!!editingFeeId}
+        onClose={closeFeeDialog}
+        title={feeDraft?.name || (cs ? 'Editace fee' : 'Edit fee')}
+        maxWidth="800px"
+        footer={
+          <>
+            <button className="btn-secondary" onClick={closeFeeDialog}>
+              <Icon name="X" size={16} />
+              {cs ? 'Zrusit' : 'Cancel'}
+            </button>
+            <button className="btn-primary" onClick={saveFeeDialog} disabled={!draftValid}>
+              <Icon name="Save" size={16} />
+              {cs ? 'Ulozit zmeny' : 'Save changes'}
+            </button>
+          </>
+        }
+      >
+        {feeDraft && (
+          <>
+            {/* Tab bar */}
+            <div className="tab-bar">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <Icon name={tab.icon} size={14} />
+                  {cs ? tab.label_cs : tab.label_en}
+                </button>
+              ))}
             </div>
-          ) : (
-            <>
-              {/* SECTION: BASIC */}
-              <div className="admin-card">
-                <div className="card-header">
-                  <div>
-                    <h2>{ui.sectionBasic}</h2>
-                    <p className="card-description">{cs ? 'Název, popis, kategorie a aktivace.' : 'Name, description, category and active toggle.'}</p>
+
+            {/* ---- TAB: BASICS ---- */}
+            {activeTab === 'basics' && (
+              <div className="tab-content">
+                <div className="grid2">
+                  <div className="field">
+                    <label>{cs ? 'Nazev' : 'Name'}</label>
+                    <input
+                      className={`input ${!String(feeDraft.name || '').trim() ? 'input-error' : ''}`}
+                      value={feeDraft.name}
+                      onChange={(e) => updateFeeDraft({ name: e.target.value })}
+                      placeholder={cs ? 'Napr. Postprocessing' : 'e.g. Postprocessing'}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Kategorie' : 'Category'}</label>
+                    <input
+                      className="input"
+                      value={feeDraft.category}
+                      onChange={(e) => updateFeeDraft({ category: e.target.value })}
+                      placeholder={cs ? 'Napr. finishing' : 'e.g. finishing'}
+                    />
                   </div>
                 </div>
 
-                <div className="card-body">
-                  <div className="grid2">
-                    <div className="field">
-                      <label>{cs ? 'Název' : 'Name'}</label>
-                      <input
-                        className={`input ${validation.errors.some((e) => e.id === activeFee.id && e.field === 'name') ? 'input-error' : ''}`}
-                        value={activeFee.name}
-                        onChange={(e) => setFee(activeFee.id, { name: e.target.value })}
-                        placeholder={cs ? 'Např. Postprocessing' : 'e.g. Postprocessing'}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Kategorie' : 'Category'}</label>
-                      <input
-                        className="input"
-                        value={activeFee.category}
-                        onChange={(e) => setFee(activeFee.id, { category: e.target.value })}
-                        placeholder={cs ? 'Např. finishing' : 'e.g. finishing'}
-                      />
-                    </div>
+                <div style={{ marginTop: 12 }}>
+                  <div className="field">
+                    <label>{cs ? 'Popis' : 'Description'}</label>
+                    <textarea
+                      className="input"
+                      rows={3}
+                      value={feeDraft.description}
+                      onChange={(e) => updateFeeDraft({ description: e.target.value })}
+                      placeholder={cs ? 'Kratky popis co fee dela...' : 'Short description...'}
+                    />
                   </div>
+                </div>
 
-                  <div className="grid2">
-                    <div className="field" style={{ gridColumn: '1 / -1' }}>
-                      <label>{cs ? 'Popis' : 'Description'}</label>
-                      <textarea
-                        className="input"
-                        rows={3}
-                        value={activeFee.description}
-                        onChange={(e) => setFee(activeFee.id, { description: e.target.value })}
-                        placeholder={cs ? 'Krátký popis co fee dělá…' : 'Short description…'}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="toggles">
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={activeFee.active}
-                        onChange={(e) => setFee(activeFee.id, { active: e.target.checked })}
-                      />
-                      <span>{cs ? 'Aktivní' : 'Active'}</span>
-                    </label>
-                  </div>
+                <div className="toggles" style={{ marginTop: 12 }}>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={feeDraft.active}
+                      onChange={(e) => updateFeeDraft({ active: e.target.checked })}
+                    />
+                    <span>{cs ? 'Aktivni' : 'Active'}</span>
+                  </label>
                 </div>
               </div>
+            )}
 
-              {/* SECTION: CALC */}
-              <div className="admin-card">
-                <div className="card-header">
-                  <div>
-                    <h2>{ui.sectionCalc}</h2>
-                    <p className="card-description">
-                      {cs
-                        ? 'Scope, typ a hodnota. Hodnota může být záporná (sleva).'
-                        : 'Scope, type and value. Value can be negative (discount).'}
-                    </p>
+            {/* ---- TAB: CALCULATION ---- */}
+            {activeTab === 'calc' && (
+              <div className="tab-content">
+                <div className="grid2">
+                  <div className="field">
+                    <label>scope</label>
+                    <select
+                      className="input"
+                      value={feeDraft.scope}
+                      onChange={(e) => updateFeeDraft({ scope: e.target.value })}
+                    >
+                      {SCOPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {cs ? o.label_cs : o.label_en}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label>type</label>
+                    <select
+                      className="input"
+                      value={feeDraft.type}
+                      onChange={(e) => updateFeeDraft({ type: e.target.value })}
+                    >
+                      {FEE_TYPES.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {cs ? o.label_cs : o.label_en}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                <div className="card-body">
-                  <div className="grid2">
-                    <div className="field">
-                      <label>scope</label>
-                      <select
-                        className="input"
-                        value={activeFee.scope}
-                        onChange={(e) => setFee(activeFee.id, { scope: e.target.value })}
-                      >
-                        {SCOPE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {cs ? o.label_cs : o.label_en}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="field">
-                      <label>type</label>
-                      <select
-                        className="input"
-                        value={activeFee.type}
-                        onChange={(e) => setFee(activeFee.id, { type: e.target.value })}
-                      >
-                        {FEE_TYPES.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {cs ? o.label_cs : o.label_en}
-                          </option>
-                        ))}
-                      </select>
+                <div className="grid2" style={{ marginTop: 12 }}>
+                  <div className="field">
+                    <label>{cs ? 'Hodnota' : 'Value'}</label>
+                    <input
+                      className={`input ${!Number.isFinite(Number(feeDraft.value)) ? 'input-error' : ''}`}
+                      type="number"
+                      step="0.01"
+                      value={feeDraft.value}
+                      onChange={(e) => updateFeeDraft({ value: safeNum(e.target.value, 0) })}
+                    />
+                    <div className="help">
+                      {feeDraft.type === 'percent'
+                        ? cs
+                          ? 'Hodnota v % (muze byt i zaporna => sleva).'
+                          : 'Value in % (can be negative => discount).'
+                        : cs
+                          ? 'Muze byt zaporne cislo (sleva).'
+                          : 'Can be negative (discount).'}
                     </div>
                   </div>
 
-                  <div className="grid2">
-                    <div className="field">
-                      <label>{cs ? 'Hodnota' : 'Value'}</label>
-                      <input
-                        className={`input ${validation.errors.some((e) => e.id === activeFee.id && e.field === 'value') ? 'input-error' : ''}`}
-                        type="number"
-                        step="0.01"
-                        value={activeFee.value}
-                        onChange={(e) => setFee(activeFee.id, { value: safeNum(e.target.value, 0) })}
-                      />
-                      <div className="help">
-                        {activeFee.type === 'percent'
+                  <div className="field">
+                    <label>charge_basis</label>
+                    {feeDraft.scope === 'MODEL' && feeDraft.type !== 'percent' ? (
+                      <select
+                        className="input"
+                        value={feeDraft.charge_basis}
+                        onChange={(e) => updateFeeDraft({ charge_basis: e.target.value })}
+                      >
+                        {CHARGE_BASIS_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {cs ? o.label_cs : o.label_en}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="readonly">PER_FILE</div>
+                    )}
+                    <div className="help">
+                      {feeDraft.scope === 'ORDER'
+                        ? cs
+                          ? 'ORDER scope je vzdy 1x za objednavku.'
+                          : 'ORDER scope is always once per order.'
+                        : feeDraft.type === 'percent'
                           ? cs
-                            ? 'Hodnota v % (může být i záporná => sleva).'
-                            : 'Value in % (can be negative => discount).'
+                            ? 'Percent fee se aplikuje na base castku, ne na quantity.'
+                            : 'Percent fee applies to base amount, not quantity.'
                           : cs
-                            ? 'Může být záporné číslo (sleva).'
-                            : 'Can be negative (discount).'}
-                      </div>
-                    </div>
-
-                    <div className="field">
-                      <label>charge_basis</label>
-                      {activeFee.scope === 'MODEL' && activeFee.type !== 'percent' ? (
-                        <select
-                          className="input"
-                          value={activeFee.charge_basis}
-                          onChange={(e) => setFee(activeFee.id, { charge_basis: e.target.value })}
-                        >
-                          {CHARGE_BASIS_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {cs ? o.label_cs : o.label_en}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="readonly">PER_FILE</div>
-                      )}
-                      <div className="help">
-                        {activeFee.scope === 'ORDER'
-                          ? cs
-                            ? 'ORDER scope je vždy 1× za objednávku.'
-                            : 'ORDER scope is always once per order.'
-                          : activeFee.type === 'percent'
-                            ? cs
-                              ? 'Percent fee se aplikuje na base částku, ne na quantity.'
-                              : 'Percent fee applies to base amount, not quantity.'
-                            : cs
-                              ? 'PER_PIECE násobí quantity. PER_FILE je 1× za nahraný soubor.'
-                              : 'PER_PIECE multiplies quantity. PER_FILE is once per uploaded file.'}
-                      </div>
+                            ? 'PER_PIECE nasobi quantity. PER_FILE je 1x za nahrany soubor.'
+                            : 'PER_PIECE multiplies quantity. PER_FILE is once per uploaded file.'}
                     </div>
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* SECTION: WIDGET */}
-              <div className="admin-card">
-                <div className="card-header">
-                  <div>
-                    <h2>{ui.sectionWidget}</h2>
-                    <p className="card-description">
-                      {cs
-                        ? 'Povinné/volitelné, default select a apply-to-selected-models flag.'
-                        : 'Required/optional, default selection and apply-to-selected-models flag.'}
-                    </p>
-                  </div>
+            {/* ---- TAB: WIDGET ---- */}
+            {activeTab === 'widget' && (
+              <div className="tab-content">
+                <div className="toggles">
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={feeDraft.required}
+                      onChange={(e) => updateFeeDraft({ required: e.target.checked })}
+                    />
+                    <span>{ui.required}</span>
+                  </label>
+
+                  <label className={`toggle ${feeDraft.required ? 'disabled' : ''}`}>
+                    <input
+                      type="checkbox"
+                      disabled={feeDraft.required}
+                      checked={feeDraft.selectable}
+                      onChange={(e) => updateFeeDraft({ selectable: e.target.checked })}
+                    />
+                    <span>{ui.selectable}</span>
+                  </label>
+
+                  <label className={`toggle ${feeDraft.required || !feeDraft.selectable ? 'disabled' : ''}`}>
+                    <input
+                      type="checkbox"
+                      disabled={feeDraft.required || !feeDraft.selectable}
+                      checked={feeDraft.selected_by_default}
+                      onChange={(e) => updateFeeDraft({ selected_by_default: e.target.checked })}
+                    />
+                    <span>{ui.selectedByDefault}</span>
+                  </label>
+
+                  <label className={`toggle ${feeDraft.scope !== 'MODEL' ? 'disabled' : ''}`}>
+                    <input
+                      type="checkbox"
+                      disabled={feeDraft.scope !== 'MODEL'}
+                      checked={feeDraft.apply_to_selected_models_enabled}
+                      onChange={(e) => updateFeeDraft({ apply_to_selected_models_enabled: e.target.checked })}
+                    />
+                    <span>{ui.applyToSelected}</span>
+                  </label>
                 </div>
 
-                <div className="card-body">
-                  <div className="toggles">
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={activeFee.required}
-                        onChange={(e) => setFee(activeFee.id, { required: e.target.checked })}
-                      />
-                      <span>{ui.required}</span>
-                    </label>
-
-                    <label className={`toggle ${activeFee.required ? 'disabled' : ''}`}>
-                      <input
-                        type="checkbox"
-                        disabled={activeFee.required}
-                        checked={activeFee.selectable}
-                        onChange={(e) => setFee(activeFee.id, { selectable: e.target.checked })}
-                      />
-                      <span>{ui.selectable}</span>
-                    </label>
-
-                    <label className={`toggle ${activeFee.required || !activeFee.selectable ? 'disabled' : ''}`}>
-                      <input
-                        type="checkbox"
-                        disabled={activeFee.required || !activeFee.selectable}
-                        checked={activeFee.selected_by_default}
-                        onChange={(e) => setFee(activeFee.id, { selected_by_default: e.target.checked })}
-                      />
-                      <span>{ui.selectedByDefault}</span>
-                    </label>
-
-                    <label className={`toggle ${activeFee.scope !== 'MODEL' ? 'disabled' : ''}`}>
-                      <input
-                        type="checkbox"
-                        disabled={activeFee.scope !== 'MODEL'}
-                        checked={activeFee.apply_to_selected_models_enabled}
-                        onChange={(e) => setFee(activeFee.id, { apply_to_selected_models_enabled: e.target.checked })}
-                      />
-                      <span>{ui.applyToSelected}</span>
-                    </label>
+                {feeDraft.scope !== 'MODEL' ? (
+                  <div className="help" style={{ marginTop: 8 }}>
+                    {cs ? 'apply-to-selected se tyka pouze MODEL scope.' : 'apply-to-selected applies to MODEL scope only.'}
                   </div>
-
-                  {activeFee.scope !== 'MODEL' ? (
-                    <div className="help" style={{ marginTop: 8 }}>
-                      {cs ? 'apply-to-selected se týká pouze MODEL scope.' : 'apply-to-selected applies to MODEL scope only.'}
-                    </div>
-                  ) : null}
-                </div>
+                ) : null}
               </div>
+            )}
 
-              {/* SECTION: CONDITIONS */}
-              <div className="admin-card">
-                <div className="card-header">
-                  <div>
-                    <h2>{ui.sectionConditions}</h2>
-                    <p className="card-description">
-                      {cs
-                        ? 'Všechny podmínky musí platit (AND). Podmínky jsou typed podle klíče.'
-                        : 'All conditions must match (AND). Conditions are typed by key.'}
-                    </p>
+            {/* ---- TAB: CONDITIONS ---- */}
+            {activeTab === 'conditions' && (
+              <div className="tab-content">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div className="help" style={{ margin: 0 }}>
+                    {cs
+                      ? 'Vsechny podminky musi platit (AND). Podminky jsou typed podle klice.'
+                      : 'All conditions must match (AND). Conditions are typed by key.'}
                   </div>
-                  <button className="btn-secondary" onClick={addCondition}>
-                    <Icon name="Plus" size={18} />
-                    {cs ? 'Přidat podmínku' : 'Add condition'}
+                  <button className="btn-secondary" onClick={addDraftCondition}>
+                    <Icon name="Plus" size={16} />
+                    {cs ? 'Pridat podminku' : 'Add condition'}
                   </button>
                 </div>
 
-                <div className="card-body">
-                  {activeFee.conditions.length === 0 ? (
-                    <div className="help">{cs ? 'Žádné podmínky → fee platí vždy.' : 'No conditions → fee matches always.'}</div>
-                  ) : (
-                    <div className="conditions">
-                      {activeFee.conditions.map((c, idx) => {
-                        const cu = conditionUi(c, idx);
+                {(feeDraft.conditions || []).length === 0 ? (
+                  <div className="help">{cs ? 'Zadne podminky => fee plati vzdy.' : 'No conditions => fee matches always.'}</div>
+                ) : (
+                  <div className="conditions">
+                    {(feeDraft.conditions || []).map((c, idx) => {
+                      const cu = conditionUi(c, idx);
 
-                        return (
-                          <div key={`${activeFee.id}_cond_${idx}`} className="cond-row">
-                            <div className="cond-and">{idx === 0 ? '' : 'AND'}</div>
+                      return (
+                        <div key={`${feeDraft.id}_cond_${idx}`} className="cond-row">
+                          <div className="cond-and">{idx === 0 ? '' : 'AND'}</div>
 
-                            <div className="cond-grid">
-                              <div className="field">
-                                <label>{cs ? 'Klíč' : 'Key'}</label>
+                          <div className="cond-grid">
+                            <div className="field">
+                              <label>{cs ? 'Klic' : 'Key'}</label>
+                              <select
+                                className="input"
+                                value={cu.key}
+                                onChange={(e) => {
+                                  const nextKey = e.target.value;
+                                  if (nextKey === 'supports_enabled') updateDraftCondition(idx, { key: nextKey, op: 'eq', value: false });
+                                  else if (nextKey === 'material') updateDraftCondition(idx, { key: nextKey, op: 'eq', value: materialOptions?.[0]?.value || '' });
+                                  else if (nextKey === 'quality_preset') updateDraftCondition(idx, { key: nextKey, op: 'eq', value: 'standard' });
+                                  else updateDraftCondition(idx, { key: nextKey, op: 'gte', value: 0 });
+                                }}
+                              >
+                                {CONDITION_KEYS.map((k) => (
+                                  <option key={k.key} value={k.key}>
+                                    {cs ? k.label_cs : k.label_en}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="field">
+                              <label>{cs ? 'Operator' : 'Operator'}</label>
+                              {cu.isBool || cu.key === 'quality_preset' ? (
+                                <div className="readonly">=</div>
+                              ) : (
                                 <select
                                   className="input"
-                                  value={cu.key}
-                                  onChange={(e) => {
-                                    const nextKey = e.target.value;
-                                    // key change => reset op/value defaults
-                                    if (nextKey === 'supports_enabled') updateCondition(idx, { key: nextKey, op: 'eq', value: false });
-                                    else if (nextKey === 'material') updateCondition(idx, { key: nextKey, op: 'eq', value: materialOptions?.[0]?.value || '' });
-                                    else if (nextKey === 'quality_preset') updateCondition(idx, { key: nextKey, op: 'eq', value: 'standard' });
-                                    else updateCondition(idx, { key: nextKey, op: 'gte', value: 0 });
-                                  }}
+                                  value={cu.op}
+                                  onChange={(e) => updateDraftCondition(idx, { op: e.target.value })}
                                 >
-                                  {CONDITION_KEYS.map((k) => (
-                                    <option key={k.key} value={k.key}>
-                                      {cs ? k.label_cs : k.label_en}
+                                  {cu.ops.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                      {o.label}
                                     </option>
                                   ))}
                                 </select>
-                              </div>
-
-                              <div className="field">
-                                <label>{cs ? 'Operátor' : 'Operator'}</label>
-                                {cu.isBool || cu.key === 'quality_preset' ? (
-                                  <div className="readonly">=</div>
-                                ) : (
-                                  <select
-                                    className="input"
-                                    value={cu.op}
-                                    onChange={(e) => updateCondition(idx, { op: e.target.value })}
-                                  >
-                                    {cu.ops.map((o) => (
-                                      <option key={o.value} value={o.value}>
-                                        {o.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
-
-                              <div className="field">
-                                <label>{cs ? 'Hodnota' : 'Value'}</label>
-                                {cu.key === 'material' ? (
-                                  <select
-                                    className="input"
-                                    value={String(cu.value ?? '')}
-                                    onChange={(e) => updateCondition(idx, { value: e.target.value })}
-                                  >
-                                    <option value="">{cs ? '— vyber materiál —' : '— select material —'}</option>
-                                    {materialOptions.map((o) => (
-                                      <option key={o.value} value={o.value}>
-                                        {o.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : cu.key === 'quality_preset' ? (
-                                  <select
-                                    className="input"
-                                    value={String(cu.value ?? 'standard')}
-                                    onChange={(e) => updateCondition(idx, { value: e.target.value })}
-                                  >
-                                    {QUALITY_PRESETS.map((o) => (
-                                      <option key={o.value} value={o.value}>
-                                        {cs ? o.label_cs : o.label_en}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : cu.isBool ? (
-                                  <select
-                                    className="input"
-                                    value={cu.value === true ? 'true' : 'false'}
-                                    onChange={(e) => updateCondition(idx, { value: e.target.value === 'true' })}
-                                  >
-                                    <option value="false">false</option>
-                                    <option value="true">true</option>
-                                  </select>
-                                ) : (
-                                  <input
-                                    className="input"
-                                    type="number"
-                                    step="0.01"
-                                    value={safeNum(cu.value, 0)}
-                                    onChange={(e) => updateCondition(idx, { value: safeNum(e.target.value, 0) })}
-                                  />
-                                )}
-                              </div>
+                              )}
                             </div>
 
-                            <button className="icon-btn" title={cs ? 'Smazat podmínku' : 'Remove condition'} onClick={() => removeCondition(idx)}>
-                              <Icon name="X" size={16} />
-                            </button>
+                            <div className="field">
+                              <label>{cs ? 'Hodnota' : 'Value'}</label>
+                              {cu.key === 'material' ? (
+                                <select
+                                  className="input"
+                                  value={String(cu.value ?? '')}
+                                  onChange={(e) => updateDraftCondition(idx, { value: e.target.value })}
+                                >
+                                  <option value="">{cs ? '-- vyber material --' : '-- select material --'}</option>
+                                  {materialOptions.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : cu.key === 'quality_preset' ? (
+                                <select
+                                  className="input"
+                                  value={String(cu.value ?? 'standard')}
+                                  onChange={(e) => updateDraftCondition(idx, { value: e.target.value })}
+                                >
+                                  {QUALITY_PRESETS.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                      {cs ? o.label_cs : o.label_en}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : cu.isBool ? (
+                                <select
+                                  className="input"
+                                  value={cu.value === true ? 'true' : 'false'}
+                                  onChange={(e) => updateDraftCondition(idx, { value: e.target.value === 'true' })}
+                                >
+                                  <option value="false">false</option>
+                                  <option value="true">true</option>
+                                </select>
+                              ) : (
+                                <input
+                                  className="input"
+                                  type="number"
+                                  step="0.01"
+                                  value={safeNum(cu.value, 0)}
+                                  onChange={(e) => updateDraftCondition(idx, { value: safeNum(e.target.value, 0) })}
+                                />
+                              )}
+                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {/* SECTION: PREVIEW */}
-              <div className="admin-card">
-                <div className="card-header">
-                  <div>
-                    <h2>{ui.sectionPreview}</h2>
-                    <p className="card-description">{ui.simHint}</p>
+                          <button className="icon-btn" title={cs ? 'Smazat podminku' : 'Remove condition'} onClick={() => removeDraftCondition(idx)}>
+                            <Icon name="X" size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---- TAB: PREVIEW ---- */}
+            {activeTab === 'preview' && (
+              <div className="tab-content">
+                <div className="help" style={{ marginBottom: 12 }}>{ui.simHint}</div>
+
+                <div className="sim-grid">
+                  <div className="field">
+                    <label>{cs ? 'Material' : 'Material'}</label>
+                    <select className="input" value={sim.material} onChange={(e) => setSim((p) => ({ ...p, material: e.target.value }))}>
+                      {materialOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Quality preset' : 'Quality preset'}</label>
+                    <select
+                      className="input"
+                      value={sim.quality_preset}
+                      onChange={(e) => setSim((p) => ({ ...p, quality_preset: e.target.value }))}
+                    >
+                      {QUALITY_PRESETS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {cs ? o.label_cs : o.label_en}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Supports' : 'Supports'}</label>
+                    <select
+                      className="input"
+                      value={sim.supports_enabled ? 'true' : 'false'}
+                      onChange={(e) => setSim((p) => ({ ...p, supports_enabled: e.target.value === 'true' }))}
+                    >
+                      <option value="false">false</option>
+                      <option value="true">true</option>
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Infill (%)' : 'Infill (%)'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={sim.infill_percent}
+                      onChange={(e) => setSim((p) => ({ ...p, infill_percent: safeNum(e.target.value, 0) }))}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Filament (g)' : 'Filament (g)'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={sim.filamentGrams}
+                      onChange={(e) => setSim((p) => ({ ...p, filamentGrams: safeNum(e.target.value, 0) }))}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Time (s)' : 'Time (s)'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={sim.estimatedTimeSeconds}
+                      onChange={(e) => setSim((p) => ({ ...p, estimatedTimeSeconds: safeNum(e.target.value, 0) }))}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Volume (cm3)' : 'Volume (cm3)'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={sim.volumeCm3}
+                      onChange={(e) => setSim((p) => ({ ...p, volumeCm3: safeNum(e.target.value, 0) }))}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Surface (cm2)' : 'Surface (cm2)'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={sim.surfaceCm2}
+                      onChange={(e) => setSim((p) => ({ ...p, surfaceCm2: safeNum(e.target.value, 0) }))}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Quantity' : 'Quantity'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={sim.quantity}
+                      onChange={(e) => setSim((p) => ({ ...p, quantity: clampMin1(e.target.value) }))}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Percent base (CZK)' : 'Percent base (CZK)'}</label>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={sim.percentBase}
+                      onChange={(e) => setSim((p) => ({ ...p, percentBase: safeNum(e.target.value, 0) }))}
+                    />
+                    <div className="help">
+                      {cs
+                        ? 'Pouzije se jen pro type=percent. Zadej base castku (subtotal) bez percent polozek ve stejnem scope.'
+                        : 'Used only for type=percent. Enter base subtotal (without percent items) in the same scope.'}
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label>{cs ? 'Model is selected' : 'Model is selected'}</label>
+                    <select
+                      className="input"
+                      value={sim.modelSelected ? 'true' : 'false'}
+                      onChange={(e) => setSim((p) => ({ ...p, modelSelected: e.target.value === 'true' }))}
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                    <div className="help">{cs ? 'Simuluje apply-to-selected.' : 'Simulates apply-to-selected.'}</div>
                   </div>
                 </div>
 
-                <div className="card-body">
-                  <div className="sim-grid">
-                    <div className="field">
-                      <label>{cs ? 'Material' : 'Material'}</label>
-                      <select className="input" value={sim.material} onChange={(e) => setSim((p) => ({ ...p, material: e.target.value }))}>
-                        {materialOptions.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
+                {simResult ? (
+                  <div className="sim-result">
+                    <div className={`sim-pill ${simResult.match ? 'match' : 'nomatch'}`}>
+                      <Icon name={simResult.match ? 'CheckCircle2' : 'XCircle'} size={18} />
+                      <span>{simResult.match ? ui.match : ui.noMatch}</span>
                     </div>
 
-                    <div className="field">
-                      <label>{cs ? 'Quality preset' : 'Quality preset'}</label>
-                      <select
-                        className="input"
-                        value={sim.quality_preset}
-                        onChange={(e) => setSim((p) => ({ ...p, quality_preset: e.target.value }))}
-                      >
-                        {QUALITY_PRESETS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {cs ? o.label_cs : o.label_en}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="sim-amount">
+                      <div className="muted">{cs ? 'Odhad fee castky' : 'Estimated fee amount'}</div>
+                      <div className={`amount ${simResult.amount < 0 ? 'discount' : ''}`}>{formatMoneyCzk(simResult.amount)}</div>
+                      <div className="help">{simResult.note}</div>
                     </div>
 
-                    <div className="field">
-                      <label>{cs ? 'Supports' : 'Supports'}</label>
-                      <select
-                        className="input"
-                        value={sim.supports_enabled ? 'true' : 'false'}
-                        onChange={(e) => setSim((p) => ({ ...p, supports_enabled: e.target.value === 'true' }))}
-                      >
-                        <option value="false">false</option>
-                        <option value="true">true</option>
-                      </select>
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Infill (%)' : 'Infill (%)'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        value={sim.infill_percent}
-                        onChange={(e) => setSim((p) => ({ ...p, infill_percent: safeNum(e.target.value, 0) }))}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Filament (g)' : 'Filament (g)'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        value={sim.filamentGrams}
-                        onChange={(e) => setSim((p) => ({ ...p, filamentGrams: safeNum(e.target.value, 0) }))}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Time (s)' : 'Time (s)'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        value={sim.estimatedTimeSeconds}
-                        onChange={(e) => setSim((p) => ({ ...p, estimatedTimeSeconds: safeNum(e.target.value, 0) }))}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Volume (cm³)' : 'Volume (cm³)'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        value={sim.volumeCm3}
-                        onChange={(e) => setSim((p) => ({ ...p, volumeCm3: safeNum(e.target.value, 0) }))}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Surface (cm²)' : 'Surface (cm²)'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        value={sim.surfaceCm2}
-                        onChange={(e) => setSim((p) => ({ ...p, surfaceCm2: safeNum(e.target.value, 0) }))}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Quantity' : 'Quantity'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        value={sim.quantity}
-                        onChange={(e) => setSim((p) => ({ ...p, quantity: clampMin1(e.target.value) }))}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Percent base (CZK)' : 'Percent base (CZK)'}</label>
-                      <input
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        value={sim.percentBase}
-                        onChange={(e) => setSim((p) => ({ ...p, percentBase: safeNum(e.target.value, 0) }))}
-                      />
-                      <div className="help">
-                        {cs
-                          ? 'Použije se jen pro type=percent. Zadej base částku (subtotal) bez percent položek ve stejném scope.'
-                          : 'Used only for type=percent. Enter base subtotal (without percent items) in the same scope.'}
-                      </div>
-                    </div>
-
-                    <div className="field">
-                      <label>{cs ? 'Model is selected' : 'Model is selected'}</label>
-                      <select
-                        className="input"
-                        value={sim.modelSelected ? 'true' : 'false'}
-                        onChange={(e) => setSim((p) => ({ ...p, modelSelected: e.target.value === 'true' }))}
-                      >
-                        <option value="true">true</option>
-                        <option value="false">false</option>
-                      </select>
-                      <div className="help">{cs ? 'Simuluje apply-to-selected.' : 'Simulates apply-to-selected.'}</div>
+                    <div className="sim-why">
+                      <div className="muted">{cs ? 'Proc' : 'Why'}</div>
+                      {simResult.results.length === 0 ? (
+                        <div className="help">{cs ? 'Bez podminek => MATCH.' : 'No conditions => MATCH.'}</div>
+                      ) : (
+                        <div className="why-list">
+                          {simResult.results.map((r, idx) => (
+                            <div key={`why_${idx}`} className={`why-row ${r.ok ? 'ok' : 'bad'}`}>
+                              <span className="why-dot" />
+                              <span className="why-text">
+                                <strong>{r.cond.key}</strong> {mapLegacyOp(r.cond.op)} {String(r.cond.value)}
+                              </span>
+                              <span className="why-details">{r.details}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {simResult ? (
-                    <div className="sim-result">
-                      <div className={`sim-pill ${simResult.match ? 'match' : 'nomatch'}`}>
-                        <Icon name={simResult.match ? 'CheckCircle2' : 'XCircle'} size={18} />
-                        <span>{simResult.match ? ui.match : ui.noMatch}</span>
-                      </div>
-
-                      <div className="sim-amount">
-                        <div className="muted">{cs ? 'Odhad fee částky' : 'Estimated fee amount'}</div>
-                        <div className={`amount ${simResult.amount < 0 ? 'discount' : ''}`}>{formatMoneyCzk(simResult.amount)}</div>
-                        <div className="help">{simResult.note}</div>
-                      </div>
-
-                      <div className="sim-why">
-                        <div className="muted">{cs ? 'Proč' : 'Why'}</div>
-                        {simResult.results.length === 0 ? (
-                          <div className="help">{cs ? 'Bez podmínek → MATCH.' : 'No conditions → MATCH.'}</div>
-                        ) : (
-                          <div className="why-list">
-                            {simResult.results.map((r, idx) => (
-                              <div key={`why_${idx}`} className={`why-row ${r.ok ? 'ok' : 'bad'}`}>
-                                <span className="why-dot" />
-                                <span className="why-text">
-                                  <strong>{r.cond.key}</strong> {mapLegacyOp(r.cond.op)} {String(r.cond.value)}
-                                </span>
-                                <span className="why-details">{r.details}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
+                ) : null}
               </div>
-            </>
-          )}
-        </div>
-      </div>
+            )}
+          </>
+        )}
+      </ForgeDialog>
 
       <style>{`
         .admin-page {
@@ -1606,15 +1707,9 @@ const AdminFees = () => {
 
         .fees-layout {
           display: grid;
-          grid-template-columns: 440px 1fr;
+          grid-template-columns: 1fr;
           gap: 16px;
           align-items: start;
-        }
-
-        @media (max-width: 1100px) {
-          .fees-layout {
-            grid-template-columns: 1fr;
-          }
         }
 
         .fees-panel {
@@ -2042,6 +2137,7 @@ const AdminFees = () => {
           color: var(--forge-text-primary);
           font-family: var(--forge-font-body);
           transition: border-color var(--forge-duration-micro) var(--forge-ease-out-expo);
+          box-sizing: border-box;
         }
 
         .input:focus {
@@ -2076,6 +2172,7 @@ const AdminFees = () => {
           background: var(--forge-bg-void);
           color: var(--forge-text-muted);
           font-family: var(--forge-font-mono);
+          box-sizing: border-box;
         }
 
         .help {
@@ -2277,6 +2374,44 @@ const AdminFees = () => {
           color: var(--forge-text-muted);
           text-align: right;
           font-family: var(--forge-font-mono);
+        }
+
+        /* Tab bar */
+        .tab-bar {
+          display: flex;
+          gap: 0;
+          border-bottom: 1px solid var(--forge-border-default);
+          margin: -24px -24px 20px -24px;
+          padding: 0 24px;
+        }
+
+        .tab-btn {
+          padding: 12px 16px;
+          background: none;
+          border: none;
+          border-bottom: 2px solid transparent;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-body);
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: color 120ms ease-out, border-color 120ms ease-out;
+        }
+
+        .tab-btn:hover {
+          color: var(--forge-text-primary);
+        }
+
+        .tab-btn.active {
+          color: var(--forge-accent-primary);
+          border-bottom-color: var(--forge-accent-primary);
+        }
+
+        .tab-content {
+          min-height: 200px;
         }
 
         /* Scrollbar styling for dark theme */
