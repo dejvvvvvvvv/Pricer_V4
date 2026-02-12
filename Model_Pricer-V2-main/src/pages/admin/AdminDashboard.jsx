@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 import { computeOverview } from '../../utils/adminAnalyticsStorage';
@@ -94,6 +95,49 @@ const AdminDashboard = () => {
   const [addCategory, setAddCategory] = useState('all');
 
   const [settingsCardId, setSettingsCardId] = useState(null);
+
+  // Scroll containment for Add Metric modal — smooth easing
+  const addModalRef = useRef(null);
+
+  useEffect(() => {
+    if (!showAddModal || !editing) return;
+    document.body.style.overflow = 'hidden';
+    const overlay = addModalRef.current;
+    if (!overlay) return;
+
+    let targetY = 0;
+    let rafId = null;
+
+    const animate = () => {
+      const body = overlay.querySelector('.modal-body');
+      if (!body) { rafId = null; return; }
+      const diff = targetY - body.scrollTop;
+      if (Math.abs(diff) < 0.5) { body.scrollTop = targetY; rafId = null; return; }
+      body.scrollTop += diff * 0.18;
+      rafId = requestAnimationFrame(animate);
+    };
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const body = overlay.querySelector('.modal-body');
+      if (!body) return;
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      if (e.deltaMode === 2) delta *= body.clientHeight;
+      if (rafId === null) targetY = body.scrollTop;
+      const maxScroll = body.scrollHeight - body.clientHeight;
+      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
+      if (!rafId) rafId = requestAnimationFrame(animate);
+    };
+
+    overlay.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      overlay.removeEventListener('wheel', handleWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+      document.body.style.overflow = '';
+    };
+  }, [showAddModal, editing]);
 
   // Branding tips banner (per project conventions, Branding/Widget pages use test-customer-1)
   const BRANDING_TENANT_ID = 'test-customer-1';
@@ -706,18 +750,21 @@ const AdminDashboard = () => {
       {/* Sections toggles (edit mode) */}
       {editing && (
         <div className="dashboard-edit-toggles">
-          <label className="toggle">
-            <input type="checkbox" checked={!!activeConfig.sections?.activity} onChange={() => toggleSection('activity')} />
-            <span>{language === 'cs' ? 'Sekce aktivita' : 'Activity section'}</span>
-          </label>
-          <label className="toggle">
-            <input type="checkbox" checked={!!activeConfig.sections?.quickStats} onChange={() => toggleSection('quickStats')} />
-            <span>{language === 'cs' ? 'Rychle statistiky' : 'Quick stats'}</span>
-          </label>
-          <label className="toggle">
-            <input type="checkbox" checked={!!activeConfig.sections?.brandingTips} onChange={() => toggleSection('brandingTips')} />
-            <span>{language === 'cs' ? 'Branding doporuceni' : 'Branding tips'}</span>
-          </label>
+          <ForgeCheckbox
+            checked={!!activeConfig.sections?.activity}
+            onChange={() => toggleSection('activity')}
+            label={language === 'cs' ? 'Sekce aktivita' : 'Activity section'}
+          />
+          <ForgeCheckbox
+            checked={!!activeConfig.sections?.quickStats}
+            onChange={() => toggleSection('quickStats')}
+            label={language === 'cs' ? 'Rychle statistiky' : 'Quick stats'}
+          />
+          <ForgeCheckbox
+            checked={!!activeConfig.sections?.brandingTips}
+            onChange={() => toggleSection('brandingTips')}
+            label={language === 'cs' ? 'Branding doporuceni' : 'Branding tips'}
+          />
         </div>
       )}
 
@@ -859,7 +906,7 @@ const AdminDashboard = () => {
 
       {/* Add Metric Modal */}
       {editing && showAddModal && (
-        <div className="modal-overlay" onMouseDown={() => setShowAddModal(false)}>
+        <div className="modal-overlay" ref={addModalRef} onMouseDown={() => setShowAddModal(false)}>
           <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 style={{
@@ -1555,6 +1602,49 @@ const AdminDashboard = () => {
 };
 
 function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange }) {
+  // Scroll containment for Settings modal — smooth easing
+  const settingsOverlayRef = useRef(null);
+
+  useEffect(() => {
+    if (!card) return;
+    document.body.style.overflow = 'hidden';
+    const overlay = settingsOverlayRef.current;
+    if (!overlay) return;
+
+    let targetY = 0;
+    let rafId = null;
+
+    const animate = () => {
+      const body = overlay.querySelector('.modal-body');
+      if (!body) { rafId = null; return; }
+      const diff = targetY - body.scrollTop;
+      if (Math.abs(diff) < 0.5) { body.scrollTop = targetY; rafId = null; return; }
+      body.scrollTop += diff * 0.18;
+      rafId = requestAnimationFrame(animate);
+    };
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const body = overlay.querySelector('.modal-body');
+      if (!body) return;
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      if (e.deltaMode === 2) delta *= body.clientHeight;
+      if (rafId === null) targetY = body.scrollTop;
+      const maxScroll = body.scrollHeight - body.clientHeight;
+      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
+      if (!rafId) rafId = requestAnimationFrame(animate);
+    };
+
+    overlay.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      overlay.removeEventListener('wheel', handleWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+      document.body.style.overflow = '';
+    };
+  }, [card]);
+
   if (!card) return null;
   const supportsDays = !!metric?.supportsDays;
   const days = supportsDays ? (card.days || 30) : undefined;
@@ -1578,7 +1668,7 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
   };
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
+    <div className="modal-overlay" ref={settingsOverlayRef} onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 style={{
@@ -1654,21 +1744,11 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={{
-                display: 'flex',
-                gap: 10,
-                alignItems: 'center',
-                fontSize: 13,
-                color: 'var(--forge-text-primary, #F1F5F9)'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={!!card.locked}
-                  onChange={() => onChange({ locked: !card.locked })}
-                  style={{ accentColor: 'var(--forge-accent-primary, #00D4AA)' }}
-                />
-                {language === 'cs' ? 'Zamknout kartu (nelze presouvat ani menit velikost)' : 'Lock card (disable move/resize)'}
-              </label>
+              <ForgeCheckbox
+                checked={!!card.locked}
+                onChange={() => onChange({ locked: !card.locked })}
+                label={language === 'cs' ? 'Zamknout kartu (nelze presouvat ani menit velikost)' : 'Lock card (disable move/resize)'}
+              />
             </div>
 
             <div style={{ marginTop: 14 }}>

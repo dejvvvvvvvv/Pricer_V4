@@ -47,6 +47,7 @@ const DevicePreviewFrame = ({ deviceMode = 'desktop', children }) => {
 
     /* scroll */
     overflowY: 'auto',
+    overscrollBehavior: 'contain',
 
     /* transition */
     transition: 'width 300ms ease, max-width 300ms ease',

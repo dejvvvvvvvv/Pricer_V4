@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
+import ForgeCheckbox from '../../../components/ui/forge/ForgeCheckbox';
 
 /**
  * WidgetDomainsTab -- Tab 3: Domain whitelist management.
@@ -88,14 +89,11 @@ const WidgetDomainsTab = ({
           onKeyDown={handleKeyDown}
           placeholder="napr. firma.cz"
         />
-        <label className="aw-check-label">
-          <input
-            type="checkbox"
-            checked={allowSubdomains}
-            onChange={(e) => setAllowSubdomains(e.target.checked)}
-          />
-          Povolit subdomeny
-        </label>
+        <ForgeCheckbox
+          checked={allowSubdomains}
+          onChange={(e) => setAllowSubdomains(e.target.checked)}
+          label="Povolit subdomeny"
+        />
         <button className="aw-btn aw-btn-primary" onClick={handleAdd}>
           <Icon name="Plus" size={16} />
           Pridat
@@ -125,14 +123,10 @@ const WidgetDomainsTab = ({
             </div>
 
             <div className="aw-domain-actions">
-              <label className="aw-toggle">
-                <input
-                  type="checkbox"
-                  checked={!!d.isActive}
-                  onChange={(e) => onToggleDomain(d.id, e.target.checked)}
-                />
-                <span />
-              </label>
+              <ForgeCheckbox
+                checked={!!d.isActive}
+                onChange={(e) => onToggleDomain(d.id, e.target.checked)}
+              />
               <button
                 className="aw-icon-btn aw-icon-btn-danger"
                 title="Smazat domenu"

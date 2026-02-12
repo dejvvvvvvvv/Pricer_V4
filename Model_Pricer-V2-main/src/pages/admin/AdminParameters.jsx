@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PRUSA_PARAMETER_CATALOG } from '../../data/prusaParameterCatalog';
 import { appendTenantLog, readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
@@ -307,9 +308,24 @@ function Badge({ children, tone = 'gray' }) {
 }
 
 function ConfirmModal({ open, title, description, confirmText = 'Confirm', cancelText = 'Cancel', danger = false, onConfirm, onCancel }) {
+  const overlayRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = 'hidden';
+    const el = overlayRef.current;
+    if (!el) return;
+    const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
   if (!open) return null;
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div ref={overlayRef} className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal">
         <div className="modal-title">{title}</div>
         {description && <div className="modal-desc">{description}</div>}
@@ -1104,13 +1120,10 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language }) 
   return (
     <div className={`paramCard ${hasError ? 'has-error' : ''}`}>
       <div className="top">
-        <label className="select" title={language === 'cs' ? 'Vybrat' : 'Select'}>
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelected(def.key)}
-          />
-        </label>
+        <ForgeCheckbox
+          checked={selected}
+          onChange={() => onToggleSelected(def.key)}
+        />
 
         <div className="title">
           <div className="label" title={getLabel(def, language)}>
@@ -1876,9 +1889,8 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
                   const allowedSet = new Set((allowed?.options || baseAllowed?.options || []));
                   const checked = allowedSet.has(opt.value);
                   return (
-                    <label key={opt.value} className="opt">
-                      <input
-                        type="checkbox"
+                    <div key={opt.value} className="opt">
+                      <ForgeCheckbox
                         checked={checked}
                         onChange={(e) => {
                           const set = new Set((allowed?.options || baseAllowed?.options || []));
@@ -1886,9 +1898,9 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
                           setAllowed({ options: Array.from(set) });
                         }}
                         disabled={!enabled}
+                        label={opt.label?.[language] || opt.label?.cs || opt.label?.en || opt.value}
                       />
-                      <span>{opt.label?.[language] || opt.label?.cs || opt.label?.en || opt.value}</span>
-                    </label>
+                    </div>
                   );
                 })}
               </div>
@@ -2310,9 +2322,9 @@ export default function AdminParameters() {
     const active = (p) => (p === base ? path === base || path === base + '/' : path.startsWith(p));
 
     return [
-      { path: base, label: language === 'cs' ? 'Knihovna' : 'Library', icon: 'List' },
       { path: base + '/overview', label: language === 'cs' ? 'Overview' : 'Overview', icon: 'BarChart3' },
       { path: base + '/widget', label: language === 'cs' ? 'Widget parametry' : 'Widget', icon: 'SlidersHorizontal' },
+      { path: base + '/library', label: language === 'cs' ? 'Knihovna Parametrů' : 'Parameter Library', icon: 'List' },
       { path: base + '/validation', label: language === 'cs' ? 'Validace' : 'Validation', icon: 'ShieldCheck' },
     ].map(t => ({ ...t, active: active(t.path) }));
   }, [location.pathname, language]);
@@ -2365,8 +2377,11 @@ export default function AdminParameters() {
       </div>
 
       <Routes>
+        <Route index element={<Navigate to="overview" replace />} />
+        <Route path="overview" element={<OverviewPage language={language} draft={draft} />} />
+        <Route path="widget" element={<WidgetPage language={language} draft={draft} onPatchDraft={onPatchDraft} />} />
         <Route
-          index
+          path="library"
           element={
             <LibraryPage
               language={language}
@@ -2383,10 +2398,8 @@ export default function AdminParameters() {
             />
           }
         />
-        <Route path="overview" element={<OverviewPage language={language} draft={draft} />} />
-        <Route path="widget" element={<WidgetPage language={language} draft={draft} onPatchDraft={onPatchDraft} />} />
         <Route path="validation" element={<ValidationPage language={language} />} />
-        <Route path="*" element={<Navigate to="." replace />} />
+        <Route path="*" element={<Navigate to="overview" replace />} />
       </Routes>
 
       <ConfirmModal

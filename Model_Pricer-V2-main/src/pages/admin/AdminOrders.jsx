@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   ORDER_FLAGS,
@@ -113,9 +114,24 @@ function PillButton({ active, onClick, children }) {
 }
 
 function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelText = 'Zrusit', onConfirm, onCancel }) {
+  const overlayRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = 'hidden';
+    const el = overlayRef.current;
+    if (!el) return;
+    const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
   if (!open) return null;
   return (
-    <div style={{
+    <div ref={overlayRef} style={{
       position: 'fixed',
       inset: 0,
       background: 'rgba(8, 9, 12, 0.75)',
@@ -1306,10 +1322,11 @@ function ModelDetail({ orders, setOrders }) {
         <div className="panel">
           <div className="panel-title">RESOLVED CONFIG SNAPSHOT</div>
           <div className="row">
-            <label className="toggle">
-              <input type="checkbox" checked={showOnlyChanged} onChange={(e) => setShowOnlyChanged(e.target.checked)} />
-              <span>Jen zmenene (source != default)</span>
-            </label>
+            <ForgeCheckbox
+              checked={showOnlyChanged}
+              onChange={(e) => setShowOnlyChanged(e.target.checked)}
+              label="Jen zmenene (source != default)"
+            />
           </div>
 
           <div className="table-wrap">

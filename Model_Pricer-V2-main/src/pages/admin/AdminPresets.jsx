@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -191,6 +192,7 @@ export default function AdminPresets() {
 
   // Delete default modal
   const [deleteModal, setDeleteModal] = useState({ open: false, presetId: null });
+  const deleteOverlayRef = useRef(null);
 
   // ForgeDialog editing state
   const [editingPresetId, setEditingPresetId] = useState(null);
@@ -291,6 +293,20 @@ export default function AdminPresets() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, []);
+
+  // Scroll containment for delete confirmation modal
+  useEffect(() => {
+    if (!deleteModal.open) return;
+    document.body.style.overflow = 'hidden';
+    const el = deleteOverlayRef.current;
+    if (!el) return;
+    const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      document.body.style.overflow = '';
+    };
+  }, [deleteModal.open]);
 
   const statusLabel = offlineMode ? strings.statusOffline : strings.statusOnline;
 
@@ -682,15 +698,12 @@ export default function AdminPresets() {
           </div>
 
           <div className="field" style={{ alignSelf: 'end' }}>
-            <label className="checkRow" title={actionsTitle}>
-              <input
-                type="checkbox"
-                checked={uploadVisibleInWidget}
-                disabled={actionsDisabled || uploading}
-                onChange={(e) => setUploadVisibleInWidget(e.target.checked)}
-              />
-              <span>{strings.visibleInWidget}</span>
-            </label>
+            <ForgeCheckbox
+              checked={uploadVisibleInWidget}
+              disabled={actionsDisabled || uploading}
+              onChange={(e) => setUploadVisibleInWidget(e.target.checked)}
+              label={strings.visibleInWidget}
+            />
           </div>
 
           <div className="field" style={{ alignSelf: 'end', justifySelf: 'end' }}>
@@ -812,21 +825,18 @@ export default function AdminPresets() {
                             ))}
                           </select>
                         </td>
-                        <td>
-                          <label className="checkRow" title={actionsTitle} onClick={(ev) => ev.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={!!e.visibleInWidget}
-                              disabled={actionsDisabled}
-                              onChange={(ev) =>
-                                setEdits((s) => ({
-                                  ...s,
-                                  [p.id]: { ...e, visibleInWidget: ev.target.checked },
-                                }))
-                              }
-                            />
-                            <span className="mono">{e.visibleInWidget ? 'true' : 'false'}</span>
-                          </label>
+                        <td onClick={(ev) => ev.stopPropagation()}>
+                          <ForgeCheckbox
+                            checked={!!e.visibleInWidget}
+                            disabled={actionsDisabled}
+                            onChange={(ev) =>
+                              setEdits((s) => ({
+                                ...s,
+                                [p.id]: { ...e, visibleInWidget: ev.target.checked },
+                              }))
+                            }
+                            label={<span className="mono">{e.visibleInWidget ? 'true' : 'false'}</span>}
+                          />
                         </td>
                         <td>
                           <div className="actions" onClick={(ev) => ev.stopPropagation()}>
@@ -871,7 +881,7 @@ export default function AdminPresets() {
       )}
 
       {deleteModal.open ? (
-        <div className="modalOverlay" role="dialog" aria-modal="true">
+        <div className="modalOverlay" role="dialog" aria-modal="true" ref={deleteOverlayRef}>
           <div className="modal">
             <div className="modalHeader">
               <div className="modalTitle">{strings.deleteDefaultTitle}</div>
@@ -968,14 +978,11 @@ export default function AdminPresets() {
                   </select>
                 </div>
                 <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <label className="checkRow">
-                    <input
-                      type="checkbox"
-                      checked={!!presetDraft.visibleInWidget}
-                      onChange={(e) => updatePresetDraft('visibleInWidget', e.target.checked)}
-                    />
-                    <span>{strings.visibleInWidget}</span>
-                  </label>
+                  <ForgeCheckbox
+                    checked={!!presetDraft.visibleInWidget}
+                    onChange={(e) => updatePresetDraft('visibleInWidget', e.target.checked)}
+                    label={strings.visibleInWidget}
+                  />
                 </div>
               </div>
             </div>

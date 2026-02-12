@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadPricingConfigV3, savePricingConfigV3 } from '../../utils/adminPricingStorage';
 
@@ -46,6 +47,14 @@ const DEFAULT_PREVIEW = {
   quantity: 1,
   fees_total: 0, // simulated "Fees" total per model (Kč) for preview
 };
+
+const PRICING_TABS = [
+  { id: 'materials', icon: 'Package', label_cs: 'Materialy', label_en: 'Materials' },
+  { id: 'time', icon: 'Clock', label_cs: 'Cas tisku', label_en: 'Print Time' },
+  { id: 'rules', icon: 'Calculator', label_cs: 'Cenova pravidla', label_en: 'Pricing Rules' },
+  { id: 'discounts', icon: 'Percent', label_cs: 'Slevy', label_en: 'Discounts' },
+  { id: 'preview', icon: 'Eye', label_cs: 'Nahled', label_en: 'Preview' },
+];
 
 function safeNum(v, fallback = 0) {
   const n = Number(v);
@@ -270,6 +279,7 @@ function calcPricingPreview(rules, preview) {
 
 const AdminPricing = () => {
   const { t, language } = useLanguage();
+  const cs = language === 'cs';
 
   // Tenant-scoped V3 storage is the single source of truth.
 
@@ -289,6 +299,11 @@ const AdminPricing = () => {
   // Preview panel state
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [preview, setPreview] = useState(deepClone(DEFAULT_PREVIEW));
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState('materials');
+  // Time unit toggle (hour vs minute) — display only, stored value is always rate_per_hour
+  const [timeUnit, setTimeUnit] = useState('hour');
 
   // UI state
   const [banner, setBanner] = useState(null); // { type: 'info'|'error'|'success', text: string }
@@ -1065,19 +1080,18 @@ const AdminPricing = () => {
 
   const ToggleRow = ({ checked, onChange, label, hint }) => {
     return (
-      <label className="toggle-row">
-        <input
-          type="checkbox"
+      <div className="toggle-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <ForgeCheckbox
           checked={!!checked}
           onChange={(e) => onChange(e.target.checked)}
+          label={label}
         />
-        <span className="toggle-label">{label}</span>
         {hint ? (
           <span className="hint" title={hint}>
             <Icon name="Info" size={16} />
           </span>
         ) : null}
-      </label>
+      </div>
     );
   };
 
@@ -1171,9 +1185,23 @@ const AdminPricing = () => {
         </div>
       ) : null}
 
-      <div className="pricing-layout">
-        {/* LEFT: Cards */}
-        <div className="cards">
+      {/* TAB NAVIGATION */}
+      <div className="tab-bar">
+        {PRICING_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <Icon name={tab.icon} size={16} />
+            <span>{cs ? tab.label_cs : tab.label_en}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="tab-content-area">
+          {/* TAB: MATERIALS */}
+          {activeTab === 'materials' && (<>
           {/* Card: Materials */}
           <div className="admin-card">
             <div className="card-header">
@@ -1305,10 +1333,11 @@ const AdminPricing = () => {
                   </div>
 
                   <div className="dialog-row-2">
-                    <label className="toggle">
-                      <input type="checkbox" checked={mat.enabled} onChange={(e) => updateDialogDraft('enabled', e.target.checked)} />
-                      <span>{language === 'cs' ? 'Aktivní' : 'Active'}</span>
-                    </label>
+                    <ForgeCheckbox
+                      checked={mat.enabled}
+                      onChange={(e) => updateDialogDraft('enabled', e.target.checked)}
+                      label={language === 'cs' ? 'Aktivní' : 'Active'}
+                    />
 
                     <div className="field" style={{ flex: 1 }}>
                       <label>{language === 'cs' ? 'Výchozí cena za gram' : 'Default price per gram'}</label>
@@ -1407,8 +1436,10 @@ const AdminPricing = () => {
               );
             })()}
           </ForgeDialog>
+          </>)}
 
-          {/* Card 1: Time rate + min billed minutes */}
+          {/* TAB: TIME */}
+          {activeTab === 'time' && (<>
           <div className="admin-card">
             <div className="card-header">
               <div>
@@ -1419,17 +1450,30 @@ const AdminPricing = () => {
               </div>
             </div>
 
+            {/* Hour / Minute toggle */}
+            <div className="time-unit-toggle">
+              <button className={`toggle-unit-btn ${timeUnit === 'hour' ? 'active' : ''}`} onClick={() => setTimeUnit('hour')}>
+                {cs ? 'Za hodinu' : 'Per hour'}
+              </button>
+              <button className={`toggle-unit-btn ${timeUnit === 'minute' ? 'active' : ''}`} onClick={() => setTimeUnit('minute')}>
+                {cs ? 'Za minutu' : 'Per minute'}
+              </button>
+            </div>
+
             <div className="field">
-              <label>{language === 'cs' ? 'Cena za hodinu tisku' : 'Hourly rate'}</label>
+              <label>{timeUnit === 'hour' ? (language === 'cs' ? 'Cena za hodinu tisku' : 'Hourly rate') : (language === 'cs' ? 'Cena za minutu tisku' : 'Per-minute rate')}</label>
               <div className="input-with-unit">
                 <input
                   type="number"
                   min="0"
                   className={`input ${rules.rate_per_hour < 0 ? 'input-error' : ''}`}
-                  value={rules.rate_per_hour}
-                  onChange={(e) => setRule('rate_per_hour', safeNum(e.target.value, 0))}
+                  value={timeUnit === 'hour' ? rules.rate_per_hour : +(rules.rate_per_hour / 60).toFixed(4)}
+                  onChange={(e) => {
+                    const raw = safeNum(e.target.value, 0);
+                    setRule('rate_per_hour', timeUnit === 'hour' ? raw : raw * 60);
+                  }}
                 />
-                <span className="unit">Kč/h</span>
+                <span className="unit">{timeUnit === 'hour' ? 'Kč/h' : 'Kč/min'}</span>
               </div>
               <FieldError show={rules.rate_per_hour < 0} />
               <p className="help-text">{language === 'cs' ? 'Tato sazba se aplikuje na čas tisku (minuty → hodiny).' : 'Applied to print time (minutes → hours).'}</p>
@@ -1463,7 +1507,10 @@ const AdminPricing = () => {
               </div>
             ) : null}
           </div>
+          </>)}
 
+          {/* TAB: RULES */}
+          {activeTab === 'rules' && (<>
           {/* Card 2: Minimum prices */}
           <div className="admin-card">
             <div className="card-header">
@@ -1707,37 +1754,11 @@ const AdminPricing = () => {
               </div>
             ) : null}
           </div>
+          </>)}
 
-          {/* Optional future stub (UI-only) */}
-          <div className="admin-card future">
-            <div className="card-header">
-              <div>
-                <h2>
-                  {language === 'cs' ? 'Více pricing profilů (budoucí)' : 'Multiple pricing profiles (future)'}
-                </h2>
-                <p className="card-description">
-                  {language === 'cs'
-                    ? 'Architektura je připravená – přidáme v další fázi (🟪).'
-                    : 'UI architecture ready – planned for a later phase (🟪).'}
-                </p>
-              </div>
-              <span className="tag">🟪 later</span>
-            </div>
-
-            <label className="toggle">
-              <input type="checkbox" disabled />
-              <span>{language === 'cs' ? 'Používat více pricing profilů' : 'Enable pricing profiles'}</span>
-            </label>
-
-            <p className="help-text">
-              {language === 'cs'
-                ? 'V další fázi půjde vytvořit více sad pravidel (Standard / Engineering / Bulk) a vybírat je ve widgetu.'
-                : 'Later you will create multiple rule sets (Standard / Engineering / Bulk) and select them in the widget.'}
-            </p>
-          </div>
-        </div>
-
-          {/* S05: Volume Discounts */}
+          {/* TAB: DISCOUNTS */}
+          {activeTab === 'discounts' && (<>
+          {/* Volume Discounts card */}
           <div className="admin-card">
             <div className="card-header">
               <div>
@@ -1748,19 +1769,16 @@ const AdminPricing = () => {
                     : 'Configure discounts based on ordered quantity.'}
                 </p>
               </div>
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={volumeDiscounts.enabled}
-                  onChange={(e) => {
-                    setVolumeDiscounts(prev => ({ ...prev, enabled: e.target.checked }));
-                    setTouched(true);
-                  }}
-                />
-                <span>{volumeDiscounts.enabled
+              <ForgeCheckbox
+                checked={volumeDiscounts.enabled}
+                onChange={(e) => {
+                  setVolumeDiscounts(prev => ({ ...prev, enabled: e.target.checked }));
+                  setTouched(true);
+                }}
+                label={volumeDiscounts.enabled
                   ? (language === 'cs' ? 'Zapnuto' : 'Enabled')
-                  : (language === 'cs' ? 'Vypnuto' : 'Disabled')}</span>
-              </label>
+                  : (language === 'cs' ? 'Vypnuto' : 'Disabled')}
+              />
             </div>
 
             {volumeDiscounts.enabled && (
@@ -1915,19 +1933,48 @@ const AdminPricing = () => {
             )}
           </div>
 
-        {/* RIGHT: Preview panel */}
-        <div className="preview">
-          <div className="preview-card">
+          {/* Future pricing profiles stub */}
+          <div className="admin-card future" style={{ marginTop: 16 }}>
+            <div className="card-header">
+              <div>
+                <h2>
+                  {language === 'cs' ? 'Více pricing profilů (budoucí)' : 'Multiple pricing profiles (future)'}
+                </h2>
+                <p className="card-description">
+                  {language === 'cs'
+                    ? 'Architektura je připravená – přidáme v další fázi.'
+                    : 'UI architecture ready – planned for a later phase.'}
+                </p>
+              </div>
+              <span className="tag">later</span>
+            </div>
+
+            <ForgeCheckbox
+              disabled
+              checked={false}
+              onChange={() => {}}
+              label={language === 'cs' ? 'Používat více pricing profilů' : 'Enable pricing profiles'}
+            />
+
+            <p className="help-text">
+              {language === 'cs'
+                ? 'V další fázi půjde vytvořit více sad pravidel (Standard / Engineering / Bulk) a vybírat je ve widgetu.'
+                : 'Later you will create multiple rule sets (Standard / Engineering / Bulk) and select them in the widget.'}
+            </p>
+          </div>
+          </>)}
+
+          {/* TAB: PREVIEW */}
+          {activeTab === 'preview' && (<>
+          <div className="admin-card">
             <div className="preview-header">
               <h3>{ui.preview}</h3>
-              <label className="toggle mini">
-                <input
-                  type="checkbox"
-                  checked={previewEnabled}
-                  onChange={(e) => setPreviewEnabled(e.target.checked)}
-                />
-                <span>{ui.previewToggle}</span>
-              </label>
+              <ForgeCheckbox
+                checked={previewEnabled}
+                onChange={(e) => setPreviewEnabled(e.target.checked)}
+                label={ui.previewToggle}
+                size={16}
+              />
             </div>
 
             {previewEnabled ? (
@@ -2119,7 +2166,7 @@ const AdminPricing = () => {
               <span>{ui.invalid}</span>
             </div>
           ) : null}
-        </div>
+          </>)}
       </div>
 
       <style>{`
@@ -2216,22 +2263,80 @@ const AdminPricing = () => {
           background: rgba(255, 60, 60, 0.06);
         }
 
-        .pricing-layout {
-          display: grid;
-          grid-template-columns: 1fr 360px;
-          gap: 16px;
+        /* Tab bar */
+        .tab-bar {
+          display: flex;
+          gap: 4px;
+          padding: 4px;
+          background: var(--forge-bg-surface, #12121a);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: var(--forge-radius-md, 8px);
+          margin-bottom: 16px;
+          overflow-x: auto;
         }
 
-        @media (max-width: 1024px) {
-          .pricing-layout {
-            grid-template-columns: 1fr;
-          }
+        .tab-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 14px;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--forge-text-muted, #666680);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          letter-spacing: 0.04em;
         }
 
-        .cards {
+        .tab-btn:hover {
+          background: var(--forge-bg-elevated, #1a1a2e);
+          color: var(--forge-text-secondary, #a0a0a0);
+        }
+
+        .tab-btn.active {
+          background: var(--forge-accent-primary, #00D4AA);
+          color: #0a0a0f;
+          font-weight: 600;
+        }
+
+        .tab-content-area {
           display: flex;
           flex-direction: column;
           gap: 16px;
+        }
+
+        /* Time unit toggle */
+        .time-unit-toggle {
+          display: inline-flex;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: 8px;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+
+        .toggle-unit-btn {
+          padding: 6px 14px;
+          border: none;
+          background: transparent;
+          color: var(--forge-text-muted, #666680);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .toggle-unit-btn:hover {
+          color: var(--forge-text-secondary, #a0a0a0);
+        }
+
+        .toggle-unit-btn.active {
+          background: var(--forge-accent-primary, #00D4AA);
+          color: #0a0a0f;
+          font-weight: 600;
         }
 
         .admin-card {
@@ -2956,21 +3061,6 @@ const AdminPricing = () => {
 
         .preview {
           position: relative;
-        }
-
-        .preview-card {
-          position: sticky;
-          top: 16px;
-          background: var(--forge-bg-surface, #12121a);
-          border: 1px solid var(--forge-border-default, #1a1a2e);
-          border-radius: var(--forge-radius-md, 8px);
-          padding: 16px;
-        }
-
-        @media (max-width: 1024px) {
-          .preview-card {
-            position: static;
-          }
         }
 
         .preview-header {

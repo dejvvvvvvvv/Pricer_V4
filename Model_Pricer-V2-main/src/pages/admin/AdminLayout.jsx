@@ -1,5 +1,5 @@
 // Admin Layout — FORGE Dark Theme
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -43,6 +43,58 @@ const AdminLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1400);
+  const sidebarRef = useRef(null);
+
+  // Robust scroll containment for fixed sidebar with smooth easing.
+  // Takes full control: ALWAYS preventDefault on wheel events over the sidebar,
+  // accumulates a target scroll position, and smoothly animates toward it
+  // using requestAnimationFrame with exponential ease-out.
+  useEffect(() => {
+    const el = sidebarRef.current;
+    if (!el) return;
+
+    let targetY = 0;
+    let rafId = null;
+
+    const animate = () => {
+      const nav = el.querySelector('nav');
+      if (!nav) { rafId = null; return; }
+
+      const diff = targetY - nav.scrollTop;
+      if (Math.abs(diff) < 0.5) {
+        nav.scrollTop = targetY;
+        rafId = null;
+        return;
+      }
+      nav.scrollTop += diff * 0.18;
+      rafId = requestAnimationFrame(animate);
+    };
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const nav = el.querySelector('nav');
+      if (!nav) return;
+
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      if (e.deltaMode === 2) delta *= nav.clientHeight;
+
+      if (rafId === null) targetY = nav.scrollTop;
+
+      const maxScroll = nav.scrollHeight - nav.clientHeight;
+      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
+
+      if (!rafId) rafId = requestAnimationFrame(animate);
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
@@ -177,7 +229,7 @@ const AdminLayout = () => {
       </div>
 
       {/* Navigation */}
-      <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
+      <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto', overscrollBehavior: 'contain' }}>
         {ADMIN_NAV.map((group) => (
           <div key={group.group} style={{ marginTop: '16px' }}>
             {!collapsed && (
@@ -275,7 +327,7 @@ const AdminLayout = () => {
     }}>
       {/* Desktop/Tablet Sidebar */}
       {!isMobile && (
-        <aside style={{
+        <aside ref={sidebarRef} style={{
           width: sidebarWidth,
           minWidth: sidebarWidth,
           backgroundColor: 'var(--forge-bg-surface)',
@@ -289,6 +341,7 @@ const AdminLayout = () => {
           zIndex: 40,
           transition: 'width 250ms cubic-bezier(0.16, 1, 0.3, 1)',
           overflowX: 'hidden',
+          overflowY: 'hidden',
         }}>
           {renderSidebarContent(sidebarCollapsed)}
         </aside>
@@ -336,6 +389,9 @@ const AdminLayout = () => {
         transition: 'margin-left 250ms cubic-bezier(0.16, 1, 0.3, 1)',
         minHeight: '100vh',
         backgroundColor: 'var(--forge-bg-void)',
+        width: isMobile ? '100%' : `calc(100% - ${sidebarWidth}px)`,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
       }}>
         {/* Mobile top bar */}
         {isMobile && (

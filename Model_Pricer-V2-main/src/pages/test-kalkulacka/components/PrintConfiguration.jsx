@@ -4,6 +4,7 @@ import Icon from '../../../components/AppIcon';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import ForgeCheckbox from '../../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
@@ -765,12 +766,23 @@ const PrintConfiguration = ({
               };
 
               return (
-                <div key={fee.id} style={fg.feeCard}>
+                <div
+                  key={fee.id}
+                  style={{
+                    ...fg.feeCard,
+                    cursor: 'pointer',
+                    transition: 'border-color 200ms ease, background 200ms ease',
+                    borderLeft: isSelected ? '3px solid var(--forge-accent-primary)' : '3px solid transparent',
+                    background: isSelected ? 'rgba(0, 212, 170, 0.06)' : undefined,
+                  }}
+                  onClick={() => toggleFeeSelected(fee.id, !isSelected)}
+                >
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                      <Checkbox
+                      <ForgeCheckbox
                         checked={isSelected}
-                        onChange={(e) => toggleFeeSelected(fee.id, !!e?.target?.checked)}
+                        onChange={() => {}}
+                        size={22}
                       />
                       <div>
                         <p style={{ ...fg.text, fontWeight: 500 }}>{fee.name}</p>
@@ -805,7 +817,7 @@ const PrintConfiguration = ({
                   </div>
 
                   {canTarget && isSelected && (
-                    <div style={{ marginTop: '0.75rem', paddingLeft: '1.75rem' }}>
+                    <div style={{ marginTop: '0.75rem', paddingLeft: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ ...fg.textMuted, marginBottom: '0.5rem' }}>
                         {language === 'en' ? 'Apply to:' : 'Aplikovat na:'}
                       </div>

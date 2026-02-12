@@ -9,6 +9,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadEmailConfigV1, saveEmailConfigV1 } from '../../utils/adminEmailStorage';
 import { readTenantJson } from '../../utils/adminTenantStorage';
@@ -248,16 +249,11 @@ export default function AdminEmails() {
                       <div key={`${trigger.event}_${idx}`} className="trigger-row">
                         <div className="trigger-header">
                           <div className="trigger-left">
-                            <label className="toggle">
-                              <input
-                                type="checkbox"
-                                checked={trigger.enabled}
-                                onChange={(e) => updateTrigger(idx, { enabled: e.target.checked })}
-                              />
-                              <span className="trigger-event-name">
-                                {eventLabel ? (cs ? eventLabel.cs : eventLabel.en) : trigger.event}
-                              </span>
-                            </label>
+                            <ForgeCheckbox
+                              checked={trigger.enabled}
+                              onChange={(e) => updateTrigger(idx, { enabled: e.target.checked })}
+                              label={<span className="trigger-event-name">{eventLabel ? (cs ? eventLabel.cs : eventLabel.en) : trigger.event}</span>}
+                            />
                             <span className="muted">{trigger.event}</span>
                           </div>
                           <button className="icon-btn" title={cs ? 'Smazat' : 'Remove'} onClick={() => removeTrigger(idx)}>

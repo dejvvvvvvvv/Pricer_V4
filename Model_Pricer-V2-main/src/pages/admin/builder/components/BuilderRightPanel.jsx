@@ -83,6 +83,7 @@ const styles = {
     justifyContent: 'center',
     padding: '24px',
     overflow: 'auto',
+    overscrollBehavior: 'contain',
   },
 };
 

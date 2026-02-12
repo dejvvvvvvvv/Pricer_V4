@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import {
   clearAnalyticsAll,
   computeOverview,
@@ -75,7 +77,7 @@ function StatCard({ title, value, sub }) {
   );
 }
 
-function MiniSeriesTable({ title, series }) {
+function MiniSeriesTable({ title, series, headerDate, headerCount, noDataText }) {
   const safeSeries = Array.isArray(series) ? series : [];
   return (
     <div className="mp-card">
@@ -84,13 +86,13 @@ function MiniSeriesTable({ title, series }) {
         <table className="mp-table">
           <thead>
             <tr>
-              <th>Datum</th>
-              <th style={{ textAlign: 'right' }}>Počet</th>
+              <th>{headerDate || 'Datum'}</th>
+              <th style={{ textAlign: 'right' }}>{headerCount || 'Pocet'}</th>
             </tr>
           </thead>
           <tbody>
             {safeSeries.length === 0 ? (
-              <tr><td colSpan={2} className="mp-muted">Žádná data</td></tr>
+              <tr><td colSpan={2} className="mp-muted">{noDataText || 'No data'}</td></tr>
             ) : (
               safeSeries.map((row) => (
                 <tr key={row.date}>
@@ -107,7 +109,98 @@ function MiniSeriesTable({ title, series }) {
 }
 
 export default function AdminAnalytics() {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const cs = language === 'cs';
+
+  const ui = useMemo(() => ({
+    title: cs ? 'Analytika' : 'Analytics',
+    subtitle: cs ? 'Prehled toho, co se deje ve widgetu.' : 'Overview of widget activity.',
+    refresh: cs ? 'Obnovit' : 'Refresh',
+    resetDemo: cs ? 'Reset demo dat' : 'Reset demo data',
+    period: cs ? 'Obdobi' : 'Period',
+    last7: cs ? 'Poslednich 7 dni' : 'Last 7 days',
+    last30: cs ? 'Poslednich 30 dni' : 'Last 30 days',
+    last90: cs ? 'Poslednich 90 dni' : 'Last 90 days',
+    custom: cs ? 'Vlastni' : 'Custom',
+    from: cs ? 'Od' : 'From',
+    to: cs ? 'Do' : 'To',
+    // Tab labels
+    tabOverview: cs ? 'Prehled' : 'Overview',
+    tabCalculations: cs ? 'Kalkulace' : 'Calculations',
+    tabOrders: cs ? 'Objednavky' : 'Orders',
+    tabLost: cs ? 'Ztracene' : 'Lost',
+    tabExports: cs ? 'Exporty' : 'Exports',
+    // StatCard labels
+    calculations: cs ? 'Kalkulace' : 'Calculations',
+    orders: cs ? 'Objednavky' : 'Orders',
+    conversion: cs ? 'Konverze' : 'Conversion',
+    conversionSub: cs ? 'objednavky / kalkulace' : 'orders / calculations',
+    avgPrice: cs ? 'Prumerna cena' : 'Average price',
+    avgTime: cs ? 'Prumerny cas' : 'Average time',
+    avgWeight: cs ? 'Prumerna hmotnost' : 'Average weight',
+    noData: cs ? 'Zadna data' : 'No data',
+    // Tables
+    date: cs ? 'Datum' : 'Date',
+    count: cs ? 'Pocet' : 'Count',
+    calcsPerDay: cs ? 'Kalkulace / den' : 'Calculations / day',
+    ordersPerDay: cs ? 'Objednavky / den' : 'Orders / day',
+    topMaterials: cs ? 'Top materialy' : 'Top materials',
+    topPresets: cs ? 'Top presety' : 'Top presets',
+    topFees: cs ? 'Top poplatky (fees)' : 'Top fees',
+    chosen: cs ? 'Zvoleno' : 'Chosen',
+    // Calculations tab
+    searchPlaceholder: cs ? 'Hledej session / soubor / material / preset' : 'Search session / file / material / preset',
+    onlyFailed: cs ? 'Jen neuspesne' : 'Only failed',
+    calcSessions: cs ? 'Kalkulacni sessions' : 'Calculation sessions',
+    file: cs ? 'Soubor' : 'File',
+    material: cs ? 'Material' : 'Material',
+    preset: 'Preset',
+    time: cs ? 'Cas' : 'Time',
+    weight: cs ? 'Hmotnost' : 'Weight',
+    price: cs ? 'Cena' : 'Price',
+    converted: cs ? 'Konvertovano' : 'Converted',
+    status: 'Status',
+    detail: cs ? 'Detail' : 'Detail',
+    noCalcs: cs ? 'Zadne kalkulace v tomto obdobi' : 'No calculations in this period',
+    // Orders tab
+    revenue: cs ? 'Odhadovane trzby' : 'Est. revenue',
+    avgOrderValue: cs ? 'Prumerna objednavka' : 'Avg order value',
+    note: cs ? 'Poznamka' : 'Note',
+    ordersNote: cs
+      ? 'Ve Variante A je objednavka odvozena z eventu ORDER_CREATED nebo ADD_TO_CART_CLICKED. Pozdeji (Varianta B) se to propoji s realnymi objednavkami (Orders modul) a webhooky z e-shopu.'
+      : 'In Variant A, an order is derived from ORDER_CREATED or ADD_TO_CART_CLICKED events. Later (Variant B) this will connect to real orders (Orders module) and e-shop webhooks.',
+    // Lost tab
+    lostTitle: cs
+      ? 'Ztracene kalkulace (PRICE_SHOWN bez konverze, > 30 min)'
+      : 'Lost calculations (PRICE_SHOWN without conversion, > 30 min)',
+    lastActivity: cs ? 'Posledni aktivita' : 'Last activity',
+    dropOff: cs ? 'Misto opusteni' : 'Drop-off',
+    noLost: cs ? 'Zadne ztracene kalkulace' : 'No lost calculations',
+    // Exports
+    csvExport: 'CSV export',
+    exportType: cs ? 'Typ exportu' : 'Export type',
+    exportCalcs: cs ? 'Kalkulace' : 'Calculations',
+    exportLost: cs ? 'Ztracene kalkulace' : 'Lost calculations',
+    exportOverview: cs ? 'Shrnuti prehledu' : 'Overview summary',
+    generate: cs ? 'Generovat & Stahnout CSV' : 'Generate & Download CSV',
+    exportNote: cs
+      ? 'Export se v demo rezimu generuje synchronne z localStorage. Vytvoreni exportu se zapisuje do Audit logu (G).'
+      : 'Export is generated synchronously from localStorage in demo mode. Export creation is logged to Audit log (G).',
+    // Session detail (ForgeDialog)
+    sessionDetail: cs ? 'Detail session' : 'Session detail',
+    summary: cs ? 'Shrnuti' : 'Summary',
+    timeline: cs ? 'Casova osa' : 'Timeline',
+    lastEvent: cs ? 'Posledni event' : 'Last event',
+    printTime: cs ? 'Cas tisku' : 'Print time',
+    noMetadata: cs ? '(bez metadat)' : '(no metadata)',
+    hint: cs
+      ? 'Tip: Pro demo data se pouziva simulace (localStorage).'
+      : 'Tip: Demo data uses localStorage simulation.',
+    confirmClear: cs
+      ? 'Opravdu chces smazat vsechna analytics demo data?'
+      : 'Really delete all analytics demo data?',
+  }), [cs]);
+
   const [tab, setTab] = useState('overview');
   const [range, setRange] = useState('30');
   const [fromISO, setFromISO] = useState(isoDaysAgo(30));
@@ -171,7 +264,7 @@ export default function AdminAnalytics() {
   }
 
   function handleClear() {
-    if (!window.confirm('Opravdu chceš smazat všechna analytics demo data?')) return;
+    if (!window.confirm(ui.confirmClear)) return;
     clearAnalyticsAll();
     setSelectedSessionId(null);
     forceRefresh();
@@ -193,25 +286,25 @@ export default function AdminAnalytics() {
     <div className="mp-admin-analytics">
       <div className="mp-head">
         <div>
-          <h1 className="mp-title">Analytics</h1>
-          <p className="mp-subtitle">Přehled toho, co se děje ve widgetu (Varianta A – demo).</p>
+          <h1 className="mp-title">{ui.title}</h1>
+          <p className="mp-subtitle">{ui.subtitle}</p>
         </div>
 
         <div className="mp-actions">
           <div className="mp-range">
-            <label className="mp-label">Období</label>
+            <label className="mp-label">{ui.period}</label>
             <select className="mp-select" value={range} onChange={(e) => setRange(e.target.value)}>
-              <option value="7">Posledních 7 dní</option>
-              <option value="30">Posledních 30 dní</option>
-              <option value="90">Posledních 90 dní</option>
-              <option value="custom">Vlastní</option>
+              <option value="7">{ui.last7}</option>
+              <option value="30">{ui.last30}</option>
+              <option value="90">{ui.last90}</option>
+              <option value="custom">{ui.custom}</option>
             </select>
           </div>
 
           {range === 'custom' ? (
             <div className="mp-custom-range">
               <div>
-                <label className="mp-label">Od</label>
+                <label className="mp-label">{ui.from}</label>
                 <input
                   className="mp-input"
                   type="date"
@@ -220,7 +313,7 @@ export default function AdminAnalytics() {
                 />
               </div>
               <div>
-                <label className="mp-label">Do</label>
+                <label className="mp-label">{ui.to}</label>
                 <input
                   className="mp-input"
                   type="date"
@@ -232,51 +325,63 @@ export default function AdminAnalytics() {
           ) : null}
 
           <button type="button" className="mp-btn mp-btn-ghost" onClick={handleClear}>
-            Reset demo dat
+            {ui.resetDemo}
           </button>
           <button type="button" className="mp-btn" onClick={forceRefresh}>
-            Obnovit
+            {ui.refresh}
           </button>
         </div>
       </div>
 
       <div className="mp-tabs">
-        <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>Overview</TabButton>
-        <TabButton active={tab === 'calculations'} onClick={() => setTab('calculations')}>Calculations</TabButton>
-        <TabButton active={tab === 'orders'} onClick={() => setTab('orders')}>Orders analytics</TabButton>
-        <TabButton active={tab === 'lost'} onClick={() => setTab('lost')}>Lost calculations</TabButton>
-        <TabButton active={tab === 'exports'} onClick={() => setTab('exports')}>Exports</TabButton>
+        <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>{ui.tabOverview}</TabButton>
+        <TabButton active={tab === 'calculations'} onClick={() => setTab('calculations')}>{ui.tabCalculations}</TabButton>
+        <TabButton active={tab === 'orders'} onClick={() => setTab('orders')}>{ui.tabOrders}</TabButton>
+        <TabButton active={tab === 'lost'} onClick={() => setTab('lost')}>{ui.tabLost}</TabButton>
+        <TabButton active={tab === 'exports'} onClick={() => setTab('exports')}>{ui.tabExports}</TabButton>
       </div>
 
       {tab === 'overview' ? (
         <div className="mp-section">
           <div className="mp-grid">
-            <StatCard title="Kalkulace" value={formatNumber(overview.metrics.calculations)} sub="PRICE_SHOWN" />
-            <StatCard title="Objednávky" value={formatNumber(overview.metrics.orders)} sub="ORDER_CREATED / ADD_TO_CART" />
+            <StatCard title={ui.calculations} value={formatNumber(overview.metrics.calculations)} sub="PRICE_SHOWN" />
+            <StatCard title={ui.orders} value={formatNumber(overview.metrics.orders)} sub="ORDER_CREATED / ADD_TO_CART" />
             <StatCard
-              title="Konverze"
+              title={ui.conversion}
               value={`${formatNumber(overview.metrics.conversion_rate * 100, 1)} %`}
-              sub="objednávky / kalkulace"
+              sub={ui.conversionSub}
             />
-            <StatCard title="Průměrná cena" value={`${formatNumber(overview.metrics.avg_price, 0)} Kč`} />
-            <StatCard title="Průměrný čas" value={`${formatNumber(overview.metrics.avg_time_min, 1)} min`} />
-            <StatCard title="Průměrná hmotnost" value={`${formatNumber(overview.metrics.avg_weight_g, 1)} g`} />
+            <StatCard title={ui.avgPrice} value={`${formatNumber(overview.metrics.avg_price, 0)} Kc`} />
+            <StatCard title={ui.avgTime} value={`${formatNumber(overview.metrics.avg_time_min, 1)} min`} />
+            <StatCard title={ui.avgWeight} value={`${formatNumber(overview.metrics.avg_weight_g, 1)} g`} />
           </div>
 
           <div className="mp-two">
-            <MiniSeriesTable title="Kalkulace / den" series={overview.series.calculations_per_day} />
-            <MiniSeriesTable title="Objednávky / den" series={overview.series.orders_per_day} />
+            <MiniSeriesTable
+              title={ui.calcsPerDay}
+              series={overview.series.calculations_per_day}
+              headerDate={ui.date}
+              headerCount={ui.count}
+              noDataText={ui.noData}
+            />
+            <MiniSeriesTable
+              title={ui.ordersPerDay}
+              series={overview.series.orders_per_day}
+              headerDate={ui.date}
+              headerCount={ui.count}
+              noDataText={ui.noData}
+            />
           </div>
 
           <div className="mp-three">
             <div className="mp-card">
-              <div className="mp-card-title">Top materiály</div>
+              <div className="mp-card-title">{ui.topMaterials}</div>
               <div className="mp-table-wrap">
                 <table className="mp-table">
-                  <thead><tr><th>Materiál</th><th style={{ textAlign: 'right' }}>Počet</th></tr></thead>
+                  <thead><tr><th>{ui.material}</th><th style={{ textAlign: 'right' }}>{ui.count}</th></tr></thead>
                   <tbody>
                     {overview.top.materials.length === 0 ? (
-                      <tr><td colSpan={2} className="mp-muted">Žádná data</td></tr>
+                      <tr><td colSpan={2} className="mp-muted">{ui.noData}</td></tr>
                     ) : (
                       overview.top.materials.map((r) => (
                         <tr key={r.key}><td>{r.key}</td><td style={{ textAlign: 'right' }}>{formatNumber(r.count)}</td></tr>
@@ -288,13 +393,13 @@ export default function AdminAnalytics() {
             </div>
 
             <div className="mp-card">
-              <div className="mp-card-title">Top presety</div>
+              <div className="mp-card-title">{ui.topPresets}</div>
               <div className="mp-table-wrap">
                 <table className="mp-table">
-                  <thead><tr><th>Preset</th><th style={{ textAlign: 'right' }}>Počet</th><th style={{ textAlign: 'right' }}>Konverze</th></tr></thead>
+                  <thead><tr><th>{ui.preset}</th><th style={{ textAlign: 'right' }}>{ui.count}</th><th style={{ textAlign: 'right' }}>{ui.conversion}</th></tr></thead>
                   <tbody>
                     {overview.top.presets.length === 0 ? (
-                      <tr><td colSpan={3} className="mp-muted">Žádná data</td></tr>
+                      <tr><td colSpan={3} className="mp-muted">{ui.noData}</td></tr>
                     ) : (
                       overview.top.presets.map((r) => (
                         <tr key={r.key}>
@@ -310,13 +415,13 @@ export default function AdminAnalytics() {
             </div>
 
             <div className="mp-card">
-              <div className="mp-card-title">Top poplatky (fees)</div>
+              <div className="mp-card-title">{ui.topFees}</div>
               <div className="mp-table-wrap">
                 <table className="mp-table">
-                  <thead><tr><th>Fee</th><th style={{ textAlign: 'right' }}>Zvoleno</th></tr></thead>
+                  <thead><tr><th>Fee</th><th style={{ textAlign: 'right' }}>{ui.chosen}</th></tr></thead>
                   <tbody>
                     {overview.top.fees.length === 0 ? (
-                      <tr><td colSpan={2} className="mp-muted">Žádná data</td></tr>
+                      <tr><td colSpan={2} className="mp-muted">{ui.noData}</td></tr>
                     ) : (
                       overview.top.fees.map((r) => (
                         <tr key={r.key}><td>{r.key}</td><td style={{ textAlign: 'right' }}>{formatNumber(r.count)}</td></tr>
@@ -329,7 +434,7 @@ export default function AdminAnalytics() {
           </div>
 
           <div className="mp-hint">
-            Tip: Pro demo data se použije simulace (localStorage). Později se dá napojit widget.js → /api/public/analytics/event.
+            {ui.hint}
           </div>
         </div>
       ) : null}
@@ -339,37 +444,38 @@ export default function AdminAnalytics() {
           <div className="mp-filterbar">
             <input
               className="mp-input"
-              placeholder="Hledej session / soubor / materiál / preset"
+              placeholder={ui.searchPlaceholder}
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-            <label className="mp-check">
-              <input type="checkbox" checked={onlyFailed} onChange={(e) => setOnlyFailed(e.target.checked)} />
-              Jen failed
-            </label>
+            <ForgeCheckbox
+              checked={onlyFailed}
+              onChange={(e) => setOnlyFailed(e.target.checked)}
+              label={ui.onlyFailed}
+            />
           </div>
 
           <div className="mp-card">
-            <div className="mp-card-title">Calculation sessions</div>
+            <div className="mp-card-title">{ui.calcSessions}</div>
             <div className="mp-table-wrap">
               <table className="mp-table">
                 <thead>
                   <tr>
-                    <th>Čas</th>
-                    <th>Soubor</th>
-                    <th>Materiál</th>
-                    <th>Preset</th>
-                    <th style={{ textAlign: 'right' }}>Čas</th>
-                    <th style={{ textAlign: 'right' }}>Hmotnost</th>
-                    <th style={{ textAlign: 'right' }}>Cena</th>
-                    <th style={{ textAlign: 'center' }}>Converted</th>
-                    <th style={{ textAlign: 'center' }}>Status</th>
+                    <th>{ui.time}</th>
+                    <th>{ui.file}</th>
+                    <th>{ui.material}</th>
+                    <th>{ui.preset}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.time}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.weight}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.price}</th>
+                    <th style={{ textAlign: 'center' }}>{ui.converted}</th>
+                    <th style={{ textAlign: 'center' }}>{ui.status}</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {calculations.length === 0 ? (
-                    <tr><td colSpan={10} className="mp-muted">Žádné kalkulace v tomto období</td></tr>
+                    <tr><td colSpan={10} className="mp-muted">{ui.noCalcs}</td></tr>
                   ) : (
                     calculations.map((s) => (
                       <tr key={s.session_id}>
@@ -379,7 +485,7 @@ export default function AdminAnalytics() {
                         <td>{s.summary?.preset || '-'}</td>
                         <td style={{ textAlign: 'right' }}>{formatNumber((s.summary?.print_time_seconds || 0) / 60, 1)} min</td>
                         <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.weight_g, 1)} g</td>
-                        <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.price_total, 0)} Kč</td>
+                        <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.price_total, 0)} Kc</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className={`mp-pill ${s.converted ? 'ok' : ''}`}>{s.converted ? 'YES' : 'NO'}</span>
                         </td>
@@ -387,7 +493,7 @@ export default function AdminAnalytics() {
                           <span className={`mp-pill ${s.status === 'success' ? 'ok' : 'warn'}`}>{s.status}</span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="mp-link" onClick={() => setSelectedSessionId(s.session_id)}>Detail</button>
+                          <button className="mp-link" onClick={() => setSelectedSessionId(s.session_id)}>{ui.detail}</button>
                         </td>
                       </tr>
                     ))
@@ -402,15 +508,14 @@ export default function AdminAnalytics() {
       {tab === 'orders' ? (
         <div className="mp-section">
           <div className="mp-grid mp-grid-3">
-            <StatCard title="Revenue (estimate)" value={`${formatNumber(overview.metrics.revenue_estimate, 0)} Kč`} />
-            <StatCard title="Orders" value={formatNumber(overview.metrics.orders)} />
-            <StatCard title="Avg order value" value={`${formatNumber(overview.metrics.avg_order_value, 0)} Kč`} />
+            <StatCard title={ui.revenue} value={`${formatNumber(overview.metrics.revenue_estimate, 0)} Kc`} />
+            <StatCard title={ui.orders} value={formatNumber(overview.metrics.orders)} />
+            <StatCard title={ui.avgOrderValue} value={`${formatNumber(overview.metrics.avg_order_value, 0)} Kc`} />
           </div>
           <div className="mp-card">
-            <div className="mp-card-title">Poznámka</div>
+            <div className="mp-card-title">{ui.note}</div>
             <p className="mp-muted" style={{ margin: 0 }}>
-              Ve Variantě A je „order“ odvozený z eventu ORDER_CREATED nebo ADD_TO_CART_CLICKED. Později (Varianta B)
-              se to propojí s reálnými objednávkami (Orders modul) a webhooky z e-shopu.
+              {ui.ordersNote}
             </p>
           </div>
         </div>
@@ -419,36 +524,36 @@ export default function AdminAnalytics() {
       {tab === 'lost' ? (
         <div className="mp-section">
           <div className="mp-card">
-            <div className="mp-card-title">Lost calculations (PRICE_SHOWN bez konverze, &gt; 30 min)</div>
+            <div className="mp-card-title">{ui.lostTitle}</div>
             <div className="mp-table-wrap">
               <table className="mp-table">
                 <thead>
                   <tr>
-                    <th>Poslední aktivita</th>
-                    <th>Materiál</th>
-                    <th>Preset</th>
-                    <th style={{ textAlign: 'right' }}>Cena</th>
-                    <th style={{ textAlign: 'right' }}>Čas</th>
-                    <th style={{ textAlign: 'right' }}>Hmotnost</th>
-                    <th>Drop-off</th>
+                    <th>{ui.lastActivity}</th>
+                    <th>{ui.material}</th>
+                    <th>{ui.preset}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.price}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.time}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.weight}</th>
+                    <th>{ui.dropOff}</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {lost.length === 0 ? (
-                    <tr><td colSpan={8} className="mp-muted">Žádné ztracené kalkulace v tomto období</td></tr>
+                    <tr><td colSpan={8} className="mp-muted">{ui.noLost}</td></tr>
                   ) : (
                     lost.map((s) => (
                       <tr key={s.session_id}>
                         <td>{formatDateTime(s.last_event_at)}</td>
                         <td>{s.summary?.material || '-'}</td>
                         <td>{s.summary?.preset || '-'}</td>
-                        <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.price_total, 0)} Kč</td>
+                        <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.price_total, 0)} Kc</td>
                         <td style={{ textAlign: 'right' }}>{formatNumber((s.summary?.print_time_seconds || 0) / 60, 1)} min</td>
                         <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.weight_g, 1)} g</td>
                         <td>{s.drop_off_step || '-'}</td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="mp-link" onClick={() => setSelectedSessionId(s.session_id)}>Detail</button>
+                          <button className="mp-link" onClick={() => setSelectedSessionId(s.session_id)}>{ui.detail}</button>
                         </td>
                       </tr>
                     ))
@@ -463,81 +568,76 @@ export default function AdminAnalytics() {
       {tab === 'exports' ? (
         <div className="mp-section">
           <div className="mp-card">
-            <div className="mp-card-title">CSV export</div>
+            <div className="mp-card-title">{ui.csvExport}</div>
             <div className="mp-export">
               <div>
-                <label className="mp-label">Typ exportu</label>
+                <label className="mp-label">{ui.exportType}</label>
                 <select className="mp-select" value={exportType} onChange={(e) => setExportType(e.target.value)}>
-                  <option value="calculations">Calculations</option>
-                  <option value="lost">Lost calculations</option>
-                  <option value="overview">Overview summary</option>
+                  <option value="calculations">{ui.exportCalcs}</option>
+                  <option value="lost">{ui.exportLost}</option>
+                  <option value="overview">{ui.exportOverview}</option>
                 </select>
               </div>
-              <button type="button" className="mp-btn" onClick={handleExport}>Generate & Download CSV</button>
+              <button type="button" className="mp-btn" onClick={handleExport}>{ui.generate}</button>
             </div>
             <p className="mp-muted" style={{ marginTop: 10 }}>
-              Export se v demo režimu generuje synchronně z localStorage. Vytvoření exportu se zapisuje do Audit logu (G).
+              {ui.exportNote}
             </p>
           </div>
         </div>
       ) : null}
 
-      {selectedSession ? (
-        <div className="mp-modal" role="dialog" aria-modal="true">
-          <div className="mp-modal-backdrop" onClick={() => setSelectedSessionId(null)} />
-          <div className="mp-modal-card">
-            <div className="mp-modal-head">
-              <div>
-                <div className="mp-modal-title">Session detail</div>
-                <div className="mp-muted" style={{ marginTop: 2 }}>
-                  {selectedSession.session_id}
+      <ForgeDialog
+        open={!!selectedSession}
+        onClose={() => setSelectedSessionId(null)}
+        title={ui.sessionDetail}
+        maxWidth="1000px"
+      >
+        {selectedSession && (
+          <>
+            <div className="mp-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+              {selectedSession.session_id}
+            </div>
+            <div className="mp-detail-grid">
+              <div className="mp-card">
+                <div className="mp-card-title">{ui.summary}</div>
+                <div className="mp-kv">
+                  <div className="mp-k">{ui.lastEvent}</div><div className="mp-v">{formatDateTime(selectedSession.last_event_at)}</div>
+                  <div className="mp-k">{ui.material}</div><div className="mp-v">{selectedSession.summary?.material || '-'}</div>
+                  <div className="mp-k">{ui.preset}</div><div className="mp-v">{selectedSession.summary?.preset || '-'}</div>
+                  <div className="mp-k">{ui.price}</div><div className="mp-v">{formatNumber(selectedSession.summary?.price_total, 0)} Kc</div>
+                  <div className="mp-k">{ui.printTime}</div><div className="mp-v">{formatNumber((selectedSession.summary?.print_time_seconds || 0) / 60, 1)} min</div>
+                  <div className="mp-k">{ui.weight}</div><div className="mp-v">{formatNumber(selectedSession.summary?.weight_g, 1)} g</div>
+                  <div className="mp-k">{ui.converted}</div><div className="mp-v">{selectedSession.converted ? 'YES' : 'NO'}</div>
+                  <div className="mp-k">{ui.status}</div><div className="mp-v">{selectedSession.status}</div>
                 </div>
               </div>
-              <button className="mp-btn mp-btn-ghost" onClick={() => setSelectedSessionId(null)}>Zavřít</button>
-            </div>
 
-            <div className="mp-modal-body">
-              <div className="mp-detail-grid">
-                <div className="mp-card">
-                  <div className="mp-card-title">Summary</div>
-                  <div className="mp-kv">
-                    <div className="mp-k">Last event</div><div className="mp-v">{formatDateTime(selectedSession.last_event_at)}</div>
-                    <div className="mp-k">Material</div><div className="mp-v">{selectedSession.summary?.material || '-'}</div>
-                    <div className="mp-k">Preset</div><div className="mp-v">{selectedSession.summary?.preset || '-'}</div>
-                    <div className="mp-k">Price</div><div className="mp-v">{formatNumber(selectedSession.summary?.price_total, 0)} Kč</div>
-                    <div className="mp-k">Print time</div><div className="mp-v">{formatNumber((selectedSession.summary?.print_time_seconds || 0) / 60, 1)} min</div>
-                    <div className="mp-k">Weight</div><div className="mp-v">{formatNumber(selectedSession.summary?.weight_g, 1)} g</div>
-                    <div className="mp-k">Converted</div><div className="mp-v">{selectedSession.converted ? 'YES' : 'NO'}</div>
-                    <div className="mp-k">Status</div><div className="mp-v">{selectedSession.status}</div>
-                  </div>
-                </div>
-
-                <div className="mp-card">
-                  <div className="mp-card-title">Timeline</div>
-                  <div className="mp-timeline">
-                    {selectedSession.events.map((e) => (
-                      <div key={e.id} className="mp-timeline-item">
-                        <div className="mp-tl-dot" />
-                        <div className="mp-tl-content">
-                          <div className="mp-tl-top">
-                            <span className="mp-tl-type">{e.event_type}</span>
-                            <span className="mp-muted">{formatDateTime(e.timestamp)}</span>
-                          </div>
-                          {e.metadata && Object.keys(e.metadata).length ? (
-                            <pre className="mp-json">{JSON.stringify(e.metadata, null, 2)}</pre>
-                          ) : (
-                            <div className="mp-muted">(bez metadat)</div>
-                          )}
+              <div className="mp-card">
+                <div className="mp-card-title">{ui.timeline}</div>
+                <div className="mp-timeline">
+                  {selectedSession.events.map((e) => (
+                    <div key={e.id} className="mp-timeline-item">
+                      <div className="mp-tl-dot" />
+                      <div className="mp-tl-content">
+                        <div className="mp-tl-top">
+                          <span className="mp-tl-type">{e.event_type}</span>
+                          <span className="mp-muted">{formatDateTime(e.timestamp)}</span>
                         </div>
+                        {e.metadata && Object.keys(e.metadata).length ? (
+                          <pre className="mp-json">{JSON.stringify(e.metadata, null, 2)}</pre>
+                        ) : (
+                          <div className="mp-muted">{ui.noMetadata}</div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+          </>
+        )}
+      </ForgeDialog>
 
       <style>{`
         .mp-admin-analytics{padding:24px;background:var(--forge-bg-void);min-height:100vh;}
@@ -583,14 +683,6 @@ export default function AdminAnalytics() {
         .mp-pill.ok{border-color:rgba(0,212,170,0.3);background:rgba(0,212,170,0.08);color:var(--forge-success);}
         .mp-pill.warn{border-color:rgba(255,181,71,0.3);background:rgba(255,181,71,0.08);color:var(--forge-warning);}
         .mp-export{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
-
-        /* Modal */
-        .mp-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;}
-        .mp-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.7);}
-        .mp-modal-card{position:relative;max-width:1000px;width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:hidden;border-radius:var(--forge-radius-xl);border:1px solid var(--forge-border-default);background:var(--forge-bg-surface);box-shadow:var(--forge-shadow-lg);}
-        .mp-modal-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid var(--forge-border-default);background:var(--forge-bg-elevated);}
-        .mp-modal-title{font-size:16px;font-weight:600;color:var(--forge-text-primary);font-family:var(--forge-font-heading);}
-        .mp-modal-body{padding:16px;overflow:auto;max-height:calc(100% - 60px);}
         .mp-detail-grid{display:grid;grid-template-columns:380px 1fr;gap:12px;}
         @media (max-width:900px){.mp-detail-grid{grid-template-columns:1fr;}}
         .mp-kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:13px;}

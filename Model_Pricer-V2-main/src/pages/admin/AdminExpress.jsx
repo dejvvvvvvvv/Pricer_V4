@@ -8,6 +8,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadExpressConfigV1, saveExpressConfigV1 } from '../../utils/adminExpressStorage';
 
@@ -242,14 +243,12 @@ export default function AdminExpress() {
               <h2>{cs ? 'Urovne doruceni' : 'Delivery tiers'}</h2>
               <span className="muted">{tiers.length}</span>
             </div>
-            <label className="toggle" style={{ marginTop: 8 }}>
-              <input
-                type="checkbox"
-                checked={config?.enabled !== false}
-                onChange={(e) => updateConfig({ enabled: e.target.checked })}
-              />
-              <span>{cs ? 'Express doruceni zapnuto' : 'Express delivery enabled'}</span>
-            </label>
+            <ForgeCheckbox
+              checked={config?.enabled !== false}
+              onChange={(e) => updateConfig({ enabled: e.target.checked })}
+              label={cs ? 'Express doruceni zapnuto' : 'Express delivery enabled'}
+              style={{ marginTop: 8 }}
+            />
           </div>
 
           <div className="panel-body">
@@ -380,22 +379,16 @@ export default function AdminExpress() {
                     </div>
                   </div>
                   <div className="toggles" style={{ marginTop: 12 }}>
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={selectedTier.active}
-                        onChange={(e) => updateTier(selectedTier.id, { active: e.target.checked })}
-                      />
-                      <span>{cs ? 'Aktivni' : 'Active'}</span>
-                    </label>
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={selectedTier.is_default}
-                        onChange={() => setAsDefault(selectedTier.id)}
-                      />
-                      <span>{cs ? 'Vychozi uroven (preselected)' : 'Default tier (preselected)'}</span>
-                    </label>
+                    <ForgeCheckbox
+                      checked={selectedTier.active}
+                      onChange={(e) => updateTier(selectedTier.id, { active: e.target.checked })}
+                      label={cs ? 'Aktivni' : 'Active'}
+                    />
+                    <ForgeCheckbox
+                      checked={selectedTier.is_default}
+                      onChange={() => setAsDefault(selectedTier.id)}
+                      label={cs ? 'Vychozi uroven (preselected)' : 'Default tier (preselected)'}
+                    />
                   </div>
                 </div>
               </div>
@@ -443,14 +436,11 @@ export default function AdminExpress() {
             </div>
             <div className="card-body">
               <div className="toggles">
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={config?.upsell_enabled !== false}
-                    onChange={(e) => updateConfig({ upsell_enabled: e.target.checked })}
-                  />
-                  <span>{cs ? 'Upsell zpravy zapnuty' : 'Upsell messages enabled'}</span>
-                </label>
+                <ForgeCheckbox
+                  checked={config?.upsell_enabled !== false}
+                  onChange={(e) => updateConfig({ upsell_enabled: e.target.checked })}
+                  label={cs ? 'Upsell zpravy zapnuty' : 'Upsell messages enabled'}
+                />
               </div>
               {config?.upsell_enabled !== false && (
                 <div className="field" style={{ marginTop: 12 }}>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
+import ForgeCheckbox from '../../../components/ui/forge/ForgeCheckbox';
 
 /**
  * WidgetSettingsTab -- Tab 4: Enable/disable, builder CTA, duplicate, delete.
@@ -48,14 +49,11 @@ const WidgetSettingsTab = ({
                 : 'Widget je deaktivovany a nebude se zobrazovat.'}
             </div>
           </div>
-          <label className="aw-toggle aw-toggle-large">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={() => onToggleEnabled(widget.id)}
-            />
-            <span />
-          </label>
+          <ForgeCheckbox
+            checked={isActive}
+            onChange={() => onToggleEnabled(widget.id)}
+            size={24}
+          />
         </div>
         <div className={`aw-status-indicator ${isActive ? 'aw-status-active' : 'aw-status-disabled'}`}>
           <div className={`aw-status-dot ${isActive ? 'aw-dot-green' : 'aw-dot-grey'}`} />

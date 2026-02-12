@@ -8,6 +8,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadShippingConfigV1, saveShippingConfigV1 } from '../../utils/adminShippingStorage';
 
@@ -248,14 +249,12 @@ export default function AdminShipping() {
               <h2>{cs ? 'Metody dopravy' : 'Shipping methods'}</h2>
               <span className="muted">{methods.length}</span>
             </div>
-            <label className="toggle" style={{ marginTop: 8 }}>
-              <input
-                type="checkbox"
-                checked={config?.enabled !== false}
-                onChange={(e) => updateConfig({ enabled: e.target.checked })}
-              />
-              <span>{cs ? 'Doprava zapnuta' : 'Shipping enabled'}</span>
-            </label>
+            <ForgeCheckbox
+              checked={config?.enabled !== false}
+              onChange={(e) => updateConfig({ enabled: e.target.checked })}
+              label={cs ? 'Doprava zapnuta' : 'Shipping enabled'}
+              style={{ marginTop: 8 }}
+            />
           </div>
 
           <div className="panel-body">
@@ -413,14 +412,11 @@ export default function AdminShipping() {
                   </div>
 
                   <div className="toggles" style={{ marginTop: 12 }}>
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={selectedMethod.active}
-                        onChange={(e) => updateMethod(selectedMethod.id, { active: e.target.checked })}
-                      />
-                      <span>{cs ? 'Aktivni' : 'Active'}</span>
-                    </label>
+                    <ForgeCheckbox
+                      checked={selectedMethod.active}
+                      onChange={(e) => updateMethod(selectedMethod.id, { active: e.target.checked })}
+                      label={cs ? 'Aktivni' : 'Active'}
+                    />
                   </div>
                 </div>
               </div>
@@ -492,14 +488,11 @@ export default function AdminShipping() {
             </div>
             <div className="card-body">
               <div className="toggles">
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={config?.free_shipping_enabled === true}
-                    onChange={(e) => updateConfig({ free_shipping_enabled: e.target.checked })}
-                  />
-                  <span>{cs ? 'Doprava zdarma zapnuta' : 'Free shipping enabled'}</span>
-                </label>
+                <ForgeCheckbox
+                  checked={config?.free_shipping_enabled === true}
+                  onChange={(e) => updateConfig({ free_shipping_enabled: e.target.checked })}
+                  label={cs ? 'Doprava zdarma zapnuta' : 'Free shipping enabled'}
+                />
               </div>
               {config?.free_shipping_enabled && (
                 <div className="field" style={{ marginTop: 12, maxWidth: 300 }}>

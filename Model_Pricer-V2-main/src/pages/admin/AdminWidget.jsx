@@ -82,6 +82,7 @@ const AdminWidget = () => {
   const [createError, setCreateError] = useState('');
 
   const toastTimer = useRef(null);
+  const createOverlayRef = useRef(null);
 
   /* ---- toast ---- */
   const showToast = (msg, kind = 'ok') => {
@@ -152,6 +153,20 @@ const AdminWidget = () => {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
+
+  // Scroll containment for create widget modal
+  useEffect(() => {
+    if (!createOpen) return;
+    document.body.style.overflow = 'hidden';
+    const el = createOverlayRef.current;
+    if (!el) return;
+    const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      document.body.style.overflow = '';
+    };
+  }, [createOpen]);
 
   /* ---- plan limits ---- */
   const maxWidgets = plan?.features?.max_widget_instances ?? 1;
@@ -647,7 +662,7 @@ const AdminWidget = () => {
 
       {/* Create modal */}
       {createOpen ? (
-        <div className="aw-overlay" onClick={() => setCreateOpen(false)}>
+        <div className="aw-overlay" ref={createOverlayRef} onClick={() => setCreateOpen(false)}>
           <div className="aw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="aw-modal-header">
               <div className="aw-modal-title">Vytvorit novy widget</div>

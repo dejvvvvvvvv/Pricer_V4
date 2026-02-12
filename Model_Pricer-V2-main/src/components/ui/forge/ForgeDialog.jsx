@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 
 /**
  * Forge-themed modal dialog with dark overlay, header with close button,
@@ -19,6 +19,9 @@ export default function ForgeDialog({
   footer,
   maxWidth = '540px',
 }) {
+  const overlayRef = useRef(null);
+  const bodyRef = useRef(null);
+
   const handleKeyDown = useCallback(
     (e) => {
       if (e.key === 'Escape' && onClose) {
@@ -39,6 +42,60 @@ export default function ForgeDialog({
     };
   }, [open, handleKeyDown]);
 
+  // Robust scroll containment with smooth easing.
+  // Takes full control: ALWAYS preventDefault on wheel events over the overlay,
+  // accumulates a target scroll position, and smoothly animates toward it
+  // using requestAnimationFrame with exponential ease-out.
+  useEffect(() => {
+    if (!open) return;
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    let targetY = 0;
+    let rafId = null;
+
+    const animate = () => {
+      const body = bodyRef.current;
+      if (!body) { rafId = null; return; }
+
+      const diff = targetY - body.scrollTop;
+      if (Math.abs(diff) < 0.5) {
+        body.scrollTop = targetY;
+        rafId = null;
+        return;
+      }
+      body.scrollTop += diff * 0.18;
+      rafId = requestAnimationFrame(animate);
+    };
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const body = bodyRef.current;
+      if (!body) return;
+
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      if (e.deltaMode === 2) delta *= body.clientHeight;
+
+      // Initialize target from current position on first scroll
+      if (rafId === null) targetY = body.scrollTop;
+
+      // Accumulate target, clamped within scroll bounds
+      const maxScroll = body.scrollHeight - body.clientHeight;
+      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
+
+      if (!rafId) rafId = requestAnimationFrame(animate);
+    };
+
+    overlay.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      overlay.removeEventListener('wheel', handleWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const overlayStyle = {
@@ -53,6 +110,7 @@ export default function ForgeDialog({
     alignItems: 'center',
     justifyContent: 'center',
     padding: '20px',
+    overflowY: 'auto',
   };
 
   const containerStyle = {
@@ -66,6 +124,7 @@ export default function ForgeDialog({
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
+    overflow: 'hidden',
   };
 
   const headerStyle = {
@@ -106,6 +165,7 @@ export default function ForgeDialog({
     maxHeight: 'calc(85vh - 140px)',
     overflowY: 'auto',
     overscrollBehavior: 'contain',
+    touchAction: 'pan-y',
     flex: 1,
   };
 
@@ -121,6 +181,7 @@ export default function ForgeDialog({
 
   return (
     <div
+      ref={overlayRef}
       style={overlayStyle}
       onClick={(e) => {
         if (e.target === e.currentTarget && onClose) {
@@ -160,7 +221,7 @@ export default function ForgeDialog({
         </div>
 
         {/* Body */}
-        <div style={bodyStyle}>{children}</div>
+        <div ref={bodyRef} style={bodyStyle}>{children}</div>
 
         {/* Footer */}
         {footer && <div style={footerStyle}>{footer}</div>}

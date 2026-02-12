@@ -236,6 +236,7 @@ const styles = {
     padding: '4px 0',
     maxHeight: 280,
     overflowY: 'auto',
+    overscrollBehavior: 'contain',
   },
 
   /* Option row */

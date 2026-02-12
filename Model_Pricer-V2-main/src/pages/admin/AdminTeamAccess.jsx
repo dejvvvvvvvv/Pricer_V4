@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import Icon from '../../components/AppIcon';
 import {
@@ -82,6 +82,64 @@ export default function AdminTeamAccess() {
   const [auditDateFrom, setAuditDateFrom] = useState('');
   const [auditDateTo, setAuditDateTo] = useState('');
   const [auditDetail, setAuditDetail] = useState(null);
+
+  const inviteOverlayRef = useRef(null);
+  const auditDetailOverlayRef = useRef(null);
+
+  // Scroll containment for invite modal — always block, no scrollable content
+  useEffect(() => {
+    if (!inviteOpen) return;
+    document.body.style.overflow = 'hidden';
+    const el = inviteOverlayRef.current;
+    if (!el) return;
+    const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      document.body.style.overflow = '';
+    };
+  }, [inviteOpen]);
+
+  // Scroll containment for audit detail modal — smooth easing
+  useEffect(() => {
+    if (!auditDetail) return;
+    document.body.style.overflow = 'hidden';
+    const overlayEl = auditDetailOverlayRef.current;
+    if (!overlayEl) return;
+
+    let targetY = 0;
+    let rafId = null;
+
+    const animate = () => {
+      const inner = overlayEl.querySelector('.w-full');
+      if (!inner) { rafId = null; return; }
+      const diff = targetY - inner.scrollTop;
+      if (Math.abs(diff) < 0.5) { inner.scrollTop = targetY; rafId = null; return; }
+      inner.scrollTop += diff * 0.18;
+      rafId = requestAnimationFrame(animate);
+    };
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const inner = overlayEl.querySelector('.w-full');
+      if (!inner) return;
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      if (e.deltaMode === 2) delta *= inner.clientHeight;
+      if (rafId === null) targetY = inner.scrollTop;
+      const maxScroll = inner.scrollHeight - inner.clientHeight;
+      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
+      if (!rafId) rafId = requestAnimationFrame(animate);
+    };
+
+    overlayEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      overlayEl.removeEventListener('wheel', handleWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+      document.body.style.overflow = '';
+    };
+  }, [auditDetail]);
 
   const actors = useMemo(() => {
     const set = new Set(getAuditEntries().map((e) => e.actor_email).filter(Boolean));
@@ -617,7 +675,7 @@ export default function AdminTeamAccess() {
 
       {/* Invite modal */}
       {inviteOpen && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(0,0,0,0.65)' }}>
+        <div ref={inviteOverlayRef} className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(0,0,0,0.65)' }}>
           <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -731,7 +789,7 @@ export default function AdminTeamAccess() {
 
       {/* Audit detail modal */}
       {auditDetail && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(0,0,0,0.65)' }}>
+        <div ref={auditDetailOverlayRef} className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(0,0,0,0.65)' }}>
           <div className="w-full max-w-3xl rounded-2xl p-5" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
             <div className="flex items-start justify-between gap-3">
               <div>

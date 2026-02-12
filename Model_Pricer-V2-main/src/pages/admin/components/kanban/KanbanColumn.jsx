@@ -90,6 +90,7 @@ export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop
         flexDirection: 'column',
         gap: '8px',
         overflowY: 'auto',
+        overscrollBehavior: 'contain',
         maxHeight: 'calc(100vh - 280px)',
       }}>
         {orders.map(order => (

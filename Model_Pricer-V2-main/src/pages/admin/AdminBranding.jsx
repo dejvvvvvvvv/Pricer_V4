@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   getBranding,
@@ -1003,49 +1004,34 @@ const AdminBranding = () => {
               Rozmery, embed kod a instance widgetu nastavis ve strance <strong style={{ color: 'var(--forge-text-primary)' }}>Widget</strong>.
             </p>
             <div style={styles.checkboxGroup}>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={branding.showLogo}
-                  onChange={(e) => setBranding({ ...branding, showLogo: e.target.checked })}
-                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
-                />
-                <span style={styles.checkboxSpan}>{t('admin.branding.showLogo')}</span>
-              </label>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={branding.showBusinessName}
-                  onChange={(e) => setBranding({ ...branding, showBusinessName: e.target.checked })}
-                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
-                />
-                <span style={styles.checkboxSpan}>{t('admin.branding.showBusinessName')}</span>
-              </label>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={branding.showTagline}
-                  onChange={(e) => setBranding({ ...branding, showTagline: e.target.checked })}
-                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
-                />
-                <span style={styles.checkboxSpan}>{t('admin.branding.showTagline')}</span>
-              </label>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
+              <ForgeCheckbox
+                checked={branding.showLogo}
+                onChange={(e) => setBranding({ ...branding, showLogo: e.target.checked })}
+                label={t('admin.branding.showLogo')}
+              />
+              <ForgeCheckbox
+                checked={branding.showBusinessName}
+                onChange={(e) => setBranding({ ...branding, showBusinessName: e.target.checked })}
+                label={t('admin.branding.showBusinessName')}
+              />
+              <ForgeCheckbox
+                checked={branding.showTagline}
+                onChange={(e) => setBranding({ ...branding, showTagline: e.target.checked })}
+                label={t('admin.branding.showTagline')}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ForgeCheckbox
                   checked={enforcePoweredBy.poweredByRequired ? true : branding.showPoweredBy}
                   disabled={enforcePoweredBy.poweredByRequired}
                   onChange={(e) => setBranding({ ...branding, showPoweredBy: e.target.checked })}
-                  title={enforcePoweredBy.poweredByRequired ? 'Dostupne v tarifu Pro (white-label)' : ''}
-                  style={{ width: 18, height: 18, cursor: enforcePoweredBy.poweredByRequired ? 'not-allowed' : 'pointer', accentColor: 'var(--forge-accent-primary)' }}
+                  label={t('admin.branding.showPoweredBy')}
                 />
-                <span style={styles.checkboxSpan}>{t('admin.branding.showPoweredBy')}</span>
                 {enforcePoweredBy.poweredByRequired && (
                   <span style={styles.chip} title="Dostupne v tarifu Pro">
                     PRO
                   </span>
                 )}
-              </label>
+              </div>
             </div>
             <div style={{ marginTop: 16 }}>
               <label style={styles.label}>{t('admin.branding.cornerRadius')} {branding.cornerRadius}px</label>

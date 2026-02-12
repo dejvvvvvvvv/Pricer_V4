@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadFeesConfigV3, saveFeesConfigV3, normalizeFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -905,14 +906,11 @@ const AdminFees = () => {
 
             <div className="bulkbar">
               <div className="bulk-left">
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length > 0 && selectedIds.length === filteredFees.length}
-                    onChange={(e) => (e.target.checked ? selectAllFiltered() : clearSelection())}
-                  />
-                  <span>{cs ? 'Vybrat vse' : 'Select all'}</span>
-                </label>
+                <ForgeCheckbox
+                  checked={selectedIds.length > 0 && selectedIds.length === filteredFees.length}
+                  onChange={(e) => (e.target.checked ? selectAllFiltered() : clearSelection())}
+                  label={cs ? 'Vybrat vse' : 'Select all'}
+                />
 
                 {selectedIds.length ? <span className="muted">{cs ? `Vybrano: ${selectedIds.length}` : `Selected: ${selectedIds.length}`}</span> : null}
               </div>
@@ -971,9 +969,7 @@ const AdminFees = () => {
                   return (
                     <div key={f.id} className={`fee-row ${isActive ? 'active' : ''}`} onClick={() => openFeeDialog(f.id)}>
                       <div className="fee-row-left" onClick={(e) => e.stopPropagation()}>
-                        <label className="checkbox">
-                          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(f.id)} />
-                        </label>
+                        <ForgeCheckbox checked={isSelected} onChange={() => toggleSelect(f.id)} />
                       </div>
 
                       <div className="fee-row-main">
@@ -1086,14 +1082,11 @@ const AdminFees = () => {
                 </div>
 
                 <div className="toggles" style={{ marginTop: 12 }}>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={feeDraft.active}
-                      onChange={(e) => updateFeeDraft({ active: e.target.checked })}
-                    />
-                    <span>{cs ? 'Aktivni' : 'Active'}</span>
-                  </label>
+                  <ForgeCheckbox
+                    checked={feeDraft.active}
+                    onChange={(e) => updateFeeDraft({ active: e.target.checked })}
+                    label={cs ? 'Aktivni' : 'Active'}
+                  />
                 </div>
               </div>
             )}
@@ -1193,44 +1186,32 @@ const AdminFees = () => {
             {activeTab === 'widget' && (
               <div className="tab-content">
                 <div className="toggles">
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={feeDraft.required}
-                      onChange={(e) => updateFeeDraft({ required: e.target.checked })}
-                    />
-                    <span>{ui.required}</span>
-                  </label>
+                  <ForgeCheckbox
+                    checked={feeDraft.required}
+                    onChange={(e) => updateFeeDraft({ required: e.target.checked })}
+                    label={ui.required}
+                  />
 
-                  <label className={`toggle ${feeDraft.required ? 'disabled' : ''}`}>
-                    <input
-                      type="checkbox"
-                      disabled={feeDraft.required}
-                      checked={feeDraft.selectable}
-                      onChange={(e) => updateFeeDraft({ selectable: e.target.checked })}
-                    />
-                    <span>{ui.selectable}</span>
-                  </label>
+                  <ForgeCheckbox
+                    disabled={feeDraft.required}
+                    checked={feeDraft.selectable}
+                    onChange={(e) => updateFeeDraft({ selectable: e.target.checked })}
+                    label={ui.selectable}
+                  />
 
-                  <label className={`toggle ${feeDraft.required || !feeDraft.selectable ? 'disabled' : ''}`}>
-                    <input
-                      type="checkbox"
-                      disabled={feeDraft.required || !feeDraft.selectable}
-                      checked={feeDraft.selected_by_default}
-                      onChange={(e) => updateFeeDraft({ selected_by_default: e.target.checked })}
-                    />
-                    <span>{ui.selectedByDefault}</span>
-                  </label>
+                  <ForgeCheckbox
+                    disabled={feeDraft.required || !feeDraft.selectable}
+                    checked={feeDraft.selected_by_default}
+                    onChange={(e) => updateFeeDraft({ selected_by_default: e.target.checked })}
+                    label={ui.selectedByDefault}
+                  />
 
-                  <label className={`toggle ${feeDraft.scope !== 'MODEL' ? 'disabled' : ''}`}>
-                    <input
-                      type="checkbox"
-                      disabled={feeDraft.scope !== 'MODEL'}
-                      checked={feeDraft.apply_to_selected_models_enabled}
-                      onChange={(e) => updateFeeDraft({ apply_to_selected_models_enabled: e.target.checked })}
-                    />
-                    <span>{ui.applyToSelected}</span>
-                  </label>
+                  <ForgeCheckbox
+                    disabled={feeDraft.scope !== 'MODEL'}
+                    checked={feeDraft.apply_to_selected_models_enabled}
+                    onChange={(e) => updateFeeDraft({ apply_to_selected_models_enabled: e.target.checked })}
+                    label={ui.applyToSelected}
+                  />
                 </div>
 
                 {feeDraft.scope !== 'MODEL' ? (
@@ -1292,10 +1273,11 @@ const AdminFees = () => {
                             <div className="field">
                               <label>{cs ? 'Operator' : 'Operator'}</label>
                               {cu.isBool || cu.key === 'quality_preset' ? (
-                                <div className="readonly">=</div>
+                                <div className="readonly" style={{ textAlign: 'center' }}>=</div>
                               ) : (
                                 <select
                                   className="input"
+                                  style={{ textAlign: 'center' }}
                                   value={cu.op}
                                   onChange={(e) => updateDraftCondition(idx, { op: e.target.value })}
                                 >

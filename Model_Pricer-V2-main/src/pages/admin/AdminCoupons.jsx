@@ -9,6 +9,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   loadCouponsConfigV1,
@@ -291,16 +292,15 @@ export default function AdminCoupons() {
       {/* ---- GLOBAL ENABLE TOGGLE ---- */}
       <div className="admin-card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
-          <label className="toggle" style={{ margin: 0 }}>
-            <input
-              type="checkbox"
-              checked={!!config?.enabled}
-              onChange={(e) => updateConfig({ enabled: e.target.checked })}
-            />
-            <span style={{ fontWeight: 700, color: 'var(--forge-text-primary)' }}>
-              {cs ? 'Kupony a akce zapnuty' : 'Coupons & Promotions enabled'}
-            </span>
-          </label>
+          <ForgeCheckbox
+            checked={!!config?.enabled}
+            onChange={(e) => updateConfig({ enabled: e.target.checked })}
+            label={
+              <span style={{ fontWeight: 700, color: 'var(--forge-text-primary)' }}>
+                {cs ? 'Kupony a akce zapnuty' : 'Coupons & Promotions enabled'}
+              </span>
+            }
+          />
           <span className="muted">
             {config?.enabled
               ? (cs ? 'Zakaznici mohou pouzivat slevove kody.' : 'Customers can use discount codes.')
@@ -362,16 +362,11 @@ export default function AdminCoupons() {
                     <div key={coupon.id || idx} className="item-row">
                       <div className="item-header">
                         <div className="item-left">
-                          <label className="toggle">
-                            <input
-                              type="checkbox"
-                              checked={coupon.active}
-                              onChange={(e) => updateCoupon(idx, { active: e.target.checked })}
-                            />
-                            <span className="item-name">
-                              {coupon.code || (cs ? '(bez kodu)' : '(no code)')}
-                            </span>
-                          </label>
+                          <ForgeCheckbox
+                            checked={coupon.active}
+                            onChange={(e) => updateCoupon(idx, { active: e.target.checked })}
+                            label={<span className="item-name">{coupon.code || (cs ? '(bez kodu)' : '(no code)')}</span>}
+                          />
                           <span className="muted">
                             {COUPON_TYPE_OPTIONS.find((o) => o.value === coupon.type)?.[cs ? 'label_cs' : 'label_en'] || coupon.type}
                             {coupon.type !== 'free_shipping' && ` — ${coupon.value}${coupon.type === 'percent' ? '%' : ' CZK'}`}
@@ -536,16 +531,11 @@ export default function AdminCoupons() {
                     <div key={promo.id || idx} className="item-row">
                       <div className="item-header">
                         <div className="item-left">
-                          <label className="toggle">
-                            <input
-                              type="checkbox"
-                              checked={promo.active}
-                              onChange={(e) => updatePromotion(idx, { active: e.target.checked })}
-                            />
-                            <span className="item-name-text">
-                              {promo.name || (cs ? '(bez nazvu)' : '(unnamed)')}
-                            </span>
-                          </label>
+                          <ForgeCheckbox
+                            checked={promo.active}
+                            onChange={(e) => updatePromotion(idx, { active: e.target.checked })}
+                            label={<span className="item-name-text">{promo.name || (cs ? '(bez nazvu)' : '(unnamed)')}</span>}
+                          />
                           <span className="muted">
                             {PROMO_TYPE_OPTIONS.find((o) => o.value === promo.type)?.[cs ? 'label_cs' : 'label_en'] || promo.type}
                             {` — ${promo.value}${promo.type === 'percent' ? '%' : ' CZK'}`}
@@ -667,16 +657,11 @@ export default function AdminCoupons() {
                         </div>
                       </div>
                       <div style={{ marginTop: 10 }}>
-                        <label className="toggle">
-                          <input
-                            type="checkbox"
-                            checked={promo.auto_apply}
-                            onChange={(e) => updatePromotion(idx, { auto_apply: e.target.checked })}
-                          />
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>
-                            {cs ? 'Automaticky aplikovat (bez kodu)' : 'Auto-apply (no code needed)'}
-                          </span>
-                        </label>
+                        <ForgeCheckbox
+                          checked={promo.auto_apply}
+                          onChange={(e) => updatePromotion(idx, { auto_apply: e.target.checked })}
+                          label={<span style={{ fontWeight: 600, fontSize: 13 }}>{cs ? 'Automaticky aplikovat (bez kodu)' : 'Auto-apply (no code needed)'}</span>}
+                        />
                       </div>
                       {/* Banner preview */}
                       {promo.banner_text && (
@@ -736,14 +721,10 @@ export default function AdminCoupons() {
                         : 'If enabled, customers can use multiple discount codes at once.'}
                     </p>
                   </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={!!settings.allow_stacking}
-                      onChange={(e) => updateSettings({ allow_stacking: e.target.checked })}
-                    />
-                    <span className="switch-slider" />
-                  </label>
+                  <ForgeCheckbox
+                    checked={!!settings.allow_stacking}
+                    onChange={(e) => updateSettings({ allow_stacking: e.target.checked })}
+                  />
                 </div>
 
                 {/* Max discount percent */}

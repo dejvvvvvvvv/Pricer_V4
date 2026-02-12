@@ -173,6 +173,7 @@ const styles = {
     flex: '1 1 0%',
     overflowY: 'auto',
     overflowX: 'hidden',
+    overscrollBehavior: 'contain',
     padding: '12px',
     /* dark scrollbar styling using builder tokens */
     scrollbarWidth: 'thin',
