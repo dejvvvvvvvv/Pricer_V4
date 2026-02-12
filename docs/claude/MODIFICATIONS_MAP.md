@@ -363,3 +363,55 @@ Vsechny v `src/components/ui/forge/`:
 - **Zpetna kompatibilita**: ANO — zadna zmena v datech, API, logice
 - **Celkem upravenych souboru**: ~55 (16 admin + 8 sub-komponent + 8 kalkulacka + 11 auth/account + 2 misc + 5 CSS + 23 novych komponent)
 - **Celkem novych souboru**: 28 (23 FORGE komponent + 5 CSS)
+
+---
+---
+
+## Zmeny 2026-02-11: Scroll Containment — Admin panel + ForgeDialog modaly
+
+### Problem
+
+Scrollovani koleckem mysi na admin strankach prosakovalo — pri scrollovani v bocnim menu, ve vyskakovacich oknech (ForgeDialog) nebo v custom modalech se misto nich posouval hlavni obsah stranky v pozadi. Pricina: `position: fixed` elementy (sidebar, overlay) neparticipuji v nativnim scroll chainu prohlizece, takze wheel eventy propadavaji na document.
+
+### Reseni — 3-vrstvovy pristup
+
+1. **`e.preventDefault()` + `e.stopPropagation()`** — vzdy blokuje nativni scroll prohlizece
+2. **Manualni scroll** — `scrollTop` se ridi rucne pres JavaScript
+3. **Smooth easing pres `requestAnimationFrame`** — akumuluje cilovou pozici (`targetY += delta`), RAF loop animuje `scrollTop` smerem k cili s faktorem `0.18` (18% zbyvajici vzdalenosti za frame = exponencialni ease-out)
+
+```
+Wheel event → preventDefault + stopPropagation
+           → targetY += delta (clamped 0..maxScroll)
+           → RAF loop: scrollTop += (targetY - scrollTop) * 0.18
+           → Zastaví se kdyz |diff| < 0.5px
+```
+
+`deltaMode` konverze: mode 1 (line) → `*40px`, mode 2 (page) → `*clientHeight`.
+
+### Upravene soubory
+
+| Soubor | Co se scrolluje | Typ |
+|--------|----------------|-----|
+| `src/components/ui/forge/ForgeDialog.jsx` | Dialog body (`bodyRef`) | Smooth RAF easing |
+| `src/pages/admin/AdminLayout.jsx` | Sidebar `<nav>` element | Smooth RAF easing |
+| `src/pages/admin/AdminDashboard.jsx` | Add Metric modal `.modal-body` | Smooth RAF easing |
+| `src/pages/admin/AdminDashboard.jsx` | SettingsModal `.modal-body` | Smooth RAF easing |
+| `src/pages/admin/AdminTeamAccess.jsx` | Audit detail modal `.w-full` | Smooth RAF easing |
+| `src/pages/admin/AdminTeamAccess.jsx` | Invite modal (zadny scroll obsah) | Cisty block |
+| `src/pages/admin/AdminOrders.jsx` | ConfirmModal (zadny scroll obsah) | Cisty block |
+| `src/pages/admin/AdminParameters.jsx` | ConfirmModal (zadny scroll obsah) | Cisty block |
+| `src/pages/admin/AdminPresets.jsx` | Delete modal (zadny scroll obsah) | Cisty block |
+| `src/pages/admin/AdminWidget.jsx` | Create modal (zadny scroll obsah) | Cisty block |
+
+**ForgeDialog pokryva automaticky:** AdminPricing (materialy), AdminFees (fee editor s 5 taby), AdminPresets (preset editor), AdminAnalytics (session detail).
+
+### Technicke detaily
+
+- Vsechny handlery pouzivaji `addEventListener('wheel', handler, { passive: false })` — React `onWheel` je passive a nemuze volat `preventDefault()`
+- Modaly nastavuji `document.body.style.overflow = 'hidden'` pri otevreni, obnovuji v cleanup
+- Cleanup `useEffect` vzdy vola `cancelAnimationFrame(rafId)` pro prevenci memory leaku
+- Confirmation modaly bez scrollovatelneho obsahu pouzivaji jednodussi variantu (jen `preventDefault + stopPropagation`, zadny manualni scroll)
+
+### Build status
+
+- **Vite build**: PASS (2974 modulu, 0 chyb)

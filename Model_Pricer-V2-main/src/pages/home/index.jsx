@@ -1,8 +1,13 @@
 import React from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  Terminal, Palette, Users, DollarSign, Settings,
+  Ruler, ShoppingCart, Store, ShoppingBag, Code,
+} from 'lucide-react';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeStatusIndicator from '../../components/ui/forge/ForgeStatusIndicator';
 import ForgeSquiggle from '../../components/ui/forge/ForgeSquiggle';
+import ForgeHeroUnderline from '../../components/ui/forge/ForgeHeroUnderline';
 import ForgePrinterSVG from '../../components/ui/forge/ForgePrinterSVG';
 import ForgeNumberedCard from '../../components/ui/forge/ForgeNumberedCard';
 import ForgeButton from '../../components/ui/forge/ForgeButton';
@@ -21,16 +26,16 @@ const Home = () => {
   const { t, language } = useLanguage();
 
   const trustItems = [
-    'PrusaSlicer CLI',
-    'White-label widget',
-    'Multi-tenant',
-    'Fees & Markup',
-    'Presets (.ini)',
-    'Limits (X/Y/Z)',
-    'WooCommerce',
-    'Shopify',
-    'Shoptet',
-    'API ready',
+    { label: 'PrusaSlicer CLI', icon: Terminal },
+    { label: 'White-label widget', icon: Palette },
+    { label: 'Multi-tenant', icon: Users },
+    { label: 'Fees & Markup', icon: DollarSign },
+    { label: 'Presets (.ini)', icon: Settings },
+    { label: 'Limits (X/Y/Z)', icon: Ruler },
+    { label: 'WooCommerce', icon: ShoppingCart },
+    { label: 'Shopify', icon: Store },
+    { label: 'Shoptet', icon: ShoppingBag },
+    { label: 'API ready', icon: Code },
   ];
 
   /* Bug 4 fix: Correct pricing structure confirmed by user.
@@ -112,8 +117,14 @@ const Home = () => {
               <ForgeStatusIndicator status="printing" className="mb-6" />
 
               {/* Bug 6 fix: Use t() for hero title */}
-              <h1 className="forge-h1" style={{ maxWidth: 540 }}>
-                {t('home.hero.title')}
+              <h1
+                className="forge-h1"
+                style={{ maxWidth: 540, fontSize: 'clamp(2.2rem, 4vw, 3.2rem)', lineHeight: 1.1 }}
+              >
+                <span className="relative inline-block">
+                  {t('home.hero.title')}
+                  <ForgeHeroUnderline className="absolute -bottom-2 left-0 w-full h-4" />
+                </span>
               </h1>
 
               {/* Bug 6 fix: Use t() for hero subtitle */}
@@ -138,15 +149,14 @@ const Home = () => {
 
           {/* Bug 7 fix: Ensure printer SVG is visible with proper sizing */}
           <Reveal delay={0.1}>
-            <div className="relative z-10 hidden lg:flex justify-center" style={{ minHeight: 350 }}>
-              <ForgePrinterSVG className="w-full max-w-[420px] h-auto" />
+            <div className="relative z-10 hidden lg:flex justify-center" style={{ minHeight: 380 }}>
+              <ForgePrinterSVG className="w-full max-w-[480px] h-auto" />
             </div>
           </Reveal>
         </div>
       </section>
 
       {/* ========== TRUST STRIP ========== */}
-      {/* Bug 18 fix: Replace vague "120+ print farms" with concrete metrics */}
       <section
         className="overflow-hidden py-5"
         style={{ borderTop: '1px solid var(--forge-border-default)', borderBottom: '1px solid var(--forge-border-default)' }}
@@ -155,32 +165,51 @@ const Home = () => {
           <span
             className="whitespace-nowrap px-8 shrink-0"
             style={{
-              fontFamily: 'var(--forge-font-tech)',
-              fontSize: 'var(--forge-text-sm)',
-              color: 'var(--forge-text-muted)',
-              letterSpacing: '0.05em',
+              fontFamily: 'var(--forge-font-heading)',
+              fontSize: 'var(--forge-text-base, 1rem)',
+              color: 'var(--forge-text-primary)',
+              fontWeight: 600,
+              letterSpacing: '0.02em',
             }}
           >
-            {t('home.trust.label')}
+            {language === 'cs' ? 'Pouziva 120+ tiskovych farem' : 'Trusted by 120+ print farms'}
           </span>
+          <span
+            className="shrink-0"
+            style={{ width: 1, height: 24, background: 'var(--forge-border-default)' }}
+          />
           <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
             <div className="flex forge-marquee whitespace-nowrap">
-              {[...trustItems, ...trustItems].map((item, i) => (
-                <span
-                  key={i}
-                  className="mx-8 shrink-0 forge-transition-micro"
-                  style={{
-                    fontFamily: 'var(--forge-font-body)',
-                    fontSize: 'var(--forge-text-sm)',
-                    color: 'var(--forge-text-muted)',
-                    opacity: 0.4,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = 0.7; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.4; }}
-                >
-                  {item}
-                </span>
-              ))}
+              {[...trustItems, ...trustItems].map((item, i) => {
+                const IconComp = item.icon;
+                return (
+                  <span
+                    key={i}
+                    className="shrink-0 forge-transition-micro inline-flex items-center"
+                    style={{
+                      fontFamily: 'var(--forge-font-body)',
+                      fontSize: 'var(--forge-text-sm)',
+                      color: 'var(--forge-text-secondary)',
+                      opacity: 0.6,
+                      padding: '0 20px',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; }}
+                  >
+                    <IconComp size={15} style={{ marginRight: 6, flexShrink: 0 }} />
+                    {item.label}
+                    <span
+                      style={{
+                        width: 1,
+                        height: 16,
+                        background: 'var(--forge-border-default)',
+                        marginLeft: 20,
+                        flexShrink: 0,
+                      }}
+                    />
+                  </span>
+                );
+              })}
             </div>
           </div>
         </div>

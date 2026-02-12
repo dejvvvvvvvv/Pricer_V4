@@ -1,17 +1,31 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import logoImg from '../../assets/logo.png';
 
 const Footer = () => {
   const { t } = useLanguage();
+  const location = useLocation();
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1400);
+
+  useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Match AdminLayout sidebar logic
+  const isAdmin = location.pathname.startsWith('/admin');
+  const isMobile = windowWidth < 768;
+  const sidebarCollapsed = windowWidth < 1200 && windowWidth >= 768;
+  const sidebarWidth = isAdmin && !isMobile ? (sidebarCollapsed ? 64 : 260) : 0;
 
   return (
-    <footer className="footer">
+    <footer className="footer" style={sidebarWidth > 0 ? { marginLeft: sidebarWidth, transition: 'margin-left 250ms cubic-bezier(0.16, 1, 0.3, 1)' } : undefined}>
       <div className="footer-container">
         <div className="footer-content">
           {/* LEFT — Logo + Description */}
-          <div className="footer-column">
+          <div className="footer-column" style={sidebarWidth > 0 ? { paddingLeft: 60 } : undefined}>
             <div className="footer-logo">
               <img
                 src={logoImg}
