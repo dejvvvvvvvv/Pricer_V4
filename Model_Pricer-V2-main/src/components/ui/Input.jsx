@@ -20,6 +20,7 @@ const Input = React.forwardRef(({
                         "block text-sm font-medium mb-1",
                         error ? "text-destructive" : "text-foreground"
                     )}
+                    style={{ color: error ? 'var(--forge-error)' : 'var(--forge-text-secondary, inherit)' }}
                 >
                     {label}
                 </label>
@@ -28,10 +29,17 @@ const Input = React.forwardRef(({
                 type={type}
                 id={inputId}
                 className={cn(
-                    "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                    "flex h-10 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
                     error && "border-destructive focus-visible:ring-destructive",
                     className
                 )}
+                style={{
+                    backgroundColor: 'var(--forge-bg-elevated, hsl(0 0% 3.9%))',
+                    color: 'var(--forge-text-primary, #fff)',
+                    borderColor: error ? 'var(--forge-error)' : 'var(--forge-border-default, hsl(0 0% 14.9%))',
+                    fontFamily: 'var(--forge-font-body, inherit)',
+                    ...(props.style || {}),
+                }}
                 ref={ref}
                 {...props}
             />

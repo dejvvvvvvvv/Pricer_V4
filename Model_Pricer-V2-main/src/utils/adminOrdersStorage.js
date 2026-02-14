@@ -167,6 +167,13 @@ function buildSeedOrders() {
     { name: 'Firma ABC s.r.o.', email: 'poptavky@firmaabc.cz', phone: '+420 222 123 456' },
   ];
 
+  const addresses = [
+    { street: 'Hlavní 123', city: 'Praha', zip: '110 00', country: 'CZ' },
+    { street: 'Masarykova 45', city: 'Brno', zip: '602 00', country: 'CZ' },
+    { street: 'Sokolská 78', city: 'Ostrava', zip: '702 00', country: 'CZ' },
+    { street: 'Komenského 12', city: 'Plzeň', zip: '301 00', country: 'CZ' },
+  ];
+
   const baseDate = new Date();
   const orders = [];
 
@@ -295,12 +302,28 @@ function buildSeedOrders() {
 
     const status = pick(ORDER_STATUSES, Math.floor(rnd() * ORDER_STATUSES.length));
 
+    const address = pick(addresses, Math.floor(rnd() * addresses.length));
+    const shortId = String(Math.floor(rnd() * 99999999)).padStart(8, '0');
+
     const order = {
       id,
       tenant_id: 'demo-tenant',
       created_at: created.toISOString(),
       status,
       customer_snapshot: deepClone(customer),
+      shipping_address: deepClone(address),
+      storage: {
+        orderFolderId: `seed-${shortId}`,
+        storagePath: `Orders/#${id}__${shortId}/`,
+        savedAt: created.toISOString(),
+        fileManifest: models.map((m) => ({
+          type: 'model',
+          filename: m.file_snapshot.filename,
+          sha256: '',
+          sizeBytes: m.file_snapshot.size,
+        })),
+        status: 'complete',
+      },
       models,
       one_time_fees: [],
       totals_snapshot: {
@@ -377,6 +400,14 @@ export function getStatusLabel(status, language = 'cs') {
     CANCELED: language === 'cs' ? 'Zrušeno' : 'Canceled',
   };
   return map[status] || status;
+}
+
+export function getOrderStoragePath(order) {
+  return order?.storage?.storagePath || null;
+}
+
+export function getOrderStorageStatus(order) {
+  return order?.storage?.status || 'pending';
 }
 
 export function getFlagLabel(flag, language = 'cs') {

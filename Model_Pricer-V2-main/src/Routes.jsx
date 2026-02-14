@@ -35,6 +35,8 @@ const AdminShipping = React.lazy(() => import('./pages/admin/AdminShipping'));
 const AdminEmails = React.lazy(() => import('./pages/admin/AdminEmails'));
 const AdminCoupons = React.lazy(() => import('./pages/admin/AdminCoupons'));
 const AdminMigration = React.lazy(() => import('./pages/admin/AdminMigration'));
+const SlicerPage = React.lazy(() => import('./pages/slicer'));
+const AdminModelStorage = React.lazy(() => import('./pages/admin/AdminModelStorage'));
 
 
 export default function Routes() {
@@ -43,6 +45,18 @@ export default function Routes() {
       <RouterRoutes>
         {/* Public Widget Route - no Header/Footer (embeddable) */}
         <Route path="/w/:publicWidgetId" element={<WidgetPublicPage />} />
+
+        {/* Slicer - fullscreen, no Header/Footer */}
+        <Route path="/slicer" element={
+          <Suspense fallback={<div style={{
+            width:'100vw', height:'100vh', display:'flex',
+            alignItems:'center', justifyContent:'center',
+            background:'var(--forge-bg-void, #08090C)',
+            color:'var(--forge-text-primary, #E8ECF1)'
+          }}>Loading Slicer...</div>}>
+            <SlicerPage />
+          </Suspense>
+        } />
 
         {/* Widget Builder - fullscreen, no admin sidebar / Header / Footer */}
         <Route path="/admin/widget/builder/:id" element={<AdminWidgetBuilder />} />
@@ -85,7 +99,8 @@ export default function Routes() {
             {/* NOTE: subroutes are handled inside these modules */}
             <Route path="parameters/*" element={<AdminParameters />} />
             <Route path="presets/*" element={<AdminPresets />} />
-            <Route path="orders" element={<AdminOrders />} />
+            <Route path="orders/*" element={<AdminOrders />} />
+            <Route path="model-storage" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminModelStorage /></Suspense>} />
             <Route path="widget" element={<AdminWidget />} />
             {/* widget/builder/:id moved to top-level for fullscreen builder */}
             <Route path="analytics" element={<AdminAnalytics />} />

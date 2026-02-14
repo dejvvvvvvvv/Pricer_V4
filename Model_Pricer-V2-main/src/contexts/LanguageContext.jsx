@@ -387,6 +387,32 @@ const translations = {
     'admin.orders.page': 'Strana',
     'admin.orders.of': 'z',
 
+    // Admin Model Storage
+    'admin.storage.title': 'Model Storage',
+    'admin.storage.subtitle': 'Prochazejte a spravujte soubory objednavek',
+    'admin.storage.orders': 'Objednavky',
+    'admin.storage.company_library': 'Firemni knihovna',
+    'admin.storage.trash': 'Kos',
+    'admin.storage.open_folder': 'Otevrit slozku',
+    'admin.storage.download_zip': 'Stahnout ZIP',
+    'admin.storage.storage_ready': 'Pripraveno',
+    'admin.storage.storage_processing': 'Zpracovavam',
+    'admin.storage.storage_error': 'Chyba',
+    'admin.storage.storage_retry': 'Zkusit znovu',
+    'admin.storage.search_files': 'Hledat soubory...',
+    'admin.storage.upload': 'Nahrat',
+    'admin.storage.new_folder': 'Nova slozka',
+    'admin.storage.no_files': 'Zadne soubory',
+    'admin.storage.file_manifest': 'Manifest souboru',
+    'admin.storage.checksum': 'Kontrolni soucet',
+
+    // Checkout — Shipping
+    'checkout.shipping_address': 'Dodaci adresa',
+    'checkout.street': 'Ulice a cislo popisne',
+    'checkout.city': 'Mesto',
+    'checkout.zip': 'PSC',
+    'checkout.country': 'Stat',
+
     // Admin Widget
     'admin.widget.title': 'Widget Code',
     'admin.widget.subtitle': 'Vložte kalkulačku na váš web',
@@ -903,6 +929,32 @@ const translations = {
     'admin.orders.next': 'Next',
     'admin.orders.page': 'Page',
     'admin.orders.of': 'of',
+
+    // Admin Storage (Model Storage)
+    'admin.storage.title': 'Model Storage',
+    'admin.storage.subtitle': 'Browse and manage order files, models, and company library',
+    'admin.storage.orders': 'Orders',
+    'admin.storage.company_library': 'Company Library',
+    'admin.storage.trash': 'Trash',
+    'admin.storage.open_folder': 'Open Folder',
+    'admin.storage.download_zip': 'Download ZIP',
+    'admin.storage.storage_ready': 'Ready',
+    'admin.storage.storage_processing': 'Processing',
+    'admin.storage.storage_error': 'Error',
+    'admin.storage.storage_retry': 'Retry',
+    'admin.storage.search_files': 'Search files...',
+    'admin.storage.upload': 'Upload',
+    'admin.storage.new_folder': 'New Folder',
+    'admin.storage.no_files': 'No files',
+    'admin.storage.file_manifest': 'File Manifest',
+    'admin.storage.checksum': 'Checksum',
+
+    // Checkout — shipping
+    'checkout.shipping_address': 'Shipping Address',
+    'checkout.street': 'Street and house number',
+    'checkout.city': 'City',
+    'checkout.zip': 'ZIP Code',
+    'checkout.country': 'Country',
 
     // Admin Widget
     'admin.widget.title': 'Widget Code',

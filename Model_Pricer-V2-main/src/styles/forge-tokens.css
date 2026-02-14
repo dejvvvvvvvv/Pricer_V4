@@ -81,3 +81,10 @@
   --forge-nozzle-hot: #FF9F43;
   --forge-bed-heated: #FD7272;
 }
+
+/* ---- Forge input overrides ---- */
+input::placeholder,
+textarea::placeholder {
+  color: var(--forge-text-muted, #7A8291) !important;
+  opacity: 1;
+}

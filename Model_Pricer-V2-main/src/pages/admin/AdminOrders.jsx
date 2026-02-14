@@ -12,6 +12,7 @@ import {
   extractOrderMaterials,
   extractOrderPresets,
   getFlagLabel,
+  getOrderStorageStatus,
   getStatusLabel,
   loadOrders,
   nowIso,
@@ -20,6 +21,8 @@ import {
 } from '../../utils/adminOrdersStorage';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import { loadKanbanConfigV1, saveKanbanConfigV1 } from '../../utils/adminKanbanStorage';
+import OrderDetailModal from './components/orders/OrderDetailModal';
+import StorageStatusBadge from './components/orders/StorageStatusBadge';
 
 // =====================================
 // Admin Orders — Variant A (front-end demo)
@@ -184,7 +187,7 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
   );
 }
 
-function OrdersList({ orders, setOrders }) {
+function OrdersList({ orders, setOrders, onSelectOrder }) {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
 
@@ -547,7 +550,7 @@ function OrdersList({ orders, setOrders }) {
                         </div>
                       </td>
                       <td className="actions">
-                        <button className="btn-primary btn-small" onClick={() => navigate(`./${o.id}`)} type="button">
+                        <button className="btn-primary btn-small" onClick={() => onSelectOrder?.(o.id)} type="button">
                           Open
                         </button>
                       </td>
@@ -1471,18 +1474,46 @@ function ModelDetail({ orders, setOrders }) {
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
 
   useEffect(() => {
     const data = loadOrders();
     setOrders(data);
   }, []);
 
+  const selectedOrder = selectedOrderId ? orders.find((o) => o.id === selectedOrderId) || null : null;
+
+  const handleSaveNote = (note) => {
+    if (!selectedOrder) return;
+    const updated = orders.map((o) => {
+      if (o.id !== selectedOrder.id) return o;
+      return {
+        ...o,
+        notes: [...(o.notes || []), note],
+        activity: [...(o.activity || []), { timestamp: note.created_at, user_id: 'admin', type: 'NOTE_ADDED', payload: { text: note.text } }],
+        updated_at: note.created_at,
+      };
+    });
+    setOrders(updated);
+    saveOrders(updated);
+  };
+
   return (
-    <Routes>
-      <Route index element={<OrdersList orders={orders} setOrders={setOrders} />} />
-      <Route path=":id" element={<OrderDetail orders={orders} setOrders={setOrders} />} />
-      <Route path=":id/model/:modelId" element={<ModelDetail orders={orders} setOrders={setOrders} />} />
-      <Route path="*" element={<Navigate to="." replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route index element={<OrdersList orders={orders} setOrders={setOrders} onSelectOrder={setSelectedOrderId} />} />
+        <Route path=":id" element={<OrderDetail orders={orders} setOrders={setOrders} />} />
+        <Route path=":id/model/:modelId" element={<ModelDetail orders={orders} setOrders={setOrders} />} />
+        <Route path="*" element={<Navigate to="." replace />} />
+      </Routes>
+
+      <OrderDetailModal
+        open={!!selectedOrder}
+        order={selectedOrder}
+        onClose={() => setSelectedOrderId(null)}
+        onSaveNote={handleSaveNote}
+        onUpdateOrders={setOrders}
+      />
+    </>
   );
 }

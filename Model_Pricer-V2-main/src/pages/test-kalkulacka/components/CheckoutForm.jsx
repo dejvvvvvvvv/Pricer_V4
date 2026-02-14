@@ -1,14 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
-import { Checkbox } from '../../../components/ui/Checkbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { getCheckoutSchema } from '../schemas/checkoutSchema';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 import { loadOrders, saveOrders, nowIso } from '../../../utils/adminOrdersStorage';
+import { saveOrderFiles } from '../../../services/storageApi';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
 const fg = {
@@ -52,9 +52,6 @@ const fg = {
     resize: 'vertical',
     outline: 'none',
     transition: 'border-color 0.15s',
-  },
-  textareaPlaceholder: {
-    color: 'var(--forge-text-muted)',
   },
   error: {
     fontSize: 'var(--forge-text-xs)',
@@ -188,6 +185,7 @@ export default function CheckoutForm({
 }) {
   const { language } = useLanguage();
   const t = (cs, en) => (language === 'en' ? en : cs);
+  const [savingFiles, setSavingFiles] = useState(false);
 
   const schema = useMemo(() => getCheckoutSchema(language), [language]);
 
@@ -203,6 +201,10 @@ export default function CheckoutForm({
       email: '',
       phone: '',
       company: '',
+      street: '',
+      city: '',
+      zip: '',
+      country: language === 'en' ? '' : 'CZ',
       note: '',
       gdprConsent: false,
     },
@@ -234,6 +236,7 @@ export default function CheckoutForm({
   const onSubmit = async (data) => {
     const orderNumber = generateOrderNumber();
     const now = nowIso();
+    const orderFolderId = crypto.randomUUID();
 
     const order = {
       id: orderNumber,
@@ -249,10 +252,19 @@ export default function CheckoutForm({
         gdpr_consent: true,
         gdpr_consent_at: now,
       },
+      shipping_address: {
+        street: data.street,
+        city: data.city,
+        zip: data.zip,
+        country: data.country,
+      },
       models: (uploadedFiles || [])
         .filter(f => f?.status === 'completed' && f?.result)
         .map((f, idx) => {
           const cfg = printConfigs?.[f.id] || {};
+          const metrics = f.result?.metrics || {};
+          // Get per-model pricing from quote breakdown if available
+          const modelBreakdown = quote?.breakdown?.modelTotalsById?.[f.id] || null;
           return {
             id: `M-${idx + 1}`,
             file_snapshot: {
@@ -266,7 +278,10 @@ export default function CheckoutForm({
               name: (cfg.material || 'pla').toUpperCase(),
             },
             config_snapshot: cfg,
-            slicer_snapshot: f.result?.metrics || {},
+            slicer_snapshot: metrics,
+            price_breakdown_snapshot: modelBreakdown ? {
+              model_total: modelBreakdown.totalAfterFees ?? modelBreakdown.total ?? 0,
+            } : null,
           };
         }),
       totals_snapshot: quote
@@ -276,32 +291,100 @@ export default function CheckoutForm({
       notes: data.note ? [{ text: data.note, created_at: now }] : [],
       activity: [{ timestamp: now, user_id: 'customer', type: 'CREATED', payload: { status: 'NEW' } }],
       updated_at: now,
+      // Storage info placeholder
+      storage: {
+        orderFolderId,
+        storagePath: null,
+        savedAt: null,
+        fileManifest: null,
+        status: 'pending',
+      },
     };
 
-    // Save to localStorage orders
+    // Save to localStorage first (always works)
     const orders = loadOrders();
     orders.unshift(order);
     saveOrders(orders);
 
+    // Try to save files to backend storage
+    setSavingFiles(true);
+    try {
+      // Collect original File objects from uploadedFiles
+      const modelFiles = (uploadedFiles || [])
+        .filter(f => f?.status === 'completed' && f?.file)
+        .map(f => f.file);
+
+      // Build model mapping for gcode/preset copying
+      const modelMapping = (uploadedFiles || [])
+        .filter(f => f?.status === 'completed' && f?.result)
+        .map(f => ({
+          modelId: f.id,
+          slicerJobId: f.result?.jobId || null,
+          presetId: f.result?.usedPreset || null,
+          originalFilename: f.name,
+        }));
+
+      const storageResult = await saveOrderFiles(
+        { ...order, orderFolderId, modelMapping },
+        modelFiles
+      );
+
+      // Update order with storage info
+      order.storage = {
+        orderFolderId: storageResult.orderFolderId,
+        storagePath: storageResult.storagePath,
+        savedAt: storageResult.timestamp,
+        fileManifest: storageResult.files,
+        status: 'complete',
+      };
+      order.activity.push({
+        timestamp: nowIso(),
+        user_id: 'system',
+        type: 'FILES_SAVED',
+        payload: { fileCount: storageResult.files.length },
+      });
+
+      // Re-save with storage info
+      const updatedOrders = loadOrders();
+      const idx = updatedOrders.findIndex(o => o.id === order.id);
+      if (idx >= 0) updatedOrders[idx] = order;
+      saveOrders(updatedOrders);
+    } catch (err) {
+      // Storage failed — order still saved to localStorage
+      console.warn('[CheckoutForm] File storage failed:', err);
+      order.storage.status = 'failed';
+
+      const updatedOrders = loadOrders();
+      const idx = updatedOrders.findIndex(o => o.id === order.id);
+      if (idx >= 0) {
+        updatedOrders[idx].storage = order.storage;
+        saveOrders(updatedOrders);
+      }
+    } finally {
+      setSavingFiles(false);
+    }
+
     onComplete?.(order);
   };
+
+  const isBusy = isSubmitting || savingFiles;
 
   return (
     <div style={{ maxWidth: '56rem', margin: '0 auto' }}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-          {/* Left: Contact form */}
+          {/* Left: Contact + Shipping form */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={fg.card}>
               <h3 style={fg.sectionTitle}>
                 <Icon name="User" size={20} style={{ marginRight: '0.5rem' }} />
-                {t('KONTAKTNÍ ÚDAJE', 'CONTACT INFORMATION')}
+                {t('KONTAKTNI UDAJE', 'CONTACT INFORMATION')}
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
                   <Input
-                    label={t('JMÉNO A PŘÍJMENÍ *', 'FULL NAME *')}
+                    label={t('JMENO A PRIJMENI *', 'FULL NAME *')}
                     placeholder={t('Jan Novak', 'John Doe')}
                     {...register('name')}
                     error={errors.name?.message}
@@ -336,23 +419,71 @@ export default function CheckoutForm({
                     error={errors.company?.message}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Shipping Address */}
+            <div style={fg.card}>
+              <h3 style={fg.sectionTitle}>
+                <Icon name="MapPin" size={20} style={{ marginRight: '0.5rem' }} />
+                {t('DODACI ADRESA', 'SHIPPING ADDRESS')}
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <Input
+                    label={t('ULICE A CISLO POPISNE *', 'STREET ADDRESS *')}
+                    placeholder={t('Hlavni 123', '123 Main St')}
+                    {...register('street')}
+                    error={errors.street?.message}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <Input
+                      label={t('MESTO *', 'CITY *')}
+                      placeholder={t('Praha', 'Prague')}
+                      {...register('city')}
+                      error={errors.city?.message}
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      label={t('PSC *', 'ZIP *')}
+                      placeholder="110 00"
+                      {...register('zip')}
+                      error={errors.zip?.message}
+                    />
+                  </div>
+                </div>
 
                 <div>
-                  <label style={fg.label}>
-                    {t('POZNÁMKA K OBJEDNÁVCE', 'ORDER NOTE')}
-                  </label>
-                  <textarea
-                    style={fg.textarea}
-                    placeholder={t('Specialni pozadavky...', 'Special requirements...')}
-                    onFocus={(e) => { e.target.style.borderColor = 'var(--forge-accent-primary)'; }}
-                    onBlur={(e) => { e.target.style.borderColor = 'var(--forge-border-default)'; }}
-                    {...register('note')}
+                  <Input
+                    label={t('STAT *', 'COUNTRY *')}
+                    placeholder={t('Ceska republika', 'Czech Republic')}
+                    {...register('country')}
+                    error={errors.country?.message}
                   />
-                  {errors.note?.message && (
-                    <p style={fg.error}>{errors.note.message}</p>
-                  )}
                 </div>
               </div>
+            </div>
+
+            {/* Note */}
+            <div style={fg.card}>
+              <label style={fg.label}>
+                {t('POZNAMKA K OBJEDNAVCE', 'ORDER NOTE')}
+              </label>
+              <textarea
+                style={fg.textarea}
+                placeholder={t('Specialni pozadavky...', 'Special requirements...')}
+                onFocus={(e) => { e.target.style.borderColor = 'var(--forge-accent-primary)'; }}
+                onBlur={(e) => { e.target.style.borderColor = 'var(--forge-border-default)'; }}
+                {...register('note')}
+              />
+              {errors.note?.message && (
+                <p style={fg.error}>{errors.note.message}</p>
+              )}
             </div>
 
             {/* GDPR consent */}
@@ -382,7 +513,7 @@ export default function CheckoutForm({
             <div style={fg.card}>
               <h3 style={fg.sectionTitle}>
                 <Icon name="ShoppingCart" size={20} style={{ marginRight: '0.5rem' }} />
-                {t('SOUHRN OBJEDNÁVKY', 'ORDER SUMMARY')}
+                {t('SOUHRN OBJEDNAVKY', 'ORDER SUMMARY')}
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -408,22 +539,22 @@ export default function CheckoutForm({
                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--forge-border-default)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={fg.summaryLine}>
-                      <span>{t('Materiál', 'Material')}</span>
+                      <span>{t('Material', 'Material')}</span>
                       <span style={fg.summaryValue}>{formatCzk(quote.simple?.material ?? 0)}</span>
                     </div>
                     <div style={fg.summaryLine}>
-                      <span>{t('Čas tisku', 'Print time')}</span>
+                      <span>{t('Cas tisku', 'Print time')}</span>
                       <span style={fg.summaryValue}>{formatCzk(quote.simple?.time ?? 0)}</span>
                     </div>
                     {(quote.simple?.services ?? 0) !== 0 && (
                       <div style={fg.summaryLine}>
-                        <span>{t('Služby', 'Services')}</span>
+                        <span>{t('Sluzby', 'Services')}</span>
                         <span style={fg.summaryValue}>{formatCzk(quote.simple.services)}</span>
                       </div>
                     )}
                     {(quote.simple?.markup ?? 0) !== 0 && (
                       <div style={fg.summaryLine}>
-                        <span>{t('Přirážka', 'Markup')}</span>
+                        <span>{t('Prirazka', 'Markup')}</span>
                         <span style={fg.summaryValue}>{formatCzk(quote.simple.markup)}</span>
                       </div>
                     )}
@@ -441,17 +572,21 @@ export default function CheckoutForm({
         {/* Actions */}
         <div style={fg.actions}>
           <Button variant="outline" type="button" onClick={onBack} iconName="ChevronLeft" iconPosition="left">
-            {t('Zpět', 'Back')}
+            {t('Zpet', 'Back')}
           </Button>
           <Button
             variant="default"
             type="submit"
-            loading={isSubmitting}
-            disabled={isSubmitting}
+            loading={isBusy}
+            disabled={isBusy}
             iconName="Send"
             iconPosition="right"
           >
-            {isSubmitting ? t('Odesílám...', 'Submitting...') : t('Odeslat objednávku', 'Submit Order')}
+            {savingFiles
+              ? t('Ukladam soubory...', 'Saving files...')
+              : isSubmitting
+                ? t('Odesilam...', 'Submitting...')
+                : t('Odeslat objednavku', 'Submit Order')}
           </Button>
         </div>
       </form>

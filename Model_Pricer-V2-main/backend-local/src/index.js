@@ -25,6 +25,8 @@ import {
   updatePresetMeta
 } from "./presetsStore.js";
 
+import storageRouter from "./storage/storageRouter.js";
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -219,6 +221,9 @@ app.get("/api/health/prusa", async (_req, res) => {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
+
+// ===== Storage API =====
+app.use("/api/storage", storageRouter);
 
 // ===== Upload & slice =====
 

@@ -28,6 +28,7 @@ const ADMIN_NAV = [
     group: 'OPERATIONS',
     items: [
       { path: '/admin/orders', label: 'Orders', icon: 'ShoppingCart' },
+      { path: '/admin/model-storage', label: 'Model Storage', icon: 'HardDrive' },
       { path: '/admin/widget', label: 'Widget', icon: 'Code2' },
       { path: '/admin/emails', label: 'Emails', icon: 'Mail' },
       { path: '/admin/analytics', label: 'Analytics', icon: 'BarChart3' },

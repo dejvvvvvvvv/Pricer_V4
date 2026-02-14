@@ -24,3 +24,5 @@ dist/
 build/
 coverage/
 *.log
+# Backend storage (user files, not in git)
+backend-local/storage/

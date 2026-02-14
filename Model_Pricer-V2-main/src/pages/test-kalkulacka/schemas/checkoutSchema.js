@@ -26,6 +26,27 @@ export function getCheckoutSchema(language = 'cs') {
       .optional()
       .or(z.literal('')),
 
+    // Shipping address
+    street: z
+      .string()
+      .min(2, t('Ulice je povinna', 'Street is required'))
+      .max(200, t('Ulice je prilis dlouha', 'Street is too long')),
+
+    city: z
+      .string()
+      .min(1, t('Mesto je povinne', 'City is required'))
+      .max(100, t('Mesto je prilis dlouhe', 'City is too long')),
+
+    zip: z
+      .string()
+      .min(3, t('PSC je povinne', 'ZIP code is required'))
+      .max(10, t('PSC je prilis dlouhe', 'ZIP code is too long')),
+
+    country: z
+      .string()
+      .min(1, t('Stat je povinny', 'Country is required'))
+      .max(100, t('Stat je prilis dlouhy', 'Country is too long')),
+
     note: z
       .string()
       .max(1000, t('Poznamka je prilis dlouha', 'Note is too long'))
