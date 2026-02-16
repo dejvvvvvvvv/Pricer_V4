@@ -5,7 +5,7 @@
 
 ---
 
-## 1) Nainstalovane skills (25 skills)
+## 1) Nainstalovane skills (28 skills)
 
 ### 1.1 P0 — Core Development (4 skills)
 
@@ -52,6 +52,14 @@
 | `verification-before-completion` | Verifikace pred dokoncenim ukolu | obra/superpowers | 2026-02-06 | Aktivni |
 | `writing-plans` | Psani implementacnich planu | obra/superpowers | 2026-02-06 | Aktivni |
 | `writing-skills` | Tvorba novych skills | obra/superpowers | 2026-02-06 | Aktivni |
+
+### 1.5 E-commerce & Integration (3 skills)
+
+| Skill | Popis | Zdroj | Datum instalace | Stav |
+|-------|-------|-------|-----------------|------|
+| `shopify-storefront-setup` | Bootstrap Storefront API klienta — GraphQL patterns, token handling | Vlastni (local) | 2026-02-14 | Aktivni |
+| `ecommerce-security-checklist` | Pre-deploy security audit — token handling, origin validace, CORS, XSS | Vlastni (local) | 2026-02-14 | Aktivni |
+| `webhook-handler-patterns` | Webhook receiver patterns — HMAC, retry, idempotence (Varianta B prep) | Vlastni (local) | 2026-02-14 | Aktivni |
 
 ---
 

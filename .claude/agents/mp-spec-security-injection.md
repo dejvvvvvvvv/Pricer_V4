@@ -1,5 +1,6 @@
 ---
 name: mp-spec-security-injection
+description: "Injection vulnerability detection - XSS, command injection, prototype pollution, OWASP A03/A07"
 tier: specific
 domain: security
 model: claude-opus-4-6

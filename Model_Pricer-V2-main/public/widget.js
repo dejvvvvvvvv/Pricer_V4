@@ -1,12 +1,18 @@
 /**
- * ModelPricer Widget Loader (Phase 2.4)
+ * ModelPricer Widget Loader (Phase 2.4 + Shopify Integration)
  * - Finds containers with: data-modelpricer-widget="PUBLIC_ID" (or legacy data-widget)
  * - Injects an iframe that points to: /widget/embed/PUBLIC_ID
  * - Auto-resizes iframe height via postMessage from the iframe page
+ * - Shopify cart integration: handles checkout URL redirects and cart data events
  *
  * Usage:
  *   <script src="https://YOUR-DOMAIN.COM/widget.js" async></script>
  *   <div data-modelpricer-widget="WID_XXXX"></div>
+ *
+ * Shopify Theme Usage:
+ *   <div data-modelpricer-widget="WID_XXXX"
+ *        data-shopify-domain="myshop.myshopify.com"
+ *        data-shopify-token="shpat_xxx"></div>
  */
 (function () {
   var GLOBAL_KEY = '__modelpricer_widget_loader__';
@@ -50,6 +56,11 @@
 
   var baseOrigin = resolveBaseOrigin();
 
+  // ─── Event callback registries ───────────────────────────
+  var shopifyCartCallbacks = [];
+  var priceCalculatedCallbacks = [];
+  var errorCallbacks = [];
+
   function resolveEmbedSrc(container, publicId) {
     var embedSrc = container.getAttribute('data-embed-src') || '';
     if (embedSrc) {
@@ -83,6 +94,24 @@
     iframe.setAttribute('data-modelpricer-public-id', publicId);
 
     container.appendChild(iframe);
+
+    // Detect Shopify config from data attributes and send to iframe
+    var shopifyDomain = container.getAttribute('data-shopify-domain');
+    var shopifyToken = container.getAttribute('data-shopify-token');
+    if (shopifyDomain && shopifyToken) {
+      iframe.addEventListener('load', function () {
+        try {
+          iframe.contentWindow.postMessage({
+            type: 'MODELPRICER_SHOPIFY_CONFIG',
+            storefrontToken: shopifyToken,
+            shopDomain: shopifyDomain,
+          }, baseOrigin);
+        } catch (e) {
+          // Ignore cross-origin errors
+        }
+      });
+    }
+
     return iframe;
   }
 
@@ -119,29 +148,125 @@
     for (var i = 0; i < containers.length; i++) initOne(containers[i]);
   }
 
+  // ─── URL validation for redirects ────────────────────────
+  function isValidShopifyUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    try {
+      var parsed = new URL(url);
+      if (parsed.protocol !== 'https:') return false;
+      // Must be a Shopify domain
+      if (parsed.hostname.indexOf('.myshopify.com') !== -1) return true;
+      if (parsed.hostname.indexOf('.shopify.com') !== -1) return true;
+      // Custom domains: allow if HTTPS (URL came from Shopify API)
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function onMessage(event) {
     var data = event && event.data;
     if (!data || typeof data !== 'object') return;
 
-    if (data.type !== 'MODELPRICER_WIDGET_HEIGHT') return;
-
     // Basic origin check: accept only messages from the iframe origin (our baseOrigin)
-    // If you later serve embed from a different origin (CDN), you can relax this.
     if (event.origin && baseOrigin && event.origin !== baseOrigin) {
       return;
     }
 
-    var publicId = String(data.publicId || '').trim();
-    var height = safeParseInt(data.height, 0);
+    var type = data.type;
 
-    if (!publicId || !height) return;
+    // ─── Existing: Widget height resize ──────────────────
+    if (type === 'MODELPRICER_WIDGET_HEIGHT') {
+      var publicId = String(data.publicId || '').trim();
+      var height = safeParseInt(data.height, 0);
 
-    // sanity limits
-    height = Math.max(200, Math.min(5000, height));
+      if (!publicId || !height) return;
 
-    var iframes = document.querySelectorAll('iframe[data-modelpricer-public-id="' + publicId.replace(/"/g, '\\"') + '"]');
-    for (var i = 0; i < iframes.length; i++) {
-      iframes[i].style.height = String(height) + 'px';
+      // sanity limits
+      height = Math.max(200, Math.min(5000, height));
+
+      var iframes = document.querySelectorAll('iframe[data-modelpricer-public-id="' + publicId.replace(/"/g, '\\"') + '"]');
+      for (var i = 0; i < iframes.length; i++) {
+        iframes[i].style.height = String(height) + 'px';
+      }
+      return;
+    }
+
+    // ─── Shopify: Checkout URL redirect ──────────────────
+    if (type === 'MODELPRICER_SHOPIFY_CHECKOUT_URL') {
+      var checkoutUrl = data.checkoutUrl;
+      if (!isValidShopifyUrl(checkoutUrl)) {
+        console.warn('[ModelPricer] Invalid Shopify checkout URL, ignoring redirect');
+        return;
+      }
+
+      // Dispatch custom event for parent page integration
+      try {
+        var evt = new CustomEvent('modelpricer:shopify:checkout', {
+          detail: {
+            publicWidgetId: data.publicWidgetId || '',
+            checkoutUrl: checkoutUrl,
+            cartId: data.cartId || '',
+            lineCount: data.lineCount || 0,
+          },
+        });
+        document.dispatchEvent(evt);
+      } catch (e) {
+        // CustomEvent not supported in old browsers
+      }
+
+      // Notify registered callbacks
+      for (var ci = 0; ci < shopifyCartCallbacks.length; ci++) {
+        try { shopifyCartCallbacks[ci](data); } catch (e) { /* ignore */ }
+      }
+
+      // Default behavior: redirect to checkout
+      window.location.href = checkoutUrl;
+      return;
+    }
+
+    // ─── Shopify: Cart data (no redirect) ────────────────
+    if (type === 'MODELPRICER_ADD_TO_SHOPIFY_CART') {
+      // Dispatch custom event
+      try {
+        var cartEvt = new CustomEvent('modelpricer:shopify:cart', {
+          detail: {
+            publicWidgetId: data.publicWidgetId || '',
+            shopifyLines: data.shopifyLines || [],
+            total: data.total || 0,
+            currency: data.currency || 'CZK',
+          },
+        });
+        document.dispatchEvent(cartEvt);
+      } catch (e) {
+        // CustomEvent not supported
+      }
+
+      // Notify registered callbacks
+      for (var si = 0; si < shopifyCartCallbacks.length; si++) {
+        try { shopifyCartCallbacks[si](data); } catch (e) { /* ignore */ }
+      }
+      return;
+    }
+
+    // ─── Price calculated event ──────────────────────────
+    if (type === 'MODELPRICER_QUOTE_CREATED') {
+      try {
+        var priceEvt = new CustomEvent('modelpricer:price:calculated', {
+          detail: {
+            publicWidgetId: data.publicWidgetId || '',
+            quote: data.quote || null,
+          },
+        });
+        document.dispatchEvent(priceEvt);
+      } catch (e) {
+        // ignore
+      }
+
+      for (var pi = 0; pi < priceCalculatedCallbacks.length; pi++) {
+        try { priceCalculatedCallbacks[pi](data); } catch (e) { /* ignore */ }
+      }
+      return;
     }
   }
 
@@ -151,6 +276,17 @@
     init: initAll,
     initOne: initOne,
     baseOrigin: baseOrigin,
+
+    // ─── Public API for parent page integration ──────────
+    onShopifyCart: function (callback) {
+      if (typeof callback === 'function') shopifyCartCallbacks.push(callback);
+    },
+    onPriceCalculated: function (callback) {
+      if (typeof callback === 'function') priceCalculatedCallbacks.push(callback);
+    },
+    onError: function (callback) {
+      if (typeof callback === 'function') errorCallbacks.push(callback);
+    },
   };
 
   if (document.readyState === 'loading') {

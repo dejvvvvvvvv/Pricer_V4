@@ -5,6 +5,113 @@
 
 ---
 
+## Prehled chyb — podle kategorie
+
+```
+CHYBY CELKEM .................................. 64
+│
+├── OPRAVENO .................................. 10
+│   ├── CSS (1) ............................... Rozlozeni ceny preteka
+│   ├── STATE (1) ............................. Data modelu se resetuji
+│   ├── ERROR-HANDLING (1) .................... Neplatne 3D modely
+│   ├── UX (2) ................................ Prubezna cena, pozice tlacitek
+│   └── FORGE Redesign (5) .................... Garbled text, pricing, footer, theme, CSS
+│
+└── NERESENO .................................. 54
+    │
+    ├── BUG ................................... 27
+    │   ├── Dead / unused importy ............. 5
+    │   ├── Chybejici / spatne i18n ........... 7
+    │   ├── Hardcoded tenant ID ............... 2
+    │   ├── Neexistujici routes / props ....... 4
+    │   ├── Nefunkcni UI prvky ................ 4
+    │   └── Jine bugy ......................... 5
+    │
+    ├── STATE ................................. 8
+    │   ├── Nepouzivane komponenty ............. 3
+    │   ├── Duplikovane komponenty ............. 2
+    │   ├── Nepouzity / nefunkcni state ....... 2
+    │   └── Console.log s PII ................. 1
+    │
+    ├── CONFIG ................................ 8
+    │   ├── Supabase RLS / policies ........... 3
+    │   ├── Storage helpery mimo standard ..... 2
+    │   ├── Duplikovana / mrtva logika ........ 2
+    │   └── Routes bez guardu ................. 1
+    │
+    ├── CSS ................................... 3
+    │   ├── Nekonzistentni export pattern ..... 1
+    │   ├── Spatny import path ................ 1
+    │   └── Lowercase nazvy souboru ........... 1
+    │
+    ├── SECURITY .............................. 3
+    │   ├── Zadna API autentizace ............. 1
+    │   ├── Health endpoint lekuje cesty ...... 1
+    │   └── Upload bez file type filtru ....... 1
+    │
+    ├── PERFORMANCE ........................... 3
+    │   ├── Eagerly-loaded velke komponenty .... 1
+    │   ├── Wildcard import (tree-shaking) .... 1
+    │   └── Komponenty uvnitr komponenty ...... 1
+    │
+    └── ERROR-HANDLING ........................ 2
+        ├── ErrorBoundary nepouzivana ......... 1
+        └── Chybejici rollback ................ 1
+```
+
+---
+
+## Prehled chyb — podle stranek / souboru
+
+```
+CHYBY CELKEM .................................. 64
+│
+├── OPRAVENO (10) ............................. viz sekce nize
+│   ├── Test-Kalkulacka (4) ................... CSS(1), STATE(1), ERROR-HANDLING(1), UX(1)
+│   ├── Home (4) .............................. UX(1), FORGE(3: garbled text, pricing, footer)
+│   └── Cross-page (2) ....................... FORGE(2: theme nekonzistence, Support CSS)
+│
+└── NERESENO (54)
+    │
+    ├── PUBLIC STRANKY ........................ 24
+    │   ├── NotFound (2) ...................... BUG(2)
+    │   ├── Home (2) .......................... BUG(2)
+    │   ├── Pricing (2) ....................... BUG(2)
+    │   ├── Support (3) ....................... BUG(3)
+    │   ├── Login (3) ......................... BUG(2), STATE(1)
+    │   ├── Register (6) ...................... BUG(5), ERROR-HANDLING(1)
+    │   └── Account (6) ....................... BUG(4), STATE(1), PERFORMANCE(1)
+    │
+    ├── KALKULACKY ............................ 5
+    │   └── Test-Kalkulacka (5) ............... BUG(3), STATE(2)
+    │
+    ├── ADMIN ................................. 4
+    │   ├── AdminLayout (2) ................... BUG(2)
+    │   └── Routes.jsx (2) .................... CONFIG(1), PERFORMANCE(1)
+    │
+    ├── BACKEND ............................... 5
+    │   ├── API Server (3) .................... SECURITY(3)
+    │   └── Endpointy (2) ..................... BUG(2)
+    │
+    ├── STORAGE & DATA ........................ 5
+    │   ├── Storage helpery (2) ............... CONFIG(2)
+    │   ├── Pricing Engine (2) ................ CONFIG(2)
+    │   └── Supabase (3) ...................... CONFIG(3)
+    │   (pozn: Supabase se prekryva s 2 polozkami vyse)
+    │
+    ├── SDILENE KOMPONENTY .................... 8
+    │   ├── ErrorBoundary (2) ................. ERROR-HANDLING(1), STATE(1)
+    │   ├── 3D Preview (1) .................... STATE(1)
+    │   ├── LoadingState/ErrorState (1) ....... STATE(1)
+    │   ├── AppIcon (1) ....................... PERFORMANCE(1)
+    │   └── Base UI Components (3) ............ CSS(3)
+    │
+    └── NEPOUZIVANE KOMPONENTY ................ 1
+        └── 5 base UI komponent (1) ........... STATE(1)
+```
+
+---
+
 ## Format zaznamu
 
 ```

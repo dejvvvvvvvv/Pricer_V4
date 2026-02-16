@@ -4,6 +4,117 @@
 
 ---
 
+## Prehled chyb — podle kategorie
+
+```
+DESIGN CHYBY CELKEM .......................... 166
+│
+├── TOKEN ..................................... 58
+│   ├── Chybejici i18n / hardcoded texty ...... 28
+│   ├── Hardcoded tenant ID ................... 7
+│   ├── Duplikovane / nekonzistentni kod ...... 9
+│   ├── Nekonzistentni Forge tokeny ........... 5
+│   ├── Chybne API kontrakty / data ........... 6
+│   └── Jine token problemy ................... 3
+│
+├── WCAG ...................................... 47
+│   ├── Tab navigace bez ARIA roles ........... 10
+│   ├── Labels / inputy bez htmlFor/id ........ 5
+│   ├── Modaly bez focus trap / Escape ........ 6
+│   ├── Keyboard nepristupne prvky ............ 9
+│   ├── Chybejici aria-* atributy ............. 12
+│   └── Kontrast / screen reader .............. 5
+│
+├── CODE ...................................... 26
+│   ├── Duplikovane funkce / moduly ........... 7
+│   ├── Orphaned / dead code .................. 5
+│   ├── Race condition / memory ............... 4
+│   ├── Chybejici validace .................... 4
+│   ├── Globalni ID kolize (SVG/CSS) .......... 3
+│   └── Jine code problemy .................... 3
+│
+├── INLINE-STYLE .............................. 14
+│   ├── Duplikovane CSS / funkce .............. 6
+│   ├── Monoliticke soubory (1000+ radku) ..... 3
+│   ├── Nescopovane CSS tridy ................. 2
+│   └── JS hover misto CSS :hover ............. 3
+│
+├── LAYOUT .................................... 9
+│   ├── Klikatelne ale nefunkcni prvky ........ 3
+│   ├── Chybejici validace (min/max) .......... 2
+│   ├── Nepouzite funkce (dead code) .......... 2
+│   └── Strukturalni problemy ................. 2
+│
+├── FONT ...................................... 3
+│   ├── Spatny heading level (h2 vs h1) ....... 1
+│   ├── Tech font na navigaci ................. 1
+│   └── Nekonzistentni font pouziti ........... 1
+│
+├── COLOR ..................................... 2
+│   ├── Hardcoded bg-white v dark theme ....... 1
+│   └── Hardcoded Tailwind barvy .............. 1
+│
+└── RESPONSIVE ................................ 1
+    └── Zadna mobilni responsivita ............ 1
+```
+
+---
+
+## Prehled chyb — podle stranek / souboru
+
+```
+DESIGN CHYBY CELKEM .......................... 166
+│
+├── PUBLIC STRANKY ............................ 28
+│   ├── NotFound (2) .......................... FONT(1), WCAG(1)
+│   ├── Home (2) .............................. WCAG(1), LAYOUT(1)
+│   ├── Pricing (1) ........................... INLINE-STYLE(1)
+│   ├── Support (3) ........................... WCAG(2), LAYOUT(1)
+│   ├── Login (3) ............................. WCAG(2), FONT(1)
+│   ├── Register (3) .......................... WCAG(2), TOKEN(1)
+│   ├── Account (6) ........................... WCAG(3), TOKEN(2), FONT(1)
+│   └── Slicer (6) ............................ WCAG(3), TOKEN(1), INLINE-STYLE(1), RESPONSIVE(1)
+│
+├── KALKULACKY ................................ 17
+│   ├── Test-Kalkulacka (4) ................... WCAG(3), TOKEN(1)
+│   ├── Test-Kalkulacka-White (6) ............. TOKEN(5), WCAG(1)
+│   └── Widget-Kalkulacka (7) ................. TOKEN(3), WCAG(3), INLINE-STYLE(1)
+│
+├── ADMIN STRANKY ............................. 72
+│   ├── AdminLayout (6) ....................... WCAG(3), TOKEN(1), INLINE-STYLE(1), LAYOUT(1)
+│   ├── AdminDashboard (5) .................... TOKEN(2), WCAG(1), INLINE-STYLE(2)
+│   ├── AdminPricing (4) ...................... TOKEN(2), INLINE-STYLE(1), LAYOUT(1)
+│   ├── AdminFees (5) ......................... WCAG(2), TOKEN(1), INLINE-STYLE(1), LAYOUT(1)
+│   ├── AdminPresets (5) ...................... TOKEN(2), WCAG(2), INLINE-STYLE(1)
+│   ├── AdminWidget (5) ....................... TOKEN(3), WCAG(2)
+│   ├── AdminAnalytics (6) .................... TOKEN(5), WCAG(1)
+│   ├── AdminParameters (7) ................... TOKEN(3), WCAG(3), INLINE-STYLE(1)
+│   ├── AdminTeamAccess (6) ................... TOKEN(5), WCAG(1)
+│   ├── AdminBranding (6) .................... TOKEN(4), WCAG(1), INLINE-STYLE(1)
+│   ├── AdminEmails+Coupons (5) ............... TOKEN(4), WCAG(1)
+│   ├── AdminExpress+Shipping (4) ............. TOKEN(2), LAYOUT(2)
+│   ├── AdminMigration (6) .................... CODE(4), TOKEN(1), WCAG(1)
+│   └── AdminOrders (existujici dok.) ......... ---
+│
+├── BACKEND ................................... 10
+│   ├── Backend Email (4) ..................... TOKEN(4)
+│   ├── Backend Slicer (3) .................... CODE(3)
+│   └── Backend Storage+Presets (3) ........... CODE(3)
+│
+├── SDILENE SYSTEMY ........................... 28
+│   ├── LanguageContext (4) ................... CODE(3), TOKEN(1)
+│   ├── Forge Design System (6) ............... TOKEN(5), LAYOUT(1)
+│   ├── Hooks (2) ............................. CODE(2)
+│   ├── Build Config (3) ...................... CODE(2), TOKEN(1)
+│   ├── Base UI Components (6) ................ COLOR(2), WCAG(2), INLINE-STYLE(1), TOKEN(1)
+│   ├── Marketing Components (6) .............. CODE(3), WCAG(2), TOKEN(1)
+│   └── Services + Lib Utilities (11) ......... CODE(7), TOKEN(4)
+│
+└── (Orders + Model Storage) .................. existujici dokumentace, bez novych chyb
+```
+
+---
+
 ## Format zaznamu
 
 ```

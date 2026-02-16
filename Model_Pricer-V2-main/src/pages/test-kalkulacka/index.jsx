@@ -11,6 +11,7 @@ import GenerateButton from './components/GenerateButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import CheckoutForm from './components/CheckoutForm';
 import OrderConfirmation from './components/OrderConfirmation';
+import ShopifyCartButton from '../widget-kalkulacka/components/ShopifyCartButton';
 import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -18,6 +19,8 @@ import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadExpressConfigV1 } from '../../utils/adminExpressStorage';
 import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
 import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { getShopifyConfig } from '../../utils/adminEcommerceStorage';
+import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
 
@@ -109,6 +112,12 @@ const TestKalkulacka = () => {
   const [selectedPresetIds, setSelectedPresetIds] = useState({});
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetsError, setPresetsError] = useState(null);
+
+  // Shopify integration
+  const [shopifyConfig] = useState(() => {
+    const cfg = getShopifyConfig();
+    return (cfg?.enabled && cfg?.shop_domain) ? cfg : null;
+  });
 
   // S02: Checkout state
   const [lastOrderResult, setLastOrderResult] = useState(null);
@@ -809,8 +818,53 @@ const TestKalkulacka = () => {
             </div>
           </div>
 
-          {/* S02: Checkout step (step 4) */}
-          {currentStep === 4 && (
+          {/* S02: Checkout step (step 4) — Shopify mode replaces standard checkout */}
+          {currentStep === 4 && shopifyConfig ? (
+            <div style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--forge-text-secondary)', fontSize: '14px',
+                    fontFamily: 'var(--forge-font-body)',
+                  }}
+                >
+                  <Icon name="ArrowLeft" size={16} />
+                  Back
+                </button>
+              </div>
+              <h2 style={{
+                fontFamily: 'var(--forge-font-heading)',
+                fontSize: '20px', fontWeight: 600,
+                color: 'var(--forge-text-primary)', marginBottom: '16px',
+              }}>
+                Complete on Shopify
+              </h2>
+              <p style={{
+                fontSize: '14px', color: 'var(--forge-text-secondary)', marginBottom: '24px',
+              }}>
+                Your order will be processed through the Shopify store.
+                Payment and shipping are handled by Shopify.
+              </p>
+              <ShopifyCartButton
+                quoteResult={(() => {
+                  try {
+                    return calculateOrderQuote({
+                      uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections,
+                      expressConfig, selectedExpressTierId,
+                      couponsConfig, appliedCouponCode,
+                      shippingConfig, selectedShippingMethodId,
+                    });
+                  } catch { return null; }
+                })()}
+                shopifyConfig={shopifyConfig}
+                uploadedFiles={uploadedFiles}
+                embedded={false}
+              />
+            </div>
+          ) : currentStep === 4 && (
             <CheckoutForm
               uploadedFiles={uploadedFiles}
               printConfigs={printConfigs}

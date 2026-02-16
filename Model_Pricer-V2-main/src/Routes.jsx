@@ -35,6 +35,7 @@ const AdminShipping = React.lazy(() => import('./pages/admin/AdminShipping'));
 const AdminEmails = React.lazy(() => import('./pages/admin/AdminEmails'));
 const AdminCoupons = React.lazy(() => import('./pages/admin/AdminCoupons'));
 const AdminMigration = React.lazy(() => import('./pages/admin/AdminMigration'));
+const AdminIntegrations = React.lazy(() => import('./pages/admin/AdminIntegrations'));
 const SlicerPage = React.lazy(() => import('./pages/slicer'));
 const AdminModelStorage = React.lazy(() => import('./pages/admin/AdminModelStorage'));
 
@@ -112,6 +113,8 @@ export default function Routes() {
             <Route path="coupons" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminCoupons /></Suspense>} />
             {/* Phase 4: Database Migration */}
             <Route path="migration" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminMigration /></Suspense>} />
+            {/* Shopify Integration */}
+            <Route path="integrations" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminIntegrations /></Suspense>} />
           </Route>
 
                   {/* 404 */}

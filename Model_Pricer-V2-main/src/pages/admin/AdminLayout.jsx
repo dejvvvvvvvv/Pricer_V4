@@ -33,6 +33,7 @@ const ADMIN_NAV = [
       { path: '/admin/emails', label: 'Emails', icon: 'Mail' },
       { path: '/admin/analytics', label: 'Analytics', icon: 'BarChart3' },
       { path: '/admin/team', label: 'Team', icon: 'Users' },
+      { path: '/admin/integrations', label: 'Integrations', icon: 'Plug' },
       { path: '/admin/migration', label: 'Migration', icon: 'Database' },
     ],
   },

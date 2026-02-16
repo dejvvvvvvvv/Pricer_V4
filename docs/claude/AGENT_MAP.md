@@ -32,10 +32,10 @@
 | Infrastructure | 1 | 2 | 4 | **7** |
 | i18n & Lokalizace | 1 | 0 | 3 | **4** |
 | 3D & Mesh | 1 | 0 | 3 | **4** |
-| E-commerce & Integrace | 1 | 0 | 4 | **5** |
+| E-commerce & Integrace | 1 | 0 | 9 | **10** |
 | Planovani & Orchestrace | 1 | 0 | 6 | **7** |
 | Dokumentace & Research | 1 | 0 | 4 | **5** |
-| **CELKEM** | **13** | **18** | **70** | **101** |
+| **CELKEM** | **13** | **18** | **75** | **106** |
 
 ---
 
@@ -303,7 +303,7 @@
 
 ---
 
-## 11) E-commerce & Integrace Domena (5 agentu)
+## 11) E-commerce & Integrace Domena (10 agentu)
 
 ### Senior (1)
 
@@ -311,11 +311,16 @@
 |-------|------|-------|-------|
 | `mp-sr-ecommerce` | Senior E-commerce — integracni strategie, API design, e-commerce patterns | sonnet | Integrace, API, e-commerce logika |
 
-### Specific (4)
+### Specific (9)
 
 | Agent | Role | Model | Scope |
 |-------|------|-------|-------|
 | `mp-spec-ecom-shopify` | Shopify integrace — @shopify/shopify-api, webhooks, product sync | sonnet | Shopify connector (budouci Sekce 17) |
+| `mp-spec-ecom-shopify-storefront` | Shopify Storefront API — cart creation, GraphQL mutace, checkout URL | opus | `src/lib/shopify/shopifyCartClient.js` |
+| `mp-spec-fe-shopify-cart` | React ShopifyCartButton — tlacitko, loading/error stavy, redirect flow | opus | `src/pages/*/components/ShopifyCart*.jsx` |
+| `mp-spec-ecom-product-mapping` | Material-to-Shopify-variant mapovani — lookup, fee handling | opus | `src/lib/shopify/shopifyCartMapper.js` |
+| `mp-spec-fe-admin-integrations` | Admin /admin/integrations — Shopify setup, variant mappings, test | opus | `src/pages/admin/AdminIntegrations.jsx` |
+| `mp-spec-ecom-embed-bridge` | PostMessage bridge pro cart — widget.js Shopify handlers | opus | `public/widget.js` (sdilene) |
 | `mp-spec-ecom-woo` | WooCommerce integrace — REST API klient, product/order sync | sonnet | WooCommerce connector (budouci Sekce 17) |
 | `mp-spec-ecom-payments` | Platby — Stripe, PayPal, kreditovy system, platebni brana | sonnet | Payment integration (budouci Sekce 21) |
 | `mp-spec-ecom-api` | Public API — OpenAPI spec, Redoc dokumentace, rate limiting, API klice | sonnet | Public API (budouci Sekce 20) |

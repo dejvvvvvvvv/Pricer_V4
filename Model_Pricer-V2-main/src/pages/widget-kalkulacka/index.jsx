@@ -14,11 +14,13 @@ import ErrorBoundary from './components/ErrorBoundary';
 import WidgetHeader from './components/WidgetHeader';
 import WidgetStepper from './components/WidgetStepper';
 import WidgetFooter from './components/WidgetFooter';
+import ShopifyCartButton from './components/ShopifyCartButton';
 import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { themeToCssVars, getDefaultWidgetTheme } from '../../utils/widgetThemeStorage';
+import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 
 /**
  * Get target origin for postMessage.
@@ -59,6 +61,7 @@ const DEFAULT_PRINT_CONFIG = {
  * - embedded: If true, removes navigation elements for iframe embedding
  * - publicWidgetId: Public ID for postMessage events
  * - onQuoteCalculated: Callback when quote is calculated
+ * - shopifyConfig: Shopify integration config (null = disabled)
  */
 const WidgetKalkulacka = ({
   theme = null,
@@ -73,6 +76,7 @@ const WidgetKalkulacka = ({
   showHeader = null,
   publicWidgetId = null,
   onQuoteCalculated,
+  shopifyConfig = null,
 }) => {
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
@@ -95,6 +99,25 @@ const WidgetKalkulacka = ({
   }));
 
   const [batchProgress, setBatchProgress] = useState({ mode: null, done: 0, total: 0 });
+
+  // Shopify integration: compute quote result for cart button
+  const isShopifyMode = shopifyConfig?.enabled && shopifyConfig?.shop_domain;
+  const shopifyQuoteResult = useMemo(() => {
+    if (!isShopifyMode || !pricingConfig) return null;
+    const completedFiles = uploadedFiles.filter(f => f?.status === 'completed' && f?.result);
+    if (completedFiles.length === 0) return null;
+    try {
+      return calculateOrderQuote({
+        uploadedFiles: completedFiles,
+        printConfigs,
+        pricingConfig,
+        feesConfig,
+        feeSelections,
+      });
+    } catch {
+      return null;
+    }
+  }, [isShopifyMode, uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections]);
 
   // Widget presets
   const [availablePresets, setAvailablePresets] = useState([]);
@@ -837,6 +860,20 @@ const WidgetKalkulacka = ({
                   feesConfig={feesConfig}
                   feeSelections={feeSelections}
                   theme={effectiveTheme}
+                />
+              </StyleableWrapper>
+            )}
+
+            {/* Shopify Cart Button — shown when Shopify integration is enabled */}
+            {isShopifyMode && shopifyQuoteResult && displayFiles.length > 0 && (
+              <StyleableWrapper elementId="shopify-cart">
+                <ShopifyCartButton
+                  quoteResult={shopifyQuoteResult}
+                  shopifyConfig={shopifyConfig}
+                  uploadedFiles={uploadedFiles}
+                  embedded={embedded}
+                  publicWidgetId={publicWidgetId}
+                  disabled={builderMode}
                 />
               </StyleableWrapper>
             )}

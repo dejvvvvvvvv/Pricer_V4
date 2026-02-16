@@ -8,6 +8,7 @@ import {
   isDomainAllowedByWhitelist,
   getDefaultWidgetTheme,
 } from '../../utils/adminBrandingWidgetStorage';
+import { getShopifyConfig } from '../../utils/adminEcommerceStorage';
 
 /**
  * Get target origin for postMessage.
@@ -42,6 +43,7 @@ const WidgetPublicPage = () => {
   const [widget, setWidget] = useState(null);
   const [tenantId, setTenantId] = useState(null);
   const [branding, setBranding] = useState(null);
+  const [shopifyConf, setShopifyConf] = useState(null);
 
   // Get referrer/origin for domain validation
   const referrerOrigin = useMemo(() => {
@@ -112,9 +114,14 @@ const WidgetPublicPage = () => {
       // Load branding for tenant
       const brand = getBranding(tid);
 
+      // Load Shopify config for tenant (if enabled)
+      const shopify = getShopifyConfig(tid);
+      const shopifyEnabled = shopify?.enabled && shopify?.shop_domain;
+
       setWidget(w);
       setTenantId(tid);
       setBranding(brand);
+      setShopifyConf(shopifyEnabled ? shopify : null);
       setLoading(false);
     } catch (e) {
       console.error('[WidgetPublicPage] Error loading widget:', e);
@@ -218,6 +225,7 @@ const WidgetPublicPage = () => {
       showHeader={true}
       publicWidgetId={publicWidgetId}
       onQuoteCalculated={handleQuoteCalculated}
+      shopifyConfig={shopifyConf}
     />
   );
 };
