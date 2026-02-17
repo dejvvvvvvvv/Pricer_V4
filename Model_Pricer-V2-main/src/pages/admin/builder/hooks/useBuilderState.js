@@ -5,6 +5,7 @@ import { getDefaultWidgetTheme } from '@/utils/widgetThemeStorage';
 
 import useUndoRedo from './useUndoRedo';
 import useElementSelection from './useElementSelection';
+import useLayoutState from './useLayoutState';
 
 /**
  * useBuilderState -- top-level composition hook for the Widget Builder V3.
@@ -97,6 +98,11 @@ export default function useBuilderState(widgetId, tenantId) {
   const selection = useElementSelection();
 
   // ---------------------------------------------------------------------------
+  // Layout state (element ordering, visibility, custom blocks, presets)
+  // ---------------------------------------------------------------------------
+  const layoutState = useLayoutState(null);
+
+  // ---------------------------------------------------------------------------
   // Local UI state
   // ---------------------------------------------------------------------------
   /** @type {'mobile' | 'tablet' | 'desktop'} */
@@ -139,6 +145,11 @@ export default function useBuilderState(widgetId, tenantId) {
 
     // Initialise undoRedo -- reset clears stacks and sets original.
     resetUndoRedo(resolvedTheme);
+
+    // Initialise layout state from saved config (if any).
+    if (found.layoutConfig) {
+      layoutState.resetLayout(found.layoutConfig);
+    }
 
     setLoading(false);
     // We intentionally only run this on mount (widgetId / tenantId change).
@@ -218,12 +229,14 @@ export default function useBuilderState(widgetId, tenantId) {
     try {
       const updated = updateWidget(tenantId, widget.id, {
         themeConfig: theme,
+        layoutConfig: layoutState.layout,
         name: widgetName,
       });
 
       // Advance the "original" reference so isDirty resets to false.
       loadedThemeRef.current = theme;
       resetUndoRedo(theme);
+      layoutState.resetLayout(layoutState.layout);
 
       // Keep the local widget object in sync.
       if (updated) {
@@ -236,7 +249,7 @@ export default function useBuilderState(widgetId, tenantId) {
     } finally {
       setSaving(false);
     }
-  }, [widget, tenantId, theme, widgetName, resetUndoRedo]);
+  }, [widget, tenantId, theme, widgetName, resetUndoRedo, layoutState]);
 
   // ---------------------------------------------------------------------------
   // Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Y / Ctrl+Shift+Z (redo).
@@ -288,6 +301,135 @@ export default function useBuilderState(widgetId, tenantId) {
   }, [undo, redo]);
 
   // ---------------------------------------------------------------------------
+  // Combined isDirty (theme OR layout changed)
+  // ---------------------------------------------------------------------------
+  const combinedIsDirty = isDirty || layoutState.isLayoutDirty;
+
+  // ---------------------------------------------------------------------------
+  // Auto-save: debounced persistence on every change.
+  // Does NOT reset undo/redo — only persists to storage.
+  // ---------------------------------------------------------------------------
+  const [autoSaveStatus, setAutoSaveStatus] = useState('idle');
+  const autoSaveTimerRef = useRef(null);
+  const autoSaveSavedTimerRef = useRef(null);
+  const savedSnapshotRef = useRef(null);
+  const isSavingRef = useRef(false);
+
+  useEffect(() => {
+    if (loading || !widget || !tenantId) return;
+    // Guard: skip while a save is in progress (prevents re-trigger loop).
+    if (isSavingRef.current) return;
+
+    const snapshot = JSON.stringify({
+      t: theme,
+      n: widgetName,
+      l: layoutState.layout,
+    });
+
+    // First render after load — initialize snapshot, skip save.
+    if (savedSnapshotRef.current === null) {
+      savedSnapshotRef.current = snapshot;
+      return;
+    }
+
+    // Nothing changed since last save.
+    if (snapshot === savedSnapshotRef.current) return;
+
+    clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      isSavingRef.current = true;
+      setAutoSaveStatus('saving');
+
+      // Small delay so React renders the 'saving' state before the
+      // synchronous localStorage write completes.
+      setTimeout(() => {
+        try {
+          const updated = updateWidget(tenantId, widget.id, {
+            themeConfig: theme,
+            layoutConfig: layoutState.layout,
+            name: widgetName,
+          });
+          if (updated) setWidget(updated);
+          savedSnapshotRef.current = snapshot;
+
+          clearTimeout(autoSaveSavedTimerRef.current);
+          setAutoSaveStatus('saved');
+          autoSaveSavedTimerRef.current = setTimeout(
+            () => setAutoSaveStatus('idle'),
+            2000,
+          );
+        } catch (err) {
+          console.error('[useBuilderState] auto-save failed:', err);
+          setAutoSaveStatus('idle');
+        } finally {
+          isSavingRef.current = false;
+        }
+      }, 50);
+    }, 800);
+
+    return () => clearTimeout(autoSaveTimerRef.current);
+  });
+
+  // Cleanup timers on unmount.
+  useEffect(() => {
+    return () => {
+      clearTimeout(autoSaveTimerRef.current);
+      clearTimeout(autoSaveSavedTimerRef.current);
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Ctrl+S — force immediate save (bypass debounce).
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    function handleCtrlS(e) {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      if (isCtrlOrMeta && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Cancel debounced auto-save and trigger immediate save.
+        clearTimeout(autoSaveTimerRef.current);
+        if (!widget || !tenantId) return;
+
+        isSavingRef.current = true;
+        setAutoSaveStatus('saving');
+        setTimeout(() => {
+          try {
+            const snapshot = JSON.stringify({
+              t: theme,
+              n: widgetName,
+              l: layoutState.layout,
+            });
+            const updated = updateWidget(tenantId, widget.id, {
+              themeConfig: theme,
+              layoutConfig: layoutState.layout,
+              name: widgetName,
+            });
+            if (updated) setWidget(updated);
+            savedSnapshotRef.current = snapshot;
+
+            clearTimeout(autoSaveSavedTimerRef.current);
+            setAutoSaveStatus('saved');
+            autoSaveSavedTimerRef.current = setTimeout(
+              () => setAutoSaveStatus('idle'),
+              2000,
+            );
+          } catch (err) {
+            console.error('[useBuilderState] manual save failed:', err);
+            setAutoSaveStatus('idle');
+          } finally {
+            isSavingRef.current = false;
+          }
+        }, 50);
+      }
+    }
+
+    window.addEventListener('keydown', handleCtrlS, true);
+    return () => window.removeEventListener('keydown', handleCtrlS, true);
+  }, [widget, tenantId, theme, widgetName, layoutState.layout]);
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
   return {
@@ -298,9 +440,9 @@ export default function useBuilderState(widgetId, tenantId) {
     setThemeBulk,
     undo,
     redo,
-    canUndo,
-    canRedo,
-    isDirty,
+    canUndo: canUndo || layoutState.canUndoLayout,
+    canRedo: canRedo || layoutState.canRedoLayout,
+    isDirty: combinedIsDirty,
     resetToOriginal,
     resetToDefaults,
 
@@ -312,6 +454,9 @@ export default function useBuilderState(widgetId, tenantId) {
     clearSelection: selection.clearSelection,
     isSelected: selection.isSelected,
     isHovered: selection.isHovered,
+
+    // Layout (useLayoutState)
+    layout: layoutState,
 
     // Device preview
     deviceMode,
@@ -333,6 +478,7 @@ export default function useBuilderState(widgetId, tenantId) {
     // Persistence
     save,
     saving,
+    autoSaveStatus,
 
     // Loading
     loading,

@@ -1,24 +1,33 @@
 // src/pages/widget-kalkulacka/components/WidgetStepper.jsx
-// 3-step progress indicator for the embeddable widget calculator.
+// 5-step progress indicator for the embeddable widget calculator.
 
 import React from 'react';
 import { Check } from 'lucide-react';
 
-const STEPS = [
+const STEPS_3 = [
   { id: 1, label: 'Nahrani modelu' },
   { id: 2, label: 'Nastaveni' },
   { id: 3, label: 'Souhrn a cena' },
 ];
 
+const STEPS_5 = [
+  { id: 1, label: 'Nahrani' },
+  { id: 2, label: 'Nastaveni' },
+  { id: 3, label: 'Prehled' },
+  { id: 4, label: 'Objednavka' },
+  { id: 5, label: 'Potvrzeni' },
+];
+
 /**
- * WidgetStepper - 3-step progress indicator.
+ * WidgetStepper - Configurable step progress indicator.
  *
  * Each step shows a numbered circle + label + connecting line.
  * States: completed (green check), active (colored circle), inactive (grey).
  * Optional progress bar below steps.
  *
  * Props:
- * - currentStep: Current active step (1, 2, or 3)
+ * - currentStep: Current active step (1-based)
+ * - totalSteps: Number of steps to display (3 or 5, default 3)
  * - stepperProgressVisible: Show progress bar below steps (default: true)
  * - builderMode: Enable click-to-select for the builder (default: false)
  * - elementId: Element identifier for builder selection (default: 'steps')
@@ -26,11 +35,13 @@ const STEPS = [
  */
 const WidgetStepper = ({
   currentStep = 1,
+  totalSteps = 3,
   stepperProgressVisible = true,
   builderMode = false,
   elementId = 'steps',
   onElementSelect,
 }) => {
+  const STEPS = totalSteps >= 5 ? STEPS_5 : STEPS_3;
   const handleBuilderClick = (e) => {
     if (builderMode && onElementSelect) {
       e.stopPropagation();

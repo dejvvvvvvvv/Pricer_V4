@@ -87,7 +87,7 @@ const SHADOW_OPTIONS = [
 /* ------------------------------------------------------------------ */
 /* Main component                                                     */
 /* ------------------------------------------------------------------ */
-export default function GlobalTab({ theme, onUpdateProperty, onApplyBulkTheme, isDirty }) {
+export default function GlobalTab({ theme, onUpdateProperty, onApplyBulkTheme }) {
   // Determine which quick theme is currently active (if any)
   const currentThemeId = useMemo(() => {
     if (!theme) return CUSTOM_THEME_ID;
@@ -220,7 +220,6 @@ export default function GlobalTab({ theme, onUpdateProperty, onApplyBulkTheme, i
         <QuickThemeDropdown
           currentThemeId={currentThemeId}
           onApplyTheme={handleApplyQuickTheme}
-          isDirty={isDirty}
         />
       </div>
 

@@ -1,19 +1,18 @@
 /**
- * BuilderLeftPanel - Left sidebar panel for Widget Builder V3.
+ * BuilderLeftPanel - Left sidebar panel for Widget Builder V2.
  *
- * Contains a 3-tab navigation bar (Styl / Elementy / Globalni) and a
- * scrollable content area below. Content can be provided via dedicated
- * render props (styleContent, elementsContent, globalContent) or via
- * children as a fallback override.
+ * Contains a 4-tab navigation bar (Styl / Bloky / Vrstvy / Globalni) and a
+ * scrollable content area below.
  *
  * Pure presentational component - no hooks for data fetching.
  */
 import React from 'react';
-import { MousePointerClick, Layers, Settings2 } from 'lucide-react';
+import { MousePointerClick, LayoutGrid, Layers, Settings2 } from 'lucide-react';
 
 const TABS = [
   { id: 'style', label: 'Styl', icon: MousePointerClick },
-  { id: 'elements', label: 'Elementy', icon: Layers },
+  { id: 'blocks', label: 'Bloky', icon: LayoutGrid },
+  { id: 'layers', label: 'Vrstvy', icon: Layers },
   { id: 'global', label: 'Globalni', icon: Settings2 },
 ];
 
@@ -31,14 +30,25 @@ const DefaultStylePlaceholder = () => (
   </div>
 );
 
-const DefaultElementsPlaceholder = () => (
+const DefaultBlocksPlaceholder = () => (
+  <div style={styles.placeholder}>
+    <LayoutGrid
+      size={32}
+      color="var(--builder-text-muted)"
+      style={{ marginBottom: 12 }}
+    />
+    <span style={styles.placeholderText}>Knihovna bloku</span>
+  </div>
+);
+
+const DefaultLayersPlaceholder = () => (
   <div style={styles.placeholder}>
     <Layers
       size={32}
       color="var(--builder-text-muted)"
       style={{ marginBottom: 12 }}
     />
-    <span style={styles.placeholderText}>Seznam elementu</span>
+    <span style={styles.placeholderText}>Vrstvy elementu</span>
   </div>
 );
 
@@ -55,7 +65,8 @@ const DefaultGlobalPlaceholder = () => (
 
 const PLACEHOLDER_MAP = {
   style: DefaultStylePlaceholder,
-  elements: DefaultElementsPlaceholder,
+  blocks: DefaultBlocksPlaceholder,
+  layers: DefaultLayersPlaceholder,
   global: DefaultGlobalPlaceholder,
 };
 
@@ -64,18 +75,23 @@ const BuilderLeftPanel = ({
   onTabChange,
   children,
   styleContent,
-  elementsContent,
+  blocksContent,
+  layersContent,
   globalContent,
+  // Legacy prop support
+  elementsContent,
 }) => {
   /* Determine what to render in the content area */
   const contentMap = {
     style: styleContent,
-    elements: elementsContent,
+    blocks: blocksContent,
+    layers: layersContent,
     global: globalContent,
+    // Legacy fallback
+    elements: elementsContent,
   };
 
   const resolvedContent = children || contentMap[activeTab] || null;
-
   const FallbackPlaceholder = PLACEHOLDER_MAP[activeTab] || DefaultStylePlaceholder;
 
   return (
@@ -148,16 +164,16 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
+    gap: '4px',
     fontFamily: 'var(--builder-font-body)',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 400,
     color: 'var(--builder-text-muted)',
     background: 'transparent',
     border: 'none',
     borderBottom: '2px solid transparent',
     cursor: 'pointer',
-    padding: '0 8px',
+    padding: '0 4px',
     transition:
       'color var(--builder-transition-fast), border-color var(--builder-transition-fast)',
     whiteSpace: 'nowrap',

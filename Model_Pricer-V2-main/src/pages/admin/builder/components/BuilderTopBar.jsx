@@ -17,7 +17,11 @@ import {
   Upload,
   Settings,
   DollarSign,
+  ShoppingCart,
+  CheckCircle,
   ExternalLink,
+  Loader2,
+  Check,
 } from 'lucide-react';
 
 import '../styles/builder-tokens.css';
@@ -30,8 +34,10 @@ const DEVICE_MODES = [
 
 const PREVIEW_STEPS = [
   { id: 1, icon: Upload, label: 'Upload' },
-  { id: 2, icon: Settings, label: 'Konfigurace' },
-  { id: 3, icon: DollarSign, label: 'Souhrn' },
+  { id: 2, icon: Settings, label: 'Konfig.' },
+  { id: 3, icon: DollarSign, label: 'Prehled' },
+  { id: 4, icon: ShoppingCart, label: 'Obj.' },
+  { id: 5, icon: CheckCircle, label: 'Hotovo' },
 ];
 
 const BuilderTopBar = ({
@@ -48,9 +54,7 @@ const BuilderTopBar = ({
   onUndo,
   onRedo,
   onReset,
-  onSave,
-  isDirty,
-  saving,
+  autoSaveStatus,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(widgetName || '');
@@ -252,17 +256,25 @@ const BuilderTopBar = ({
           Resetovat
         </button>
 
-        <button
-          onClick={onSave}
-          disabled={!isDirty || saving}
-          style={{
-            ...styles.saveButton,
-            ...(!isDirty || saving ? styles.saveButtonDisabled : {}),
-          }}
-          aria-label="Ulozit"
-        >
-          {saving ? 'Ukladam...' : 'Ulozit'}
-        </button>
+        {/* Auto-save status indicator */}
+        <div style={styles.autoSaveStatus} data-ref="auto-save-status">
+          {autoSaveStatus === 'saving' && (
+            <>
+              <Loader2
+                size={14}
+                color="var(--builder-text-muted)"
+                style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}
+              />
+              <span style={styles.autoSaveText}>Ukladani...</span>
+            </>
+          )}
+          {autoSaveStatus === 'saved' && (
+            <>
+              <Check size={14} color="var(--builder-accent-success)" style={{ flexShrink: 0 }} />
+              <span style={styles.autoSaveSavedText}>Ulozeno</span>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -458,22 +470,27 @@ const styles = {
     transition: 'color var(--builder-transition-fast)',
     whiteSpace: 'nowrap',
   },
-  saveButton: {
+  autoSaveStatus: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 100,
+    justifyContent: 'flex-end',
+    height: 32,
+  },
+  autoSaveText: {
     fontFamily: 'var(--builder-font-body)',
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#FFFFFF',
-    background: 'var(--builder-accent-success)',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '7px 16px',
-    borderRadius: 'var(--builder-radius-sm)',
-    transition: 'background var(--builder-transition-fast), opacity var(--builder-transition-fast)',
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--builder-text-muted)',
     whiteSpace: 'nowrap',
   },
-  saveButtonDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
+  autoSaveSavedText: {
+    fontFamily: 'var(--builder-font-body)',
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--builder-accent-success)',
+    whiteSpace: 'nowrap',
   },
 };
 

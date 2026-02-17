@@ -77,6 +77,8 @@ const WidgetKalkulacka = ({
   publicWidgetId = null,
   onQuoteCalculated,
   shopifyConfig = null,
+  // Layout config from builder (element ordering + visibility)
+  layoutConfig = null,
 }) => {
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
@@ -134,10 +136,46 @@ const WidgetKalkulacka = ({
   const builderMockRef = useRef({
     file: {
       id: 'mock-1',
-      name: 'ukazka.stl',
+      name: 'ukazka-model.stl',
       size: 1024000,
+      type: 'model/stl',
+      uploadedAt: new Date('2026-01-15T10:30:00'),
       status: 'completed',
-      result: { totalPrice: 245, currency: 'CZK' },
+      error: null,
+      result: {
+        ok: true,
+        totalPrice: 245,
+        currency: 'CZK',
+        printTime: 7200,
+        printTimeFormatted: '2h 0min',
+        materialUsed: 32.5,
+        materialUsedFormatted: '32.5g',
+        layerCount: 420,
+        layerHeight: 0.2,
+        filamentLength: 10850,
+        infill: 20,
+        supportMaterial: false,
+        modelInfo: {
+          volumeCm3: 12.5,
+          volumeMm3: 12500,
+          surfaceCm2: 85.3,
+          surfaceMm2: 8530,
+          boundingBox: { x: 50, y: 30, z: 40 },
+          dimensions: { width: 50, depth: 30, height: 40 },
+          triangleCount: 15420,
+        },
+        priceBreakdown: {
+          baseMaterialCost: 98,
+          timeCost: 72,
+          setupFee: 25,
+          markupAmount: 50,
+          totalBeforeFees: 245,
+        },
+      },
+      clientModelInfo: {
+        surfaceMm2: 8530,
+        surfaceCm2: 85.3,
+      },
     },
   });
   const BUILDER_MOCK = builderMode ? builderMockRef.current : null;
@@ -597,7 +635,9 @@ const WidgetKalkulacka = ({
     }
   };
 
-  const currentConfig = selectedFile ? (printConfigs[selectedFile.id] || {}) : {};
+  // In builder mode, use displaySelected for config resolution
+  const configSource = displaySelected || selectedFile;
+  const currentConfig = configSource ? (printConfigs[configSource.id] || DEFAULT_PRINT_CONFIG) : {};
 
   const statusTooltips = {
     pending: 'Ceka na zpracovani',
@@ -606,8 +646,8 @@ const WidgetKalkulacka = ({
     failed: 'Vypocet se nezdaril'
   };
 
-  const hasFailedModels = uploadedFiles.some(f => f.status === 'failed');
-  const hasMultipleModels = uploadedFiles.length > 1;
+  const hasFailedModels = displayFiles.some(f => f.status === 'failed');
+  const hasMultipleModels = displayFiles.length > 1;
 
   // Wrapper for builder mode - click to select element, hover/selection highlights
   const StyleableWrapper = ({ children, elementId, className = '' }) => {
@@ -700,6 +740,241 @@ const WidgetKalkulacka = ({
     );
   };
 
+  // -----------------------------------------------------------------------
+  // Layout-aware rendering — respects elementOrder + hiddenElements from builder
+  // -----------------------------------------------------------------------
+  const DEFAULT_ELEMENT_ORDER = ['header', 'steps', 'upload', 'config', 'viewer', 'fees', 'pricing', 'cta', 'footer'];
+  const elementOrder = layoutConfig?.elementOrder || DEFAULT_ELEMENT_ORDER;
+  const hiddenSet = new Set(layoutConfig?.hiddenElements || []);
+  const customBlocks = layoutConfig?.customBlocks || [];
+
+  // Zone assignments — determines which column an element renders in
+  const ELEMENT_ZONES = {
+    header: 'top', steps: 'top',
+    upload: 'left', config: 'left', fees: 'left',
+    viewer: 'right', pricing: 'right', cta: 'right',
+    footer: 'bottom',
+  };
+
+  const isVisible = (elId) => !hiddenSet.has(elId);
+
+  // Custom block renderer
+  const renderCustomBlock = (block) => {
+    if (!block?.props) return null;
+    const p = block.props;
+    switch (block.type) {
+      case 'text':
+        return (
+          <StyleableWrapper elementId={block.id} key={block.id}>
+            <div style={{ fontSize: p.fontSize || 14, fontWeight: p.fontWeight || '400', color: p.color || '#374151', backgroundColor: p.bgColor || 'transparent', padding: p.padding || 12, textAlign: p.textAlign || 'left', borderRadius: p.borderRadius || 8 }}>
+              {p.content || 'Vas text zde...'}
+            </div>
+          </StyleableWrapper>
+        );
+      case 'divider':
+        return (
+          <StyleableWrapper elementId={block.id} key={block.id}>
+            <hr style={{ border: 'none', borderTop: `${p.thickness || 1}px ${p.style || 'solid'} ${p.color || '#E5E7EB'}`, margin: `${p.marginY || 16}px 0` }} />
+          </StyleableWrapper>
+        );
+      case 'spacer':
+        return (
+          <StyleableWrapper elementId={block.id} key={block.id}>
+            <div style={{ height: p.height || 24 }} />
+          </StyleableWrapper>
+        );
+      case 'infobox':
+        return (
+          <StyleableWrapper elementId={block.id} key={block.id}>
+            <div style={{ padding: p.padding || 16, borderRadius: p.borderRadius || 8, background: p.variant === 'warning' ? '#FFFBEB' : p.variant === 'error' ? '#FEF2F2' : '#EFF6FF', border: `1px solid ${p.variant === 'warning' ? '#FCD34D' : p.variant === 'error' ? '#FCA5A5' : '#93C5FD'}` }}>
+              {p.title && <div style={{ fontWeight: 600, marginBottom: 4, color: '#1F2937' }}>{p.title}</div>}
+              <div style={{ fontSize: 13, color: '#4B5563' }}>{p.text || ''}</div>
+            </div>
+          </StyleableWrapper>
+        );
+      case 'badge':
+        return (
+          <StyleableWrapper elementId={block.id} key={block.id}>
+            <span style={{ display: 'inline-block', fontSize: p.fontSize || 12, fontWeight: p.fontWeight || '600', color: p.color || '#00D4AA', backgroundColor: p.bgColor || '#ECFDF5', padding: p.padding || '4px 12px', borderRadius: p.borderRadius || 20, textAlign: p.textAlign || 'center' }}>
+              {p.text || 'Badge'}
+            </span>
+          </StyleableWrapper>
+        );
+      case 'image':
+        return (
+          <StyleableWrapper elementId={block.id} key={block.id}>
+            <div style={{ textAlign: 'center', padding: p.padding || 0 }}>
+              {p.src ? (
+                <img src={p.src} alt={p.alt || ''} style={{ maxWidth: p.maxWidth || '100%', borderRadius: p.borderRadius || 8 }} />
+              ) : (
+                <div style={{ background: '#F3F4F6', border: '2px dashed #D1D5DB', borderRadius: p.borderRadius || 8, padding: '24px', color: '#9CA3AF', fontSize: 13 }}>
+                  Obrazek (klikni pro nastaveni URL)
+                </div>
+              )}
+            </div>
+          </StyleableWrapper>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Section renderers — each returns JSX or null
+  const sectionRenderers = {
+    header: () => (showHeader === true || !embedded) ? (
+      <StyleableWrapper elementId="header">
+        <WidgetHeader
+          title={effectiveTheme.textHeaderTitle || 'Kalkulacka 3D tisku'}
+          tagline={effectiveTheme.textHeaderTagline}
+          taglineVisible={effectiveTheme.headerTaglineVisible}
+          alignment={effectiveTheme.headerAlignment}
+          builderMode={builderMode}
+          elementId="header"
+          onElementSelect={onElementSelect}
+        />
+      </StyleableWrapper>
+    ) : null,
+
+    steps: () => (
+      <StyleableWrapper elementId="steps">
+        <WidgetStepper
+          currentStep={displayStep}
+          stepperProgressVisible={effectiveTheme.stepperProgressVisible}
+          builderMode={builderMode}
+          elementId="steps"
+          onElementSelect={onElementSelect}
+        />
+      </StyleableWrapper>
+    ),
+
+    upload: () => (displayFiles.length === 0 && displayStep === 1) ? (
+      <StyleableWrapper elementId="upload">
+        <FileUploadZone onFilesUploaded={handleFilesUploaded} theme={effectiveTheme} />
+      </StyleableWrapper>
+    ) : null,
+
+    config: () => (displayFiles.length > 0 && displaySelected) ? (
+      <StyleableWrapper elementId="config">
+        <div>
+          <PrintConfiguration
+            key={displaySelected.id}
+            selectedFile={displaySelected}
+            onConfigChange={builderMode ? (() => {}) : handleConfigChange}
+            initialConfig={currentConfig}
+            availablePresets={availablePresets}
+            defaultPresetId={defaultPresetId}
+            selectedPresetId={selectedPresetIds[displaySelected?.id] || selectedPresetIds.__default || null}
+            onPresetChange={(presetId) => !builderMode && setSelectedPresetIds(prev => ({ ...prev, [displaySelected?.id]: presetId }))}
+            presetsLoading={presetsLoading}
+            presetsError={presetsError}
+            onPresetsRetry={loadPresets}
+            pricingConfig={pricingConfig}
+            feesConfig={feesConfig}
+            feeSelections={feeSelections}
+            onFeeSelectionsChange={builderMode ? (() => {}) : setFeeSelections}
+            uploadedFiles={displayFiles}
+            disabled={builderMode || displayFiles.some(f => f.status === 'processing')}
+            theme={effectiveTheme}
+          />
+        </div>
+      </StyleableWrapper>
+    ) : null,
+
+    fees: () => null, // Fees are rendered inside PrintConfiguration (config section)
+
+    viewer: () => (
+      <StyleableWrapper elementId="viewer">
+        <ErrorBoundary>
+          <ModelViewer
+            selectedFile={displaySelected || selectedFile}
+            onRemove={builderMode ? undefined : handleFileDelete}
+            onSurfaceComputed={builderMode ? undefined : handleSurfaceComputed}
+            theme={effectiveTheme}
+          />
+        </ErrorBoundary>
+      </StyleableWrapper>
+    ),
+
+    pricing: () => displayFiles.length > 0 ? (
+      <StyleableWrapper elementId="pricing">
+        <PricingCalculator
+          selectedFile={displaySelected || selectedFile}
+          onSlice={handleSliceSelected}
+          totalModels={displayFiles.length}
+          onSliceAll={handleSliceAll}
+          sliceAllLoading={sliceAllProcessing}
+          uploadedFiles={displayFiles}
+          printConfigs={printConfigs}
+          pricingConfig={pricingConfig}
+          feesConfig={feesConfig}
+          feeSelections={feeSelections}
+          theme={effectiveTheme}
+        />
+      </StyleableWrapper>
+    ) : null,
+
+    cta: () => (displayFiles.length > 0 && displaySelected) ? (
+      <StyleableWrapper elementId="cta">
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <GenerateButton
+              size="top"
+              label="Spocitat cenu"
+              onClick={handleSliceSelected}
+              loading={displaySelected?.status === 'processing'}
+              disabled={builderMode || !displaySelected || displaySelected.status === 'processing' || sliceAllProcessing}
+              theme={effectiveTheme}
+            />
+            {hasMultipleModels && (
+              <GenerateButton
+                size="top"
+                label="Spocitat vse"
+                onClick={handleSliceAll}
+                loading={sliceAllProcessing && batchProgress.mode === 'all'}
+                disabled={builderMode || sliceAllProcessing || displayFiles.some(f => f.status === 'processing')}
+                theme={effectiveTheme}
+              />
+            )}
+          </div>
+        </div>
+      </StyleableWrapper>
+    ) : null,
+
+    footer: () => (
+      <StyleableWrapper elementId="footer">
+        <WidgetFooter
+          showPoweredBy={true}
+          builderMode={builderMode}
+          elementId="footer"
+          onElementSelect={onElementSelect}
+        />
+      </StyleableWrapper>
+    ),
+  };
+
+  // Render a single element (built-in or custom block) by ID
+  const renderElement = (elementId) => {
+    if (hiddenSet.has(elementId)) return null;
+
+    // Check if it's a custom block
+    if (elementId.startsWith('cb_')) {
+      const block = customBlocks.find(b => b.id === elementId);
+      return block ? renderCustomBlock(block) : null;
+    }
+
+    // Built-in section
+    const renderer = sectionRenderers[elementId];
+    return renderer ? renderer() : null;
+  };
+
+  // Separate elements by zone
+  const topElements = elementOrder.filter(id => ELEMENT_ZONES[id] === 'top' || (!ELEMENT_ZONES[id] && id.startsWith('cb_') && elementOrder.indexOf(id) < elementOrder.indexOf('upload')));
+  const leftElements = elementOrder.filter(id => ELEMENT_ZONES[id] === 'left');
+  const rightElements = elementOrder.filter(id => ELEMENT_ZONES[id] === 'right');
+  const bottomElements = elementOrder.filter(id => ELEMENT_ZONES[id] === 'bottom');
+  // Custom blocks that aren't in any zone — render in left column by default
+  const customBlockElements = elementOrder.filter(id => id.startsWith('cb_'));
+
   return (
     <div
       ref={containerRef}
@@ -722,147 +997,28 @@ const WidgetKalkulacka = ({
       />
 
       <div className="max-w-5xl mx-auto px-4 py-6">
-        {/* Header - hidden in embedded mode unless showHeader explicitly true */}
-        {(showHeader === true || !embedded) && (
-          <StyleableWrapper elementId="header">
-            <WidgetHeader
-              title={effectiveTheme.textHeaderTitle || 'Kalkulacka 3D tisku'}
-              tagline={effectiveTheme.textHeaderTagline}
-              taglineVisible={effectiveTheme.headerTaglineVisible}
-              alignment={effectiveTheme.headerAlignment}
-              builderMode={builderMode}
-              elementId="header"
-              onElementSelect={onElementSelect}
-            />
-          </StyleableWrapper>
-        )}
-
-        {/* Steps indicator */}
-        <StyleableWrapper elementId="steps">
-          <WidgetStepper
-            currentStep={displayStep}
-            stepperProgressVisible={effectiveTheme.stepperProgressVisible}
-            builderMode={builderMode}
-            elementId="steps"
-            onElementSelect={onElementSelect}
-          />
-        </StyleableWrapper>
+        {/* Top full-width elements (header, steps) — in layout order */}
+        {topElements.map(id => (
+          <React.Fragment key={id}>{renderElement(id)}</React.Fragment>
+        ))}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left column - Upload & Config */}
+          {/* Left column — in layout order */}
           <div className="lg:col-span-2 space-y-6">
-            {displayFiles.length === 0 && displayStep === 1 && (
-              <StyleableWrapper elementId="upload">
-                <FileUploadZone onFilesUploaded={handleFilesUploaded} theme={effectiveTheme} />
-              </StyleableWrapper>
-            )}
-
-            {displayFiles.length > 0 && displaySelected && (
-              <StyleableWrapper elementId="config">
-                <div>
-                  <PrintConfiguration
-                    key={displaySelected.id}
-                    selectedFile={displaySelected}
-                    onConfigChange={handleConfigChange}
-                    initialConfig={currentConfig}
-                    availablePresets={availablePresets}
-                    defaultPresetId={defaultPresetId}
-                    selectedPresetId={selectedPresetIds[selectedFileId] || selectedPresetIds.__default || null}
-                    onPresetChange={(presetId) => setSelectedPresetIds(prev => ({ ...prev, [selectedFileId]: presetId }))}
-                    presetsLoading={presetsLoading}
-                    presetsError={presetsError}
-                    onPresetsRetry={loadPresets}
-                    pricingConfig={pricingConfig}
-                    feesConfig={feesConfig}
-                    feeSelections={feeSelections}
-                    onFeeSelectionsChange={setFeeSelections}
-                    uploadedFiles={uploadedFiles}
-                    disabled={uploadedFiles.some(f => f.status === 'processing')}
-                    theme={effectiveTheme}
-                  />
-                </div>
-              </StyleableWrapper>
-            )}
+            {leftElements.map(id => (
+              <React.Fragment key={id}>{renderElement(id)}</React.Fragment>
+            ))}
+            {/* Custom blocks render in left column */}
+            {customBlockElements.map(id => (
+              <React.Fragment key={id}>{renderElement(id)}</React.Fragment>
+            ))}
           </div>
 
-          {/* Right column - Preview & Price */}
+          {/* Right column — in layout order */}
           <div className="space-y-4">
-            {/* CTA buttons */}
-            {displayFiles.length > 0 && displaySelected && (
-              <StyleableWrapper elementId="cta">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <GenerateButton
-                      size="top"
-                      label="Spocitat cenu"
-                      onClick={handleSliceSelected}
-                      loading={selectedFile.status === 'processing'}
-                      disabled={!selectedFile || selectedFile.status === 'processing' || sliceAllProcessing}
-                      theme={effectiveTheme}
-                    />
-
-                    {hasMultipleModels && (
-                      <GenerateButton
-                        size="top"
-                        label="Spocitat vse"
-                        onClick={handleSliceAll}
-                        loading={sliceAllProcessing && batchProgress.mode === 'all'}
-                        disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
-                        theme={effectiveTheme}
-                      />
-                    )}
-
-                    {hasFailedModels && (
-                      <GenerateButton
-                        size="top"
-                        label="Reslice failed"
-                        onClick={handleResliceFailed}
-                        loading={sliceAllProcessing && batchProgress.mode === 'failed'}
-                        disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
-                        theme={effectiveTheme}
-                      />
-                    )}
-                  </div>
-
-                  {sliceAllProcessing && batchProgress.total > 0 && (
-                    <div className="text-xs text-center" style={{ color: 'var(--widget-muted, #6B7280)' }}>
-                      {batchProgress.mode === 'failed' ? 'Reslice failed' : 'Spocitat vse'} – hotovo {batchProgress.done}/{batchProgress.total}
-                    </div>
-                  )}
-                </div>
-              </StyleableWrapper>
-            )}
-
-            {/* Model Viewer */}
-            <StyleableWrapper elementId="viewer">
-              <ErrorBoundary>
-                <ModelViewer
-                  selectedFile={selectedFile}
-                  onRemove={handleFileDelete}
-                  onSurfaceComputed={handleSurfaceComputed}
-                  theme={effectiveTheme}
-                />
-              </ErrorBoundary>
-            </StyleableWrapper>
-
-            {/* Pricing Calculator */}
-            {displayFiles.length > 0 && (
-              <StyleableWrapper elementId="pricing">
-                <PricingCalculator
-                  selectedFile={selectedFile}
-                  onSlice={handleSliceSelected}
-                  totalModels={uploadedFiles.length}
-                  onSliceAll={handleSliceAll}
-                  sliceAllLoading={sliceAllProcessing}
-                  uploadedFiles={uploadedFiles}
-                  printConfigs={printConfigs}
-                  pricingConfig={pricingConfig}
-                  feesConfig={feesConfig}
-                  feeSelections={feeSelections}
-                  theme={effectiveTheme}
-                />
-              </StyleableWrapper>
-            )}
+            {rightElements.map(id => (
+              <React.Fragment key={id}>{renderElement(id)}</React.Fragment>
+            ))}
 
             {/* Shopify Cart Button — shown when Shopify integration is enabled */}
             {isShopifyMode && shopifyQuoteResult && displayFiles.length > 0 && (
@@ -870,7 +1026,7 @@ const WidgetKalkulacka = ({
                 <ShopifyCartButton
                   quoteResult={shopifyQuoteResult}
                   shopifyConfig={shopifyConfig}
-                  uploadedFiles={uploadedFiles}
+                  uploadedFiles={displayFiles}
                   embedded={embedded}
                   publicWidgetId={publicWidgetId}
                   disabled={builderMode}
@@ -878,7 +1034,7 @@ const WidgetKalkulacka = ({
               </StyleableWrapper>
             )}
 
-            {/* File list */}
+            {/* File list — always at bottom of right column */}
             {displayFiles.length > 0 && (
               <StyleableWrapper elementId="filelist">
                 <div
@@ -893,17 +1049,19 @@ const WidgetKalkulacka = ({
                     <h3 className="font-semibold" style={{ color: 'var(--widget-header, #1F2937)' }}>
                       Nahrane modely
                     </h3>
-                    <Button variant="ghost" size="icon" onClick={handleAddModelClick}>
-                      <Icon name="Plus" size={16} />
-                    </Button>
+                    {!builderMode && (
+                      <Button variant="ghost" size="icon" onClick={handleAddModelClick}>
+                        <Icon name="Plus" size={16} />
+                      </Button>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2">
-                    {uploadedFiles.map((file) => (
+                    {displayFiles.map((file) => (
                       <Button
                         key={file.id}
-                        variant={selectedFile && selectedFile.id === file.id ? 'default' : 'outline'}
+                        variant={displaySelected && displaySelected.id === file.id ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => setSelectedFileId(file.id)}
+                        onClick={() => !builderMode && setSelectedFileId(file.id)}
                         className="w-full justify-start text-left h-auto py-2 px-3"
                         title={statusTooltips[file.status] || 'Neznamy stav'}
                       >
@@ -929,13 +1087,10 @@ const WidgetKalkulacka = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <WidgetFooter
-          showPoweredBy={true}
-          builderMode={builderMode}
-          elementId="footer"
-          onElementSelect={onElementSelect}
-        />
+        {/* Bottom full-width elements (footer) — in layout order */}
+        {bottomElements.map(id => (
+          <React.Fragment key={id}>{renderElement(id)}</React.Fragment>
+        ))}
       </div>
     </div>
   );

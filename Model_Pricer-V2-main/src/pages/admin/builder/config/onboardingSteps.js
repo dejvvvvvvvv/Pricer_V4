@@ -7,7 +7,7 @@
  *   - 'right-panel' -> preview area (right side)
  *   - 'left-panel'  -> editor area (left side)
  *   - 'global-tab'  -> left panel, global/themes area
- *   - 'save-button' -> top bar, right side
+ *   - 'auto-save-status' -> top bar, right side (auto-save indicator)
  */
 
 export const ONBOARDING_STEPS = [
@@ -62,13 +62,13 @@ export const ONBOARDING_STEPS = [
   {
     id: 'save',
     title: {
-      cs: 'Nezapomente ulozit!',
-      en: "Don't forget to save!",
+      cs: 'Zmeny se ukladaji automaticky',
+      en: 'Changes save automatically',
     },
     text: {
-      cs: 'Po dokonceni uprav kliknete na zelene tlacitko "Ulozit" v hornim panelu.',
-      en: 'After finishing edits, click the green "Save" button in the top bar.',
+      cs: 'Vsechny vase zmeny se ukladaji automaticky. V horni liste uvidite "Ukladani..." behem ukladani.',
+      en: 'All your changes are saved automatically. You\'ll see "Saving..." in the top bar during saves.',
     },
-    targetRef: 'save-button',
+    targetRef: 'auto-save-status',
   },
 ];

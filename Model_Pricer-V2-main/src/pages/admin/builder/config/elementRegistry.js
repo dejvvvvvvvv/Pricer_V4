@@ -1,6 +1,12 @@
 /**
  * Element Registry — defines all editable widget elements for the builder.
  * Each element maps to a section of the widget preview and its editable properties.
+ *
+ * Extended for Widget Builder V2 with:
+ *   - protected: boolean — cannot be removed from layout
+ *   - hideable: boolean — can be toggled visible/hidden
+ *   - draggable: boolean — can be reordered via DnD
+ *   - zone: 'full' | 'left' | 'right' — layout zone for grid positioning
  */
 
 export const ELEMENT_REGISTRY = {
@@ -10,6 +16,10 @@ export const ELEMENT_REGISTRY = {
     icon: 'Layout',
     properties: ['backgroundColor', 'globalPadding'],
     editableTexts: [],
+    protected: true,
+    hideable: false,
+    draggable: false,
+    zone: 'full',
   },
   header: {
     id: 'header',
@@ -20,6 +30,10 @@ export const ELEMENT_REGISTRY = {
       'headerPadding', 'headerAlignment', 'headerTaglineVisible',
     ],
     editableTexts: ['textHeaderTitle', 'textHeaderTagline'],
+    protected: false,
+    hideable: true,
+    draggable: true,
+    zone: 'full',
   },
   steps: {
     id: 'steps',
@@ -30,6 +44,10 @@ export const ELEMENT_REGISTRY = {
       'stepperInactiveColor', 'stepperProgressVisible',
     ],
     editableTexts: [],
+    protected: false,
+    hideable: true,
+    draggable: true,
+    zone: 'full',
   },
   upload: {
     id: 'upload',
@@ -40,6 +58,10 @@ export const ELEMENT_REGISTRY = {
       'uploadIconColor', 'uploadBorderStyle',
     ],
     editableTexts: ['textUploadTitle', 'textUploadDescription', 'textUploadButton'],
+    protected: true,
+    hideable: false,
+    draggable: true,
+    zone: 'left',
   },
   viewer: {
     id: 'viewer',
@@ -48,6 +70,10 @@ export const ELEMENT_REGISTRY = {
     properties: [],
     editableTexts: [],
     note: 'Container for 3D viewer — not styleable in builder.',
+    protected: true,
+    hideable: true,
+    draggable: true,
+    zone: 'right',
   },
   config: {
     id: 'config',
@@ -55,6 +81,10 @@ export const ELEMENT_REGISTRY = {
     icon: 'Settings',
     properties: ['configBgColor', 'configLabelColor'],
     editableTexts: [],
+    protected: true,
+    hideable: false,
+    draggable: true,
+    zone: 'left',
   },
   fees: {
     id: 'fees',
@@ -62,6 +92,10 @@ export const ELEMENT_REGISTRY = {
     icon: 'Receipt',
     properties: ['feesBgColor', 'feesCheckboxColor'],
     editableTexts: [],
+    protected: false,
+    hideable: true,
+    draggable: true,
+    zone: 'left',
   },
   pricing: {
     id: 'pricing',
@@ -72,6 +106,10 @@ export const ELEMENT_REGISTRY = {
       'summaryTotalBgColor', 'summaryTotalFontSize',
     ],
     editableTexts: [],
+    protected: true,
+    hideable: false,
+    draggable: true,
+    zone: 'right',
   },
   cta: {
     id: 'cta',
@@ -82,6 +120,10 @@ export const ELEMENT_REGISTRY = {
       'buttonBorderRadius', 'buttonPaddingY', 'buttonFontSize', 'buttonShadow',
     ],
     editableTexts: ['textCtaButton'],
+    protected: true,
+    hideable: false,
+    draggable: true,
+    zone: 'right',
   },
   footer: {
     id: 'footer',
@@ -89,6 +131,10 @@ export const ELEMENT_REGISTRY = {
     icon: 'PanelBottom',
     properties: ['footerBgColor', 'footerTextColor', 'footerLinkColor'],
     editableTexts: [],
+    protected: false,
+    hideable: true,
+    draggable: true,
+    zone: 'full',
   },
 };
 
@@ -97,6 +143,21 @@ export const ELEMENT_ORDER = [
   'background', 'header', 'steps', 'upload', 'viewer',
   'config', 'fees', 'pricing', 'cta', 'footer',
 ];
+
+/** Default layout element order (excludes 'background' which is always rendered) */
+export const DEFAULT_LAYOUT_ORDER = [
+  'header', 'steps', 'upload', 'config', 'viewer', 'fees', 'pricing', 'cta', 'footer',
+];
+
+/** Set of protected element IDs — cannot be removed */
+export const PROTECTED_ELEMENTS = new Set(
+  Object.values(ELEMENT_REGISTRY).filter((e) => e.protected).map((e) => e.id),
+);
+
+/** Set of hideable element IDs — can be toggled visible/hidden */
+export const HIDEABLE_ELEMENTS = new Set(
+  Object.values(ELEMENT_REGISTRY).filter((e) => e.hideable).map((e) => e.id),
+);
 
 /**
  * Get an element definition by ID.
@@ -125,4 +186,22 @@ export function getElementProperties(elementId) {
 export function hasEditableTexts(elementId) {
   const el = ELEMENT_REGISTRY[elementId];
   return el ? el.editableTexts.length > 0 : false;
+}
+
+/**
+ * Check if an element can be removed/deleted.
+ * @param {string} elementId
+ * @returns {boolean}
+ */
+export function isDeletable(elementId) {
+  return !PROTECTED_ELEMENTS.has(elementId);
+}
+
+/**
+ * Check if a given ID is a custom block (not in ELEMENT_REGISTRY).
+ * @param {string} id
+ * @returns {boolean}
+ */
+export function isCustomBlock(id) {
+  return id?.startsWith('cb_') || false;
 }

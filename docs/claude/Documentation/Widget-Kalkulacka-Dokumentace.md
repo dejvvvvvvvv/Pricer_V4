@@ -392,6 +392,176 @@ Tyto promenne NEJSOU kompatibilni s hlavnim `--widget-*` systemem.
 
 ---
 
+## 7. Widget Builder V2 (WYSIWYG Editor)
+
+### 7.1 Prehled
+
+Fullscreen WYSIWYG editor pro vizualni upravu widgetu. Tri-panel layout s DnD podporou:
+- **TopBar** — device switcher, step preview, undo/redo, reset, auto-save status
+- **LeftPanel** (280px) — 4 taby: Styl, Bloky, Vrstvy, Globalni
+- **Canvas** (flex) — zive nahledove okno s DevicePreviewFrame
+- **RightPanel** (300px, conditional) — vlastnosti vybraneho elementu
+
+**Route:** `/admin/widget/builder/:id`
+**Renderovan MIMO AdminLayout** — plne fullscreen.
+
+### 7.2 Architektura souboru
+
+```
+src/pages/admin/builder/
+  BuilderPage.jsx                    -- Hlavni kompozice, DnD context, grid layout
+  styles/
+    builder-tokens.css               -- CSS custom properties pro builder UI
+  hooks/
+    useBuilderState.js               -- Top-level state hook (theme, layout, selection, auto-save)
+    useUndoRedo.js                   -- Theme undo/redo stack (max 50)
+    useElementSelection.js           -- Selected/hovered element tracking
+    useLayoutState.js                -- Element ordering, visibility, custom blocks, undo
+    useDragAndDrop.js                -- @dnd-kit event handlers
+  config/
+    elementRegistry.js               -- 10 core elements (metadata, flags, zones)
+    blockLibrary.js                  -- 6 custom block types (text, image, divider, spacer, infobox, badge)
+    presetLayouts.js                 -- 4 layout presety (classic, compact, wide, minimal)
+    quickThemes.js                   -- Prednastavena barevna temata
+    builderMockData.js               -- Realisticka mock data pro vsech 5 kroku
+    onboardingSteps.js               -- 5-krokovy first-run walkthrough
+  components/
+    BuilderTopBar.jsx                -- Horni lista (device, steps, undo/redo, auto-save)
+    BuilderLeftPanel.jsx             -- Levy panel se 4 taby
+    BuilderRightPanel.jsx            -- Canvas wrapper
+    DevicePreviewFrame.jsx           -- Mobile/Tablet/Desktop frame
+    OnboardingOverlay.jsx            -- First-run overlay
+    ElementToolbar.jsx               -- Floating toolbar nad vybranym elementem
+    LayersPanel.jsx                  -- Photoshop-style vrstvy s DnD
+    BlockLibrary.jsx                 -- Paleta custom bloku
+    LayoutSwitcher.jsx               -- 4 preset layouty s potvrzenim
+    DraggableElement.jsx             -- @dnd-kit sortable wrapper
+    DragOverlayElement.jsx           -- Ghost element pri tazeni
+    QuickThemeDropdown.jsx           -- Dropdown pro rychle tema presety
+    BuilderColorPicker.jsx           -- Color picker pro theme barvy
+    tabs/
+      StyleTab.jsx                   -- Editor vlastnosti vybraneho elementu
+      GlobalTab.jsx                  -- Typografie, zaobleni, tema, efekty, skeleton
+```
+
+### 7.3 Element Registry (10 core elementu)
+
+| Element | Protected | Hideable | Draggable | Zone | Popis |
+|---------|-----------|----------|-----------|------|-------|
+| `background` | ano | ne | ne | full | Pozadi widgetu |
+| `header` | ne | ano | ano | full | Logo + titulek + tagline |
+| `steps` | ne | ano | ano | full | Progress stepper |
+| `upload` | ano | ne | ano | left | Upload zona |
+| `viewer` | ano | ano | ano | right | 3D nahled |
+| `config` | ano | ne | ano | left | Print konfigurace |
+| `fees` | ne | ano | ano | full | Poplatky/sluzby |
+| `pricing` | ano | ne | ano | full | Cenovy souhrn |
+| `cta` | ano | ne | ano | full | Call-to-action tlacitko |
+| `footer` | ne | ano | ano | full | Powered by paticka |
+
+### 7.4 Custom bloky (6 typu)
+
+| Blok | Kategorie | Default vlastnosti |
+|------|-----------|-------------------|
+| `text` | content | fontSize 14px, color #374151, padding 12px |
+| `image` | content | width 100%, height auto, border-radius 8px |
+| `divider` | layout | height 1px, color #E5E7EB, margin 8px 0 |
+| `spacer` | layout | height 24px |
+| `infobox` | content | padding 12px, background #F3F4F6, border-radius 8px |
+| `badge` | content | fontSize 12px, padding 4px 8px, background #3B82F6 |
+
+Custom bloky maji prefix `cb_` v ID a lze je smazat (na rozdil od core elementu).
+
+### 7.5 Layout presety (4 presety)
+
+| Preset | Popis | Skryte elementy | Specialni |
+|--------|-------|-----------------|-----------|
+| `classic` | Vsech 9 elementu | zadne | default |
+| `compact` | 6 elementu | header, footer, fees | viewer height 300px |
+| `wide` | Vsech 9 elementu | zadne | viewer height 500px, upload/viewer swap |
+| `minimal` | 4 elementy | header, steps, viewer, fees, footer | pouze zakladni flow |
+
+Prepnuti presetu vyzaduje potvrzeni (destructive action).
+
+### 7.6 Auto-save system
+
+**Vsechny zmeny se ukladaji automaticky** s debounce 800ms.
+
+**Cyklus:**
+```
+Zmena (theme/layout/name) --> isDirty
+  |
+  +-- Debounce 800ms (reset pri dalsi zmene)
+  |
+  +-- "Ukladani..." (status v top bar)
+  |
+  +-- localStorage write (sync, ~0ms)
+  |
+  +-- "Ulozeno" (2s)
+  |
+  +-- Idle (prazdne)
+```
+
+**Implementace:**
+- `useBuilderState.js` — `autoSaveStatus` state ('idle'|'saving'|'saved')
+- `savedSnapshotRef` — JSON.stringify porovnani pro detekci zmen
+- `isSavingRef` — guard proti re-trigger smycce (React re-render)
+- `setTimeout(50)` pred localStorage write — umozni React vyrenderovat "Ukladani..."
+- Undo/redo stacks se NERESETUJI po auto-save (uzivatel muze undo i po ulozeni)
+- **Ctrl+S** — vynuti okamzite ulozeni (bypass debounce)
+
+**TopBar indikator:**
+- `autoSaveStatus === 'saving'` — spinner ikona + "Ukladani..." (muted)
+- `autoSaveStatus === 'saved'` — check ikona + "Ulozeno" (zelena)
+- `autoSaveStatus === 'idle'` — prazdne (nic se nezobrazuje)
+
+**Zadne varovani o neulozeny zmenach** — vsechno se uklada automaticky.
+QuickThemeDropdown a dalsi akce NEMAJI confirm dialog o zmenach.
+
+### 7.7 Drag and Drop (@dnd-kit)
+
+- **Knihovny:** `@dnd-kit/core`, `@dnd-kit/sortable`
+- **Dve plochy:** LayersPanel (levy panel) + Canvas (preview)
+- **Data flow:** `useDragAndDrop` (eventy) --> `useLayoutState.moveElement()` (stav)
+- `DraggableElement` — sortable wrapper s GripVertical handle
+- `DragOverlayElement` — ghost pri tazeni (pill s modrym rameckem)
+- **Sensory:** PointerSensor (distance 5px), KeyboardSensor
+
+### 7.8 Preview & Step Switcher
+
+TopBar obsahuje 5 step preview tlacitek:
+1. **Upload** — nahrani modelu
+2. **Konfig.** — nastaveni tisku
+3. **Prehled** — cenovy souhrn
+4. **Obj.** — checkout (mock)
+5. **Hotovo** — potvrzeni (mock)
+
+Device switcher: Mobile / Tablet / Desktop — meni sirku preview frame.
+
+### 7.9 Onboarding (First-run)
+
+5-krokovy walkthrough pro nove uzivatele:
+1. **Vitejte** — uvodni karta (full screen)
+2. **Nahled widgetu** — highlight preview area
+3. **Editor vlastnosti** — highlight levy panel
+4. **Quick Themes** — highlight globalni tab
+5. **Auto-save** — zmeny se ukladaji automaticky
+
+Stav ulozeny v localStorage pod `modelpricer:${tenantId}:builder:onboarding_complete`.
+
+### 7.10 Persistence
+
+**Co se uklada:**
+- `themeConfig` — 56+ vlastnosti (barvy, fonty, texty, velikosti)
+- `layoutConfig` — elementOrder, hiddenElements, customBlocks, sizeOverrides, activePresetId
+- `name` — nazev widgetu
+
+**Kam:**
+- `modelpricer_widgets__${tenantId}` v localStorage
+- Volitelne: Supabase dual-write (fire-and-forget)
+
+---
+
 ## 8. UI komponenty -- detailni popis
 
 ### 8.1 WidgetKalkulacka (index.jsx) -- hlavni orchestrator
@@ -1038,5 +1208,6 @@ function getTargetOrigin() {
 
 ---
 
-*Dokumentace vygenerovana 2026-02-13. Zdrojove soubory: 907 radku (index.jsx),
-17 komponent, 427 radku (widgetThemeStorage.js), 225 radku (WidgetPublicPage.jsx).*
+*Dokumentace aktualizovana 2026-02-16. Zdrojove soubory: 907 radku (index.jsx),
+17 komponent, 427 radku (widgetThemeStorage.js), 225 radku (WidgetPublicPage.jsx).
+Widget Builder V2: 460 radku (BuilderPage.jsx), 486 radku (useBuilderState.js), 11 komponent.*

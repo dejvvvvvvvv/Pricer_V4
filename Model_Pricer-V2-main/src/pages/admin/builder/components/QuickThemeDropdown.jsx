@@ -3,7 +3,7 @@
  *
  * Shows a trigger button with the current theme name + 3 color dots.
  * Clicking opens a dropdown listing all QUICK_THEMES plus a "Vlastni" option.
- * If isDirty and user selects a theme, a confirm dialog warns about unsaved changes.
+ * Changes are auto-saved by the builder, no confirmation needed.
  */
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Check, ChevronDown, Palette } from 'lucide-react';
@@ -37,7 +37,6 @@ function ColorDots({ colors, size = 10 }) {
 export default function QuickThemeDropdown({
   currentThemeId,
   onApplyTheme,
-  isDirty,
 }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -82,17 +81,10 @@ export default function QuickThemeDropdown({
   // Handle selecting a theme
   const handleSelect = useCallback(
     (themeEntry) => {
-      if (isDirty) {
-        const confirmed = window.confirm(
-          'Neulozene zmeny budou ztraceny. Pokracovat?',
-        );
-        if (!confirmed) return;
-      }
-
       onApplyTheme(themeEntry);
       setOpen(false);
     },
-    [isDirty, onApplyTheme],
+    [onApplyTheme],
   );
 
   return (
