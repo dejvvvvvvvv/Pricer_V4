@@ -34,8 +34,8 @@
 | 3D & Mesh | 1 | 0 | 3 | **4** |
 | E-commerce & Integrace | 1 | 0 | 9 | **10** |
 | Planovani & Orchestrace | 1 | 0 | 6 | **7** |
-| Dokumentace & Research | 1 | 0 | 4 | **5** |
-| **CELKEM** | **13** | **18** | **75** | **106** |
+| Dokumentace & Research | 1 | 0 | 5 | **6** |
+| **CELKEM** | **13** | **18** | **76** | **107** |
 
 ---
 
@@ -362,6 +362,7 @@
 |-------|------|-------|-------|
 | `mp-spec-docs-api` | API dokumentace — OpenAPI/Swagger specs, Redoc, endpoint docs | sonnet | API docs (budouci Sekce 20) |
 | `mp-spec-docs-dev` | Developer docs — CLAUDE.md, AGENT_MAP, SKILLS_MAP, patterns | sonnet | `docs/claude/`, dev onboarding |
+| `mp-spec-docs-historie` | Historie Agent — auto-save konverzaci, uprav, otazek do strukturovanych .md. P0 pred compaction. | haiku | `docs/claude/Historie/` |
 | `mp-spec-research-web` | Web research — Context7-first, Brave search, citace, doporuceni | sonnet | Externi zdroje |
 | `mp-spec-research-oss` | OSS Scout — vyhledavani knihoven, licence audit, kvalita hodnoceni | sonnet | NPM, GitHub, licence |
 
@@ -384,6 +385,7 @@
 | `/backend-local/*` | `mp-mid-backend-api` | `mp-spec-be-slicer` |
 | `package.json` | `mp-spec-infra-deps` | `mp-mid-infra-build`, `mp-spec-test-build` |
 | `CLAUDE.md` | `mp-spec-docs-dev` | `mp-sr-orchestrator` |
+| `/docs/claude/Historie/*` | `mp-spec-docs-historie` | `mp-sr-docs` |
 | `/src/context/AuthContext.jsx` | `mp-spec-be-auth` | `mp-mid-frontend-public`, `mp-mid-frontend-admin` |
 | `/src/pages/admin/AdminWidget.jsx` | `mp-mid-frontend-admin` | `mp-mid-frontend-widget` |
 | `/src/pages/widget-kalkulacka/*` | `mp-mid-frontend-widget` | `mp-mid-security-app` |

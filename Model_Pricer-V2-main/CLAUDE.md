@@ -250,17 +250,20 @@ Vystupy:
 - Scope + Out of scope
 - Seznam souboru
 - Rizika (importy/routy/tenant storage)
+- **HISTORIE SAVE** (ulozit kontext analyzy)
 
 ### CP2 — Implementace (male kroky)
 Pravidla:
 - men jen scope
 - hlidej exporty/importy (default vs named)
 - prubezne over
+- **HISTORIE SAVE** (ulozit provedene zmeny)
 
 ### CP3 — Stabilizace + sanity
 - zadne nove feature creep
 - jen drobne guardy / texty / UX v ramci scope
 - finalni sanity (`npm run build` + smoke)
+- **HISTORIE SAVE** (finalni souhrn session)
 
 ### Patch/ZIP (lokalni workflow)
 - Default: **PATCH_ONLY** (jen zmenene/nove soubory)
@@ -516,6 +519,69 @@ Pred kazdym commitem se zeptej:
 
 ---
 
+## 17.5) Historie — Automaticke ukladani konverzaci a uprav (P0)
+
+> **P0 pravidlo:** PRED compaction konverzace MUSI byt historie ulozena. Bez historie se ztraci kontext.
+
+### 17.5.1 Auto-save triggery — POVINNE (P0)
+
+| Trigger | Priorita | Popis |
+|---------|----------|-------|
+| **Pred auto-compaction** | P0 | Compaction smaze detaily — BEZODKLADNE ulozit PRED nim |
+| **Pred dodanim/spustenim planu** | P0 | Implementace planu zacina `/clear` — ulozit PRED dodanim + PATH k planu |
+| **Pred `/clear` konverzace** | P0 | Clear maze vsechno — ulozit PRED nim |
+| **Pri kazdem checkpointu (CP1/CP2/CP3)** | P0 | Prirozeny breakpoint pro ulozeni |
+| **Pred koncem session** | P1 | Finalni souhrn prace |
+| **Na zacatku session** | P1 | Zaznamena co se bude delat |
+| **Rucni trigger** | — | `/history` skill nebo "uloz historii" |
+
+### 17.5.2 Co ulozit navic pri planu
+
+- **PATH k souboru planu** (napr. `docs/claude/PLANS/nazev-planu.md`)
+- **Strucne shrnuti planu** (co se bude implementovat, jake soubory)
+- **Rozhodnuti z diskuze** pred planem (otazky uzivatele, odpovedi, volby)
+
+### 17.5.3 Jak to funguje
+
+1. **Claude zkompiluje kontext** — konverzace (plny text uzivatele + zkracene odpovedi), seznam upravenych souboru s radkovymi rozsahy, otazky/odpovedi, rozhodnuti
+2. **Spusti Task agenta** — `general-purpose` na modelu `haiku` s instrukcemi z agenta `mp-spec-docs-historie`
+3. **Agent zapise soubory** — do `docs/claude/Historie/{YYYY-MM-DD}/` podle sablon
+4. **Aktualizuje registry** — `MASTER-HISTORIE.md` (nove radky) + `ID-REGISTRY.md` (pocitadlo)
+
+### 17.5.4 Klicove soubory
+
+| Soubor | Ucel |
+|--------|------|
+| `.claude/agents/mp-spec-docs-historie.md` | Agent definice (12 sekci, presny postup) |
+| `.agents/skills/history/SKILL.md` | Skill pro rucni trigger `/history` |
+| `docs/claude/Historie/MASTER-HISTORIE.md` | Centralni index vsech zaznamu |
+| `docs/claude/Historie/ID-REGISTRY.md` | Registr zkratek (40+) + globalni pocitadlo |
+| `docs/claude/Historie/SABLONY/` | 4 sablony: KONVERZACE, UPRAVY, OTAZKY, DENNI-PREHLED |
+| `docs/claude/Historie/{YYYY-MM-DD}/` | Denni slozky s historickymi soubory |
+
+### 17.5.5 ID system
+
+- **Format:** `{NNN}-{ZK}` — napr. `001-TK`, `002-AD`, `003-PE`
+- **NNN** = 3-mistne globalni sekvencni cislo (vzdy unikatni)
+- **ZK** = 2-znakova zkratka oblasti z registru (TK=Test-Kalkulacka, AD=Admin-Dashboard, atd.)
+- **Session:** `S{NN}` — kazde chatove okno = nova session v ramci dne
+- **Souvisejici ID** = krizove reference mezi soubory ktere spolu souvisi
+
+### 17.5.6 Typy zaznamu
+
+| Typ | Obsah | Uroven detailu |
+|-----|-------|----------------|
+| **KONVERZACE** | Uzivateluv text (CELY) + Claude odpovedi (klicove body) | Uzivatel=plny, Claude=zkraceny |
+| **UPRAVY** | Technicke zmeny v souborech | Stredni + radkove rozsahy, fragmenty jen pro arch. zmeny |
+| **OTAZKY** | Otazky + odpovedi + rozhodnuti | Plne zneni obou stran |
+| **DENNI-PREHLED** | Souhrn celeho dne | Strucny, prehledny |
+
+### 17.5.7 Proc je to dulezite
+
+Pri compaction/clear konverzace se ztraci detailni kontext — co presne uzivatel psal, jake rozhodnuti padla, proc se neco udelalo. Historie system tento problem resi tim, ze kontext uklada pred ztratou do strukturovanych souboru ktere se daji snadno prohledavat a odkazovat.
+
+---
+
 ## 18) Quality Gates
 
 ### 18.1 Mandatory gates (P0) — VZDY pred commitem
@@ -557,6 +623,7 @@ Pred kazdym commitem se zeptej:
 [ ] AGENT_MAP.md aktualni (pokud zmena agenta)
 [ ] SKILLS_MAP.md aktualni (pokud zmena skillu)
 [ ] MEMORY.md aktualni (pokud nove uceni)
+[ ] Historie ulozena (sekce 17.5 — pred compaction P0!)
 [ ] Security scan pro externi veci (sekce 19.3)
 ```
 
@@ -659,3 +726,72 @@ Po instalaci jakehokoli externiho rozsireni:
 **Znami skodlivi publisheri** (stav 02/2026): `zaycv`, `Aslaep123`, `pepe276`, `moonshine-100rze`
 
 > **Pravidlo:** Automaticky sken je **doplnek**, ne nahrada manualni revize. Vzdy precti kod sam.
+
+---
+
+## 20) Povinne dotazovani pred planovanim (Anti-Hallucination Gate)
+
+> **Priorita: P0.** Toto pravidlo existuje proto, ze LLM modely (vcetne Claude) maji tendenci halucinovat kdyz nemaji dostatek informaci. Spatny predpoklad propagovany do implementace stoji mnohonasobne vic casu nez 1 otazka navic. Misto vymysleni odpovedi je VZDY lepsi se zeptat.
+
+### 20.1 Zakladni pravidla
+
+1. **Minimalne 3 otazky pred finalizaci planu** — i kdyz se ti zda zadani jasne, VZDY poloz alespon 3 otazky. Zadny plan neni tak jednoduchy, aby neexistovaly skryte nejasnosti.
+2. **Vice otazek je OK a vitano** — 3 je tvrdé minimum. Pokud je task komplexni, nejasny nebo dotyka se vice subsystemu, ptej se 5, 7 nebo kolik je treba. Radsi vic otazek nez spatne predpoklady.
+3. **Ptej se na VSE nejiste** — pokud si nejsi 100% jisty nejakym rozhodnutim, ZEPTEJ SE. Nejistota je signal, ne slabost.
+4. **Navrhuj lepsi alternativy** — pokud vidis lepsi pristup nez co uzivatel specifikoval, aktivne ho predloz. Vysvetli proc si myslis ze je lepsi a nech uzivatele rozhodnout. Tvoje technicka znalost je hodnota — neskryvej ji.
+5. **Nedelej predpoklady o vecech ktere muzes overit** — kdyz muzes precist soubor, podivat se na existujici kod, zkontrolovat API nebo se zeptat uzivatele, udelej to. Hadani neni akceptovatelne.
+
+### 20.2 Na co se typicky ptat
+
+| Oblast | Priklady otazek |
+|--------|----------------|
+| **Scope** | "Mam zmenit jen tuto stranku nebo to ovlivni i widget?", "Patri do scope i mobilni verze?" |
+| **UI/UX chovani** | "Jak se ma tlacitko chovat po kliknuti?", "Ma byt loading state spinner nebo skeleton?", "Kam presne patri nova sekce?" |
+| **Datovy model** | "Ma se to ukladat do existujiciho namespace nebo noveho?", "Jaky je format dat?" |
+| **Kompatibilita** | "Tato zmena ovlivni X — je to OK?", "Existujici uzivatele uvidí zmenu okamzite?" |
+| **Error handling** | "Co se ma stat kdyz API vrati chybu?", "Ma se zobrazit toast nebo inline error?" |
+| **Alternativy** | "Navrhuji pouzit X misto Y protoze [duvod] — souhlasis?", "Existuje jednodussi reseni: [popis] — chces ho?" |
+| **Business logika** | "Ma tato sleva platit i pro existujici objednavky?", "Jaky je fallback kdyz neni nastavena cena?" |
+| **Priorita a poradi** | "Je dulezitejsi [A] nebo [B]?", "Mam implementovat vse naraz nebo po castech?" |
+
+### 20.3 Kdy se ptat
+
+```
+VZDY pred:
+- Finalizaci implementacniho planu
+- Zahajenim prace na novem feature
+- Velkym refactorem (>5 souboru)
+- Architekturalnim rozhodnutim
+- Zmenou ktera ovlivni vice subsystemu
+- Cimkoli kde mas pochybnosti
+
+NEMUSIS se ptat pri:
+- Trivialnim bug fixu (preklep, chybejici import) kde je reseni jednoznacne
+- Explicitne detailnim zadani kde uzivatel specifikoval vsechny detaily
+```
+
+### 20.4 Format otazek
+
+Otazky pokládej seskupene, ne po jedne. Idealni format:
+
+```
+Pred zahajenim planu mam nekolik otazek:
+
+1. **[Oblast]:** Otazka? (volitelne: navrh vlastniho reseni)
+2. **[Oblast]:** Otazka?
+3. **[Oblast]:** Otazka?
+4. (dalsi pokud je treba)
+
+Navrh alternativy:
+- Misto [co uzivatel chce] bych doporucil [alternativa] protoze [duvod].
+  Chces pouzit tento pristup?
+```
+
+### 20.5 Anti-patterns (CO NEDELAT)
+
+- **NEDELEJ:** Predpokladej odpoved a implementuj bez ptani → halucinace
+- **NEDELEJ:** Ptej se na triviality ktere muzes overit sam (napr. "existuje tento soubor?" → precti ho) → plytva casem
+- **NEDELEJ:** Poloz 1 otazku a zacni implementovat → nedostatecne
+- **NEDELEJ:** Ignoruj vlastni nejistotu a "tipni si" → propagace chyb
+- **NEDELEJ:** Ptej se na 20 otazek naraz u jednoducheho tasku → otravne
+- **DELEJ:** Najdi rovnovahu — dostatek otazek aby byl plan solidni, ne vic nez je uzitecne

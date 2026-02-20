@@ -5,7 +5,7 @@
 
 ---
 
-## 1) Nainstalovane skills (28 skills)
+## 1) Nainstalovane skills (29 skills)
 
 ### 1.1 P0 — Core Development (4 skills)
 
@@ -53,7 +53,13 @@
 | `writing-plans` | Psani implementacnich planu | obra/superpowers | 2026-02-06 | Aktivni |
 | `writing-skills` | Tvorba novych skills | obra/superpowers | 2026-02-06 | Aktivni |
 
-### 1.5 E-commerce & Integration (3 skills)
+### 1.5 Historie & Dokumentace (1 skill)
+
+| Skill | Popis | Zdroj | Datum instalace | Stav |
+|-------|-------|-------|-----------------|------|
+| `history` | Auto-save historie konverzaci, uprav, otazek. P0 pred compaction. Trigger: /history | Vlastni (local) | 2026-02-19 | Aktivni |
+
+### 1.6 E-commerce & Integration (3 skills)
 
 | Skill | Popis | Zdroj | Datum instalace | Stav |
 |-------|-------|-------|-----------------|------|
