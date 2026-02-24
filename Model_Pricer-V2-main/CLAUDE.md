@@ -5,6 +5,40 @@
 
 ---
 
+## PRAVIDLA PRO PLANOVANI A IMPLEMENTACI (P0 — CIST PRED KAZDYM PLANEM)
+
+**Dva povinne soubory ktere MUSI byt dodrzeny pri KAZDEM planovani a implementaci:**
+
+### Soubor 1: `docs/claude/Pravidla/Hlavní_Pozadavky.md`
+
+Obsahuje hlavni pozadavky na planovani:
+
+- **Maximalni vyuziti agentu** — v KAZDE pracovni fazi musi byt v planu tabulka rozlozeni agentu (ktery agent co dela, co se paralelizuje). Hlavni okno koordinuje, samo minimalne implementuje.
+- **Vytvareni novych agentu** — povoleno, ale MUSI byt vytvoreny v dobe planovani (ne behem implementace), okamzite dokumentovany v `AGENT_MAP.md`, a v planu musi byt jasne kde a jak se pouziji.
+- **Format otazek** — kazda otazka ve dvou vrstvach: 1) jednoduche vysvetleni (srozumitelne i pro zacatecnika), 2) technicke vysvetleni v zavorce (presny popis proc se ptam a co to ovlivni).
+- **Kontrolni seznam** — pred odeslenim planu overit: stridani fazi, tabulky agentu, existence agentu, dokumentace, otazky zodpovezeny.
+
+### Soubor 2: `docs/claude/Pravidla/4kroky.md`
+
+Obsahuje 4 povinne kontrolni kroky ktere tvori SAMOSTATNOU FAZI po kazde implementacni fazi:
+
+1. **Ulozeni historie (pred testovanim)** — spust `mp-spec-docs-historie`, pockej az dokonci
+2. **Testovani na webu (Chrome)** — otestuj zmeny v prohlizeci, uloz snimky a poznatky do `.md`
+3. **Ulozeni historie (po testovani)** — znovu spust `mp-spec-docs-historie` jen pro vysledky testu, pockej
+4. **Compact kontextu** — `/compact` pro uvolneni kontextoveho okna
+
+**KRITICKE pravidlo:** Plan MUSI stridat pracovni a kontrolni faze:
+```
+Faze 1 → Pracovni (implementace)
+Faze 2 → KONTROLNI (4 kroky)
+Faze 3 → Pracovni (dalsi implementace)
+Faze 4 → KONTROLNI (4 kroky)
+...
+```
+Kontrolni faze je VZDY samostatna — neni soucasti implementacni faze. Toto eliminuje preskoceni kontrolnich kroku, ktere se opakovane stavalo kdyz byly jen "na konci faze".
+
+---
+
 ## 0) Jak tohle pouzivat — Agent-First pristup
 
 ### Filozofie

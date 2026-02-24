@@ -115,7 +115,7 @@ index.html
   └→ src/index.jsx
        ├→ i18n (init)
        ├→ LanguageProvider (CS/EN kontext)
-       │   └→ AuthProvider (Firebase auth kontext)
+       │   └→ ActiveAuthProvider (z src/providers/index.jsx — Fire base auth)
        │       └→ App.jsx
        │           └→ Routes.jsx  ← TADY se definuji vsechny routy
        ├→ tailwind.css
@@ -187,6 +187,8 @@ index.html
 
 ### 8.2 Main app routes (s Header/Footer)
 
+**Verejne routy (bez autentizace):**
+
 | # | Path | Komponenta | Guard | Lazy? | Poznamka |
 |---|------|-----------|-------|-------|----------|
 | 4 | `/` | `Home` | Zadny | Ne | Homepage |
@@ -197,32 +199,37 @@ index.html
 | 9 | `/test-kalkulacka-white` | `TestKalkulackaWhite` | Zadny | Ne | White-label verze kalkulacky |
 | 10 | `/pricing` | `Pricing` | Zadny | Ne | Cenova stranka |
 | 11 | `/support` | `Support` | Zadny | Ne | Stranka podpory |
-| 12 | `/account` | `AccountPage` | **Docasne vypnuto** | Ne | PrivateRoute zakomentovan |
 | 13 | `/invite/accept` | `InviteAccept` | Zadny | Ne | Prijeti team pozvanky (demo) |
 | 14 | `*` | `NotFound` | Zadny | Ne | 404 catch-all |
 
-### 8.3 Admin nested routes (pod `/admin`, s AdminLayout)
+**Chranene routy (PrivateRoute, vyžadují autentizaci):**
+
+| # | Path | Komponenta | Guard | Lazy? | Poznamka |
+|---|------|-----------|-------|-------|----------|
+| 12 | `/account` | `AccountPage` | **PrivateRoute** | Ne | Uzivatelsky ucet |
+
+### 8.3 Admin nested routes (pod `/admin`, s AdminLayout, chranene PrivateRoute)
 
 | # | Path | Komponenta | Guard | Lazy? | Subroutes? |
 |---|------|-----------|-------|-------|------------|
-| 15 | `/admin` (index) | `AdminDashboard` | Zadny | Ne | Ne |
-| 16 | `/admin/branding` | `AdminBranding` | Zadny | Ne | Ne |
-| 17 | `/admin/pricing` | `AdminPricing` | Zadny | Ne | Ne |
-| 18 | `/admin/fees` | `AdminFees` | Zadny | Ne | Ne |
-| 19 | `/admin/parameters/*` | `AdminParameters` | Zadny | Ne | **Ano** -- interni subrouting |
-| 20 | `/admin/presets/*` | `AdminPresets` | Zadny | Ne | **Ano** -- interni subrouting |
-| 21 | `/admin/orders/*` | `AdminOrders` | Zadny | Ne | **Ano** -- interni subrouting |
-| 22 | `/admin/model-storage` | `AdminModelStorage` | Zadny | **Ano** | Ne |
-| 23 | `/admin/widget` | `AdminWidget` | Zadny | Ne | Ne |
-| 24 | `/admin/analytics` | `AdminAnalytics` | Zadny | Ne | Ne |
-| 25 | `/admin/team` | `AdminTeamAccess` | Zadny | Ne | Ne |
-| 26 | `/admin/express` | `AdminExpress` | Zadny | **Ano** | Ne |
-| 27 | `/admin/shipping` | `AdminShipping` | Zadny | **Ano** | Ne |
-| 28 | `/admin/emails` | `AdminEmails` | Zadny | **Ano** | Ne |
-| 29 | `/admin/coupons` | `AdminCoupons` | Zadny | **Ano** | Ne |
-| 30 | `/admin/migration` | `AdminMigration` | Zadny | **Ano** | Ne |
+| 15 | `/admin` (index) | `AdminDashboard` | **PrivateRoute** | Ne | Ne |
+| 16 | `/admin/branding` | `AdminBranding` | **PrivateRoute** | Ne | Ne |
+| 17 | `/admin/pricing` | `AdminPricing` | **PrivateRoute** | Ne | Ne |
+| 18 | `/admin/fees` | `AdminFees` | **PrivateRoute** | Ne | Ne |
+| 19 | `/admin/parameters/*` | `AdminParameters` | **PrivateRoute** | Ne | **Ano** -- interni subrouting |
+| 20 | `/admin/presets/*` | `AdminPresets` | **PrivateRoute** | Ne | **Ano** -- interni subrouting |
+| 21 | `/admin/orders/*` | `AdminOrders` | **PrivateRoute** | Ne | **Ano** -- interni subrouting |
+| 22 | `/admin/model-storage` | `AdminModelStorage` | **PrivateRoute** | **Ano** | Ne |
+| 23 | `/admin/widget` | `AdminWidget` | **PrivateRoute** | Ne | Ne |
+| 24 | `/admin/analytics` | `AdminAnalytics` | **PrivateRoute** | Ne | Ne |
+| 25 | `/admin/team` | `AdminTeamAccess` | **PrivateRoute** | Ne | Ne |
+| 26 | `/admin/express` | `AdminExpress` | **PrivateRoute** | **Ano** | Ne |
+| 27 | `/admin/shipping` | `AdminShipping` | **PrivateRoute** | **Ano** | Ne |
+| 28 | `/admin/emails` | `AdminEmails` | **PrivateRoute** | **Ano** | Ne |
+| 29 | `/admin/coupons` | `AdminCoupons` | **PrivateRoute** | **Ano** | Ne |
+| 30 | `/admin/migration` | `AdminMigration` | **PrivateRoute** | **Ano** | Ne |
 
-> **Pozor:** Admin routy aktualne NEMAJI route guard (PrivateRoute neni pouzit). Viz sekce 14 -- Bezpecnost.
+> **Auth Sprint 1:** Vsechny admin routy jsou nyn chranene PrivateRoute. Bez autentizace = redirect na `/login`.
 
 ---
 
@@ -257,21 +264,21 @@ export default function PrivateRoute() {
 
 ### 9.2 AuthContext -- zdroj auth stavu
 
-**Soubor:** `src/context/AuthContext.jsx`
+**Soubor:** `src/context/AuthContext.jsx` + `src/providers/FirebaseAuthProvider.jsx`
 
 - Pouziva Firebase `onAuthStateChanged` pro sledovani auth stavu
 - Volitelne dotahuje profil z Firestore (`users/{uid}`)
 - Poskytuje `currentUser` a `loading` pres React Context
-- Wrappuje celou aplikaci v `index.jsx`: `<AuthProvider><App /></AuthProvider>`
+- Wrappuje celou aplikaci v `index.jsx`: `<ActiveAuthProvider><App /></ActiveAuthProvider>` (z `src/providers/index.jsx`)
 
-### 9.3 Aktualni stav guardu
+### 9.3 Aktualni stav guardu (Auth Sprint 1)
 
 | Oblast | Guard | Status |
 |--------|-------|--------|
 | Public stranky | Zadny | OK -- spravne |
-| `/account` | PrivateRoute | **DOCASNE VYPNUTO** (zakomentovano) |
-| `/admin/*` | Zadny | **CHYBI** -- viz sekce 14 |
-| `/admin/widget/builder/:id` | Zadny | **CHYBI** -- viz sekce 14 |
+| `/account` | **PrivateRoute** | **AKTIVNI** -- uzivatel bez autentizace = redirect na /login |
+| `/admin/*` | **PrivateRoute** | **AKTIVNI** -- vsechny admin routy chranene |
+| `/admin/widget/builder/:id` | Zadny | **BEZ GUARDU** (bare route) -- bezpecnostni riziko, vizt sekce 14.1 |
 | `/w/:publicWidgetId` | Domain whitelist | V komponente (ne v routeru) |
 
 ### 9.4 Route hierarchy diagram
@@ -281,7 +288,7 @@ export default function PrivateRoute() {
   <RouterRoutes>
     ├── /w/:publicWidgetId           → WidgetPublicPage (bare)
     ├── /slicer                      → Suspense → SlicerPage (bare, lazy)
-    ├── /admin/widget/builder/:id    → AdminWidgetBuilder (bare)
+    ├── /admin/widget/builder/:id    → AdminWidgetBuilder (bare, bez guardu — bezpecnostni diskuze)
     └── * (catch-all layout)
          ├── SmoothScroll
          ├── ScrollToTop
@@ -296,25 +303,27 @@ export default function PrivateRoute() {
          │      ├── /test-kalkulacka-white → TestKalkulackaWhite
          │      ├── /pricing         → Pricing
          │      ├── /support         → Support
-         │      ├── /account         → AccountPage (guard docasne off)
+         │      ├── PrivateRoute wrapper
+         │      │    ├── /account    → AccountPage
+         │      │    └── /admin      → AdminLayout (Outlet) - VSECHNY admin routy chranene
+         │      │         ├── index  → AdminDashboard
+         │      │         ├── branding → AdminBranding
+         │      │         ├── pricing → AdminPricing
+         │      │         ├── fees   → AdminFees
+         │      │         ├── parameters/* → AdminParameters
+         │      │         ├── presets/* → AdminPresets
+         │      │         ├── orders/* → AdminOrders
+         │      │         ├── model-storage → Suspense → AdminModelStorage (lazy)
+         │      │         ├── widget → AdminWidget
+         │      │         ├── analytics → AdminAnalytics
+         │      │         ├── team   → AdminTeamAccess
+         │      │         ├── express → Suspense → AdminExpress (lazy)
+         │      │         ├── shipping → Suspense → AdminShipping (lazy)
+         │      │         ├── emails → Suspense → AdminEmails (lazy)
+         │      │         ├── coupons → Suspense → AdminCoupons (lazy)
+         │      │         ├── migration → Suspense → AdminMigration (lazy)
+         │      │         └── integrations → Suspense → AdminIntegrations (lazy)
          │      ├── /invite/accept   → InviteAccept
-         │      ├── /admin           → AdminLayout (Outlet)
-         │      │    ├── index       → AdminDashboard
-         │      │    ├── branding    → AdminBranding
-         │      │    ├── pricing     → AdminPricing
-         │      │    ├── fees        → AdminFees
-         │      │    ├── parameters/*→ AdminParameters
-         │      │    ├── presets/*   → AdminPresets
-         │      │    ├── orders/*    → AdminOrders
-         │      │    ├── model-storage → Suspense → AdminModelStorage (lazy)
-         │      │    ├── widget      → AdminWidget
-         │      │    ├── analytics   → AdminAnalytics
-         │      │    ├── team        → AdminTeamAccess
-         │      │    ├── express     → Suspense → AdminExpress (lazy)
-         │      │    ├── shipping    → Suspense → AdminShipping (lazy)
-         │      │    ├── emails      → Suspense → AdminEmails (lazy)
-         │      │    ├── coupons     → Suspense → AdminCoupons (lazy)
-         │      │    └── migration   → Suspense → AdminMigration (lazy)
          │      └── *               → NotFound
          └── Footer
 ```
@@ -383,21 +392,22 @@ Diky `React.lazy()` + Vite dynamic `import()`, kazda lazy-loaded komponenta gene
 
 ## 14. Bezpecnost (PrivateRoute, admin guard)
 
-### 14.1 Aktualni stav -- VAROVANI
+### 14.1 Auth Sprint 1 -- IMPLEMENTOVANO
 
-**PrivateRoute existuje ale NENI aktivne pouzivan:**
+**PrivateRoute je nyn implementovan a aktivne pouzivan:**
 
-1. **`/account` route** -- PrivateRoute guard je **zakomentovan** (radky 86-88 v Routes.jsx):
-   ```jsx
-   {/* chranene - DOCASNE VYPNUTO PRO VYVOJ */}
-   {/* <Route element={<PrivateRoute />}> */}
-     <Route path="/account" element={<AccountPage />} />
-   {/* </Route> */}
-   ```
+1. **`/account` route** -- Chranena PrivateRoute
+   - Uzivatel bez autentizace je presmerovan na `/login`
+   - Pri uspesnem loginu se vracel na `/account`
 
-2. **`/admin/*` routes** -- **ZADNY route guard**. Kdokoliv se muze dostat do admin panelu primo pres URL.
+2. **`/admin/*` routes** -- Vsechny admin routy jsou nyn chranene PrivateRoute
+   - Zahrnuje: AdminDashboard, AdminBranding, AdminPricing, AdminFees, AdminParameters, AdminPresets, AdminOrders, AdminWidget, AdminAnalytics, AdminTeamAccess, AdminExpress, AdminShipping, AdminEmails, AdminCoupons, AdminMigration, AdminModelStorage
+   - Kontrola probiha pres `useAuth()` z `src/context/AuthContext.jsx`
+   - Pri nedostatecne autentizaci: redirect na `/login`
 
-3. **`/admin/widget/builder/:id`** -- Fullscreen builder je mimo AdminLayout a nema zadny guard.
+3. **`/admin/widget/builder/:id`** -- Fullscreen builder je nyni mimo PrivateRoute wrapper (top-level bare route)
+   - POZOR: Toto by melo byt prehodnoceno v budoucnu -- builder je pristupny bez autentizace, coz muze byt bezpecnostni riziko
+   - Mozne reseni: Presunout do /admin/* scope nebo pridat vlastni PrivateRoute guard
 
 ### 14.2 Widget Public Page -- domain validace
 
@@ -406,37 +416,43 @@ WidgetPublicPage (`/w/:publicWidgetId`) implementuje bezpecnost na urovni kompon
 - `postMessage` origin validace -- pro komunikaci s parentnim iframe
 - `document.referrer` -- urceni target originu
 
-### 14.3 Doporuceni pro bezpecnost
-
-| Priorita | Akce | Stav |
-|----------|------|------|
-| **P0** | Zapnout PrivateRoute pro `/admin/*` | Neni implementovano |
-| **P0** | Zapnout PrivateRoute pro `/admin/widget/builder/:id` | Neni implementovano |
-| **P1** | Odkomentovat PrivateRoute pro `/account` | Zakomentovano (dev mode) |
-| **P2** | Role-based access control (admin vs user) | Neexistuje |
-
-### 14.4 Jak by melo vypadat spravne zabezpeceni
+### 14.3 Aktualni implementace (Auth Sprint 1)
 
 ```jsx
-{/* Spravna struktura (doporuceni) */}
+{/* PrivateRoute wrapper pro /account a /admin/* */}
 <Route element={<PrivateRoute />}>
   <Route path="/account" element={<AccountPage />} />
   <Route path="/admin" element={<AdminLayout />}>
     <Route index element={<AdminDashboard />} />
-    {/* ... dalsi admin routy ... */}
+    <Route path="branding" element={<AdminBranding />} />
+    <Route path="pricing" element={<AdminPricing />} />
+    {/* ... vsechny ostatni admin routy ... */}
   </Route>
 </Route>
+
+{/* Bare routes bez guardu */}
+<Route path="/w/:publicWidgetId" element={<WidgetPublicPage />} />
+<Route path="/slicer" element={<Suspense><SlicerPage /></Suspense>} />
+<Route path="/admin/widget/builder/:id" element={<AdminWidgetBuilder />} /> {/* POZOR: bezpecnostni diskuze */}
 ```
+
+### 14.4 Doporuceni pro budoucnost
+
+| Priorita | Akce | Stav |
+|----------|------|------|
+| **P0** | Presunout `/admin/widget/builder/:id` do PrivateRoute scope | Planovano |
+| **P1** | Role-based access control (admin vs user vs viewer) | Budouci faze |
+| **P2** | Fine-grained permission system na urovni admin podstranek | Budouci faze |
 
 ---
 
 ## 17. Zname omezeni
 
-### 17.1 Chybejici route guards
+### 17.1 Vyreseno v Auth Sprint 1
 
-- Admin panel je pristupny bez autentizace (viz sekce 14).
-- Account stranka nema aktivni guard (docasne vypnuto).
-- Widget Builder (`/admin/widget/builder/:id`) nema zadny guard.
+- ~~Admin panel je pristupny bez autentizace~~ → VYRESENO: Vsechny admin routy jsou nyn chranene PrivateRoute
+- ~~Account stranka nema aktivni guard~~ → VYRESENO: Aktivni PrivateRoute guard na /account
+- Widget Builder (`/admin/widget/builder/:id`) STALE nema guard → POTENCIALSTANE BEZPECNOSTNI RIZIKO: Umistena jako bare top-level route, pristupna bez autentizace
 
 ### 17.2 Velky eagerly-loaded bundle
 
@@ -486,6 +502,6 @@ Route `/model-upload` dela permanentni redirect (`replace`) na `/test-kalkulacka
 
 ---
 
-> **Posledni aktualizace:** 2026-02-13
+> **Posledni aktualizace:** 2026-02-22 (Auth Sprint 1 — PrivateRoute implementovan a aktivni)
 > **Zdrojovy soubor:** `Model_Pricer-V2-main/src/Routes.jsx` (129 radku)
 > **Vlastnik:** `mp-spec-fe-routing`

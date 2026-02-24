@@ -4,6 +4,93 @@
 
 ---
 
+Co potrebujes udelat pro BETA launch
+
+  BLOKUJICI — Bez tohoto BETA nejde spustit
+
+  ┌─────┬──────────────────────┬─────────────────────────────────────────────────────────────────────────────┬───────┐
+  │  #  │          Co          │                                    Proc                                     │ Odhad │
+  ├─────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────┼───────┤
+  │ 1   │ Zapnout PrivateRoute │ Admin /admin je verejne pristupny — kdokoli tam muze jit                    │ 1h    │
+  ├─────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────┼───────┤
+  │ 2   │ API auth na backendu │ Backend nema zadnou autentizaci — vsechny endpointy verejne                 │ 4-6h  │
+  ├─────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────┼───────┤
+  │ 3   │ Tenant izolace       │ Hardcoded test-customer-1 na nekterych mistech → dynamicky z Firebase UID   │ 3-5h  │
+  ├─────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────┼───────┤
+  │ 4   │ Cloud Run deploy     │ PrusaSlicer bezi jen lokalne — musi byt v cloudu aby beta testeri slicovali │ 9-18h │
+  ├─────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────┼───────┤
+  │ 5   │ Bezpecnost .env      │ .env.local s API klici muze byt v gitu — zkontrolovat a ocistit             │ 1-2h  │
+  └─────┴──────────────────────┴─────────────────────────────────────────────────────────────────────────────┴───────┘
+
+  KRITICKE — Bez tohoto je BETA velmi omezena
+
+  ┌─────┬────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────────────┬────────┐
+  │  #  │                   Co                   │                                     Proc                                      │ Odhad  │
+  ├─────┼────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┼────────┤
+  │ 6   │ Shipping/Express/Coupons do kalkulacky │ Komponenty existuji ale NEJSOU renderovany v UI                               │ 4-6h   │
+  ├─────┼────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┼────────┤
+  │ 7   │ Supabase zakladni propojeni            │ Schema existuje, ale neni aplikovany na production                            │ 9-14h  │
+  ├─────┼────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┼────────┤
+  │ 8   │ Email notifikace                       │ Admin UI hotove, ale backend neposila zadne emaily (ani potvrzeni objednavky) │ 2-3h   │
+  ├─────┼────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┼────────┤
+  │ 9   │ Stripe platby                          │ Neexistuje vubec — 0%                                                         │ 18-27h │
+  ├─────┼────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┼────────┤
+  │ 10  │ Fakturace                              │ Firma nema kde nastavit platebni udaje, zakaznik nevidi kam platit            │ 6-8h   │
+  └─────┴────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────┴────────┘
+
+  DULEZITE — Vyrazne zlepsuje BETA zkusenost
+
+  ┌─────┬───────────────────────┬───────────────────────────────────────────────────────────────┬───────┐
+  │  #  │          Co           │                             Proc                              │ Odhad │
+  ├─────┼───────────────────────┼───────────────────────────────────────────────────────────────┼───────┤
+  │ 11  │ Vlastni domena        │ modelpricer.com misto *.web.app — profesionalnejsi            │ 3-4h  │
+  ├─────┼───────────────────────┼───────────────────────────────────────────────────────────────┼───────┤
+  │ 12  │ i18n doplneni         │ Hodne hardcoded textu, CZ/EN neni kompletni                   │ 6-10h │
+  ├─────┼───────────────────────┼───────────────────────────────────────────────────────────────┼───────┤
+  │ 13  │ Widget portovat zmeny │ Shipping/Express/Coupons do widgetu                           │ 3-4h  │
+  ├─────┼───────────────────────┼───────────────────────────────────────────────────────────────┼───────┤
+  │ 14  │ Login UI fix          │ Tlacitko "Prihlasit se" je spatne viditelne (tmave na tmavem) │ 0.5h  │
+  └─────┴───────────────────────┴───────────────────────────────────────────────────────────────┴───────┘
+
+  MUZE POCKAT — Post-Beta
+
+  - Shopify/eshop integrace
+  - Pokrocily Widget Builder
+  - Team Access s realnym auth
+  - RBAC (role-based access)
+  - Pokrocila analytika
+  - Supabase Realtime
+  - Automaticke PDF faktury
+
+  ---
+  Celkovy odhad
+
+  ┌───────────────────┬──────────┐
+  │       Faze        │  Hodiny  │
+  ├───────────────────┼──────────┤
+  │ Blokujici (#1-5)  │ 18-32h   │
+  ├───────────────────┼──────────┤
+  │ Kriticke (#6-10)  │ 39-58h   │
+  ├───────────────────┼──────────┤
+  │ Dulezite (#11-14) │ 13-19h   │
+  ├───────────────────┼──────────┤
+  │ Celkem            │ ~70-110h │
+  └───────────────────┴──────────┘
+
+  Realisticky: ~3-5 tydnu pri 4h/den, nebo ~2 tydny full-time.
+
+  ---
+  Kriticka cesta (co musi jit po sobe)
+
+  Auth (#1-3) → Supabase (#7) → Cloud Run (#4) → Stripe (#9) → Emaily (#8)
+
+  Paralelne s tim muze bezet: Kalkulacka integrace (#6), i18n (#12), domena (#11).
+
+  ---
+  Chces abych se na neco z toho zeptal detailneji, nebo rovnou zacneme planovat konkretni sprint?
+
+----
+
 > **DULEZITE — K PROZKOUMANI:**
 > Reklamace a vraceni penez — je potreba prozkoumat:
 > 1. Reklamace meho produktu (kalkulacky) — jak resit vraceni penez zakaznikum (firmam) kteri si zaplati predplatne

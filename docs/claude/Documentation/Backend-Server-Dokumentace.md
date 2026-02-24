@@ -1,7 +1,8 @@
 # Backend Server -- Dokumentace
 
 > Express.js backend pro ModelPricer -- slicer API, email, presets, file storage, upload.
-> Verze: 0.1.2 | Port: 3001 | Runtime: Node.js 18+ ESM
+> Verze: 0.1.3 (Auth Sprint 1) | Port: 3001 | Runtime: Node.js 18+ ESM
+> Posledni aktualizace: 2026-02-22 (Auth Sprint 1 implementovana)
 
 ---
 
@@ -43,6 +44,7 @@ Backend server je lokalni Express.js aplikace ktera poskytuje REST API pro:
 | Env vars | dotenv 16.4.5 |
 | ID generace | nanoid 5.0.7 |
 | ZIP export | archiver 7.0.0 |
+| Auth (Firebase) | firebase-admin 12.0+ |
 
 ### package.json skripty
 
@@ -61,9 +63,13 @@ Zadny build krok, zadny TypeScript, zadny bundler. Server se spousti primo z ESM
 backend-local/
   package.json
   src/
-    index.js                  -- Hlavni Express server (484 radku)
+    index.js                  -- Hlavni Express server (491 radku)
                                  Middleware chain, inline route handlery, helpers
+    firebaseAdmin.js          -- Firebase Admin SDK inicializace (Auth Sprint 1)
     presetsStore.js           -- Preset CRUD logika (file-system JSON store)
+    middleware/
+      auth.js                 -- Firebase JWT validace (requireAuth, optionalAuth)
+      tenant.js               -- Tenant izolace middleware (requireTenant)
     routes/
       emailRoutes.js          -- Email API router (NEPRIPOJEN v index.js!)
     slicer/
@@ -97,6 +103,10 @@ index.js
   |-- express, cors, dotenv, multer, nanoid
   |-- node:path, node:os, node:fs/promises, node:url
   |
+  |-- firebaseAdmin.js          (adminAuth)
+  |-- middleware/auth.js        (requireAuth, optionalAuth)
+  |-- middleware/tenant.js      (requireTenant)
+  |
   |-- util/fsSafe.js            (ensureDir, fileExists)
   |-- util/findSlicer.js        (findPrusaSlicerConsole)
   |
@@ -116,6 +126,9 @@ index.js
        |    |-- storage/metadataBuilder.js
        |-- multer, archiver (dynamic import)
 
+firebaseAdmin.js
+  |-- firebase-admin           (admin.auth(), admin.apps)
+
 routes/emailRoutes.js           (NEPRIPOJEN -- existuje ale neni importovan v index.js)
   |-- email/emailService.js
   |-- email/templateRenderer.js
@@ -128,7 +141,7 @@ routes/emailRoutes.js           (NEPRIPOJEN -- existuje ale neni importovan v in
 ### 7.1 Health Check
 
 #### `GET /api/health`
-Zakladni health check serveru.
+Zakladni health check serveru (public, bez auth).
 
 **Request:** zadne parametry
 **Response (200):**
@@ -137,20 +150,17 @@ Zakladni health check serveru.
   "ok": true,
   "service": "modelpricer-backend-local",
   "port": 3001,
-  "workspaceRoot": "C:\\modelpricer\\tmp",
-  "projectRoot": "...",
-  "backendRoot": "...",
-  "time": "2026-02-13T10:00:00.000Z"
+  "time": "2026-02-22T10:00:00.000Z"
 }
 ```
 
-> POZOR: Vraceni `workspaceRoot`, `projectRoot`, `backendRoot` je bezpecnostni riziko
-> v produkci -- odhaluje interni cesty serveru. Viz sekce 14 a 17.
+> **Auth Sprint 1:** Vraceni cest (`workspaceRoot`, `projectRoot`, `backendRoot`) bylo ODSTRANENO
+> z bezpecnostniho duvodu. Cesty nejsou vice dostupne skrze API.
 
 ---
 
 #### `GET /api/health/prusa`
-Overeni dostupnosti PrusaSlicer CLI.
+Overeni dostupnosti PrusaSlicer CLI (public, bez auth).
 
 **Request:** zadne parametry
 **Response (200):**
@@ -159,12 +169,12 @@ Overeni dostupnosti PrusaSlicer CLI.
   "ok": true,
   "slicerCmd": "C:\\tools\\prusaslicer\\prusa-slicer-console.exe",
   "checkMethod": "--help",
-  "exitCode": 0,
-  "stdout": "...(max 2000 chars)...",
-  "stderr": "..."
+  "exitCode": 0
 }
 ```
 **Response (500):** PrusaSlicer nenalezen nebo nefunkcni.
+
+> **Auth Sprint 1:** stdout/stderr byly ODSTRANENY (nepotrebne, bezpecnostni riziko)
 
 ---
 
@@ -173,7 +183,11 @@ Overeni dostupnosti PrusaSlicer CLI.
 #### `GET /api/presets`
 Seznam vsech presetu pro tenanta.
 
-**Headers:** `x-tenant-id` (volitelny, fallback `"demo-tenant"`)
+**Middleware:** `requireAuth` + `requireTenant` (Auth Sprint 1)
+
+**Headers:**
+- `Authorization: Bearer <firebase-jwt-token>` (vyžadovane)
+- `x-tenant-id` (fallback, pokud chybi v JWT custom claims)
 **Response (200):**
 ```json
 {
@@ -201,6 +215,8 @@ Seznam vsech presetu pro tenanta.
 #### `POST /api/presets`
 Vytvoreni noveho presetu z INI souboru.
 
+**Middleware:** `requireAuth` + `requireTenant` (Auth Sprint 1)
+
 **Content-Type:** `multipart/form-data`
 **Body fields:**
 | Field | Typ | Povinny | Popis |
@@ -218,6 +234,8 @@ Vytvoreni noveho presetu z INI souboru.
 
 #### `PATCH /api/presets/:id`
 Aktualizace metadat presetu.
+
+**Middleware:** `requireAuth` + `requireTenant` (Auth Sprint 1)
 
 **Body (JSON):**
 ```json
@@ -237,6 +255,8 @@ Aktualizace metadat presetu.
 #### `POST /api/presets/:id/default`
 Nastaveni presetu jako vychozi.
 
+**Middleware:** `requireAuth` + `requireTenant` (Auth Sprint 1)
+
 **Response (200):** `{ ok: true, data: { presets: [...], defaultPresetId: "p_..." } }`
 **Response (404):** Preset nenalezen
 
@@ -244,6 +264,8 @@ Nastaveni presetu jako vychozi.
 
 #### `DELETE /api/presets/:id`
 Smazani presetu (vcetne INI souboru).
+
+**Middleware:** `requireAuth` + `requireTenant` (Auth Sprint 1)
 
 **Response (200):** `{ ok: true, data: { presets: [...], defaultPresetId: "..." } }`
 **Response (404):** Preset nenalezen
@@ -253,6 +275,8 @@ Smazani presetu (vcetne INI souboru).
 
 #### `GET /api/widget/presets`
 Verejny seznam presetu pro widget (filtrovane pole, jen `visibleInWidget === true`).
+
+**Middleware:** `optionalAuth` (public s volitelnym auth — Auth Sprint 1)
 
 **Headers:** `x-tenant-id` (volitelny)
 **Response (200):**
@@ -274,6 +298,8 @@ Verejny seznam presetu pro widget (filtrovane pole, jen `visibleInWidget === tru
 
 #### `POST /api/slice`
 Upload 3D modelu, slicovani pres PrusaSlicer, vraceni metrik.
+
+**Middleware:** `requireAuth` + `requireTenant` (Auth Sprint 1)
 
 **Content-Type:** `multipart/form-data`
 **Body fields:**
@@ -473,16 +499,57 @@ Tyto endpointy jsou nedostupne dokud se nepripoji.
 
 ---
 
-## 9. Middleware chain
+## 8a. Auth Sprint 1 — Nova auth middleware
+
+### Nove soubory:
+
+| Soubor | Ucel | Detaily |
+|--------|------|---------|
+| `backend-local/src/middleware/auth.js` | Firebase JWT validace | `requireAuth`, `optionalAuth` middlewary |
+| `backend-local/src/middleware/tenant.js` | Tenant izolace | `requireTenant` middleware |
+| `backend-local/src/firebaseAdmin.js` | Firebase Admin SDK inicializace | Import + admin.auth() |
+
+### Implementace:
+
+**`auth.js` middlewary:**
+- `requireAuth(req, res, next)` — Oveuje Firebase JWT z `Authorization: Bearer <token>` headeru. Nastavi `req.user` s UID. Pri chybe → 401 Unauthorized.
+- `optionalAuth(req, res, next)` — Pokusi se nacist auth, ale pokud selze, pokracuje dale (pro verejne endpointy s optional auth)
+
+**`tenant.js` middleware:**
+- `requireTenant(req, res, next)` — Vyžaduje `x-tenant-id` header nebo JWT custom claim. Nastavi `req.tenantId`.
+
+**`firebaseAdmin.js`:**
+- Inicializuje Firebase Admin SDK s `FIREBASE_SERVICE_ACCOUNT_KEY` env var (JSON credentials)
+- Export: `adminAuth` pro `verifyIdToken()` a `getUser()`
+
+### Pouziti v endpointech:
+
+**Protected (vyžadují auth):**
+- `POST /api/presets` — `requireAuth` + `requireTenant`
+- `PATCH /api/presets/:id` — `requireAuth` + `requireTenant`
+- `DELETE /api/presets/:id` — `requireAuth` + `requireTenant`
+- `POST /api/slice` — `requireAuth` + `requireTenant`
+- `POST /api/storage/orders` — `requireAuth` + `requireTenant`
+- (a dalsi storage endpointy)
+
+**Public (bez auth):**
+- `GET /api/health` — zadny middleware
+- `GET /api/health/prusa` — zadny middleware
+- `GET /api/widget/presets` — `optionalAuth` (public s optional tenant ID)
+
+---
+
+## 9. Middleware chain (aktualizovano v Auth Sprint 1)
 
 Middleware se aplikuje v nasledujicim poradi (shora dolu v `index.js`):
 
 ```
 1. express.json({ limit: "2mb" })     -- Parsovani JSON body
 2. cors({...})                         -- CORS s dynamickou origin validaci
-3. [route-specific multer]             -- Upload middleware (jen pro urcite endpointy)
-4. [route handlery]                    -- Logika endpointu
-5. Error handler                       -- Globalni catch-all (radek 392-394)
+3. [route-specific auth middleware]    -- Firebase JWT validace (requireAuth, optionalAuth)
+4. [route-specific multer]             -- Upload middleware (jen pro urcite endpointy)
+5. [route handlery]                    -- Logika endpointu
+6. Error handler                       -- Globalni catch-all
 ```
 
 ### 9.1 CORS konfigurace
@@ -518,11 +585,22 @@ Existuji 3 nezavisle multer instance:
 
 ### 9.4 Tenant ID extrakce
 
-Funkce `getTenantIdFromReq(req)` (radek 80-83 v index.js):
-- Cte header `x-tenant-id`
-- Fallback: `"demo-tenant"`
-- StorageRouter ma vlastni identickou implementaci (`getTenantId`)
-- Sanitizace tenantId probiha az v `presetsStore.js` (`sanitizeTenantId`) -- nahrazuje nepovolene znaky za `_`
+Po Auth Sprint 1 je tenant ID extrahovan primo z `req.tenantId` nastavenym middleware `requireTenant`:
+
+**Flow:**
+1. `requireAuth` middleware verifikuje Firebase JWT token a nastavi `req.user` s decoded tokenom
+2. `requireTenant` middleware cte tenant ID z:
+   - PRIMARNI: JWT custom claims (`req.user.tenant_id` nebo `req.user.tenantId`)
+   - Fallback: Header `x-tenant-id`
+   - Fallback: `"demo-tenant"` v dev modu
+3. `getTenantIdFromReq(req)` je pomocna funkce: vraci `req.tenantId` (od middleware) nebo fallback na header
+
+**Funkce `getTenantIdFromReq(req)` (radek 84-90 v index.js):**
+- Primarni: `req.tenantId` (nastaven middleware)
+- Fallback: `x-tenant-id` header
+- Ultimate fallback: `"demo-tenant"`
+
+**Sanitizace tenantId** probiha az v `presetsStore.js` (`sanitizeTenantId`) -- nahrazuje nepovolene znaky za `_`
 
 ### 9.5 Job middleware (pro /api/slice)
 
@@ -637,11 +715,12 @@ app.use((err, _req, res, _next) => {
 - `credentials: true` umoznuje cookies
 - CORS chyby se propagovaji do globalniho error handleru
 
-### 14.2 Tenant izolace
+### 14.2 Tenant izolace (Auth Sprint 1)
 
-- Vsechny endpointy ctou `x-tenant-id` header
-- Fallback na `"demo-tenant"` pokud header chybi
-- **Zadna autentizace** -- kdokoliv muze nastavit libovolny `x-tenant-id`
+- Chranene endpointy (`/api/presets`, `/api/slice`, `/api/storage`) vyžadují Firebase JWT token (Bearer v Authorization headeru)
+- `requireAuth` middleware validuje JWT token pres Firebase Admin SDK (`admin.auth().verifyIdToken()`)
+- `requireTenant` middleware extrahuje tenant ID z JWT custom claims (nebo fallback na `x-tenant-id` header)
+- Pri pokusech o tenant spoofing: `requireTenant` nepouziva nevereny header jako primarni zdroj — JWT claims jsou source of truth
 - `presetsStore.js` sanitizuje tenantId: `s.replace(/[^a-zA-Z0-9._-]/g, "_")`
 - Storage service pouziva `resolveTenantPath` ktera overuje ze cesta je uvnitr tenant rootu
 
@@ -669,19 +748,19 @@ Vsechny storage endpointy zachytavaji `PATH_TRAVERSAL` error code a vraci 403.
 | Velikosti souboru | ANO (multer limits) |
 | PresetId / povinne params | ANO (kontrola prazdneho stringu) |
 
-### 14.5 Bezpecnostni problemy
+### 14.5 Bezpecnostni problemy (STAV Po Auth Sprint 1)
 
-**KRITICKE:**
-1. **Zadna autentizace** -- vsechny endpointy jsou verejne pristupne
-2. **Tenant spoofing** -- kdokoliv muze nastavit `x-tenant-id` na libovolneho tenanta
-3. **Health endpoint lekuje interni cesty** -- `/api/health` vraci `workspaceRoot`, `projectRoot`, `backendRoot`
+**VYRESENO v Auth Sprint 1:**
+1. ~~Zadna autentizace~~ — VYRESENO: Chranene endpointy vyžadují Firebase JWT token
+2. ~~Tenant spoofing~~ — VYRESENO: Tenant ID je vybity v JWT custom claims, ne pres header spoofing
+3. ~~Health endpoint lekuje interni cesty~~ — VYRESENO: Cesty byly odstraneny
 
-**VYSOKE:**
+**JESTE NUTNE VYRESIT:**
 4. **Library upload bez file type filtru** -- `libraryUpload` v storageRouter nema fileFilter, povoluje libovolny typ souboru vcetne .exe, .sh, .bat
 5. **Filename sanitizace pomoci regex** -- `file.originalname.replace(/[^a-zA-Z0-9\._-]/g, "_")` muze zpusobit kolize nazvu
 6. **Chybejici rate limiting** -- zadna ochrana proti brute-force nebo DoS
 
-**STREDNI:**
+**NIZKA PRIORITA:**
 7. **Slicer timeout neni konfigurovatelny** -- 5 minut je vysoke, utocnik muze zahltit server velkymi modely
 8. **Zadny cleanup slicer jobu** -- disk se muze zaplnit
 9. **Email routes existuji ale nejsou pripojeny** -- pokud by se pripojily bez auth, umozni to odesilani emailu komukoliv
@@ -699,6 +778,7 @@ Vsechny storage endpointy zachytavaji `PATH_TRAVERSAL` error code a vraci 403.
 | `SLICER_WORKSPACE_ROOT` | Windows: `C:\modelpricer\tmp`, Linux/Mac: `<tmpdir>/modelpricer` | Root slozka pro slicer joby a presety |
 | `PRUSA_SLICER_CMD` | Auto-detect v `tools/prusaslicer` | Cesta k PrusaSlicer CLI executable |
 | `PRUSA_DEFAULT_INI` | `""` | Fallback INI profil pokud neni zadny preset |
+| `FIREBASE_PROJECT_ID` | `""` | Firebase project ID pro Admin SDK token verifikaci (nutne pro `admin.auth().verifyIdToken()`) |
 | `STORAGE_ROOT` | `backend-local/storage` | Root slozka pro file storage (objednavky, knihovna) |
 
 ### 15.2 Soubory
@@ -743,9 +823,9 @@ Funkce `resolveSlicerCmd()`:
 
 ### 17.3 Bezpecnostni omezeni
 
-11. **Zadna autentizace / autorizace** -- viz sekce 14.5
-12. **Tenant spoofing** -- viz sekce 14.5
-13. **Health endpoint lekuje cesty** -- viz sekce 14.5
+~~11. **Zadna autentizace / autorizace**~~ -- **VYRESENO v Auth Sprint 1:** Chranene endpointy vyžadují Firebase JWT token
+~~12. **Tenant spoofing**~~ -- **VYRESENO v Auth Sprint 1:** Tenant ID je vybity v JWT custom claims (ne jen header)
+~~13. **Health endpoint lekuje cesty**~~ -- **VYRESENO v Auth Sprint 1:** Cesty byly odstraneny z health response
 14. **Library upload bez filtru typu souboru** -- viz sekce 14.5
 
 ### 17.4 Nedokoncene veci (WIP)
@@ -762,24 +842,24 @@ Funkce `resolveSlicerCmd()`:
 |---|--------|-------|-------|------|
 | 1 | GET | `/api/health` | Server health check | NE |
 | 2 | GET | `/api/health/prusa` | PrusaSlicer dostupnost | NE |
-| 3 | GET | `/api/presets` | Seznam presetu | NE |
-| 4 | POST | `/api/presets` | Vytvoreni presetu (INI upload) | NE |
-| 5 | PATCH | `/api/presets/:id` | Update preset metadat | NE |
-| 6 | POST | `/api/presets/:id/default` | Nastaveni default presetu | NE |
-| 7 | DELETE | `/api/presets/:id` | Smazani presetu | NE |
-| 8 | GET | `/api/widget/presets` | Widget preset list | NE |
-| 9 | POST | `/api/slice` | Upload + slice model | NE |
-| 10 | POST | `/api/storage/orders` | Vytvoreni order slozky | NE |
-| 11 | GET | `/api/storage/browse` | Prohlizeni slozek | NE |
-| 12 | GET | `/api/storage/file` | Download souboru | NE |
-| 13 | GET | `/api/storage/file/preview` | Nahled souboru | NE |
-| 14 | POST | `/api/storage/zip` | ZIP export | NE |
-| 15 | POST | `/api/storage/upload` | Upload do knihovny | NE |
-| 16 | DELETE | `/api/storage/file` | Soft delete | NE |
-| 17 | POST | `/api/storage/restore` | Obnoveni z kosse | NE |
-| 18 | GET | `/api/storage/search` | Vyhledavani souboru | NE |
-| 19 | POST | `/api/storage/folder` | Vytvoreni slozky | NE |
-| 20 | GET | `/api/storage/stats` | Statistiky uloziste | NE |
-| 21 | POST | `/api/storage/rename` | Prejmenovat soubor/slozku | NE |
-| 22 | POST | `/api/storage/move` | Presun souboru/slozky | NE |
+| 3 | GET | `/api/presets` | Seznam presetu | ANO (requireAuth + requireTenant) |
+| 4 | POST | `/api/presets` | Vytvoreni presetu (INI upload) | ANO (requireAuth + requireTenant) |
+| 5 | PATCH | `/api/presets/:id` | Update preset metadat | ANO (requireAuth + requireTenant) |
+| 6 | POST | `/api/presets/:id/default` | Nastaveni default presetu | ANO (requireAuth + requireTenant) |
+| 7 | DELETE | `/api/presets/:id` | Smazani presetu | ANO (requireAuth + requireTenant) |
+| 8 | GET | `/api/widget/presets` | Widget preset list | optionalAuth |
+| 9 | POST | `/api/slice` | Upload + slice model | ANO (requireAuth + requireTenant) |
+| 10 | POST | `/api/storage/orders` | Vytvoreni order slozky | ANO (requireAuth + requireTenant) |
+| 11 | GET | `/api/storage/browse` | Prohlizeni slozek | ANO (requireAuth + requireTenant) |
+| 12 | GET | `/api/storage/file` | Download souboru | ANO (requireAuth + requireTenant) |
+| 13 | GET | `/api/storage/file/preview` | Nahled souboru | ANO (requireAuth + requireTenant) |
+| 14 | POST | `/api/storage/zip` | ZIP export | ANO (requireAuth + requireTenant) |
+| 15 | POST | `/api/storage/upload` | Upload do knihovny | ANO (requireAuth + requireTenant) |
+| 16 | DELETE | `/api/storage/file` | Soft delete | ANO (requireAuth + requireTenant) |
+| 17 | POST | `/api/storage/restore` | Obnoveni z kosse | ANO (requireAuth + requireTenant) |
+| 18 | GET | `/api/storage/search` | Vyhledavani souboru | ANO (requireAuth + requireTenant) |
+| 19 | POST | `/api/storage/folder` | Vytvoreni slozky | ANO (requireAuth + requireTenant) |
+| 20 | GET | `/api/storage/stats` | Statistiky uloziste | ANO (requireAuth + requireTenant) |
+| 21 | POST | `/api/storage/rename` | Prejmenovat soubor/slozku | ANO (requireAuth + requireTenant) |
+| 22 | POST | `/api/storage/move` | Presun souboru/slozky | ANO (requireAuth + requireTenant) |
 | 23-26 | * | `/api/email/*` | Email sablony, nahled, odeslani, log | NEPRIPOJENO |

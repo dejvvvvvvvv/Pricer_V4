@@ -65,12 +65,18 @@ export async function sliceModelLocal(modelFile, opts = {}) {
       ? opts.tenantId.trim()
       : getTenantId();
 
+    const headers = { 'x-tenant-id': tenantId };
+    if (window.__authGetToken) {
+      try {
+        const token = await window.__authGetToken();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } catch { /* continue without auth */ }
+    }
+
     const res = await fetch('/api/slice', {
       method: 'POST',
       body: formData,
-      headers: {
-        'x-tenant-id': tenantId,
-      },
+      headers,
       signal: controller.signal,
     });
 

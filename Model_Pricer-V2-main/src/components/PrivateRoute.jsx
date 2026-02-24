@@ -6,16 +6,31 @@ export default function PrivateRoute() {
   const { currentUser, loading } = useAuth();
   const location = useLocation();
 
-  // Dokud nevíme, jestli je user přihlášen, NIKAM nepřesměrovávat
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24 text-muted-foreground">
-        Načítání…
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '96px 0',
+        color: 'var(--forge-text-muted, #7A8291)',
+        fontFamily: 'var(--forge-font-heading)',
+        fontSize: '14px',
+      }}>
+        <div style={{
+          width: '20px',
+          height: '20px',
+          border: '2px solid var(--forge-border-default, #2A2F3A)',
+          borderTop: '2px solid var(--forge-accent-primary, #00D4AA)',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+          marginRight: '12px',
+        }} />
+        Loading...
       </div>
     );
   }
 
-  // Po načtení stavů rozhodni
   if (!currentUser) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }

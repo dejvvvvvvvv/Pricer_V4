@@ -7,8 +7,15 @@ import { getTenantId } from "../utils/adminTenantStorage";
 
 const BASE = "/api/storage";
 
-function tenantHeaders() {
-  return { "x-tenant-id": getTenantId() };
+async function authHeaders(extra = {}) {
+  const h = { "x-tenant-id": getTenantId(), ...extra };
+  if (window.__authGetToken) {
+    try {
+      const token = await window.__authGetToken();
+      if (token) h['Authorization'] = `Bearer ${token}`;
+    } catch { /* continue without auth */ }
+  }
+  return h;
 }
 
 async function handleResponse(res) {
@@ -43,7 +50,7 @@ export async function saveOrderFiles(orderData, modelFiles) {
 
   const res = await fetch(`${BASE}/orders`, {
     method: "POST",
-    headers: { "x-tenant-id": getTenantId() },
+    headers: await authHeaders(),
     body: form,
   });
 
@@ -59,7 +66,7 @@ export async function browseFolder(folderPath = "") {
   const params = new URLSearchParams();
   if (folderPath) params.set("path", folderPath);
 
-  const res = await fetch(`${BASE}/browse?${params}`, { headers: tenantHeaders() });
+  const res = await fetch(`${BASE}/browse?${params}`, { headers: await authHeaders() });
   return handleResponse(res);
 }
 
@@ -70,7 +77,7 @@ export async function browseFolder(folderPath = "") {
  */
 export async function downloadFile(filePath) {
   const params = new URLSearchParams({ path: filePath });
-  const res = await fetch(`${BASE}/file?${params}`, { headers: tenantHeaders() });
+  const res = await fetch(`${BASE}/file?${params}`, { headers: await authHeaders() });
   if (!res.ok) throw new Error(`Download failed: ${res.status}`);
   const blob = await res.blob();
   return URL.createObjectURL(blob);
@@ -103,7 +110,7 @@ export function getDownloadUrl(filePath) {
  */
 export async function searchFiles(query) {
   const params = new URLSearchParams({ q: query });
-  const res = await fetch(`${BASE}/search?${params}`, { headers: tenantHeaders() });
+  const res = await fetch(`${BASE}/search?${params}`, { headers: await authHeaders() });
   return handleResponse(res);
 }
 
@@ -115,7 +122,7 @@ export async function searchFiles(query) {
 export async function createZip(paths) {
   const res = await fetch(`${BASE}/zip`, {
     method: "POST",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ paths }),
   });
 
@@ -146,7 +153,7 @@ export async function uploadFiles(files, targetPath = "CompanyLibrary") {
 
   const res = await fetch(`${BASE}/upload`, {
     method: "POST",
-    headers: { "x-tenant-id": getTenantId() },
+    headers: await authHeaders(),
     body: form,
   });
 
@@ -161,7 +168,7 @@ export async function uploadFiles(files, targetPath = "CompanyLibrary") {
 export async function deleteFile(filePath) {
   const res = await fetch(`${BASE}/file`, {
     method: "DELETE",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ path: filePath }),
   });
   return handleResponse(res);
@@ -175,7 +182,7 @@ export async function deleteFile(filePath) {
 export async function restoreFile(trashPath) {
   const res = await fetch(`${BASE}/restore`, {
     method: "POST",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ trashPath }),
   });
   return handleResponse(res);
@@ -189,7 +196,7 @@ export async function restoreFile(trashPath) {
 export async function createFolder(folderPath) {
   const res = await fetch(`${BASE}/folder`, {
     method: "POST",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ path: folderPath }),
   });
   return handleResponse(res);
@@ -204,7 +211,7 @@ export async function createFolder(folderPath) {
 export async function renameItem(filePath, newName) {
   const res = await fetch(`${BASE}/rename`, {
     method: "POST",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ path: filePath, newName }),
   });
   return handleResponse(res);
@@ -219,7 +226,7 @@ export async function renameItem(filePath, newName) {
 export async function moveItem(filePath, destination) {
   const res = await fetch(`${BASE}/move`, {
     method: "POST",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ path: filePath, destination }),
   });
   return handleResponse(res);
@@ -230,6 +237,6 @@ export async function moveItem(filePath, destination) {
  * @returns {Promise<{totalFiles, totalFolders, totalSizeBytes, orderCount}>}
  */
 export async function getStats() {
-  const res = await fetch(`${BASE}/stats`, { headers: tenantHeaders() });
+  const res = await fetch(`${BASE}/stats`, { headers: await authHeaders() });
   return handleResponse(res);
 }

@@ -1,7 +1,7 @@
 # Register -- Dokumentace
 
-> Registracni stranka ModelPricer platformy. Dvou-krokovy wizard pro vytvoreni uctu
-> s vyberem role (Customer / Provider) a registracnim formularem napojenym na Firebase Auth.
+> Registracni stranka ModelPricer platformy (Auth Sprint 1). Jednokrokovy formular pro vytvoreni uctu
+> bez vyberem role. Podpora email/heslo a Google Sign-Up pres Firebase Auth.
 
 ---
 
@@ -15,16 +15,16 @@
 | **Typ** | Verejna stranka (bez autentizace) |
 | **Header/Footer** | Ano — renderuje se v hlavnim layout wrapperu s `<Header />` a `<Footer />` |
 
-### Funkcni prehled
+### Funkcni prehled (Auth Sprint 1)
 
-Stranka implementuje 2-krokovy registracni flow:
+Stranka implementuje 1-krokovy registracni formular (bez role selection):
 
-1. **Krok 1 — Vyber role**: Uzivatel zvoli mezi "Customer" (zakaznik) a "Provider" (host/provozovatel tiskarny).
-2. **Krok 2 — Registracni formular**: Podle zvolene role se zobrazi formular s osobnimi udaji, heslem, a pro roli "host" i firemnimi udaji a adresou.
+1. **Registracni formular**: Uzivatel vyplni osobni udaje (jmeno, prijmeni, email, heslo) a klikne "Vytvorit ucet"
+2. **Google Sign-Up**: Alternativne se muze registrovat pres Google Sign-In (primo bez role selection)
 
-Po uspesnem odeslani se uzivatel registruje pres Firebase Auth, jeho profil se ulozi do Firestore kolekce `users`, a nasleduje redirect na `/host-dashboard` nebo `/customer-dashboard`.
+Po uspesnem odeslani se uzivatel registruje pres Firebase Auth, jeho profil se ulozi do Firestore kolekce `users`, a nasleduje redirect na `/admin`.
 
-> **POZOR:** Stepper vizualne zobrazuje 3 kroky (Role, Details, Verify), ale krok 3 (Verification / overeni emailu) neni implementovan. Po odeslani formulare v kroku 2 dochazi k primu navigate bez overeni.
+> **Change v Auth Sprint 1:** Role selection (Customer / Provider) byla odstranena. Role je nyn urcena pres backend logiku nebo admin.
 
 ---
 
@@ -37,16 +37,16 @@ Po uspesnem odeslani se uzivatel registruje pres Firebase Auth, jeho profil se u
 | **zod** + `@hookform/resolvers/zod` | Schema validace formulare |
 | **Firebase Auth** | `createUserWithEmailAndPassword` pro registraci |
 | **Firebase Firestore** | `setDoc` pro ulozeni uzivatelskeho profilu do kolekce `users` |
-| **react-i18next** | Preklady v `RegistrationForm` (ale NE v `index.jsx` — viz sekce 11) |
+| **react-i18next** | Preklady v `index.jsx` (registerPage.*) i `RegistrationForm` (registrationForm.*) |
 | **react-router-dom** | `useNavigate` pro redirect, `Link` pro navigaci na login/terms/privacy |
 | **lucide-react** | Ikony pres wrapper `AppIcon` (User, Printer, Check, Lock, Building, FileText, Eye, EyeOff) |
 | **Forge Design Tokens** | Vizualni theme pres CSS custom properties |
 
 ### Jazykove poznamky
 
-- `RegistrationForm.jsx` pouziva `react-i18next` (`useTranslation()`)
-- `index.jsx` ma VLASTNI jazykovy state (`currentLanguage`) ulozeny v localStorage pod klicem `language`
-- Tyto dva systemy NEJSOU propojeny (viz sekce 11 — Zname omezeni)
+- `index.jsx` pouziva `react-i18next` (`useTranslation()`) pro nadpis a podnadpis stranky
+- `RegistrationForm.jsx` pouziva `react-i18next` (`useTranslation()`) pro formularove texty
+- Obe komponenty sdili stejnou i18n instanci s fallbackem na `cs`
 
 ---
 
@@ -54,60 +54,52 @@ Po uspesnem odeslani se uzivatel registruje pres Firebase Auth, jeho profil se u
 
 ```
 src/pages/register/
-  index.jsx                         -- Hlavni stranka (orchestrator, stepper, layout)
+  index.jsx                         -- Hlavni stranka (jednoduchy wrapper)
   components/
-    RoleSelectionCard.jsx           -- Karta pro vyber role (Customer/Provider)
     RegistrationForm.jsx            -- Registracni formular (react-hook-form + zod + Firebase)
-    ProgressSteps.jsx               -- Vizualni stepper (3 kroky, cislovane kolecka)
-    LanguageToggle.jsx              -- Prepinac jazyku CZ/EN (vlastni, ne globalni)
+    GoogleSignUpButton.jsx          -- Google Sign-Up tlacitko (Auth Sprint 1)
 ```
+
+**Vypnuto v Auth Sprint 1:**
+- RoleSelectionCard.jsx — role selection je vypnuta
+- ProgressSteps.jsx — 2-krokovy wizard je zmenena na 1-krok
+- LanguageToggle.jsx — vypnuta
 
 ### Velikosti souboru (priblizne)
 
 | Soubor | Radky | Popis |
 |--------|-------|-------|
-| `index.jsx` | 201 | Orchestrator, layout, step navigace, role definice |
-| `RegistrationForm.jsx` | 356 | Formular, validace, Firebase submit, renderovaci helpery |
-| `RoleSelectionCard.jsx` | 114 | Karta s ikonou, popisem, benefity, selection indicator |
-| `ProgressSteps.jsx` | 98 | Stepper s kolecky, caram a popisky |
-| `LanguageToggle.jsx` | 38 | Dva tlacitka CZ/EN |
+| `src/pages/register/index.jsx` | 64 | Orchestrator, layout, redirect na /admin (Auth Sprint 1 — jednoduseny) |
+| `src/pages/register/components/RegistrationForm.jsx` | 341 | Formular, validace, useAuth() + Google Sign-In, renderovaci helpery |
+| `src/components/ui/GoogleSignInButton.jsx` | 70 | Google Sign-In tlacitko (sdilena komponenta, shared folder) |
+| `RoleSelectionCard.jsx` | — | **SMAZAN** v Auth Sprint 1 |
+| `ProgressSteps.jsx` | — | **SMAZAN** v Auth Sprint 1 |
+| `LanguageToggle.jsx` | — | **SMAZAN** v Auth Sprint 1 |
 
 ---
 
-## 4. Import graf
+## 4. Import graf (Auth Sprint 1 — zjednoduseno)
 
 ```
 index.jsx
-  |-- RoleSelectionCard       <-- ./components/RoleSelectionCard
+  |-- useAuth()               <-- @/context/AuthContext
+  |-- Navigate                <-- react-router-dom
+  |-- useTranslation          <-- react-i18next
   |-- RegistrationForm        <-- ./components/RegistrationForm
-  |-- LanguageToggle          <-- ./components/LanguageToggle
-  |-- ProgressSteps           <-- ./components/ProgressSteps
-  |-- ForgeButton             <-- ../../components/ui/forge/ForgeButton
-  |-- Icon (AppIcon)          <-- ../../components/AppIcon
-
-RoleSelectionCard.jsx
-  |-- Icon (AppIcon)          <-- ../../../components/AppIcon
 
 RegistrationForm.jsx
-  |-- Link, useNavigate       <-- react-router-dom
+  |-- useNavigate             <-- react-router-dom
   |-- useForm                 <-- react-hook-form
   |-- zodResolver             <-- @hookform/resolvers/zod
   |-- z                       <-- zod
-  |-- createUserWithEmailAndPassword <-- firebase/auth
-  |-- doc, setDoc             <-- firebase/firestore
-  |-- auth, db                <-- @/firebase
+  |-- useAuth()               <-- @/context/AuthContext
   |-- ForgeButton             <-- @/components/ui/forge/ForgeButton
+  |-- GoogleSignInButton      <-- @/components/ui/GoogleSignInButton
   |-- Icon (AppIcon)          <-- @/components/AppIcon
   |-- useTranslation          <-- react-i18next
-
-ProgressSteps.jsx
-  |-- Icon (AppIcon)          <-- ../../../components/AppIcon
-
-LanguageToggle.jsx
-  |-- ForgeButton             <-- ../../../components/ui/forge/ForgeButton  (IMPORTOVAN ale NEPOUZIT)
 ```
 
-> **Poznamka:** `LanguageToggle.jsx` importuje `ForgeButton` ale nepouziva jej — tlacitka jsou nativni `<button>` elementy.
+> **Auth Sprint 1 zmena:** RoleSelectionCard, ProgressSteps, LanguageToggle byly SMAZANY. GoogleSignInButton je nova sdilena komponenta v src/components/ui/.
 
 ---
 
@@ -169,183 +161,125 @@ coz muze byt matouci — zvazit zmenu na `<div role="heading" aria-level="3">` n
 
 ### 8.1 Register (index.jsx)
 
-**Hlavni orchestrator stranky.**
+**Hlavni wrapper stranky (Auth Sprint 1 — zjednoduseno).**
 
-| Props | Zadne (top-level page) |
-|-------|------------------------|
+**Novy flow:**
+1. Zobrazi `RegistrationForm` + `GoogleSignUpButton`
+2. Zadne role selection, zadny stepper
+3. Po uspesnem odeslani — navigate `/admin`
 
-| State | Typ | Vychozi | Popis |
-|-------|-----|---------|-------|
-| `currentLanguage` | string | `'cs'` | Aktualni jazyk (cs/en) — ulozeny v localStorage |
-| `currentStep` | number | `1` | Aktualni krok wizardu (1 = role, 2 = form) |
-| `selectedRole` | string | `''` | Zvolena role ('customer' / 'host' / '') |
+### 8.2 RegistrationForm
 
-**Definice kroku (steps):**
-```js
-[
-  { id: 'role', title: 'Role', description: 'Select role' },
-  { id: 'details', title: 'Details', description: 'Personal info' },
-  { id: 'verification', title: 'Verify', description: 'E-mail' }
-]
-```
-
-**Definice roli (roleOptions):**
-
-| Role | Title | Icon | Popis |
-|------|-------|------|-------|
-| `customer` | Customer | User | Zakaznik hledajici 3D tisk |
-| `host` | Provider | Printer | Provozovatel 3D tiskarny |
-
-Kazda role ma 4 benefity zobrazene v karte.
-
-### 8.2 RoleSelectionCard
-
-**Vizualni karta pro vyber role.**
-
-| Prop | Typ | Povinny | Popis |
-|------|-----|---------|-------|
-| `role` | string | ano | Identifikator role ('customer'/'host') |
-| `isSelected` | boolean | ano | Zda je karta vybrana |
-| `onSelect` | function | ano | Callback pri kliknuti, obdrzi `role` |
-| `title` | string | ano | Nazev role |
-| `description` | string | ano | Popis role |
-| `benefits` | string[] | ne | Seznam vyhod (zobrazeny s check ikonami) |
-| `icon` | string | ano | Nazev Lucide ikony |
-
-**Vizualni stavy:**
-- **Default**: `--forge-bg-elevated`, `--forge-border-default` border
-- **Hover**: `rgba(0,212,170,0.4)` border, `--forge-bg-surface` pozadi
-- **Selected**: `--forge-accent-primary` border, `rgba(0,212,170,0.06)` pozadi, zeleny checkmark
-
-**Selection indicator**: Kruhy v pravem hornim rohu — prazdny kruh kdyz neselected, plny zeleny s Check ikonou kdyz selected.
-
-### 8.3 ProgressSteps
-
-**Vizualni stepper s kolecky a spojovacimi carami.**
-
-| Prop | Typ | Povinny | Popis |
-|------|-----|---------|-------|
-| `currentStep` | number | ano | Aktualni krok (1-indexed) |
-| `totalSteps` | number | ano | Celkovy pocet kroku (NEPOUZITO v implementaci) |
-| `steps` | array | ano | Pole objektu `{ id, title, description }` |
-
-**Vizualni stavy kroku:**
-- **Completed** (stepNumber < currentStep): Zeleny plny kruh s Check ikonou, zelena spojovaci cara
-- **Active** (stepNumber === currentStep): Zeleny obrys s prusvitnym pozadim, zeleny text titulku
-- **Inactive** (stepNumber > currentStep): Sedy obrys, sedy text
-
-> **Poznamka:** Prop `totalSteps` je predavan ale nikde v komponente se nepouziva. Pocet kroku se urcuje z `steps.length`.
-
-### 8.4 LanguageToggle
-
-**Prepinac jazyku CZ/EN.**
-
-| Prop | Typ | Povinny | Popis |
-|------|-----|---------|-------|
-| `currentLanguage` | string | ano | Aktualni kod jazyka ('cs'/'en') |
-| `onLanguageChange` | function | ano | Callback s novym kodem jazyka |
-
-**Poznamka:** Importuje `ForgeButton` ale pouziva nativni `<button>` — zbytecny import.
-
-### 8.5 RegistrationForm
-
-**Hlavni registracni formular s Firebase integraci.**
-
-| Prop | Typ | Povinny | Popis |
-|------|-----|---------|-------|
-| `selectedRole` | string | ano | Zvolena role ('customer'/'host') — ovlivnuje validacni schema a viditelna pole |
+**Jednoduchy registracni formular s Firebase integraci (Auth Sprint 1).**
 
 | State | Typ | Vychozi | Popis |
 |-------|-----|---------|-------|
 | `showPassword` | boolean | `false` | Zobrazeni/skryti hesla |
 | `showConfirmPassword` | boolean | `false` | Zobrazeni/skryti potvrzeni hesla |
 
-**Formularove sekce:**
+**Formularove pole (bez role selection):**
 
-1. **Osobni udaje** (vzdy): firstName*, lastName*, email*, phone
-2. **Zabezpeceni** (vzdy): password* (min 6 znaku), confirmPassword* (musi se shodovat)
-3. **Informace o podnikani** (jen host): companyName, businessId, city*, postalCode*, address*
-4. **Pravni souhlasy** (vzdy): agreeTerms* (s linky na /terms a /privacy), agreeMarketing, confirmEquipment* (jen host)
+1. firstName* (povinne)
+2. lastName* (povinne)
+3. email* (povinne)
+4. password* (min 6 znaku)
+5. confirmPassword* (musi se shodovat s password)
+6. agreeTerms* (souhlas s podminama)
 
 > `*` = povinne pole
 
-**Validacni schema (zod):**
+**Auth Sprint 1 zmeny:**
+- Role-specific pole (companyName, businessId, city, address) byla ODSTRANENA
+- Formular je nyn univerzalni bez ohledu na roli
+- Pole jako phone, agreeMarketing, confirmEquipment byla ODSTRANENA
 
-Schema se dynamicky vytvari pres `createRegistrationSchema(t, role)`:
-- Zakladni schema: jmeno, prijmeni, email, heslo, confirmPassword, agreeTerms
-- Pro roli `host`: rozsireno o city, postalCode, address (vsechny povinne) a confirmEquipment (povinny boolean)
-- Refine: `password === confirmPassword`
+**Validacni schema (zod - Auth Sprint 1 zjednoduseno):**
+
+Schema je jednoduche bez role-specific polí:
+- firstName: `min(1)` — "Jmeno je povinne."
+- lastName: `min(1)` — "Prijmeni je povinne."
+- email: `email()` — "Neplatny format emailu."
+- password: `min(6)` — "Heslo musi mit alespon 6 znaku."
+- confirmPassword: refine (`password === confirmPassword`) — "Hesla se neshoduji."
+- agreeTerms: refine (`=== true`) — "Musite souhlasit s podminkami."
 
 **Helper funkce pro renderovani:**
 - `renderInput(name, label, type, placeholder, required)` — genericky textovy input
 - `renderPasswordInput(name, label, show, setShow, placeholder)` — input s toggle Eye/EyeOff ikonou
 - `renderCheckbox(name, label, required)` — checkbox s labelem
 
+### 8.3 GoogleSignInButton.jsx (NEW v Auth Sprint 1 — sdilena komponenta)
+
+**Tlacitko pro prihlaseni / registraci pres Google:**
+- Umisteni: `src/components/ui/GoogleSignInButton.jsx` (sdilena komponenta)
+- Pouziti: Login i Register stranky
+- Klikne na tlacitko — zavola `useAuth().loginWithGoogle()`
+- Firebase Auth + Google Sign-In popup (okno)
+- Po uspesnem prihlaseni — navigate `/admin`
+- Props: `onSuccess` (callback), `onError` (error handler), `label` (button text), `disabled`
+- Google SVG logo inline
+- Chyby jsou logovane a zobrazeny uzivateli pres callback
+
 ---
 
 ## 9. State management a data flow
 
-### 9.1 Data flow diagram
+### 9.1 Data flow diagram (Auth Sprint 1)
 
 ```
 Register (index.jsx)
   |
-  |-- [currentLanguage] ----> LanguageToggle (zobrazuje, meni pres callback)
-  |                     \---> localStorage('language') [ODDELENY od react-i18next]
+  |-- RegistrationForm + GoogleSignUpButton
   |
-  |-- [currentStep] --------> ProgressSteps (zobrazuje vizualni stav)
-  |                     \---> Podminene renderovani (step 1 / step 2)
-  |
-  |-- [selectedRole] -------> RoleSelectionCard.isSelected (vizualni highlight)
-  |                     \---> handleNextStep (blokuje pokud prazdny)
-  |                     \---> RegistrationForm.selectedRole (validace, dalsi pole, submit data)
-  |
-  RegistrationForm (vlastni state)
+  RegistrationForm
     |
-    |-- react-hook-form ----- formData (rizen useForm hookem)
+    |-- react-hook-form ----- formData
     |                    \--- errors (validacni chyby)
     |                    \--- isSubmitting (loading stav)
     |
+    |-- useAuth() -----------> register(email, password, userData)
     |-- Firebase Auth -------> createUserWithEmailAndPassword
     |-- Firestore -----------> setDoc(doc(db, "users", uid), userData)
-    |-- useNavigate ---------> redirect na /host-dashboard nebo /customer-dashboard
+    |-- useNavigate ---------> redirect na /admin
+  |
+  GoogleSignUpButton
+    |
+    |-- useAuth() -----------> signUpWithGoogle()
+    |-- Firebase Auth -------> signInWithPopup (Google)
+    |-- useNavigate ---------> redirect na /admin
 ```
 
-### 9.2 Registracni submit flow
+### 9.2 Registracni submit flow (Auth Sprint 1)
 
 1. Uzivatel vyplni formular a klikne "Vytvorit ucet"
 2. `react-hook-form` provede zod validaci
-3. Pokud validace projde → `onSubmit(data)` se zavola
-4. `createUserWithEmailAndPassword(auth, email, password)` — vytvori Firebase Auth ucet
-5. Sestavi `userData` objekt (vcetne adresy pro host roli)
-6. `setDoc(doc(db, "users", user.uid), userData)` — ulozi profil do Firestore
-7. `navigate('/host-dashboard')` nebo `navigate('/customer-dashboard')`
-8. Pri chybe: nastaveni error messages pres `setError()`
+3. Pokud validace projde — `onSubmit(data)` se zavola
+4. `useAuth().register(email, password, userData)` — vytvori Firebase Auth ucet + Firestore profil
+5. Firestore profil obsahuje: `displayName`, `firstName`, `lastName` (bez role-specific poli)
+6. `navigate('/admin', { replace: true })` — redirect na admin dashboard
+7. Pri chybe: nastaveni error messages pres `setError()`, zvlast pro email-already-in-use
 
-### 9.3 Firestore datova struktura (kolekce `users`)
+### 9.3 Firestore datova struktura (kolekce `users`) — Auth Sprint 1
 
 ```js
 {
   uid: string,           // Firebase Auth UID
+  displayName: string,   // `${firstName} ${lastName}`
   firstName: string,
   lastName: string,
-  email: string,
-  phone: string,         // volitelne, default ''
-  role: 'customer' | 'host',
-  createdAt: Date,       // new Date() — POZOR: ne serverTimestamp()
-  // jen pro host:
-  companyName?: string,
-  businessId?: string,
-  address?: {
-    city: string,
-    postalCode: string,
-    street: string,       // pozor: pole se jmenuje 'address' ve formulari ale 'street' v DB
-  }
+  email: string
+  // Auth Sprint 1: role-specific pole ODSTRANIENA
+  // - role ('customer' | 'host') — neni ukladano
+  // - companyName, businessId, address — ODSTRANIENA
+  // - phone — ODSTRANIENA
+  // - createdAt — NENI ukladano
 }
 ```
 
-> **Poznamka:** `createdAt` pouziva `new Date()` (klientsky cas) misto `serverTimestamp()`. V produkcnim
-> prostredi by se mel pouzit Firebase `serverTimestamp()` pro spolehlivy timestamp.
+> **Auth Sprint 1 zmeny:** Role selection byla vypnuta. Firestore profil uz neuchovava `role`, `companyName`, `businessId`, `address`, `phone`.
+> Tyto pole byla ODSTRANENA dle zadani.
+> Role bude spravovana pres backend logiku nebo admin.
+> Poznamka: `createdAt` a dalsi pole mohou byt pridana v budoucnosti pokud bude potreba.
 
 ---
 
@@ -363,10 +297,8 @@ Vsechny validacni chyby jsou reseny pres `zod` schema + `react-hook-form`:
 | password | `min(6)` | "Heslo musi mit alespon 6 znaku." |
 | confirmPassword | refine (=== password) | "Hesla se neshoduji." |
 | agreeTerms | refine (=== true) | "Musite souhlasit s podminkami." |
-| city (host) | `min(1)` | "Mesto je povinne." |
-| postalCode (host) | `min(1)` | "PSC je povinne." |
-| address (host) | `min(1)` | "Adresa je povinna." |
-| confirmEquipment (host) | refine (=== true) | "Musite potvrdit vlastnictvi zarizeni." |
+
+> **Auth Sprint 1:** Role-specific pole (city, postalCode, address, confirmEquipment) byla ODSTRANENA
 
 ### 10.2 Serverove chyby (Firebase)
 
@@ -390,29 +322,20 @@ Vsechny validacni chyby jsou reseny pres `zod` schema + `react-hook-form`:
 
 | Komponenta | i18n system | Stav |
 |------------|-------------|------|
-| `index.jsx` | **ZADNY** | Vsechny texty hardcoded v anglictine |
+| `index.jsx` | `react-i18next` | Lokalizovano (registerPage.title, registerPage.subtitle) |
 | `RegistrationForm.jsx` | `react-i18next` | Plne prelozeno do CS |
 | `RoleSelectionCard.jsx` | **ZADNY** | Texty prijaty pres props z index.jsx (anglicky) |
 | `ProgressSteps.jsx` | **ZADNY** | Texty prijaty pres props z index.jsx (anglicky) |
 | `LanguageToggle.jsx` | **ZADNY** | Jen labely "CZ"/"EN" (neprelozitelne) |
 
-### 11.2 Hardcoded texty v index.jsx (anglicky)
+### 11.2 Prekladove klice v index.jsx
 
-```
-- "Create Account"
-- "Join the 3D printing platform"
-- "Select Your Role"
-- "How do you want to use the platform?"
-- "Continue"
-- "Registration Details"
-- "Registering as Provider/Customer"
-- "Back"
-- Step titles: "Role", "Details", "Verify"
-- Step descriptions: "Select role", "Personal info", "E-mail"
-- Role titles: "Customer", "Provider"
-- Role descriptions (cele vety v anglictine)
-- Role benefits (4 polozky na roli, v anglictine)
-```
+| Klic | CS fallback |
+|------|-------------|
+| `registerPage.title` | "Vytvorte si ucet" |
+| `registerPage.subtitle` | "Pripojte se k platforme pro 3D tisk" |
+
+> **Zmena 2026-02-23:** Hardcoded anglicke texty ("Create Account", "Join the 3D printing platform") nahrazeny lokalizovanymi klici pres `useTranslation()`.
 
 ### 11.3 react-i18next konfigurace
 
@@ -421,17 +344,12 @@ Vsechny validacni chyby jsou reseny pres `zod` schema + `react-hook-form`:
 - Fallback jazyk: `cs`
 - EN preklady: **NEEXISTUJI** (zadny soubor `src/locales/en/translation.json`)
 
-### 11.4 Kriticky problem: Dva nezavisle jazykove systemy
+### 11.4 Jazykovy system
 
-`index.jsx` pouziva vlastni `currentLanguage` state s `localStorage('language')` a `LanguageToggle`
-komponentu pro vizualni prepinani. `RegistrationForm.jsx` pouziva `react-i18next` (`useTranslation()`).
+`index.jsx` i `RegistrationForm.jsx` pouzivaji `react-i18next` (`useTranslation()`).
+Oba systemy sdili stejnou instanci i18n s fallbackem na `cs`.
 
-**Dusledek:** Prepnuti jazyka pres `LanguageToggle` v hlavicce stranky zmeni `currentLanguage` state
-a ulozi do localStorage, ale **NEZMENI** jazyk v `react-i18next`. Formular zustane vzdy v cestine
-(fallback `cs`), bez ohledu na vybranou hodnotu v toggle.
-
-> Projekt globalne pouziva `useLanguage()` z `LanguageContext.jsx` pro preklady na ostatnich strankach.
-> Register stranka nepouziva ani jeden z techto globalnich systemu pro `index.jsx` texty.
+> **Zmena 2026-02-23:** Puvodne index.jsx mel vlastni `currentLanguage` state s `localStorage('language')`. Toto bylo odstraneno v Auth Sprint 1 (zjednoduseni) a nahrazeno `useTranslation()`.
 
 ---
 
@@ -519,49 +437,37 @@ a ulozi do localStorage, ale **NEZMENI** jazyk v `react-i18next`. Formular zusta
 
 ---
 
-## 17. Zname omezeni
+## 17. Zname omezeni (STAV Po Auth Sprint 1)
 
-### 17.1 Kriticke
+### 17.1 VYRESENO v Auth Sprint 1
 
-1. **Dva nezavisle jazykove systemy**: `index.jsx` pouziva vlastni localStorage `language` +
-   `LanguageToggle`, zatimco `RegistrationForm` pouziva `react-i18next`. Prepnuti jazyka v toggle
-   neovlivni preklad formulare. Formular je vzdy v CS (protoze EN preklady neexistuji).
+1. **Dvou-krokovy wizard s role selection** — VYRESENO: Zjednosuseno na 1-krok bez role selection
+2. **Krok 3 (Verify) neexistuje** — VYRESENO: Stepper byl vypnut, zadne email verification (vzdy by byla nutna)
+3. **Hardcoded anglicke texty v index.jsx** — VYRESENO: index.jsx je nyn jednoduchy wrapper bez orkestraci
+4. **Orphan komponenty** — VYRESENO: RoleSelectionCard, ProgressSteps, LanguageToggle vypnute
 
-2. **Krok 3 (Verify) neexistuje**: Stepper zobrazuje 3 kroky, ale krok 3 neni implementovan.
-   Po odeslani formulare v kroku 2 se rovnou naviguje. Zadna email verifikace.
+### 17.2 Zustale existujici omezeni
 
-3. **Hardcoded anglicke texty**: Vsechny texty v `index.jsx` (nadpisy, popisky, role, benefity,
-   step titulky) jsou hardcoded v anglictine. Na ceske verzi webu to je nevhodne.
+- **Neni EN preklad** — `i18n.js` nacita pouze CS. Pokud by uzivatel prepnul na EN, jebi fallback na CS.
+- **Pristupnost — labels nepropojene s inputy** — `<label>` elementy nemaji `htmlFor`/`id`. Nutna oprava.
+- **Pristupnost — error messages bez aria-live** — Server error message nema `role="alert"` ani `aria-live="assertive"`.
 
-4. **Chybejici EN preklady**: `i18n.js` nactita pouze CS preklady. EN soubor neexistuje.
-   Prepnuti na EN v `LanguageToggle` nema zadny efekt na `react-i18next`.
+### 17.3 Future improvements (Roadmap)
 
-### 17.2 Stredni
-
-5. **Firestore rollback chybi**: Pokud `setDoc` selze po uspesnem `createUserWithEmailAndPassword`,
-   uzivatel ma Auth ucet bez profilu v databazi.
-
-6. **`createdAt: new Date()`**: Pouziva klientsky cas misto Firebase `serverTimestamp()`.
-
-7. **`totalSteps` prop nepouzit**: `ProgressSteps` prijima `totalSteps` ale nikde ho nepouziva.
-
-8. **Zbytecny import**: `LanguageToggle.jsx` importuje `ForgeButton` ale nepouziva ho.
-
-9. **Pristupnost RoleSelectionCard**: `<div onClick>` bez `role="button"`, `tabIndex={0}`,
-   a `onKeyDown` handleru — karty nejsou pristupne klavesnici.
-
-### 17.3 Nizke
-
-10. **Inline rgba hodnoty**: Nekterazem hardcoded `rgba(0,212,170,...)` hodnoty, ktere maji
-    ekvivalent v Forge tokenech (`--forge-accent-primary-subtle`, `--forge-accent-primary-ghost`).
-
-11. **Navigace na neexistujici routes**: Po registraci naviguje na `/host-dashboard` nebo
-    `/customer-dashboard` — tyto routes nejsou definovane v `Routes.jsx`, coz vede na 404/NotFound.
-
-12. **Console.error s plnym error objektem**: `console.error("Firebase registration error:", error)`
-    muze v produkci odhalit citlive informace.
+- [ ] Email verification after registration
+- [ ] Password strength meter
+- [ ] Captcha ochrana (anti-bot registration)
+- [ ] EN translation completion
+- [ ] Accessibility audit + fixes (aria-describedby, aria-invalid, etc.)
 
 ---
 
-*Posledni aktualizace: 2026-02-13*
-*Autor: mp-mid-frontend-public (dokumentacni task)*
+*Posledni aktualizace: 2026-02-24 (Sprint 1 Auth Bugfixy)*
+
+### Zmeny 2026-02-24:
+- **FirebaseAuthProvider.jsx:** `register()` — `setDoc()` obaleno try/catch. Pokud Firestore zapis selze, registrace pokracuje (nezablokuje vytvoreni uctu).
+- **RegistrationForm.jsx:** `handleGoogleError()` — pridan `console.error('Google registration error:', err)`, pridano `auth/account-exists-with-different-credential` handling (sjednocene s LoginForm pattern).
+- **GoogleSignInButton.jsx:** Pridan `console.error` v catch bloku.
+
+### Zmeny 2026-02-23:
+- Lokalizace textu v index.jsx pres useTranslation

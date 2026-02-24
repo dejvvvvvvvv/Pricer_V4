@@ -1,6 +1,6 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
@@ -26,8 +26,8 @@ import {
 } from "./presetsStore.js";
 
 import storageRouter from "./storage/storageRouter.js";
-
-dotenv.config();
+import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import { requireTenant } from "./middleware/tenant.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,17 +67,22 @@ app.get("/api/health", async (_req, res) => {
   res.json({
     ok: true,
     service: "modelpricer-backend-local",
-    port: PORT,
-    workspaceRoot: WORKSPACE_ROOT,
-    projectRoot,
-    backendRoot,
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
   });
 });
+
+// ===== Auth middleware for protected routes =====
+// Apply requireAuth + requireTenant to all /api/presets, /api/slice, /api/storage
+app.use("/api/presets", requireAuth, requireTenant);
+app.use("/api/slice", requireAuth, requireTenant);
+app.use("/api/storage", requireAuth, requireTenant);
 
 // ===== Presets API (backend-local) =====
 
 function getTenantIdFromReq(req) {
+  // If requireTenant middleware ran, use req.tenantId
+  if (req.tenantId) return req.tenantId;
+  // Fallback for widget/public routes without auth
   const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
   return fromHeader || "demo-tenant";
 }

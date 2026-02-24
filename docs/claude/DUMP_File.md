@@ -403,3 +403,39 @@ ve widget builder v sekci Globální a části PREDNASTAVENY TEMA přešuň to u
   1. Testovaci data (pouziji synteticka)
   2. Engine version (navrh 3.1.0)
   3. Prioritizace zbylych KD item-by-item (KD-2, KD-4, KD-5, KD-7)
+
+
+  -------
+
+
+  jsem v tom už docela zmatený a nevím pořádně co se má kdy dělat                                                                                              
+                                                                                                                                                               
+  Vím že budu chtít asi udělat ten sprint plán jako první ale bude rozhodně v něm udělat nějaké úpravy aby jsme do toho zakomponovaly i tu izolaci těch        
+  uživatelů neboli tu fázi 3.4 z roadmapy                                                                                                                      
+                                                                                                                                                               
+  No ale nyní mi prosím udělej dva soubory kde bude velmi jednoduše zaznačené co máme tedy naplánované dělat jelikož nyní máme dva plány s tím že ten          
+  sprint plán je jakoby odvozený od toho roadmap plánu, o tom si můžeš přečíst v historii, myslím že jsme to řešili na začátku historie al to si nejsem        
+  jistý                                                                                                                                                        
+                                                                                                                                                               
+  No ale budu chtít aby jsi mi udělal dva dokumenty které budou určeny výhradně pro mě, takže to bude muset být velice jednoduše a přehledně napsáno,          
+  neboli nějak v tomto stylu jak jsi mi to napsal tady aby šlo jednoduše pochopit co je v jaké fázi                                                            
+  Nějak takto - - Auth Sprinty 1-4 — specificky auth implementace (Sprint 1 = foundation, Sprint 2 = account page, Sprint 3 = security hardening, Sprint 4     
+   = 2FA)                                                                                                                                                      
+    - RoadMap Fáze 0-4 — celkový plán k BETA launchi (Fáze 0 = Cloud Run, Fáze 1 = kalkulačka, Fáze 2 = Stripe, Fáze 3 = API security + tenant izolace,        
+  Fáze 4 =                                                                                                                                                     
+    emaily)                                                                                                                                                    
+                                                                                                                                                               
+  Ale s tím že do jednoho souboru dáš jen ten Jednoduchý Sprint plán a do druhého dáš celý ten roadmap plán pro rozjetí beta testu, také to tam napíšeš v      
+  tom stylu jak jsem ti to zde ukázal neboli velmi jednoduchém stylu, rozděůíš to na ty individuální plány že napíšeš pro co je to plán jako třeba             
+  kalkulacka nebo něco jiného a ty rozdělíš na ty fáze tak jak jsem ti to ukázal a jak jsi mi to napsal jednoduše v poslední konverzaci                        
+  A ty soubory uložíš zde C:\Users\Kuňákovi\Downloads\Model_Pricer-V2-main_VariantaA_A_to_F_Integrated\docs\claude\Jednoduchá_Dokumentace a návody
+  Připomínam že tyto soubory budou převážne jen pro mě aby jsem v tom měl přehled a nemusel se prodírat přes všechny ty technické věci ale měl hned na
+  jednom místě velmi jednoduše vyznačené jak po sobě jsou ty fáze atd.
+  Až to uděláš tak ulož historii
+  A používej agenty!
+
+
+  ------
+
+
+  

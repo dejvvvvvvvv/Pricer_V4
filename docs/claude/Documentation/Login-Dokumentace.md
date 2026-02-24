@@ -1,15 +1,15 @@
 # Login — Dokumentace
 
-> Prihlasovaci stranka ModelPricer aplikace. Umoznuje uzivateli prihlasit se pomoci emailu a hesla pres Firebase Authentication. Po uspesnem prihlaseni presmeruje uzivatele na dashboard podle jeho role (customer/host).
+> Prihlasovaci stranka ModelPricer aplikace (Auth Sprint 1). Umoznuje uzivateli prihlasit se pomoci emailu/hesla nebo Google Sign-In pres Firebase Authentication. Po uspesnem prihlaseni presmeruje na `/admin`.
 
 ---
 
 ## 1. Prehled
 
 - **URL:** `/login`
-- **Route definice:** `src/Routes.jsx:74` — `<Route path="/login" element={<Login />} />`
-- **Umisteni v layout:** Uvnitr hlavniho layoutu s `<Header />` a `<Footer />`
-- **Redirect logika:** Pokud je uzivatel jiz prihlasen, `index.jsx` ho presmeruje na `location.state?.from?.pathname` nebo `/customer-dashboard` (avsak tato logika je aktualne mrtvy kod — viz sekce 17)
+- **Route definice:** `src/Routes.jsx` — `<Route path="/login" element={<Login />} />`
+- **Umisteni v layout:** Verejny endpoint, bez PrivateRoute guardu
+- **Redirect logika:** Po uspesnem prihlaseni → `/admin` (vsichni uzivatele, bez role-based routing)
 
 ---
 
@@ -35,16 +35,20 @@
 
 ```
 src/pages/login/
-  index.jsx                    # Vstupni bod stranky (30 radku)
+  index.jsx                    # Vstupni bod stranky
   components/
-    LoginForm.jsx              # AKTIVNI — hlavni formular (202 radku)
-    LoginHeader.jsx            # NEAKTIVNI — logo + "Welcome Back" (71 radku)
-    LoginActions.jsx           # NEAKTIVNI — forgot password, register, demo credentials (118 radku)
-    SocialLogin.jsx            # NEAKTIVNI — Google/Facebook/Apple tlacitka (80 radku)
-    LanguageToggle.jsx         # NEAKTIVNI — prepinac CS/EN (56 radku)
+    LoginForm.jsx              # AKTIVNI — hlavni formular, email/heslo + Google Sign-In
+
+src/components/ui/
+  GoogleSignInButton.jsx       # AKTIVNI — Google Sign-In tlacitko (Auth Sprint 1, sdilena komponenta)
 ```
 
-**DULEZITE:** Z peti subkomponent je aktualne pouzivana POUZE `LoginForm.jsx`. Ostatni 4 komponenty (`LoginHeader`, `LoginActions`, `SocialLogin`, `LanguageToggle`) jsou definovane, exportovane, ale NIKDE importovane ani renderovane. Jsou to "orphan" komponenty — pripravene pro budouci pouziti, ale momentalne mrtvy kod.
+**Auth Sprint 1:** Aktualne jsou pouzivany:
+- `LoginForm.jsx` — email/heslo prihlaseni s `useAuth().login()` + Firebase JWT handling
+- `GoogleSignInButton.jsx` — Google Sign-In integrovan pres Firebase Auth
+
+**Odstraneno v Auth Sprint 1:**
+- `LoginHeader.jsx`, `LoginActions.jsx`, `SocialLogin.jsx`, `LanguageToggle.jsx` — nebyly pouzivane, byly odstraneny nebo vypnute
 
 ---
 
@@ -55,14 +59,15 @@ src/pages/login/
 ```
 index.jsx
   ├── react
-  ├── firebase/auth ──> signInWithEmailAndPassword  [MRTVY KOD — nepouziva se]
-  ├── ../../firebase ──> auth                        [MRTVY KOD — nepouziva se]
-  ├── react-router-dom ──> useLocation, useNavigate, Navigate
+  ├── react-router-dom ──> useLocation, Navigate
+  ├── react-i18next ──> useTranslation
   ├── ../../context/AuthContext ──> useAuth
   └── ./components/LoginForm ──> LoginForm
 ```
 
-### LoginForm.jsx (hlavni formular)
+**Poznamka:** GoogleSignInButton je importovan do LoginForm (ne primo do index.jsx).
+
+### LoginForm.jsx (email/heslo prihlaseni)
 
 ```
 LoginForm.jsx
@@ -71,12 +76,20 @@ LoginForm.jsx
   ├── react-hook-form ──> useForm
   ├── @hookform/resolvers/zod ──> zodResolver
   ├── zod ──> z
-  ├── firebase/auth ──> signInWithEmailAndPassword
-  ├── firebase/firestore ──> doc, getDoc
-  ├── @/firebase ──> auth, db
+  ├── @/context/AuthContext ──> useAuth (login method)
   ├── @/components/ui/forge/ForgeButton
   ├── @/components/AppIcon ──> Icon
   └── react-i18next ──> useTranslation
+```
+
+### GoogleSignInButton.jsx (Google Sign-In)
+
+```
+GoogleSignInButton.jsx
+  ├── react
+  ├── @/context/AuthContext ──> useAuth (loginWithGoogle method)
+  ├── @/components/ui/forge/ForgeButton
+  └── @/components/AppIcon ──> Icon
 ```
 
 ### Nepouzivane komponenty — importy
@@ -102,6 +115,21 @@ LanguageToggle.jsx
 ---
 
 ## 5. Design a vizual
+
+### 5.0 Page wrapper (index.jsx)
+
+Login stranka pouziva plnohodnotny Forge page wrapper shodny s Register strankou:
+
+| Vrstva | Styl | Ucel |
+|--------|------|------|
+| **Page wrapper** | `minHeight: 100vh`, `backgroundColor: var(--forge-bg-void)`, `color: var(--forge-text-primary)` | Tmave pozadi pres celou stranku |
+| **Container** | `maxWidth: 520px`, `margin: 0 auto`, `padding: 48px 24px` | Centrovany obsah, spacing od headeru/footeru |
+| **Heading sekce** | `textAlign: center`, `marginBottom: 32px` | Nadpis + podnadpis stranky |
+| **H1 nadpis** | `fontFamily: var(--forge-font-heading)`, `fontSize: var(--forge-text-3xl)`, `fontWeight: 700` | "Prihlaste se" (lokalizovano) |
+| **Podnadpis** | `fontFamily: var(--forge-font-body)`, `fontSize: var(--forge-text-base)`, `color: var(--forge-text-muted)` | "Spravujte sve 3D tiskove projekty" (lokalizovano) |
+| **Card wrapper** | `backgroundColor: var(--forge-bg-surface)`, `border: 1px solid var(--forge-border-default)`, `borderRadius: var(--forge-radius-lg)`, `padding: 32px` | Vizualni ohraniceni formulare |
+
+Inline styly (zadny Tailwind). Styly jsou definovany jako konstanty mimo komponentu (pageStyle, containerStyle, cardStyle).
 
 ### 5.1 Forge tokeny pouzite v LoginForm
 
@@ -140,31 +168,52 @@ LanguageToggle.jsx
 ### 5.4 Forge compliance
 
 **Spravne:**
-- Pouziva `--forge-font-body` pro vsechny texty formulare (labely, inputy, errory, checkbox) — spravne, formular neni heading ani tech label
+- Page wrapper pouziva `--forge-bg-void` pro tmave pozadi cele stranky
+- Card wrapper pouziva `--forge-bg-surface`, `--forge-border-default`, `--forge-radius-lg`
+- H1 nadpis pouziva `--forge-font-heading` a `--forge-text-3xl` — spravne dle konvence (text-lg+ = heading font)
+- Podnadpis pouziva `--forge-font-body` a `--forge-text-muted`
+- Pouziva `--forge-font-body` pro vsechny texty formulare (labely, inputy, errory, checkbox)
 - Pouziva Forge tokenove barvy konzistentne
 - ForgeButton `variant="primary"` pro hlavni akci
 - Tmave pozadi, svetly text — odpovida Forge dark theme
-
-**Potencialni problemy:**
-- Zadne pouziti `--forge-font-heading` nikde v LoginForm — nadpis/header formulare chybi (LoginHeader ktery by ho mel existuje, ale neni pouzivan)
-- `labelStyle` pouziva `fontFamily: 'var(--forge-font-body)'` s `textTransform: 'uppercase'` a `letterSpacing: '0.05em'` — toto vizualne pripomina `--forge-font-tech` styl ale pouziva body font. Nekonzistentni s LoginActions/SocialLogin ktere pouzivaji `--forge-font-tech` pro stejny uppercase styl
+- Design konzistentni s Register strankou (identicka page struktura)
 
 ---
 
 ## 8. UI komponenty — detailni popis
 
-### 8.1 Login (index.jsx) — Vstupni kontejner
+### 8.1 Login (index.jsx) — Page wrapper + vstupni kontejner
 
 **Funkce:**
 1. Kontroluje stav prihlaseni pres `useAuth()` — `currentUser` a `loading`
-2. Pokud je uzivatel jiz prihlasen (`!loading && currentUser`), presmeruje na `from` cestu nebo `/customer-dashboard`
-3. Definuje `handleLogin` callback (ktery je IGNOROVAN — viz sekce 17)
-4. Renderuje `<LoginForm handleLogin={handleLogin} />`
+2. Pokud je uzivatel jiz prihlasen a neni loading, presmeruje na `/admin`
+3. Pokud neni prihlasen, renderuje page wrapper s headingem a card wrapperem kolem LoginForm
 
-**Props predavane do LoginForm:**
-- `handleLogin` — async funkce prijimajici `{ email, password }` — **IGNOROVANA** komponentou
+**Page struktura:**
+```
+<div pageStyle>           // 100vh, bg-void
+  <div containerStyle>    // max-width 520px, centered, padding 48px 24px
+    <div heading>         // centered, margin-bottom 32px
+      <h1>                // forge-font-heading, text-3xl, "Prihlaste se"
+      <p>                 // forge-font-body, text-muted, "Spravujte sve 3D tiskove projekty"
+    </div>
+    <div cardStyle>       // bg-surface, border, radius-lg, padding 32px
+      <LoginForm />
+    </div>
+  </div>
+</div>
+```
 
-### 8.2 LoginForm.jsx — Hlavni prihlasovaci formular
+**i18n:** Nadpis a podnadpis lokalizovany pres `useTranslation()`:
+- `loginPage.title` — fallback "Prihlaste se"
+- `loginPage.subtitle` — fallback "Spravujte sve 3D tiskove projekty"
+
+**Login flow:**
+- Bez autentizace → zobrazit login formular + Google button
+- Pri loading → zobrazit loading state
+- Po uspesnem loginu → navigate `/admin`
+
+### 8.2 LoginForm.jsx — Email/heslo prihlaseni
 
 **Formularova pole:**
 
@@ -172,30 +221,32 @@ LanguageToggle.jsx
 |------|-----|----------|---------|
 | email | `<input type="email">` | Zod: `z.string().email()` | `""` |
 | password | `<input type="password">` | Zod: `z.string().min(1)` | `""` |
-| rememberMe | `<input type="checkbox">` | Zod: `z.boolean().optional()` | `false` |
 
-**Submit flow:**
+**Submit flow (Auth Sprint 1):**
 1. `handleSubmit(onSubmit)` — react-hook-form validace pres Zod schema
-2. `signInWithEmailAndPassword(auth, data.email, data.password)` — Firebase Auth
-3. `getDoc(doc(db, 'users', user.uid))` — nacteni role z Firestore
-4. Redirect podle role:
-   - `role === 'host'` -> `/host-dashboard`
-   - jinak -> `/customer-dashboard`
-5. Pokud Firestore dokument neexistuje -> fallback na `/customer-dashboard`
+2. `useAuth().login(email, password)` — zahrnuje Firebase Auth + JWT token handling
+3. Automaticky: `navigate('/admin')` pres AuthContext redirect
+4. Chyby: zobrazeny pres `setError()` + error box s serverError zprávou
 
 **Stav formulare:**
 - `isSubmitting` — z react-hook-form, disabluje inputy a meni text tlacitka
 - `errors` — per-field validacni chyby + `root.serverError` pro Firebase chyby
 
-### 8.3 LoginHeader.jsx (NEAKTIVNI)
+### 8.3 GoogleSignInButton.jsx — Google Sign-In (NEW v Auth Sprint 1)
+
+**Tlacitko pro prihlaseni pres Google:**
+- Klikne na tlacitko → zapada `useAuth().loginWithGoogle()`
+- Firebase Auth + Google Sign-In popup
+- Po uspesnem prihlaseni → navigate `/admin`
+- Chyby jsou logovane a zobrazeny uzivateli
+
+### 8.4 LoginHeader.jsx (VYPNUTO v Auth Sprint 1)
 
 **Ucel:** Zobrazi logo ModelPricer (ikona Layers3 + nazev + "3D PRINT PRICING") a uvitaci text "Welcome Back" / "Sign in to continue".
 
-**Poznamky:**
-- Obsahuje hardcoded anglicke texty ("Welcome Back", "Sign in to continue", "3D PRINT PRICING") — nepreklada pres i18n
-- Link na `/` (homepage) pres logo
+**Stav:** Vypnuto, neni pouzivano
 
-### 8.4 LoginActions.jsx (NEAKTIVNI)
+### 8.5 LoginActions.jsx (VYPNUTO v Auth Sprint 1)
 
 **Ucel:** Doplnkove akce pod formularem — "Zapomenuji heslo?", divider, "Vytvorit novy ucet", demo credentials.
 
@@ -234,39 +285,25 @@ LanguageToggle.jsx
 [Stranka se nacte]
     │
     ▼
-[useAuth() kontrola]──── currentUser existuje ───> <Navigate to={from} />
+[useAuth() kontrola]──── currentUser existuje ───> <Navigate to={'/admin'} />
     │
     (loading || !currentUser)
     │
     ▼
 [LoginForm renderovan]
     │
-    ▼
-[Uzivatel vyplni email + heslo]
-    │
-    ▼
-[Submit]
-    │
-    ▼
-[Zod validace]──── CHYBA ───> Zobrazi field-level errors
-    │
-    (OK)
-    │
-    ▼
-[signInWithEmailAndPassword]──── CHYBA ───> setError('root.serverError', ...)
-    │
-    (OK)
-    │
-    ▼
-[getDoc(users/{uid})]──── dokument neexistuje ───> navigate('/customer-dashboard')
-    │
-    (existuje)
-    │
-    ▼
-[Cti role z Firestore]
-    │
-    ├── role === 'host' ───> navigate('/host-dashboard')
-    └── else ──────────────> navigate('/customer-dashboard')
+    ├─ Email/heslo prihlaseni
+    │   ├─ [Uzivatel vyplni email + heslo]
+    │   │   ├─ [Submit] ──> [Zod validace] ──── CHYBA ───> field-level errors
+    │   │   │                   (OK) ▼
+    │   │   │              [useAuth().login()]
+    │   │   │                   ├── CHYBA ───> setError('root.serverError', ...) ──> zobrazit error box
+    │   │   │                   └── OK ───> navigate('/admin')
+    │   │
+    └─ Google Sign-In
+        └─ [Google tlacitko] ──> [useAuth().loginWithGoogle()]
+                                    ├── CHYBA ───> setError('root.serverError', ...) ──> zobrazit error box
+                                    └── OK ───> navigate('/admin')
 ```
 
 ### 9.2 State prehled
@@ -283,9 +320,9 @@ LanguageToggle.jsx
 
 | Sluzba | Ucel | Fail scenario |
 |--------|------|---------------|
-| Firebase Auth | Prihlaseni | `auth/invalid-credential`, `auth/too-many-requests` |
-| Firebase Firestore | Cteni user role | Fallback na `/customer-dashboard` pokud dokument neexistuje |
-| AuthContext | Auth stav | Pokud neni `AuthProvider` v stromu → throw Error |
+| Firebase Auth | Prihlaseni (email/heslo + Google Sign-In) | `auth/invalid-credential`, `auth/too-many-requests`, `auth/popup-closed-by-user` |
+| AuthContext | Auth stav (currentUser, loading, login, loginWithGoogle metody) | Pokud neni `AuthProvider` v stromu → throw Error |
+| Backend (dle configs) | JWT validace, volitelna autentifikace | Pokud nefunguje, AuthContext vraci chybu |
 
 ---
 
@@ -312,12 +349,9 @@ Chyby se zobrazuji primo pod prislusnym inputem ve stylu `errorStyle` (11px, `--
 
 Server chyby se zobrazuji v cervenem boxu s ikonou `AlertCircle` pres `errors.root.serverError`.
 
-### 10.3 Firestore chyby
+### 10.3 Backend chyby
 
-Pokud `getDoc` selze nebo uzivatelsky dokument neexistuje:
-- `console.error("User document not found in Firestore!")`
-- Fallback redirect na `/customer-dashboard`
-- Zadna vizualni chybova zprava pro uzivatele
+Po uspesnem prihlaseni v AuthContext se mohou vyskytnout chyby pri nacitani JWT tokenu nebo dalsiho backendu nastaveni. Tyto se zpracovavaji v `AuthContext` a prepisuji se jako server chyby v LoginForm.
 
 ### 10.4 Mezery v error handling
 
@@ -331,9 +365,16 @@ Pokud `getDoc` selze nebo uzivatelsky dokument neexistuje:
 
 ### 11.1 Pouzity system
 
-`LoginForm.jsx` pouziva `react-i18next` pres hook `useTranslation()`. Prekladove klice jsou v `src/locales/cs/translation.json` pod namespace `loginForm`.
+`index.jsx` i `LoginForm.jsx` pouzivaji `react-i18next` pres hook `useTranslation()`. Prekladove klice jsou v `src/locales/cs/translation.json` pod namespace `loginPage` (stranka) a `loginForm` (formular).
 
-### 11.2 Prekladove klice
+### 11.2 Prekladove klice — stranka (index.jsx)
+
+| Klic | CS fallback |
+|------|-------------|
+| `loginPage.title` | "Prihlaste se" |
+| `loginPage.subtitle` | "Spravujte sve 3D tiskove projekty" |
+
+### 11.3 Prekladove klice — formular (LoginForm.jsx)
 
 | Klic | CS hodnota |
 |------|-----------|
@@ -349,11 +390,11 @@ Pokud `getDoc` selze nebo uzivatelsky dokument neexistuje:
 | `loginForm.invalidCredentials` | "Neplatna kombinace emailu a hesla." |
 | `loginForm.tooManyRequests` | "Prilis mnoho pokusu o prihlaseni. Zkuste to prosim pozdeji." |
 
-### 11.3 Chybejici preklady (EN)
+### 11.4 Chybejici preklady (EN)
 
 Existuje POUZE cesky preklad (`src/locales/cs/translation.json`). Anglicky preklad (`src/locales/en/`) NEEXISTUJE. Soubor `i18n.js` definuje `fallbackLng: "cs"` a nacita pouze `translationCS`.
 
-### 11.4 Neprekladane texty
+### 11.5 Neprekladane texty
 
 Nasledujici texty v LoginForm.jsx jsou hardcoded a nepouzivaji i18n:
 - Placeholder emailu: `"vas@email.cz"` (radek 125)
@@ -404,7 +445,8 @@ Neaktivni komponenty obsahuji mnoho hardcoded textu (viz sekce 8.3-8.6).
 
 1. Autentifikace probiha pres Firebase SDK (`signInWithEmailAndPassword`) — heslo se NIKDY neposila primo na vlastni backend
 2. Firebase Auth persistence: `browserLocalPersistence` (nastaveno v `firebase.js:42`) — session prezije zavreni tabu
-3. Po prihlaseni se cte role z Firestore (`users/{uid}`) — toto je potencialni bezpecnostni bod (viz nize)
+3. Po uspesnem prihlaseni se extrahuji JWT tokeny z Firebase a skladuji se lokalne
+4. Autentifikace na backendu: JWT tokeny se validuji pres `backend-local/src/middleware/auth.js` — role a autorizace se zpracovavaji pres custom claims v JWT
 
 ### 14.3 Bezpecnostni poznamky
 
@@ -413,84 +455,79 @@ Neaktivni komponenty obsahuji mnoho hardcoded textu (viz sekce 8.3-8.6).
 | Error zpravy | OK | Stejne zpravy pro `invalid-credential`, `user-not-found`, `wrong-password` — neodhaluje zda email existuje |
 | Rate limiting | OK | Firebase `auth/too-many-requests` je zpracovan a zobrazen uzivateli |
 | Password visibility | OK | `type="password"` — neni show/hide toggle (bezpecnejsi) |
-| Demo credentials v kodu | RIZIKO | `LoginActions.jsx` obsahuje hardcoded demo ucty s hesly (customer123, host123, admin123) — i kdyz je komponenta neaktivni, je v kodu |
-| rememberMe nefunkcni | INFO | Checkbox existuje ale nema zadny efekt — Firebase persistence je vzdy `browserLocalPersistence` |
-| Firestore role fetch | INFO | Uzivatelska role se cte na klientovi po prihlaseni — samotna autorizace MUSI byt osetrena na backendu/Firestore Security Rules, ne jen na FE redirect |
-| Console logging | INFO | `console.error` pro Firebase chyby a chybejici Firestore dokument — v produkci by melo byt potlaceno |
+| Demo credentials v kodu | INFO | `LoginActions.jsx` obsahuje hardcoded demo ucty (ale komponenta je vypnuta, neni pouzivana) |
+| rememberMe checkbox | INFO | Checkbox existuje ale nema zadny efekt — Firebase persistence je vzdy `browserLocalPersistence`. Po Auth Sprint 1 je kontrola pouziti auth JWT se provadi v AuthContext. |
+| Autentifikace na backendu | OK | JWT validace se resi pres `backend-local/src/middleware/auth.js` s custom claims — aplikovano na chranene routy |
+| Console logging | INFO | `console.error` pro Firebase chyby — v produkci je potlaceno skrz environment configs |
 
 ---
 
-## 16. Souvisejici dokumenty
+## 15. Souvisejici dokumenty
 
 | Dokument/Soubor | Vztah k Login |
 |-----------------|---------------|
-| `src/context/AuthContext.jsx` | Poskytuje `useAuth()` — `currentUser`, `loading` |
-| `src/firebase.js` | Firebase app inicializace, export `auth`, `db` |
+| `src/context/AuthContext.jsx` | Poskytuje `useAuth()` — login, loginWithGoogle, currentUser, loading |
+| `src/firebase.js` | Firebase app inicializace, export `auth` |
 | `src/locales/cs/translation.json` | Prekladove klice `loginForm.*` |
 | `src/i18n.js` | Konfigurace react-i18next (pouze CS jazyk) |
-| `src/Routes.jsx:74` | Route `/login` definice |
-| `src/components/ui/forge/ForgeButton.jsx` | Submit tlacitko |
+| `src/Routes.jsx` | Route `/login` definice |
+| `src/components/ui/forge/ForgeButton.jsx` | Submit tlacitko, Google button |
 | `src/components/AppIcon.jsx` | Lucide ikony (AlertCircle) |
 | `src/styles/forge-tokens.css` | Forge design tokeny |
-| `src/pages/register/` | Registracni stranka (odkaz z LoginActions) |
+| `src/pages/register/` | Registracni stranka |
 | `src/components/PrivateRoute.jsx` | Chranene routy (redirect na login) |
+| `backend-local/src/middleware/auth.js` | Backend JWT validace |
 
 ---
 
-## 17. Zname omezeni
+## 16. Auth Sprint 1 — Zmeny a vylepseni
 
-### 17.1 BUG: Mrtvy kod v index.jsx — handleLogin prop ignorovana
+### Implementovane funkce:
+1. **Email/Heslo prihlaseni** — pres `useAuth().login()` z AuthContext
+2. **Google Sign-In** — novy `GoogleSignInButton` komponent
+3. **Unified redirect** — vsichni uzivatele redirectani na `/admin` (bez role-based routing)
+4. **JWT token handling** — automaticke nacteni a skladovani Firebase JWT tokenu
+5. **Vypnute komponenty:**
+   - LoginHeader, LoginActions, SocialLogin, LanguageToggle — nely pouzivane, vypnute nebo nahrazene
 
-**Kde:** `src/pages/login/index.jsx:19-27` a `index.jsx:29`
+---
 
-**Popis:** `index.jsx` definuje funkci `handleLogin` ktera vola `signInWithEmailAndPassword` a predava ji jako prop do `<LoginForm handleLogin={handleLogin} />`. Avsak `LoginForm.jsx` je definovan jako `const LoginForm = ()` — bez akceptovani props. LoginForm ma svoji vlastni kompletni auth logiku vcetne `signInWithEmailAndPassword`, cteni role z Firestore a navigace.
+## 17. Zname omezeni (STAV Po Auth Sprint 1)
 
-**Dusledek:**
-- `handleLogin` v `index.jsx` je mrtvy kod (nikdy se nevola)
-- Redirect logika v `index.jsx` (`from` z location state) se nikdy nepouzije
-- `signInWithEmailAndPassword` import v `index.jsx` je zbytecny
-- Duplicitni Firebase import (`../../firebase` v index.jsx + `@/firebase` v LoginForm.jsx)
+### 17.1 VYRESENO v Auth Sprint 1
 
-**Dopad:** Funkcne zadny (LoginForm funguje spravne). Ale kod je matouci a obsahuje duplicitni importy.
+1. **Mrtvy kod `handleLogin` prop** — VYRESENO: LoginForm pouziva `useAuth().login()` primo
+2. **Role-based redirect na /host-dashboard vs /customer-dashboard** — VYRESENO: Vsichni na `/admin`
+3. **Firestore role fetch** — VYRESENO: Role kontrola se provadi na backendu skrze JWT custom claims
+4. **Orphan komponenty** — VYRESENO: LoginHeader, LoginActions, SocialLogin, LanguageToggle vypnute
+5. **rememberMe checkbox** — VYRESENO: Odstranen, Firebase persistence je vzdy zapnuta
 
-### 17.2 BUG: Redirect logika se lisi mezi soubory
+### 17.2 Zustale existujici omezeni
 
-**Kde:** `index.jsx:12` vs `LoginForm.jsx:79-83`
+- **Neni EN preklad** — `i18n.js` nacita pouze CS. Pokud by uzivatel prepnul na EN, jebi fallback na CS.
+- **Pristupnost — labels nepropojene s inputy** — `<label>` elementy nemaji `htmlFor`/`id`. Kliknuti na label neaktivuje input. Nutna oprava.
+- **Pristupnost — error messages bez aria-describedby/aria-live** — Field errors nejsou propojene s inputy pres `aria-describedby`. Server error message nema `role="alert"` ani `aria-live="assertive"`.
 
-**Popis:**
-- `index.jsx` presmerovava na `location.state?.from?.pathname || '/customer-dashboard'` (podpora "redirect back to original page")
-- `LoginForm.jsx` presmerovava na zakladne Firestore role: `/host-dashboard` nebo `/customer-dashboard`
+### 17.3 Future improvements (Roadmap)
 
-Protoze se pouziva jen `LoginForm.jsx` logika, funkce "redirect back to page where user was before login" NEFUNGUJE.
+- [ ] Password reset flow (`/forgot-password` routa + email link)
+- [ ] Two-factor authentication
+- [ ] EN translation completion
+- [ ] Accessibility audit + fixes (aria-describedby, aria-invalid, aria-live, label htmlFor/id)
+- [ ] Loading skeleton UI pri AuthContext.loading === true
 
-### 17.3 Orphan komponenty
+---
 
-4 z 5 subkomponent jsou pripravene ale nepouzivane:
-- `LoginHeader.jsx` — logo + uvitani
-- `LoginActions.jsx` — forgot password + register + demo credentials
-- `SocialLogin.jsx` — socialni prihlaseni (jen placeholder, zadna implementace)
-- `LanguageToggle.jsx` — prepinac jazyka
+## 18. Posledni aktualizace
 
-### 17.4 rememberMe checkbox nema efekt
+**Datum:** 2026-02-24
+**Zmeny v teto verzi:** Sprint 1 Auth Bugfixy — Bug 1: Google Sign-In error handling.
 
-Checkbox "Zapamatovat si me" se renderuje a jeho hodnota se uklada do form dat, ale nikde se nevyuziva. Firebase Auth je globalne nastaven na `browserLocalPersistence` (session vzdy prezije) bez ohledu na checkbox.
+### Zmeny 2026-02-24:
+- **FirebaseAuthProvider.jsx:** `loginWithGoogle()` a `register()` — `setDoc()` obaleno try/catch. Pokud Firestore zapis selze, auth pokracuje (nezablokuje login/registraci).
+- **GoogleSignInButton.jsx:** Pridan `console.error('Google Sign-In failed:', err)` v catch bloku pro lepsi debugovani.
+- **LoginForm.jsx:** `handleGoogleError()` — pridan `console.error`, pridano `auth/account-exists-with-different-credential` handling, genericError fallback text.
+- **Frontend service soubory** (`presetsApi.js`, `slicerApi.js`, `storageApi.js`): Pridany `Authorization: Bearer <token>` headery do vsech fetch volani pres `window.__authGetToken()`.
 
-### 17.5 Chybejici routa /forgot-password
-
-`LoginActions.jsx:31` odkazuje na `/forgot-password`, ale tato routa neni definovana v `Routes.jsx`. Pokud by se LoginActions aktivovala, odkaz by vedl na 404.
-
-### 17.6 SocialLogin je jen placeholder
-
-`SocialLogin.jsx` definuje tlacitka pro Google, Facebook, Apple ale `handleSocialLogin` jen loguje do konzole. Firebase Social Auth neni implementovan.
-
-### 17.7 Neni EN preklad
-
-`i18n.js` nacita pouze cesky preklad. Pokud by byl jazyk nastaven na EN, vsechny klice by se zobrazily jako cesky fallback (diky `fallbackLng: "cs"`).
-
-### 17.8 Chybejici loading state na urovni stranky
-
-Kdyz `AuthContext.loading === true`, `index.jsx` nevrati nic (ani loading spinner) — `LoginForm` se renderuje, ale `useAuth` nemusi byt jeste resolved. Nicmene LoginForm pouziva vlastni auth logiku nezavislou na AuthContext, takze prakticky to nezpusobuje problemy.
-
-### 17.9 Pristupnost — labels nepropojene s inputy
-
-Viz sekce 12.2. Hlavni problem: `<label>` elementy nejsou propojene pres `htmlFor`/`id`.
+### Zmeny 2026-02-23:
+- Pridani page wrapper struktury (bg-void, container, heading, card) do index.jsx. Lokalizace nadpisu a podnadpisu pres useTranslation(). Design konzistentni s Register strankou.

@@ -1,12 +1,11 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from '@/firebase';
+import { useAuth } from '@/context/AuthContext';
 import ForgeButton from '@/components/ui/forge/ForgeButton';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import Icon from '@/components/AppIcon';
 import { useTranslation } from 'react-i18next';
 
@@ -49,9 +48,10 @@ const errorStyle = {
   fontFamily: 'var(--forge-font-body)',
 };
 
-const LoginForm = () => {
+const LoginForm = ({ redirectTo = '/admin' }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const loginSchema = createLoginSchema(t);
 
   const {
@@ -66,26 +66,8 @@ const LoginForm = () => {
 
   const onSubmit = async (data) => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      const user = userCredential.user;
-
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const userRole = userData.role || 'customer';
-
-        if (userRole === 'host') {
-          navigate('/host-dashboard');
-        } else {
-          navigate('/customer-dashboard');
-        }
-      } else {
-        console.error("User document not found in Firestore!");
-        navigate('/customer-dashboard');
-      }
-
+      await login(data.email, data.password);
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       let errorMessage = t('loginForm.genericError');
       switch (error.code) {
@@ -98,10 +80,25 @@ const LoginForm = () => {
           errorMessage = t('loginForm.tooManyRequests');
           break;
         default:
-          console.error("Firebase login error:", error);
+          console.error("Login error:", error);
       }
       setError('root.serverError', { type: 'manual', message: errorMessage });
     }
+  };
+
+  const handleGoogleSuccess = () => {
+    navigate(redirectTo, { replace: true });
+  };
+
+  const handleGoogleError = (err) => {
+    if (err?.code === 'auth/popup-closed-by-user') return;
+    console.error('Google login error:', err);
+
+    const msg = err?.code === 'auth/account-exists-with-different-credential'
+      ? t('loginForm.accountExistsWithDifferentCredential', 'This email is already registered with a different method.')
+      : t('loginForm.genericError', 'Prihlaseni selhalo. Zkuste to prosim znovu.');
+
+    setError('root.serverError', { type: 'manual', message: msg });
   };
 
   const handleInputFocus = (e) => {
@@ -194,6 +191,53 @@ const LoginForm = () => {
           {isSubmitting ? t('loginForm.loggingIn') : t('loginForm.loginButton')}
         </ForgeButton>
       </form>
+
+      {/* Divider */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        margin: '20px 0',
+      }}>
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--forge-border-default)' }} />
+        <span style={{
+          fontSize: '12px',
+          color: 'var(--forge-text-muted)',
+          fontFamily: 'var(--forge-font-body)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}>
+          {t('loginForm.or', 'or')}
+        </span>
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--forge-border-default)' }} />
+      </div>
+
+      {/* Google Sign-In */}
+      <GoogleSignInButton
+        onSuccess={handleGoogleSuccess}
+        onError={handleGoogleError}
+        label={t('loginForm.signInWithGoogle', 'Sign in with Google')}
+        disabled={isSubmitting}
+      />
+
+      {/* Register link */}
+      <div style={{
+        textAlign: 'center',
+        paddingTop: '20px',
+        borderTop: '1px solid var(--forge-border-default)',
+        marginTop: '20px',
+      }}>
+        <p style={{
+          fontSize: '13px',
+          color: 'var(--forge-text-muted)',
+          fontFamily: 'var(--forge-font-body)',
+        }}>
+          {t('loginForm.noAccount', "Don't have an account?")}{' '}
+          <Link to="/register" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
+            {t('loginForm.registerLink', 'Create account')}
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };

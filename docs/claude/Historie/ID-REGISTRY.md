@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 038
-**Dalsi ID k pouziti:** 039
+**Posledni pouzite ID:** 064
+**Dalsi ID k pouziti:** 065
 
 ---
 
@@ -82,6 +82,7 @@ S{NN}
 | ST | Storage | src/utils/adminTenantStorage.js + helpery |
 | SB | Supabase | src/lib/supabase/ |
 | SH | Shopify | src/lib/shopify/ |
+| AU | Auth | docs/claude/Research/Auth/ |
 | RT | Routing | src/Routes.jsx |
 | LC | LanguageContext | src/contexts/LanguageContext.jsx |
 | BK | Backend | backend-local/ |
@@ -133,6 +134,7 @@ S{NN}
 | KONVERZACE | Uzivatelovy zpravy + Claude odpovedi | _KONVERZACE.md |
 | UPRAVY | Technicke zmeny v souborech | _UPRAVY.md |
 | OTAZKY | Otazky a odpovedi, rozhodnuti | _OTAZKY.md |
+| FAZE | Individualni faze vicefazoveho planu/sprintu | _FAZE-{N}-{Nazev}.md |
 | DENNI-PREHLED | Souhrn celeho dne | DENNI-PREHLED.md |
 
 ---
@@ -166,7 +168,7 @@ S{NN}
 
 **Celkem: 350/400 (prumer 17.5/20)**
 
-### Historie zaznamy (032-033)
+### Historie zaznamy (032-046)
 
 | ID | Zkratka | Oblast | Typ | Datum |
 |----|---------|--------|-----|-------|
@@ -174,11 +176,37 @@ S{NN}
 | 033 | GN | General | UPRAVY — 22 novych + 2 uprav souboru | 2026-02-20 |
 | 034 | GN | General | UPRAVY — Faze1 Screenshoty (5 PNG + 5 MD uprav) | 2026-02-20 |
 | 035 | GN | General | UPRAVY — Faze2 Screenshoty (5 PNG + 5 MD uprav, stranky 017-021) | 2026-02-20 |
-| 036 | GN | general-purpose | Faze 3 screenshoty + reporty |
-| 037 | GN | general-purpose | Faze 4 screenshoty + reporty |
-| 038 | GN | general-purpose | Denni prehled 2026-02-20 |
+| 036 | GN | general-purpose | Faze 3 screenshoty + reporty | 2026-02-20 |
+| 037 | GN | general-purpose | Faze 4 screenshoty + reporty | 2026-02-20 |
+| 038 | GN | general-purpose | Denni prehled 2026-02-20 | 2026-02-20 |
+| 039 | AU | Auth | UPRAVY — Phase 1 Auth Research | 2026-02-20 |
+| 040 | AU | Auth | UPRAVY — Phase 2 Auth Research | 2026-02-20 |
+| 041 | AU | Auth | UPRAVY — Phase 3 Auth Research (Security Checklist) | 2026-02-20 |
+| 042 | AU | Auth | DENNI-PREHLED — Cela Auth Research kompletni (4 faze, 1483 radku) | 2026-02-20 |
+| 043 | AU | Auth | KONVERZACE — Sprint 1 implementace (retroaktivni historia save) | 2026-02-22 |
+| 044 | AU | Auth | UPRAVY — Sprint 1 (8 novych + 7 upravenych + 4 smazane, build PASS) | 2026-02-22 |
+| 045 | AU | Auth | OTAZKY — 10 design decisions (email, role, Google, provider, token) | 2026-02-22 |
+| 046 | AU | Auth | DENNI-PREHLED — Sprint 1 Complete (1200+ radku, kriticka chyba + oprava) | 2026-02-22 |
+| 047 | AU | Auth | UPRAVY — Faze 0 (Priprava: adresare, firebase-admin, Firebase config overeni) | 2026-02-22 |
+| 048 | AU | Auth | UPRAVY — Faze 1 (AuthContext rewrite, FirebaseAuthProvider, SupabaseAuthProvider stub, providers/index.jsx) | 2026-02-22 |
+| 049 | AU | Auth | UPRAVY — Faze 2 (PrivateRoute aktivace, Login+Google, Register 1-step, GoogleSignInButton, smazane komponenty) | 2026-02-22 |
+| 050 | AU | Auth | UPRAVY — Faze 3 (Backend auth middleware, tenant middleware, firebaseAdmin.js, apiClient interceptory) | 2026-02-22 |
+| 051 | AU | Auth | UPRAVY — Faze 4 (Build fix .js->.jsx, MEMORY.md, procesni chyba dokumentace) | 2026-02-22 |
+| 052 | LG | Login-Page | UPRAVY — Faze 1+3 (Login page wrapper, Register i18n) | 2026-02-23 |
+| 053 | LG | Login-Page | KONVERZACE — Kompletni session S01 (plan, implementace, uzivateluv feedback, retroaktivni historia save) | 2026-02-23 |
+| 054 | LG | Login-Page | UPRAVY — Kompletni technicke zmeny (login/index.jsx, register/index.jsx, obe dokumentace) | 2026-02-23 |
+| 055 | LG | Login-Page | OTAZKY — 6 Q&A o procesni discipline, i18n, dokumentaci, prevenci budoucích chyb | 2026-02-23 |
+| 056 | AU | Auth | KONVERZACE — Sprint 1 testovani (3 problemy: Google ticha chyba, backend offline, tenant isolation) | 2026-02-23 |
+| 057 | AU | Auth | UPRAVY — Firebase API key oprava + diagnoza 3 problemu (nefixnute, mimo Sprint 1 scope) | 2026-02-23 |
+| 058 | GN | General | UPRAVY — 2 nove dokumentace (Sprint-Plan-Auth.md, RoadMap-Plan-BETA.md) pro osobni ucely uzivatele | 2026-02-23 |
+| 059 | AU | Auth | UPRAVY — Faze 1 Google Sign-In error handling (4 soubory, try/catch setDoc, console.error, handleGoogleError pattern) | 2026-02-24 |
+| 060 | AU | Auth | UPRAVY — Faze 3 Auth headery v service souborech (presetsApi, slicerApi, storageApi: JWT tokeny, async authHeaders refaktor, 12 fetch volani) | 2026-02-24 |
+| 061 | AU | Auth | UPRAVY — Faze 5 Backend .env (FIREBASE_PROJECT_ID) + 3 dokumentace (Login, Register, Backend-Server) | 2026-02-24 |
+| 062 | AU | Auth | KONVERZACE — Kompletni konverzace Sprint 1 bugfixy session (7 zprav, plan, chyby procesu) | 2026-02-24 |
+| 063 | AU | Auth | OTAZKY — 4 Q&A (task tracking, background agenti, chybejici typy zaznamu, zakaz compactu) | 2026-02-24 |
+| 064 | BK | Backend | UPRAVY — dotenv ESM import order fix (index.js: side-effect import pred firebaseAdmin) | 2026-02-24 |
 
 ---
 
-**Posledni aktualizace:** 2026-02-20
-**Posledni session:** S01 (2026-02-20) — Faze 4 oprava screenshotu + denni prehled (038-GN)
+**Posledni aktualizace:** 2026-02-24
+**Posledni session:** S02 (2026-02-24) — Backend dotenv ESM fix (064-BK)

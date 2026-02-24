@@ -83,38 +83,35 @@ export default function Routes() {
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/support" element={<Support />} />
 
-          {/* chráněné - DOČASNĚ VYPNUTO PRO VÝVOJ */}
-          {/* <Route element={<PrivateRoute />}> */}
+          {/* Protected routes */}
+          <Route element={<PrivateRoute />}>
             <Route path="/account" element={<AccountPage />} />
-          {/* </Route> */}
+          </Route>
 
           {/* Public invite acceptance (demo) */}
           <Route path="/invite/accept" element={<InviteAccept />} />
 
-          {/* Admin Panel */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="branding" element={<AdminBranding />} />
-            <Route path="pricing" element={<AdminPricing />} />
-            <Route path="fees" element={<AdminFees />} />
-            {/* NOTE: subroutes are handled inside these modules */}
-            <Route path="parameters/*" element={<AdminParameters />} />
-            <Route path="presets/*" element={<AdminPresets />} />
-            <Route path="orders/*" element={<AdminOrders />} />
-            <Route path="model-storage" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminModelStorage /></Suspense>} />
-            <Route path="widget" element={<AdminWidget />} />
-            {/* widget/builder/:id moved to top-level for fullscreen builder */}
-            <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="team" element={<AdminTeamAccess />} />
-            {/* Phase 2+3: New admin routes (lazy loaded) */}
-            <Route path="express" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminExpress /></Suspense>} />
-            <Route path="shipping" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminShipping /></Suspense>} />
-            <Route path="emails" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminEmails /></Suspense>} />
-            <Route path="coupons" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminCoupons /></Suspense>} />
-            {/* Phase 4: Database Migration */}
-            <Route path="migration" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminMigration /></Suspense>} />
-            {/* Shopify Integration */}
-            <Route path="integrations" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminIntegrations /></Suspense>} />
+          {/* Admin Panel (protected) */}
+          <Route element={<PrivateRoute />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="branding" element={<AdminBranding />} />
+              <Route path="pricing" element={<AdminPricing />} />
+              <Route path="fees" element={<AdminFees />} />
+              <Route path="parameters/*" element={<AdminParameters />} />
+              <Route path="presets/*" element={<AdminPresets />} />
+              <Route path="orders/*" element={<AdminOrders />} />
+              <Route path="model-storage" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminModelStorage /></Suspense>} />
+              <Route path="widget" element={<AdminWidget />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="team" element={<AdminTeamAccess />} />
+              <Route path="express" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminExpress /></Suspense>} />
+              <Route path="shipping" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminShipping /></Suspense>} />
+              <Route path="emails" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminEmails /></Suspense>} />
+              <Route path="coupons" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminCoupons /></Suspense>} />
+              <Route path="migration" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminMigration /></Suspense>} />
+              <Route path="integrations" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminIntegrations /></Suspense>} />
+            </Route>
           </Route>
 
                   {/* 404 */}

@@ -3,8 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Icon from '../AppIcon';
 import Button from './Button';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../firebase';
+import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import logoImg from '../../assets/logo.png';
 
@@ -18,6 +17,7 @@ const Header = () => {
   const langToggleBtnRef = useRef(null);
   const location = useLocation();
   const { language, setLanguage, t } = useLanguage();
+  const { currentUser, logout } = useAuth();
 
   // zavřít dropdown při kliknutí mimo
   useEffect(() => {
@@ -74,15 +74,14 @@ const Header = () => {
 
   async function handleSignOut() {
     try {
-      await signOut(auth);
+      await logout();
       window.location.href = '/login';
     } catch (e) {
       console.error('Sign out failed:', e);
-      alert('Nepodařilo se odhlásit. Zkuste to prosím znovu.');
     }
   }
 
-  const isLoggedIn = !!auth.currentUser;
+  const isLoggedIn = !!currentUser;
 
   const navItems = [
     { label: t('nav.home'), path: '/', icon: 'Home' },

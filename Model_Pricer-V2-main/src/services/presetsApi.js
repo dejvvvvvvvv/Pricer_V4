@@ -43,6 +43,13 @@ export async function apiFetch(path, options = {}) {
   headers.set('x-tenant-id', tenantId);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
 
+  if (window.__authGetToken) {
+    try {
+      const token = await window.__authGetToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+    } catch { /* continue without auth */ }
+  }
+
   // If we're sending JSON, ensure correct content-type.
   const body = options.body;
   if (body && typeof body === 'string' && !headers.has('Content-Type')) {

@@ -5,6 +5,17 @@
 
 ---
 
+## Pravidla pro planovani a implementaci (P0)
+
+**Pri KAZDEM planovani a implementaci MUSI byt dodrzeny tyto dva soubory:**
+
+1. **`docs/claude/Pravidla/Hlavní_Pozadavky.md`** — hlavni pozadavky: maximalni vyuziti agentu, vytvareni novych agentu, format otazek, kontrolni seznam pro plan
+2. **`docs/claude/Pravidla/4kroky.md`** — 4 povinne kontrolni kroky jako SAMOSTATNA faze po kazde implementacni fazi (historie → testovani → historie → compact)
+
+**Klicove:** Plan MUSI stridat pracovni a kontrolni faze. Kontrolni faze (4 kroky) je VZDY samostatna — neni soucasti implementacni faze.
+
+---
+
 ## Povinne dotazovani pred planovanim (Anti-Hallucination Gate)
 
 **VZDY se zeptej uzivatele pred dokoncenim planu.** Toto je P0 pravidlo pro prevenci halucinaci a spatnych predpokladu.

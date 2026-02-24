@@ -3,49 +3,25 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from '@/firebase';
+import { useAuth } from '@/context/AuthContext';
 import ForgeButton from '@/components/ui/forge/ForgeButton';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import Icon from '@/components/AppIcon';
 import { useTranslation } from 'react-i18next';
 
-const createRegistrationSchema = (t, role) => {
-  let schema = z.object({
-    firstName: z.string().min(1, t('registrationForm.firstNameRequired')),
-    lastName: z.string().min(1, t('registrationForm.lastNameRequired')),
-    email: z.string().email(t('registrationForm.emailInvalid')),
-    phone: z.string().optional(),
-    password: z.string().min(6, t('registrationForm.passwordMinLength')),
-    confirmPassword: z.string(),
-    agreeTerms: z.boolean().refine(val => val === true, {
-      message: t('registrationForm.agreeTermsRequired'),
-    }),
-    agreeMarketing: z.boolean().optional(),
-    companyName: z.string().optional(),
-    businessId: z.string().optional(),
-    city: z.string().optional(),
-    postalCode: z.string().optional(),
-    address: z.string().optional(),
-    confirmEquipment: z.boolean().optional(),
-  }).refine(data => data.password === data.confirmPassword, {
-    message: t('registrationForm.passwordsDoNotMatch'),
-    path: ["confirmPassword"],
-  });
-
-  if (role === 'host') {
-    schema = schema.extend({
-      city: z.string().min(1, t('registrationForm.cityRequired')),
-      postalCode: z.string().min(1, t('registrationForm.postalCodeRequired')),
-      address: z.string().min(1, t('registrationForm.addressRequired')),
-      confirmEquipment: z.boolean().refine(val => val === true, {
-        message: t('registrationForm.confirmEquipmentRequired'),
-      }),
-    });
-  }
-
-  return schema;
-};
+const createRegistrationSchema = (t) => z.object({
+  firstName: z.string().min(1, t('registrationForm.firstNameRequired')),
+  lastName: z.string().min(1, t('registrationForm.lastNameRequired')),
+  email: z.string().email(t('registrationForm.emailInvalid')),
+  password: z.string().min(6, t('registrationForm.passwordMinLength')),
+  confirmPassword: z.string(),
+  agreeTerms: z.boolean().refine(val => val === true, {
+    message: t('registrationForm.agreeTermsRequired'),
+  }),
+}).refine(data => data.password === data.confirmPassword, {
+  message: t('registrationForm.passwordsDoNotMatch'),
+  path: ['confirmPassword'],
+});
 
 const inputStyle = {
   width: '100%',
@@ -80,26 +56,14 @@ const errorTextStyle = {
   fontFamily: 'var(--forge-font-body)',
 };
 
-const sectionHeadingStyle = {
-  fontFamily: 'var(--forge-font-tech)',
-  fontSize: '12px',
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  color: 'var(--forge-text-primary)',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  marginBottom: '16px',
-};
-
-const RegistrationForm = ({ selectedRole }) => {
+const RegistrationForm = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { register: authRegister } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const registrationSchema = createRegistrationSchema(t, selectedRole);
+  const registrationSchema = createRegistrationSchema(t);
 
   const {
     register,
@@ -109,46 +73,20 @@ const RegistrationForm = ({ selectedRole }) => {
   } = useForm({
     resolver: zodResolver(registrationSchema),
     defaultValues: {
-      firstName: '', lastName: '', email: '', phone: '',
+      firstName: '', lastName: '', email: '',
       password: '', confirmPassword: '',
-      agreeTerms: false, agreeMarketing: false,
-      companyName: '', businessId: '', city: '', postalCode: '', address: '',
-      confirmEquipment: false,
+      agreeTerms: false,
     }
   });
 
   const onSubmit = async (data) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const user = userCredential.user;
-
-      const userData = {
-        uid: user.uid,
+      await authRegister(data.email, data.password, {
+        displayName: `${data.firstName} ${data.lastName}`,
         firstName: data.firstName,
         lastName: data.lastName,
-        email: data.email,
-        phone: data.phone || '',
-        role: selectedRole,
-        createdAt: new Date(),
-        ...(selectedRole === 'host' && {
-          companyName: data.companyName || '',
-          businessId: data.businessId || '',
-          address: {
-            city: data.city,
-            postalCode: data.postalCode,
-            street: data.address,
-          },
-        })
-      };
-
-      await setDoc(doc(db, "users", user.uid), userData);
-
-      if (selectedRole === 'host') {
-        navigate('/host-dashboard');
-      } else {
-        navigate('/customer-dashboard');
-      }
-
+      });
+      navigate('/admin', { replace: true });
     } catch (error) {
       let errorMessage = t('registrationForm.genericError');
       if (error.code === 'auth/email-already-in-use') {
@@ -157,8 +95,23 @@ const RegistrationForm = ({ selectedRole }) => {
       } else {
         setError('root.serverError', { type: 'manual', message: errorMessage });
       }
-      console.error("Firebase registration error:", error);
+      console.error("Registration error:", error);
     }
+  };
+
+  const handleGoogleSuccess = () => {
+    navigate('/admin', { replace: true });
+  };
+
+  const handleGoogleError = (err) => {
+    if (err?.code === 'auth/popup-closed-by-user') return;
+    console.error('Google registration error:', err);
+
+    const msg = err?.code === 'auth/account-exists-with-different-credential'
+      ? t('registrationForm.accountExistsError', 'Tento ucet je jiz registrovan jinou metodou.')
+      : t('registrationForm.genericError');
+
+    setError('root.serverError', { type: 'manual', message: msg });
   };
 
   const handleFocus = (e) => {
@@ -171,172 +124,207 @@ const RegistrationForm = ({ selectedRole }) => {
     e.target.style.boxShadow = 'none';
   };
 
-  const renderInput = (name, label, type = 'text', placeholder = '', required = false) => (
-    <div>
-      <label style={labelStyle}>{label}{required ? ' *' : ''}</label>
-      <input
-        type={type}
-        placeholder={placeholder}
-        {...register(name)}
-        disabled={isSubmitting}
-        style={{
-          ...inputStyle,
-          borderColor: errors[name] ? 'var(--forge-error)' : 'var(--forge-border-default)',
-        }}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-      />
-      {errors[name]?.message && <div style={errorTextStyle}>{errors[name].message}</div>}
-    </div>
-  );
-
-  const renderPasswordInput = (name, label, show, setShow, placeholder) => (
-    <div style={{ position: 'relative' }}>
-      <label style={labelStyle}>{label} *</label>
-      <input
-        type={show ? 'text' : 'password'}
-        placeholder={placeholder}
-        {...register(name)}
-        disabled={isSubmitting}
-        style={{
-          ...inputStyle,
-          paddingRight: '40px',
-          borderColor: errors[name] ? 'var(--forge-error)' : 'var(--forge-border-default)',
-        }}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-      />
-      <button
-        type="button"
-        onClick={() => setShow(!show)}
-        style={{
-          position: 'absolute', right: '12px', top: '32px',
-          background: 'none', border: 'none', padding: '4px',
-          color: 'var(--forge-text-muted)', cursor: 'pointer',
-        }}
-      >
-        <Icon name={show ? 'EyeOff' : 'Eye'} size={18} />
-      </button>
-      {errors[name]?.message && <div style={errorTextStyle}>{errors[name].message}</div>}
-    </div>
-  );
-
-  const renderCheckbox = (name, label, required = false) => (
-    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
-      <input
-        type="checkbox"
-        {...register(name)}
-        disabled={isSubmitting}
-        style={{ accentColor: 'var(--forge-accent-primary)', marginTop: '3px', flexShrink: 0 }}
-      />
-      <span style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', lineHeight: 1.4 }}>
-        {label}
-      </span>
-      {errors[name]?.message && <div style={errorTextStyle}>{errors[name].message}</div>}
-    </label>
-  );
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {errors.root?.serverError && (
-        <p style={{ color: 'var(--forge-error)', textAlign: 'center', fontSize: '13px', fontFamily: 'var(--forge-font-body)' }}>
-          {errors.root.serverError.message}
-        </p>
-      )}
+    <div>
+      {/* Google Sign-Up (top) */}
+      <GoogleSignInButton
+        onSuccess={handleGoogleSuccess}
+        onError={handleGoogleError}
+        label={t('registrationForm.signUpWithGoogle', 'Sign up with Google')}
+        disabled={isSubmitting}
+      />
 
-      {/* Personal Details */}
-      <div>
-        <h3 style={sectionHeadingStyle}>
-          <Icon name="User" size={18} style={{ color: 'var(--forge-text-muted)' }} />
-          {t('registrationForm.personalDetails')}
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-          {renderInput('firstName', t('registrationForm.firstNameLabel'), 'text', t('registrationForm.firstNamePlaceholder'), true)}
-          {renderInput('lastName', t('registrationForm.lastNameLabel'), 'text', t('registrationForm.lastNamePlaceholder'), true)}
-        </div>
-        {renderInput('email', t('registrationForm.emailLabel'), 'email', t('registrationForm.emailPlaceholder'), true)}
-        <div style={{ marginTop: '16px' }}>
-          {renderInput('phone', t('registrationForm.phoneLabel'), 'tel', '+420 123 456 789')}
-        </div>
+      {/* Divider */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        margin: '20px 0',
+      }}>
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--forge-border-default)' }} />
+        <span style={{
+          fontSize: '12px',
+          color: 'var(--forge-text-muted)',
+          fontFamily: 'var(--forge-font-body)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}>
+          {t('registrationForm.orEmail', 'or with email')}
+        </span>
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--forge-border-default)' }} />
       </div>
 
-      {/* Security */}
-      <div>
-        <h3 style={sectionHeadingStyle}>
-          <Icon name="Lock" size={18} style={{ color: 'var(--forge-text-muted)' }} />
-          {t('registrationForm.security')}
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {renderPasswordInput('password', t('registrationForm.passwordLabel'), showPassword, setShowPassword, t('registrationForm.passwordPlaceholder'))}
-          {renderPasswordInput('confirmPassword', t('registrationForm.confirmPasswordLabel'), showConfirmPassword, setShowConfirmPassword, t('registrationForm.confirmPasswordPlaceholder'))}
-        </div>
-      </div>
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {errors.root?.serverError && (
+          <div style={{
+            padding: '12px',
+            backgroundColor: 'rgba(255, 71, 87, 0.06)',
+            border: '1px solid rgba(255, 71, 87, 0.2)',
+            borderRadius: 'var(--forge-radius-sm)',
+          }}>
+            <p style={{
+              fontSize: '13px',
+              color: 'var(--forge-error)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontFamily: 'var(--forge-font-body)',
+              margin: 0,
+            }}>
+              <Icon name="AlertCircle" size={16} />
+              <span>{errors.root.serverError.message}</span>
+            </p>
+          </div>
+        )}
 
-      {/* Business Info (host only) */}
-      {selectedRole === 'host' && (
-        <div>
-          <h3 style={sectionHeadingStyle}>
-            <Icon name="Building" size={18} style={{ color: 'var(--forge-text-muted)' }} />
-            {t('registrationForm.businessInfo')}
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {renderInput('companyName', t('registrationForm.companyNameLabel'))}
-            {renderInput('businessId', t('registrationForm.businessIdLabel'))}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              {renderInput('city', t('registrationForm.cityLabel'), 'text', '', true)}
-              {renderInput('postalCode', t('registrationForm.postalCodeLabel'), 'text', '', true)}
-            </div>
-            {renderInput('address', t('registrationForm.addressLabel'), 'text', '', true)}
+        {/* Name fields */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={labelStyle}>{t('registrationForm.firstNameLabel')} *</label>
+            <input
+              type="text"
+              placeholder={t('registrationForm.firstNamePlaceholder')}
+              {...register('firstName')}
+              disabled={isSubmitting}
+              style={{
+                ...inputStyle,
+                borderColor: errors.firstName ? 'var(--forge-error)' : 'var(--forge-border-default)',
+              }}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+            />
+            {errors.firstName?.message && <div style={errorTextStyle}>{errors.firstName.message}</div>}
+          </div>
+          <div>
+            <label style={labelStyle}>{t('registrationForm.lastNameLabel')} *</label>
+            <input
+              type="text"
+              placeholder={t('registrationForm.lastNamePlaceholder')}
+              {...register('lastName')}
+              disabled={isSubmitting}
+              style={{
+                ...inputStyle,
+                borderColor: errors.lastName ? 'var(--forge-error)' : 'var(--forge-border-default)',
+              }}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+            />
+            {errors.lastName?.message && <div style={errorTextStyle}>{errors.lastName.message}</div>}
           </div>
         </div>
-      )}
 
-      {/* Legal Agreements */}
-      <div>
-        <h3 style={sectionHeadingStyle}>
-          <Icon name="FileText" size={18} style={{ color: 'var(--forge-text-muted)' }} />
-          {t('registrationForm.legalAgreements')}
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              {...register('agreeTerms')}
-              disabled={isSubmitting}
-              style={{ accentColor: 'var(--forge-accent-primary)', marginTop: '3px', flexShrink: 0 }}
-            />
-            <span style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', lineHeight: 1.4 }}>
-              {t('registrationForm.agreeTermsPrefix')}{' '}
-              <Link to="/terms" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.termsAndConditions')}</Link>
-              {' '}{t('registrationForm.and')}{' '}
-              <Link to="/privacy" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.privacyPolicy')}</Link> *
-            </span>
-          </label>
-          {errors.agreeTerms?.message && <div style={errorTextStyle}>{errors.agreeTerms.message}</div>}
-
-          {renderCheckbox('agreeMarketing', t('registrationForm.agreeMarketing'))}
-
-          {selectedRole === 'host' && renderCheckbox('confirmEquipment', t('registrationForm.confirmEquipment'), true)}
+        {/* Email */}
+        <div>
+          <label style={labelStyle}>{t('registrationForm.emailLabel')} *</label>
+          <input
+            type="email"
+            placeholder={t('registrationForm.emailPlaceholder')}
+            {...register('email')}
+            disabled={isSubmitting}
+            style={{
+              ...inputStyle,
+              borderColor: errors.email ? 'var(--forge-error)' : 'var(--forge-border-default)',
+            }}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+          />
+          {errors.email?.message && <div style={errorTextStyle}>{errors.email.message}</div>}
         </div>
-      </div>
 
-      {/* Submit */}
-      <div style={{ paddingTop: '8px' }}>
+        {/* Password */}
+        <div style={{ position: 'relative' }}>
+          <label style={labelStyle}>{t('registrationForm.passwordLabel')} *</label>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder={t('registrationForm.passwordPlaceholder')}
+            {...register('password')}
+            disabled={isSubmitting}
+            style={{
+              ...inputStyle,
+              paddingRight: '40px',
+              borderColor: errors.password ? 'var(--forge-error)' : 'var(--forge-border-default)',
+            }}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute', right: '12px', top: '32px',
+              background: 'none', border: 'none', padding: '4px',
+              color: 'var(--forge-text-muted)', cursor: 'pointer',
+            }}
+          >
+            <Icon name={showPassword ? 'EyeOff' : 'Eye'} size={18} />
+          </button>
+          {errors.password?.message && <div style={errorTextStyle}>{errors.password.message}</div>}
+        </div>
+
+        {/* Confirm Password */}
+        <div style={{ position: 'relative' }}>
+          <label style={labelStyle}>{t('registrationForm.confirmPasswordLabel')} *</label>
+          <input
+            type={showConfirmPassword ? 'text' : 'password'}
+            placeholder={t('registrationForm.confirmPasswordPlaceholder')}
+            {...register('confirmPassword')}
+            disabled={isSubmitting}
+            style={{
+              ...inputStyle,
+              paddingRight: '40px',
+              borderColor: errors.confirmPassword ? 'var(--forge-error)' : 'var(--forge-border-default)',
+            }}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            style={{
+              position: 'absolute', right: '12px', top: '32px',
+              background: 'none', border: 'none', padding: '4px',
+              color: 'var(--forge-text-muted)', cursor: 'pointer',
+            }}
+          >
+            <Icon name={showConfirmPassword ? 'EyeOff' : 'Eye'} size={18} />
+          </button>
+          {errors.confirmPassword?.message && <div style={errorTextStyle}>{errors.confirmPassword.message}</div>}
+        </div>
+
+        {/* Terms */}
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            {...register('agreeTerms')}
+            disabled={isSubmitting}
+            style={{ accentColor: 'var(--forge-accent-primary)', marginTop: '3px', flexShrink: 0 }}
+          />
+          <span style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', lineHeight: 1.4 }}>
+            {t('registrationForm.agreeTermsPrefix')}{' '}
+            <Link to="/terms" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.termsAndConditions')}</Link>
+            {' '}{t('registrationForm.and')}{' '}
+            <Link to="/privacy" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.privacyPolicy')}</Link> *
+          </span>
+        </label>
+        {errors.agreeTerms?.message && <div style={errorTextStyle}>{errors.agreeTerms.message}</div>}
+
+        {/* Submit */}
         <ForgeButton
           variant="primary"
           type="submit"
           disabled={isSubmitting}
-          style={{ width: '100%', height: '48px' }}
+          style={{ width: '100%', height: '48px', marginTop: '8px' }}
         >
           {isSubmitting ? t('registrationForm.creatingAccount') : t('registrationForm.createAccountButton')}
         </ForgeButton>
-      </div>
+      </form>
 
-      {/* Login Link */}
+      {/* Login link */}
       <div style={{
         textAlign: 'center',
         paddingTop: '16px',
         borderTop: '1px solid var(--forge-border-default)',
+        marginTop: '20px',
       }}>
         <p style={{
           fontSize: '13px',
@@ -349,7 +337,7 @@ const RegistrationForm = ({ selectedRole }) => {
           </Link>
         </p>
       </div>
-    </form>
+    </div>
   );
 };
 
