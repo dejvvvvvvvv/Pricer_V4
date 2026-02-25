@@ -36,11 +36,13 @@ export function setTenantId(id) {
     console.warn('[adminTenantStorage] setTenantId called with invalid id:', id);
     return;
   }
+  console.debug('[adminTenantStorage] setTenantId:', id.trim());
   window.localStorage.setItem('modelpricer:tenant_id', id.trim());
 }
 
 export function clearTenantId() {
   if (!canUseLocalStorage()) return;
+  console.debug('[adminTenantStorage] clearTenantId');
   window.localStorage.removeItem('modelpricer:tenant_id');
 }
 

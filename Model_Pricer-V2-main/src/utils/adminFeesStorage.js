@@ -228,7 +228,7 @@ export function migrateLegacyFeesToV3() {
   // - Legacy source we support:
   //   1) AdminFees page local key: modelpricer_fees_config__{customerId}
   // - We try to auto-detect customerId by enumerating localStorage keys.
-  // - If multiple keys exist, prefer test-customer-1.
+  // - If multiple keys exist, prefer current tenant.
 
   if (!canUseLocalStorage()) {
     return { migrated: false, source: null, data: null, notes: 'No window/localStorage available.' };

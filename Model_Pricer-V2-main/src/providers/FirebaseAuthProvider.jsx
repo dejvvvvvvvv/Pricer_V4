@@ -110,10 +110,10 @@ export default function FirebaseAuthProvider({ children }) {
   // Handle redirect result on page load (fallback from popup -> redirect flow)
   useEffect(() => {
     getRedirectResult(auth)
-      .then(async (result) => {
+      .then((result) => {
         if (result?.user) {
           console.log('Redirect auth successful:', result.user.email);
-          await ensureGoogleUserProfile(result.user);
+          // Tenant binding handled by onAuthStateChanged listener
         }
       })
       .catch((err) => {

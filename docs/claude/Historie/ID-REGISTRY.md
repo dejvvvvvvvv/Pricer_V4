@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 080
-**Dalsi ID k pouziti:** 081
+**Posledni pouzite ID:** 084
+**Dalsi ID k pouziti:** 085
 
 ---
 
@@ -220,4 +220,4 @@ S{NN}
 ---
 
 **Posledni aktualizace:** 2026-02-25
-**Posledni session:** S01 (2026-02-25) — Per-User Tenant Izolace + P0 Code Review (076-ST az 080-ST)
+**Posledni session:** S01 (2026-02-25) — Per-User Tenant Izolace + P0 Code Review + P1 Fixes + P2 Fixes (076-ST az 084-ST)

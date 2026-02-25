@@ -8,7 +8,7 @@
  * @typedef {ApiOk | ApiErr} ApiResult
  */
 
-export { getTenantId } from '../utils/adminTenantStorage';
+import { getTenantId } from '../utils/adminTenantStorage';
 
 function tryJson(text) {
   try {

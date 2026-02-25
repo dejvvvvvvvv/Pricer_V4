@@ -8,6 +8,14 @@ import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
 
+function canUseLocalStorage() {
+  try {
+    return typeof window !== 'undefined' && !!window.localStorage;
+  } catch {
+    return false;
+  }
+}
+
 const USERS_KEY = (tenantId) => `modelpricer:${tenantId}:team_users`;
 const INVITES_KEY = (tenantId) => `modelpricer:${tenantId}:team_invites`;
 
@@ -33,7 +41,8 @@ function isValidEmail(email) {
 }
 
 function seedUsersIfNeeded(tenantId) {
-  const raw = localStorage.getItem(USERS_KEY(tenantId));
+  if (!canUseLocalStorage()) return;
+  const raw = window.localStorage.getItem(USERS_KEY(tenantId));
   if (raw) return;
   const seeded = [
     {
@@ -46,22 +55,25 @@ function seedUsersIfNeeded(tenantId) {
       createdAt: nowIso(),
     },
   ];
-  localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(seeded));
+  window.localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(seeded));
 }
 
 function seedInvitesIfNeeded(tenantId) {
-  const raw = localStorage.getItem(INVITES_KEY(tenantId));
+  if (!canUseLocalStorage()) return;
+  const raw = window.localStorage.getItem(INVITES_KEY(tenantId));
   if (raw) return;
-  localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify([]));
+  window.localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify([]));
 }
 
 function readUsers(tenantId) {
+  if (!canUseLocalStorage()) return [];
   seedUsersIfNeeded(tenantId);
-  return safeParse(localStorage.getItem(USERS_KEY(tenantId)), []);
+  return safeParse(window.localStorage.getItem(USERS_KEY(tenantId)), []);
 }
 
 function writeUsers(tenantId, users) {
-  localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(users));
+  if (!canUseLocalStorage()) return;
+  window.localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(users));
 
   // Fire-and-forget Supabase dual-write
   const mode = getStorageMode('team_users');
@@ -72,8 +84,9 @@ function writeUsers(tenantId, users) {
 }
 
 function readInvites(tenantId) {
+  if (!canUseLocalStorage()) return [];
   seedInvitesIfNeeded(tenantId);
-  const invites = safeParse(localStorage.getItem(INVITES_KEY(tenantId)), []);
+  const invites = safeParse(window.localStorage.getItem(INVITES_KEY(tenantId)), []);
   // Auto-expire.
   const now = Date.now();
   let changed = false;
@@ -84,12 +97,13 @@ function readInvites(tenantId) {
     }
     return i;
   });
-  if (changed) localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(updated));
+  if (changed) window.localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(updated));
   return updated;
 }
 
 function writeInvites(tenantId, invites) {
-  localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(invites));
+  if (!canUseLocalStorage()) return;
+  window.localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(invites));
 
   // Fire-and-forget Supabase dual-write
   const mode = getStorageMode('team_invites');

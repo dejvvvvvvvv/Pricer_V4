@@ -8,6 +8,14 @@ import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
 
+function canUseLocalStorage() {
+  try {
+    return typeof window !== 'undefined' && !!window.localStorage;
+  } catch {
+    return false;
+  }
+}
+
 const AUDIT_KEY = (tenantId) => `modelpricer:${tenantId}:audit_log`;
 
 function safeParse(json, fallback) {
@@ -27,7 +35,8 @@ function randomId(prefix = 'aud') {
 }
 
 export function getAuditEntries(tenantId = getTenantId()) {
-  const raw = localStorage.getItem(AUDIT_KEY(tenantId));
+  if (!canUseLocalStorage()) return [];
+  const raw = window.localStorage.getItem(AUDIT_KEY(tenantId));
   const parsed = safeParse(raw, []);
 
   // Backward-compatible normalization:
@@ -74,7 +83,9 @@ export function appendAuditEntry(
 
   // Retention: keep last ~2000 entries in demo.
   const next = [full, ...entries].slice(0, 2000);
-  localStorage.setItem(AUDIT_KEY(tenantId), JSON.stringify(next));
+  if (canUseLocalStorage()) {
+    window.localStorage.setItem(AUDIT_KEY(tenantId), JSON.stringify(next));
+  }
 
   // Fire-and-forget Supabase dual-write
   const mode = getStorageMode('audit_log');
@@ -96,7 +107,8 @@ export function appendAuditEntry(
 }
 
 export function clearAuditLog(tenantId = getTenantId()) {
-  localStorage.removeItem(AUDIT_KEY(tenantId));
+  if (!canUseLocalStorage()) return;
+  window.localStorage.removeItem(AUDIT_KEY(tenantId));
 }
 
 export function filterAuditEntries(

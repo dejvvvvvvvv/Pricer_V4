@@ -221,7 +221,7 @@ const AdminDashboard = () => {
       materialCount: enabledMaterials.length,
       totalMaterials,
     };
-  }, [refreshKey]);
+  }, [BRANDING_TENANT_ID, refreshKey]);
 
     const feesData = useMemo(() => {
     // Read fees config via tenant storage helper (fees:v3 namespace).
@@ -263,11 +263,11 @@ const AdminDashboard = () => {
     }, {});
 
     return { totalActive: activeFees.length, breakdown };
-  }, [refreshKey]);
+  }, [BRANDING_TENANT_ID, refreshKey]);
 
-  const widgetsList = useMemo(() => getWidgets(BRANDING_TENANT_ID), [refreshKey]);
-  const widgetDomains = useMemo(() => getWidgetDomains(BRANDING_TENANT_ID), [refreshKey]);
-  const planFeatures = useMemo(() => getPlanFeatures(BRANDING_TENANT_ID), [refreshKey]);
+  const widgetsList = useMemo(() => getWidgets(BRANDING_TENANT_ID), [BRANDING_TENANT_ID, refreshKey]);
+  const widgetDomains = useMemo(() => getWidgetDomains(BRANDING_TENANT_ID), [BRANDING_TENANT_ID, refreshKey]);
+  const planFeatures = useMemo(() => getPlanFeatures(BRANDING_TENANT_ID), [BRANDING_TENANT_ID, refreshKey]);
 
   const brandingTips = useMemo(() => {
     const current = getBranding(BRANDING_TENANT_ID);
@@ -277,7 +277,7 @@ const AdminDashboard = () => {
     if (!current?.businessName || current.businessName === defaults.businessName) tips.push(language === 'cs' ? 'Nastav nazev firmy v Brandingu.' : 'Set your business name in Branding.');
     if (!current?.tagline || current.tagline === defaults.tagline) tips.push(language === 'cs' ? 'Dopln tagline (kratky popis).' : 'Add a tagline (short description).');
     return tips.slice(0, 3);
-  }, [refreshKey, language]);
+  }, [BRANDING_TENANT_ID, refreshKey, language]);
 
   // Recent activity from Audit Log
   const recentActivity = useMemo(() => {

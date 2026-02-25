@@ -7,8 +7,8 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 80
-- **Posledni zaznam:** 080-ST (P0 Code Review + Opravy)
+- **Celkem zaznamu:** 84
+- **Posledni zaznam:** 084-ST (UPRAVY 2026-02-25)
 - **Posledni aktualizace:** 2026-02-25
 
 ---
@@ -91,6 +91,10 @@
 | **078** | **ST** | **OTAZKY** | **5 Q&A o modelu tenantu, migraci, test-kalkulacce** |
 | **079** | **ST** | **KONVERZACE** | **P0 Code Review request + paralelni implementace 3 agentu + spusteni 4 opravnych agentu** |
 | **080** | **ST** | **UPRAVY** | **6 souboru upravenych — setTenantId validace, logout order, getTenantId scope, legacy key removal, dead code** |
+| **081** | **GN** | **KONVERZACE** | **P1 Fixes session — paralelni oprava 7 chyb, build PASS, BUGFIX-TRACKER vytvoreny** |
+| **082** | **ST** | **UPRAVY** | **7 upravenych souboru + 1 novy (BUGFIX-TRACKER.md) — async API, cache, race condition, dead code** |
+| **083** | **GN** | **DENNI-PREHLED** | **Denni prehled 2026-02-25: P0 review + P1 fixes complete, 7 bugs fixed, build PASS** |
+| **084** | **ST** | **UPRAVY** | **P2 bugfixy — canUseLocalStorage() guardy v auditLog, teamAccess; getTenantId() cache v analytics; console.debug v tenantStorage** |
 
 ---
 
@@ -105,4 +109,4 @@
 | `Historie/2026-02-22/` | 9 zaznamu (Sprint 1 Auth implementace) |
 | `Historie/2026-02-23/` | 7 zaznamu (login page, Sprint 1 testovani) |
 | `Historie/2026-02-24/` | 17 zaznamu (Sprint 1 bugfixy + Sprint 2 komplet) |
-| `Historie/2026-02-25/` | 5 zaznamu (Per-User Tenant Izolace + P0 Code Review) |
+| `Historie/2026-02-25/` | 8 zaznamu (Per-User Tenant Izolace + P0 Code Review + P1 Fixes) |

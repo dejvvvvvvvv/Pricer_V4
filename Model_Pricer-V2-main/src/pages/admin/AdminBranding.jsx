@@ -80,7 +80,7 @@ const AdminBranding = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [customerId]);
 
   useEffect(() => {
     // Validate live
