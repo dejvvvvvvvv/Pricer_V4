@@ -11,7 +11,7 @@ import { computeOverview } from '../../utils/adminAnalyticsStorage';
 import { getTeamSummary, getSeatLimit } from '../../utils/adminTeamAccessStorage';
 import { loadOrders } from '../../utils/adminOrdersStorage';
 import { getAuditEntries } from '../../utils/adminAuditLogStorage';
-import { readTenantJson } from '../../utils/adminTenantStorage';
+import { readTenantJson, getTenantId } from '../../utils/adminTenantStorage';
 
 import { loadDashboardConfig, saveDashboardConfig, resetDashboardConfig } from '../../utils/adminDashboardStorage';
 import { DASHBOARD_CATEGORIES, DASHBOARD_METRICS, getMetricByKey } from '../../utils/dashboardMetricRegistry';
@@ -139,8 +139,8 @@ const AdminDashboard = () => {
     };
   }, [showAddModal, editing]);
 
-  // Branding tips banner (per project conventions, Branding/Widget pages use test-customer-1)
-  const BRANDING_TENANT_ID = 'test-customer-1';
+  // Branding tips banner
+  const BRANDING_TENANT_ID = getTenantId();
 
   // -----------------------
   // Live Data (computed once)
@@ -184,27 +184,9 @@ const AdminDashboard = () => {
   }, [refreshKey]);
 
     const pricingData = useMemo(() => {
-    // NOTE:
-    // AdminPricing saves config to localStorage under keys like:
-    // - modelpricer_pricing_config__test-customer-1
-    // and stores MATERIALS primarily as an object: { materialPrices: { pla: 0.6, petg: 0.7, ... } }
-    // (not as an array "materials"). Dashboard must support both shapes.
-    const tryParse = (raw) => {
-      try { return raw ? JSON.parse(raw) : null; } catch { return null; }
-    };
-
-    const tenantId = localStorage.getItem('modelpricer:tenant_id') || 'test-customer-1';
-    const keys = [
-      `modelpricer_pricing_config__${tenantId}`,
-      'modelpricer_pricing_config__test-customer-1',
-      'modelpricer_pricing_config__demo-tenant',
-    ];
-
-    let config = null;
-    for (const k of keys) {
-      const parsed = tryParse(localStorage.getItem(k));
-      if (parsed) { config = parsed; break; }
-    }
+    // Read pricing config via tenant storage helper (pricing:v3 namespace).
+    // Supports both V3 materialPrices object and legacy materials array shapes.
+    const config = readTenantJson('pricing:v3', null);
     if (!config) return { hourlyRate: 300, materialCount: 0, totalMaterials: 0 };
 
     const hourlyRate =
@@ -242,22 +224,8 @@ const AdminDashboard = () => {
   }, [refreshKey]);
 
     const feesData = useMemo(() => {
-    const tryParse = (raw) => {
-      try { return raw ? JSON.parse(raw) : null; } catch { return null; }
-    };
-
-    const tenantId = localStorage.getItem('modelpricer:tenant_id') || 'test-customer-1';
-    const keys = [
-      `modelpricer_fees_config__${tenantId}`,
-      'modelpricer_fees_config__test-customer-1',
-      'modelpricer_fees_config__demo-tenant',
-    ];
-
-    let config = null;
-    for (const k of keys) {
-      const parsed = tryParse(localStorage.getItem(k));
-      if (parsed) { config = parsed; break; }
-    }
+    // Read fees config via tenant storage helper (fees:v3 namespace).
+    const config = readTenantJson('fees:v3', null);
 
     // Fee storage can be:
     // - an array (legacy)

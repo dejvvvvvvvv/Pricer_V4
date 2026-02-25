@@ -8,7 +8,7 @@
   - Data model mirrors the specification (snapshots, activity log, notes, flags).
 */
 
-import { appendTenantLog, readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { appendTenantLog, getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
 
 const NS_ORDERS = 'orders:v1';
 const NS_ACTIVITY = 'orders:activity:v1';
@@ -307,7 +307,7 @@ function buildSeedOrders() {
 
     const order = {
       id,
-      tenant_id: 'demo-tenant',
+      tenant_id: getTenantId(),
       created_at: created.toISOString(),
       status,
       customer_snapshot: deepClone(customer),

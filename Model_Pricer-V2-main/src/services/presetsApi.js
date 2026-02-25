@@ -8,14 +8,7 @@
  * @typedef {ApiOk | ApiErr} ApiResult
  */
 
-export function getTenantId() {
-  // Keep consistent with /src/utils/adminTenantStorage.js
-  try {
-    return localStorage.getItem('modelpricer:tenant_id') || 'demo-tenant';
-  } catch {
-    return 'demo-tenant';
-  }
-}
+export { getTenantId } from '../utils/adminTenantStorage';
 
 function tryJson(text) {
   try {

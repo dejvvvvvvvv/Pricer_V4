@@ -9,6 +9,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { getCheckoutSchema } from '../schemas/checkoutSchema';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 import { loadOrders, saveOrders, nowIso } from '../../../utils/adminOrdersStorage';
+import { getTenantId } from '../../../utils/adminTenantStorage';
 
 function formatCzk(amount) {
   const n = Number.isFinite(amount) ? amount : 0;
@@ -102,7 +103,7 @@ export default function CheckoutForm({
 
     const order = {
       id: orderNumber,
-      tenant_id: 'demo-tenant',
+      tenant_id: getTenantId(),
       created_at: now,
       status: 'NEW',
       customer_snapshot: {

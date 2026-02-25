@@ -9,9 +9,7 @@ import {
 } from '../../utils/adminBrandingWidgetStorage';
 
 import { createWidgetBuilderConfig } from '../../widgets/puck/widgetBuilderConfig';
-
-// Demo tenant (Varianta A). TODO: unify tenant resolution across Admin + runtime.
-const TENANT_ID = 'test-customer-1';
+import { getTenantId } from '../../utils/adminTenantStorage';
 
 /**
  * Iframe-friendly runtime route.
@@ -24,9 +22,10 @@ const TENANT_ID = 'test-customer-1';
 export default function WidgetEmbed() {
   const { publicId } = useParams();
   const rootRef = useRef(null);
+  const tenantId = getTenantId();
 
-  const widget = useMemo(() => getWidgetByIdOrPublicId(TENANT_ID, publicId), [publicId]);
-  const data = useMemo(() => getWidgetBuilderData(TENANT_ID, publicId), [publicId]);
+  const widget = useMemo(() => getWidgetByIdOrPublicId(tenantId, publicId), [tenantId, publicId]);
+  const data = useMemo(() => getWidgetBuilderData(tenantId, publicId), [tenantId, publicId]);
   const config = useMemo(() => createWidgetBuilderConfig('preview'), []);
 
   useEffect(() => {

@@ -25,6 +25,16 @@
 
 ---
 
+## 2026-02-25
+
+### S01: Per-User Tenant Izolace — Faze 1+3+5 (Core + Auth + Cleanup)
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **050-ST** | 2026-02-25 | UPRAVY | ST | Per-User Tenant Izolace — Core storage + Auth binding + Hardcoded cleanup | 15 | Faze 1: setTenantId/clearTenantId; Faze 3: Firebase profil + auth state; Faze 5: 13 hardcoded cleanup; Build PASS |
+
+---
+
 ## Navi & Links
 
 - **ID-REGISTRY:** `docs/claude/Historie/ID-REGISTRY.md` — seznam zkratek + globalni pocitadlo

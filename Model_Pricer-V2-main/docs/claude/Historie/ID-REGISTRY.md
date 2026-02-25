@@ -1,7 +1,7 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Globalni pocitadlo:** 049 (incrementovano po kazdem zaznamu)
-**Dalsi ID k pouziti:** 050
+**Globalni pocitadlo:** 050 (incrementovano po kazdem zaznamu)
+**Dalsi ID k pouziti:** 051
 
 ---
 
@@ -12,7 +12,7 @@
 | AU | Auth (login, register, Google Sign-In, token handling) | 2 |
 | AC | Account (profil, company, team, settings) | 4 |
 | PR | Pricing Engine (cenovka, volume discounts, fees) | 0 |
-| ST | Storage (tenant storage, Supabase, migration) | 0 |
+| ST | Storage (tenant storage, Supabase, migration) | 1 |
 | WG | Widget Builder (widget.js, postMessage, embed) | 0 |
 | KA | Kalkulacka (test-kalkulacka, checkbox, recalc) | 0 |
 | DN | Dokumentace (docs, markdown, typo fixy) | 0 |
@@ -35,7 +35,8 @@
 | 046-AC | 2026-02-24 | Account | Sprint 2 Faze 3 — Profile Tab s Realnym Daty | 1 |
 | 047-AC | 2026-02-24 | Account | Sprint 2 Faze 5 — Company Tab s Realnym Ulozenim Dat | 2 |
 | 048-AC | 2026-02-24 | Account | Sprint 2 Faze 7+9 — Security (changePassword) + Billing (subscription + i18n + a11y) | 10 |
-| **049-AC** | 2026-02-24 | Account | **Sprint 2 KOMPLETNE HOTOVO — 5 ukolu, 10 souboru, build PASS** | **10** |
+| 049-AC | 2026-02-24 | Account | Sprint 2 KOMPLETNE HOTOVO — 5 ukolu, 10 souboru, build PASS | 10 |
+| **050-ST** | 2026-02-25 | Storage | **Per-User Tenant Izolace — Core + Auth + Hardcoded cleanup** | **15** |
 
 ---
 

@@ -5,12 +5,12 @@ import { appendAuditEntry } from './adminAuditLogStorage';
 import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
+import { getTenantId } from './adminTenantStorage';
 
-const DEFAULT_TENANT_ID = 'demo-tenant';
-const STORAGE_PREFIX = 'modelpricer:demo-tenant:analytics';
+function getStoragePrefix() { return `modelpricer:${getTenantId()}:analytics`; }
 
 function storageKeyEvents() {
-  return `${STORAGE_PREFIX}:events`;
+  return `${getStoragePrefix()}:events`;
 }
 
 function safeParse(json, fallback) {
@@ -58,7 +58,7 @@ export function clearAnalyticsAll() {
 }
 
 export function trackAnalyticsEvent({
-  tenantId = DEFAULT_TENANT_ID,
+  tenantId = getTenantId(),
   widgetInstanceId = null,
   sessionId,
   eventType,
@@ -146,7 +146,7 @@ export function buildSessionsFromEvents(events) {
 
     sessions.push({
       session_id: sessionId,
-      tenant_id: first.tenantId || DEFAULT_TENANT_ID,
+      tenant_id: first.tenantId || getTenantId(),
       widget_instance_id: first.widgetInstanceId || null,
       started_at: first.timestamp,
       last_event_at: last.timestamp,
@@ -394,6 +394,7 @@ export function seedAnalyticsDemo({
 } = {}) {
   if (typeof window === 'undefined') return;
 
+  const currentTenantId = getTenantId();
   const materials = ['PLA', 'PETG', 'ABS', 'ASA'];
   const presets = ['Basic', 'Standard', 'Detail'];
 
@@ -418,18 +419,18 @@ export function seedAnalyticsDemo({
       const t3 = new Date(toMs(t2) + 30 * 1000).toISOString();
 
       // view
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: DEFAULT_TENANT_ID, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.WIDGET_VIEW, timestamp: t0, metadata: {} });
+      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: getTenantId(), widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.WIDGET_VIEW, timestamp: t0, metadata: {} });
       // upload
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: DEFAULT_TENANT_ID, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.MODEL_UPLOAD_COMPLETED, timestamp: t1, metadata: { material, preset } });
+      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: getTenantId(), widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.MODEL_UPLOAD_COMPLETED, timestamp: t1, metadata: { material, preset } });
       // slicing complete
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: DEFAULT_TENANT_ID, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, timestamp: t2, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, result_status: 'success' } });
+      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: getTenantId(), widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, timestamp: t2, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, result_status: 'success' } });
       // price shown
       const feesSel = Math.random() < 0.3 ? ['fee_packaging'] : [];
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: DEFAULT_TENANT_ID, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.PRICE_SHOWN, timestamp: t3, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, price_total: price, currency: 'CZK', fees_selected: feesSel } });
+      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: getTenantId(), widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.PRICE_SHOWN, timestamp: t3, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, price_total: price, currency: 'CZK', fees_selected: feesSel } });
 
       if (Math.random() < conversionRate) {
         const t4 = new Date(toMs(t3) + 25 * 1000).toISOString();
-        events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: DEFAULT_TENANT_ID, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, timestamp: t4, metadata: { price_total: price, currency: 'CZK' } });
+        events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: getTenantId(), widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, timestamp: t4, metadata: { price_total: price, currency: 'CZK' } });
       }
     }
   }

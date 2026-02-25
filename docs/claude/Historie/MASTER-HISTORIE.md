@@ -7,8 +7,8 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 75
-- **Posledni zaznam:** 075-AC (Sprint 2 kompletni zmeny)
+- **Celkem zaznamu:** 80
+- **Posledni zaznam:** 080-ST (P0 Code Review + Opravy)
 - **Posledni aktualizace:** 2026-02-25
 
 ---
@@ -82,6 +82,16 @@
 | **074** | **AC** | **KONVERZACE** | **Sprint 2 finalni souhrn** |
 | **075** | **AC** | **UPRAVY** | **Sprint 2 kompletni zmeny (3 nove, 7 upravenych souboru)** |
 
+### 2026-02-25 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **076** | **ST** | **KONVERZACE** | **Per-User Tenant Izolace — plan S01, paralelni implementace 3 fazi, build PASS** |
+| **077** | **ST** | **UPRAVY** | **15 upravenych souboru v storage, auth, admin, checkout** |
+| **078** | **ST** | **OTAZKY** | **5 Q&A o modelu tenantu, migraci, test-kalkulacce** |
+| **079** | **ST** | **KONVERZACE** | **P0 Code Review request + paralelni implementace 3 agentu + spusteni 4 opravnych agentu** |
+| **080** | **ST** | **UPRAVY** | **6 souboru upravenych — setTenantId validace, logout order, getTenantId scope, legacy key removal, dead code** |
+
 ---
 
 ## Navigace
@@ -95,3 +105,4 @@
 | `Historie/2026-02-22/` | 9 zaznamu (Sprint 1 Auth implementace) |
 | `Historie/2026-02-23/` | 7 zaznamu (login page, Sprint 1 testovani) |
 | `Historie/2026-02-24/` | 17 zaznamu (Sprint 1 bugfixy + Sprint 2 komplet) |
+| `Historie/2026-02-25/` | 5 zaznamu (Per-User Tenant Izolace + P0 Code Review) |

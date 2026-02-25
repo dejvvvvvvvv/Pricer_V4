@@ -6,7 +6,7 @@
 
   Usage:
     useSupabaseRealtime('orders', {
-      filter: 'tenant_id=eq.demo-tenant-uuid',
+      filter: 'tenant_id=eq.<your-tenant-id>',
       onInsert: (payload) => refetch(),
       onUpdate: (payload) => refetch(),
       onDelete: (payload) => refetch(),

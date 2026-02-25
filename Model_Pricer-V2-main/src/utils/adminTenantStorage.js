@@ -30,6 +30,20 @@ export function getTenantId() {
   return window.localStorage.getItem('modelpricer:tenant_id') || 'demo-tenant';
 }
 
+export function setTenantId(id) {
+  if (!canUseLocalStorage()) return;
+  if (!id || typeof id !== 'string') {
+    console.warn('[adminTenantStorage] setTenantId called with invalid id:', id);
+    return;
+  }
+  window.localStorage.setItem('modelpricer:tenant_id', id.trim());
+}
+
+export function clearTenantId() {
+  if (!canUseLocalStorage()) return;
+  window.localStorage.removeItem('modelpricer:tenant_id');
+}
+
 function buildKey(tenantId, namespace) {
   return `modelpricer:${tenantId}:${namespace}`;
 }
@@ -38,9 +52,9 @@ function buildKey(tenantId, namespace) {
  * Read tenant-scoped JSON from localStorage (sync, backward compatible).
  * For async Supabase reads, use readTenantJsonAsync().
  */
-export function readTenantJson(namespace, fallback) {
+export function readTenantJson(namespace, fallback, tenantIdOverride) {
   if (!canUseLocalStorage()) return fallback;
-  const tenantId = getTenantId();
+  const tenantId = tenantIdOverride || getTenantId();
   const storageKey = buildKey(tenantId, namespace);
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -57,9 +71,9 @@ export function readTenantJson(namespace, fallback) {
  * If Supabase is enabled for this namespace (dual-write or supabase mode),
  * the write is also sent to Supabase asynchronously (fire-and-forget).
  */
-export function writeTenantJson(namespace, value) {
+export function writeTenantJson(namespace, value, tenantIdOverride) {
   if (!canUseLocalStorage()) return;
-  const tenantId = getTenantId();
+  const tenantId = tenantIdOverride || getTenantId();
   const storageKey = buildKey(tenantId, namespace);
 
   // Always write to localStorage for sync compat
@@ -122,8 +136,8 @@ export function appendTenantLog(namespace, entry, maxItems = 100) {
  * In dual-write mode: reads from Supabase, falls back to localStorage.
  * In localStorage mode: reads from localStorage (same as sync version).
  */
-export async function readTenantJsonAsync(namespace, fallback) {
-  const tenantId = getTenantId();
+export async function readTenantJsonAsync(namespace, fallback, tenantIdOverride) {
+  const tenantId = tenantIdOverride || getTenantId();
   const storageKey = buildKey(tenantId, namespace);
   return storageAdapter.read(namespace, tenantId, storageKey, fallback);
 }
@@ -131,8 +145,8 @@ export async function readTenantJsonAsync(namespace, fallback) {
 /**
  * Async write — writes to the appropriate backend(s) based on feature flags.
  */
-export async function writeTenantJsonAsync(namespace, value) {
-  const tenantId = getTenantId();
+export async function writeTenantJsonAsync(namespace, value, tenantIdOverride) {
+  const tenantId = tenantIdOverride || getTenantId();
   const storageKey = buildKey(tenantId, namespace);
   return storageAdapter.write(namespace, tenantId, storageKey, value);
 }
@@ -140,8 +154,8 @@ export async function writeTenantJsonAsync(namespace, value) {
 /**
  * Async append — appends log entry to appropriate backend(s).
  */
-export async function appendTenantLogAsync(namespace, entry, maxItems = 100) {
-  const tenantId = getTenantId();
+export async function appendTenantLogAsync(namespace, entry, maxItems = 100, tenantIdOverride) {
+  const tenantId = tenantIdOverride || getTenantId();
   const storageKey = buildKey(tenantId, namespace);
   return storageAdapter.appendLog(namespace, tenantId, storageKey, entry, maxItems);
 }

@@ -1,12 +1,15 @@
 import axios from 'axios';
+import { getTenantId } from '@/utils/adminTenantStorage';
 
 const apiClient = axios.create({
   baseURL: '/api',
   timeout: 30000,
 });
 
-// Request interceptor — attach auth token
+// Request interceptor — attach auth token + tenant ID
 apiClient.interceptors.request.use(async (config) => {
+  config.headers['x-tenant-id'] = getTenantId();
+
   if (window.__authGetToken) {
     try {
       const token = await window.__authGetToken();

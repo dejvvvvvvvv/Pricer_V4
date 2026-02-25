@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 075
-**Dalsi ID k pouziti:** 076
+**Posledni pouzite ID:** 080
+**Dalsi ID k pouziti:** 081
 
 ---
 
@@ -220,4 +220,4 @@ S{NN}
 ---
 
 **Posledni aktualizace:** 2026-02-25
-**Posledni session:** S03 (2026-02-24) — Sprint 2 Account Real Data (065-GN az 075-AC)
+**Posledni session:** S01 (2026-02-25) — Per-User Tenant Izolace + P0 Code Review (076-ST az 080-ST)

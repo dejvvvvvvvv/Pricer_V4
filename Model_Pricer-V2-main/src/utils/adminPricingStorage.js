@@ -404,10 +404,12 @@ function migrateLegacyPricingConfigIfAny() {
   try {
     if (typeof window === 'undefined') return null;
 
+    const currentTenant = getTenantId();
     const legacyKeys = [
-      // AdminPricing.jsx in some earlier versions
+      `modelpricer_pricing_config__${currentTenant}`,
+      `admin_pricing_demo_v2:${currentTenant}`,
+      // Also try well-known legacy keys
       'modelpricer_pricing_config__test-customer-1',
-      // pricingService demo reader
       'admin_pricing_demo_v2:test-customer-1',
     ];
 

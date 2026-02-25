@@ -9,12 +9,13 @@ import {
   getPlanFeatures,
   saveBranding,
 } from '../../utils/adminBrandingWidgetStorage';
+import { getTenantId } from '../../utils/adminTenantStorage';
 
 const AdminBranding = () => {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const customerId = 'test-customer-1'; // TODO: Get from auth/context
+  const customerId = getTenantId();
 
   // Plan features (Varianta A: local storage seed)
   const [plan, setPlan] = useState(null);

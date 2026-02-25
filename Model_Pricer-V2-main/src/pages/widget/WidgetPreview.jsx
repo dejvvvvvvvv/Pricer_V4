@@ -10,19 +10,18 @@ import {
 } from '../../utils/adminBrandingWidgetStorage';
 
 import { createWidgetBuilderConfig } from '../../widgets/puck/widgetBuilderConfig';
-
-// Demo tenant handling (Varianta A): later replace with real tenant resolution (shopID, token, hostname...)
-const TENANT_ID = 'test-customer-1';
+import { getTenantId } from '../../utils/adminTenantStorage';
 
 export default function WidgetPreview() {
   const { publicId } = useParams();
+  const tenantId = getTenantId();
 
-  const branding = useMemo(() => getBranding(TENANT_ID), []);
-  const widget = useMemo(() => getWidgetByIdOrPublicId(TENANT_ID, publicId), [publicId]);
+  const branding = useMemo(() => getBranding(tenantId), [tenantId]);
+  const widget = useMemo(() => getWidgetByIdOrPublicId(tenantId, publicId), [tenantId, publicId]);
   const data = useMemo(() => {
     if (!publicId) return null;
-    return getWidgetBuilderData(TENANT_ID, publicId);
-  }, [publicId]);
+    return getWidgetBuilderData(tenantId, publicId);
+  }, [tenantId, publicId]);
 
   const config = useMemo(() => createWidgetBuilderConfig('preview'), []);
 
@@ -43,7 +42,7 @@ export default function WidgetPreview() {
         <div className="mx-auto max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
           <div className="text-lg font-semibold text-gray-900">Widget nenalezen</div>
           <div className="mt-2 text-sm text-gray-600">
-            Nenalezen widget pro <span className="font-mono">{publicId}</span> (tenant: {TENANT_ID}).
+            Nenalezen widget pro <span className="font-mono">{publicId}</span> (tenant: {tenantId}).
           </div>
           <div className="mt-4 text-xs text-gray-500">
             Tip: Otevři Admin → Widget → vyber widget a klikni Preview.

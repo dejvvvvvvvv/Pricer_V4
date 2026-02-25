@@ -10,7 +10,7 @@
   - Migration from legacy keys is implemented in CP2 (see migrateLegacyFeesToV3).
 */
 
-import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
 
 const NS_FEES_V3 = 'fees:v3';
 const SCHEMA_VERSION = 3;
@@ -234,7 +234,7 @@ export function migrateLegacyFeesToV3() {
     return { migrated: false, source: null, data: null, notes: 'No window/localStorage available.' };
   }
 
-  const preferredCustomerId = 'test-customer-1';
+  const preferredCustomerId = getTenantId();
   const adminPrefix = 'modelpricer_fees_config__';
 
   const adminKeys = listLocalStorageKeysStartingWith(adminPrefix);
