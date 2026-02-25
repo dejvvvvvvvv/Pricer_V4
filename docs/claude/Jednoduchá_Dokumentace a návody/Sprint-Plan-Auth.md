@@ -55,18 +55,31 @@ Sprint 1 (HOTOVO) --> Sprint 2 --> Sprint 3 --> Sprint 4 (az po BETA)
 
 ---
 
-## Sprint 2 — Ucet s realnyma datama ❌ NEZACATO
+## Sprint 2 — Ucet s realnyma datama ✅ HOTOVO (2026-02-24)
 
-**Co to dela:** Stranka "Muj ucet" bude ukazovat tvoje skutecne udaje misto falesnich dat.
+**Co to dela:** Stranka "Muj ucet" ukazuje skutecne udaje misto falesnich dat.
 
-**Co se bude delat:**
-- Profil — tvoje jmeno, email, jazyk (realna data z Firebase)
-- Firma — nazev firmy, ICO, DIC, adresa
-- Zabezpeceni — zmena hesla (realna, ne fake tlacitko)
-- Tarif — jaky plan pouzivas (Starter/Professional/Enterprise)
-- Novy system notifikaci (hlasky "Ulozeno!", "Chyba!" misto alert oken)
+**Co bylo udelano:**
+- ✅ Profil — realna data z Firebase Auth + Firestore (useAuth hook), validace, toast notifikace
+- ✅ Firma — tenant-scoped storage (company:v1), validace ICO/DIC/PSC, Save/Cancel
+- ✅ Zabezpeceni — realna zmena hesla (reautentikace + updatePassword), Google-only detekce, sila hesla enforcement
+- ✅ Tarif — plan z tenant storage (subscription:v1), Starter/Professional/Enterprise ceny
+- ✅ Novy system notifikaci — NotificationContext + ToastContainer (nahrazuje alert())
+- ✅ Accessibility — ARIA roles na tab navigaci (tablist, tab, tabpanel)
+- ✅ Performance — FormInput/Card extrahovany s React.memo
 
-**Zavislosti:** Musi byt hotovy Sprint 1
+**Nove soubory:**
+- `src/contexts/NotificationContext.jsx` — globalni toast system
+- `src/components/ui/forge/ToastContainer.jsx` — vizualni kontejner
+- `src/utils/adminCompanyStorage.js` — firemni data storage
+
+**Zmenene soubory:**
+- `src/pages/account/index.jsx` — vsechny 4 taby napojeny na realna data
+- `src/providers/FirebaseAuthProvider.jsx` — pridana changePassword funkce
+- `src/App.jsx` — NotificationProvider integrace
+
+**Dokumentace:** `docs/claude/Documentation/Account-Dokumentace.md`
+**Plan:** `docs/claude/PLANS/Sprint2-Account-RealData-Plan.md`
 
 ---
 
@@ -103,7 +116,7 @@ Sprint 1 (HOTOVO) --> Sprint 2 --> Sprint 3 --> Sprint 4 (az po BETA)
 | Sprint | Nazev | Stav | Poznamka |
 |--------|-------|------|----------|
 | **1** | Zaklady prihlaseni | 🟡 Bugy | Kod hotovy, 3 bugy k oprave (Google, presetsApi, .env) |
-| **2** | Ucet s realnyma datama | ❌ Nezacato | — |
+| **2** | Ucet s realnyma datama | ✅ Hotovo | 2026-02-24, vsechny 4 taby funkcni |
 | **3** | Zabezpeceni | ❌ Nezacato | — |
 | **4** | Pokrocile (po BETA) | ❌ Nezacato | Neni treba pro BETA |
 

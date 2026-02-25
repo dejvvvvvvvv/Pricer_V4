@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '@/context/AuthContext';
+import { useNotification } from '@/contexts/NotificationContext';
+import { readCompanyData, writeCompanyData } from '@/utils/adminCompanyStorage';
+import { readTenantJson } from '@/utils/adminTenantStorage';
 
 /* ──────────────────────────────────────────────────────────────────────────
    FORGE inline-style helpers (no Tailwind light-mode classes)
@@ -162,26 +166,182 @@ const strengthColors = {
   strong: 'var(--forge-success)',   // #00D4AA
 };
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Card entrance animation variants (needed by Card component)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const cardVariants = {
+  initial: { opacity: 0, y: 20 },
+  animate: (i) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.1, duration: 0.4, ease: 'easeOut' }
+  })
+};
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Reusable FORGE Form Input (extracted, memoized)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const FormInput = React.memo(({ icon, label, type = 'text', value, onChange, placeholder, readOnly = false, note, error }) => (
+  <div style={{ marginBottom: '0px' }}>
+    <label style={forgeLabelStyles}>
+      {label}
+      {note && (
+        <span style={{ fontWeight: 400, fontSize: '11px', color: 'var(--forge-text-muted)', marginLeft: '6px', textTransform: 'none', letterSpacing: 'normal' }}>
+          {note}
+        </span>
+      )}
+    </label>
+    <div style={{ position: 'relative' }}>
+      {icon && (
+        <div style={{
+          position: 'absolute',
+          left: '12px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: 'var(--forge-text-muted)',
+          pointerEvents: 'none',
+          display: 'flex',
+          alignItems: 'center',
+        }}>
+          <Icon name={icon} size={16} />
+        </div>
+      )}
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        style={{
+          ...(icon ? forgeInputWithIconStyles : forgeInputStyles),
+          ...(readOnly ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+          ...(error ? { borderColor: 'var(--forge-error)', boxShadow: '0 0 0 2px rgba(255,71,87,0.15)' } : {}),
+        }}
+        onFocus={(e) => {
+          if (!readOnly) {
+            e.target.style.borderColor = error ? 'var(--forge-error)' : 'var(--forge-accent-primary)';
+            e.target.style.boxShadow = error ? '0 0 0 2px rgba(255,71,87,0.15)' : '0 0 0 2px rgba(0,212,170,0.15)';
+          }
+        }}
+        onBlur={(e) => {
+          if (!readOnly) {
+            e.target.style.borderColor = error ? 'var(--forge-error)' : '';
+            e.target.style.boxShadow = error ? '0 0 0 2px rgba(255,71,87,0.15)' : '';
+          }
+        }}
+      />
+    </div>
+    {error && (
+      <span style={{ fontSize: '11px', color: 'var(--forge-error)', marginTop: '4px', display: 'block' }}>
+        {error}
+      </span>
+    )}
+  </div>
+));
+FormInput.displayName = 'FormInput';
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Reusable FORGE Card Component (extracted, memoized)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const Card = React.memo(({ icon, title, children, index = 0, style = {} }) => (
+  <motion.div
+    custom={index}
+    variants={cardVariants}
+    initial="initial"
+    animate="animate"
+    style={{ ...forgeCardStyles, ...style }}
+  >
+    <div style={forgeCardHeaderStyles}>
+      <div style={forgeCardHeaderIconBox}>
+        <Icon name={icon} size={18} />
+      </div>
+      <h3 style={forgeCardTitle}>{title}</h3>
+    </div>
+    <div style={forgeCardBody}>
+      {children}
+    </div>
+  </motion.div>
+));
+Card.displayName = 'Card';
+
 /* ════════════════════════════════════════════════════════════════════════ */
 
 const AccountPage = () => {
   const { language } = useLanguage();
+  const { currentUser, updateProfile, changePassword } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [activeTab, setActiveTab] = useState('profile');
 
-  // Mock data pro vyvoj
+  // Profile data — initialized from currentUser, edited locally, saved via updateProfile
   const [profileData, setProfileData] = useState({
-    firstName: 'Jan',
-    lastName: 'Novak',
-    email: 'jan.novak@example.com',
-    phone: '+420 123 456 789',
-    company: 'ModelPricer s.r.o.',
-    ico: '12345678',
-    dic: 'CZ12345678',
-    address: 'Hlavni 123',
-    city: 'Praha',
-    zip: '110 00',
-    country: 'Ceska republika'
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
   });
+
+  const [saving, setSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState({});
+
+  // Company data — initialized from tenant storage on mount
+  const [companyData, setCompanyData] = useState(() => readCompanyData());
+  const [companyValidation, setCompanyValidation] = useState({});
+  const [companySaving, setCompanySaving] = useState(false);
+
+  // Subscription/billing data — read from tenant storage (namespace subscription:v1)
+  const subscriptionData = useMemo(() => {
+    const defaults = {
+      plan: 'starter',
+      status: 'active',
+      priceMonthly: null,
+      currency: 'CZK',
+    };
+    const stored = readTenantJson('subscription:v1', null);
+    if (!stored || typeof stored !== 'object') return defaults;
+    return { ...defaults, ...stored };
+  }, []);
+
+  // Plan display configuration
+  const planConfig = useMemo(() => {
+    const plans = {
+      starter: {
+        name: { cs: 'Starter tarif', en: 'Starter Plan' },
+        price: { CZK: '499 Kc', USD: '$20', EUR: '18 EUR' },
+        period: { cs: 'mesic', en: 'month' },
+      },
+      professional: {
+        name: { cs: 'Professional tarif', en: 'Professional Plan' },
+        price: { CZK: '1 999 Kc', USD: '$80', EUR: '74 EUR' },
+        period: { cs: 'mesic', en: 'month' },
+      },
+      enterprise: {
+        name: { cs: 'Enterprise tarif', en: 'Enterprise Plan' },
+        price: { CZK: null, USD: null, EUR: null },
+        period: { cs: 'mesic', en: 'month' },
+      },
+    };
+    const key = (subscriptionData.plan || 'starter').toLowerCase();
+    return plans[key] || plans.starter;
+  }, [subscriptionData.plan]);
+
+  // Sync profileData from currentUser on mount and when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      setProfileData(prev => ({
+        ...prev,
+        firstName: currentUser.firstName || currentUser.displayName?.split(' ')[0] || '',
+        lastName: currentUser.lastName || currentUser.displayName?.split(' ').slice(1).join(' ') || '',
+        email: currentUser.email || '',
+        phone: currentUser.phone || '',
+      }));
+    }
+  }, [currentUser]);
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -191,25 +351,220 @@ const AccountPage = () => {
 
   const handleProfileChange = (field, value) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
+    // Clear validation error for this field on change
+    if (validationErrors[field]) {
+      setValidationErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
   const handlePasswordChange = (field, value) => {
     setPasswordData(prev => ({ ...prev, [field]: value }));
+    if (passwordErrors[field]) {
+      setPasswordErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
-  const handleSaveProfile = () => {
-    console.log('Saving profile:', profileData);
-    alert(language === 'cs' ? 'Profil ulozen!' : 'Profile saved!');
+  // Validate profile fields before save
+  const validateProfile = useCallback(() => {
+    const errors = {};
+    if (!profileData.firstName.trim()) {
+      errors.firstName = language === 'cs' ? 'Jmeno je povinne' : 'First name is required';
+    }
+    if (!profileData.lastName.trim()) {
+      errors.lastName = language === 'cs' ? 'Prijmeni je povinne' : 'Last name is required';
+    }
+    // Phone: optional, but if filled must be valid format
+    if (profileData.phone && !/^[+\d\s\-()]*$/.test(profileData.phone)) {
+      errors.phone = language === 'cs' ? 'Neplatny format telefonu' : 'Invalid phone format';
+    }
+    return errors;
+  }, [profileData.firstName, profileData.lastName, profileData.phone, language]);
+
+  // Cancel edits — revert to currentUser data
+  const handleCancelProfile = useCallback(() => {
+    if (currentUser) {
+      setProfileData(prev => ({
+        ...prev,
+        firstName: currentUser.firstName || currentUser.displayName?.split(' ')[0] || '',
+        lastName: currentUser.lastName || currentUser.displayName?.split(' ').slice(1).join(' ') || '',
+        email: currentUser.email || '',
+        phone: currentUser.phone || '',
+      }));
+    }
+    setValidationErrors({});
+  }, [currentUser]);
+
+  // ── Company handlers ─────────────────────────────────────────────────
+  const handleCompanyChange = (field, value) => {
+    setCompanyData(prev => ({ ...prev, [field]: value }));
+    if (companyValidation[field]) {
+      setCompanyValidation(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
-  const handleChangePassword = () => {
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert(language === 'cs' ? 'Hesla se neshoduji!' : 'Passwords do not match!');
+  const validateCompany = useCallback(() => {
+    const errors = {};
+    // companyName: optional, but if filled min 2 chars
+    if (companyData.companyName && companyData.companyName.trim().length < 2) {
+      errors.companyName = language === 'cs' ? 'Nazev firmy musi mit alespon 2 znaky' : 'Company name must be at least 2 characters';
+    }
+    // ICO: optional, but if filled must be exactly 8 digits
+    if (companyData.ico && !/^\d{8}$/.test(companyData.ico.trim())) {
+      errors.ico = language === 'cs' ? 'ICO musi byt presne 8 cislic' : 'Company ID must be exactly 8 digits';
+    }
+    // DIC: optional, but if filled must match 2 uppercase letters + 8-10 digits
+    if (companyData.dic && !/^[A-Z]{2}\d{8,10}$/.test(companyData.dic.trim())) {
+      errors.dic = language === 'cs' ? 'DIC musi zacinat 2 pismeny a 8-10 cislic (napr. CZ12345678)' : 'VAT ID must start with 2 letters and 8-10 digits (e.g. CZ12345678)';
+    }
+    // ZIP: optional, but if filled must be 3 digits + optional space + 2 digits
+    if (companyData.zip && !/^\d{3}\s?\d{2}$/.test(companyData.zip.trim())) {
+      errors.zip = language === 'cs' ? 'PSC musi byt ve formatu 110 00 nebo 11000' : 'ZIP must be in format 110 00 or 11000';
+    }
+    return errors;
+  }, [companyData.companyName, companyData.ico, companyData.dic, companyData.zip, language]);
+
+  const handleSaveCompany = () => {
+    const errors = validateCompany();
+    if (Object.keys(errors).length > 0) {
+      setCompanyValidation(errors);
+      showError(
+        language === 'cs' ? 'Chyba validace' : 'Validation Error',
+        language === 'cs' ? 'Opravte prosim zvyraznena pole' : 'Please fix the highlighted fields'
+      );
       return;
     }
-    console.log('Changing password');
-    alert(language === 'cs' ? 'Heslo zmeneno!' : 'Password changed!');
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+
+    setCompanySaving(true);
+    try {
+      writeCompanyData({
+        companyName: companyData.companyName.trim(),
+        ico: companyData.ico.trim(),
+        dic: companyData.dic.trim(),
+        address: companyData.address.trim(),
+        city: companyData.city.trim(),
+        zip: companyData.zip.trim(),
+        country: companyData.country,
+      });
+      showSuccess(
+        language === 'cs' ? 'Firma ulozena' : 'Company Saved',
+        language === 'cs' ? 'Udaje o firme byly uspesne aktualizovany.' : 'Company information has been updated successfully.'
+      );
+      setCompanyValidation({});
+    } catch (err) {
+      showError(
+        language === 'cs' ? 'Chyba pri ukladani' : 'Save Error',
+        err.message || (language === 'cs' ? 'Nepodarilo se ulozit udaje o firme.' : 'Failed to save company information.')
+      );
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
+  const handleCancelCompany = useCallback(() => {
+    setCompanyData(readCompanyData());
+    setCompanyValidation({});
+  }, []);
+
+  const handleSaveProfile = async () => {
+    const errors = validateProfile();
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      showError(
+        language === 'cs' ? 'Chyba validace' : 'Validation Error',
+        language === 'cs' ? 'Opravte prosim zvyraznena pole' : 'Please fix the highlighted fields'
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateProfile({
+        firstName: profileData.firstName.trim(),
+        lastName: profileData.lastName.trim(),
+        phone: profileData.phone.trim(),
+        displayName: `${profileData.firstName.trim()} ${profileData.lastName.trim()}`,
+      });
+      showSuccess(
+        language === 'cs' ? 'Profil ulozen' : 'Profile Saved',
+        language === 'cs' ? 'Vase osobni udaje byly uspesne aktualizovany.' : 'Your personal information has been updated successfully.'
+      );
+      setValidationErrors({});
+    } catch (err) {
+      showError(
+        language === 'cs' ? 'Chyba pri ukladani' : 'Save Error',
+        err.message || (language === 'cs' ? 'Nepodarilo se ulozit profil.' : 'Failed to save profile.')
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    const errors = {};
+
+    if (!passwordData.currentPassword.trim()) {
+      errors.currentPassword = language === 'cs' ? 'Zadejte soucasne heslo' : 'Enter current password';
+    }
+    if (!passwordData.newPassword) {
+      errors.newPassword = language === 'cs' ? 'Zadejte nove heslo' : 'Enter new password';
+    } else if (getPasswordStrength(passwordData.newPassword).level < 75) {
+      errors.newPassword = language === 'cs'
+        ? 'Heslo musi byt alespon "Dobre" (8+ znaku, velke pismeno, cislo nebo specialni znak)'
+        : 'Password must be at least "Good" (8+ chars, uppercase, number or special char)';
+    }
+    if (!passwordData.confirmPassword) {
+      errors.confirmPassword = language === 'cs' ? 'Potvrdte nove heslo' : 'Confirm new password';
+    } else if (passwordData.newPassword !== passwordData.confirmPassword) {
+      errors.confirmPassword = language === 'cs' ? 'Hesla se neshoduji' : 'Passwords do not match';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setPasswordErrors(errors);
+      return;
+    }
+
+    setPasswordSaving(true);
+    setPasswordErrors({});
+    try {
+      await changePassword(passwordData.currentPassword, passwordData.newPassword);
+      showSuccess(
+        language === 'cs' ? 'Heslo zmeneno' : 'Password Changed',
+        language === 'cs' ? 'Vase heslo bylo uspesne zmeneno.' : 'Your password has been changed successfully.'
+      );
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      const code = err?.code || '';
+      let msg;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        msg = language === 'cs' ? 'Spatne aktualni heslo.' : 'Incorrect current password.';
+      } else if (code === 'auth/weak-password') {
+        msg = language === 'cs' ? 'Heslo je prilis slabe.' : 'Password is too weak.';
+      } else if (code === 'auth/requires-recent-login') {
+        msg = language === 'cs' ? 'Prihlaste se znovu a zkuste to znovu.' : 'Please log in again and try again.';
+      } else if (code === 'auth/too-many-requests') {
+        msg = language === 'cs' ? 'Prilis mnoho pokusu. Zkuste to pozdeji.' : 'Too many attempts. Please try again later.';
+      } else {
+        msg = err.message || (language === 'cs' ? 'Nepodarilo se zmenit heslo.' : 'Failed to change password.');
+      }
+      showError(
+        language === 'cs' ? 'Chyba pri zmene hesla' : 'Password Change Error',
+        msg
+      );
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   // Password strength calculation
@@ -264,14 +619,26 @@ const AccountPage = () => {
     'tab.billing': language === 'cs' ? 'Fakturace' : 'Billing',
     'billing.title': language === 'cs' ? 'Fakturace a predplatne' : 'Billing & Subscription',
     'billing.plan.title': language === 'cs' ? 'Aktualni tarif' : 'Current Plan',
-    'billing.plan.name': language === 'cs' ? 'Professional tarif' : 'Professional Plan',
+    'billing.plan.name': planConfig.name[language === 'cs' ? 'cs' : 'en'],
     'billing.plan.change': language === 'cs' ? 'Zmenit tarif' : 'Change Plan',
     'billing.plan.cancel': language === 'cs' ? 'Zrusit predplatne' : 'Cancel Subscription',
+    'billing.plan.active': language === 'cs' ? 'AKTIVNI' : 'ACTIVE',
+    'billing.plan.custom': language === 'cs' ? 'Na miru' : 'Custom',
+    'billing.plan.period': planConfig.period[language === 'cs' ? 'cs' : 'en'],
     'billing.payment.title': language === 'cs' ? 'Platebni metody' : 'Payment Methods',
+    'billing.payment.none': language === 'cs' ? 'Zadne platebni metody nejsou nastaveny' : 'No payment methods configured',
     'billing.payment.add': language === 'cs' ? 'Pridat platebni metodu' : 'Add Payment Method',
     'billing.payment.expires': language === 'cs' ? 'Platnost do' : 'Expires',
     'billing.history.title': language === 'cs' ? 'Historie faktur' : 'Billing History',
+    'billing.history.none': language === 'cs' ? 'Zatim zadne faktury' : 'No invoices yet',
     'billing.history.download': language === 'cs' ? 'Stahnout PDF' : 'Download PDF',
+    'profile.email.readonly': language === 'cs' ? '(zmena pres Firebase konzoli)' : '(change via Firebase console)',
+    'common.saving': language === 'cs' ? 'Ukladam...' : 'Saving...',
+    'common.changingPassword': language === 'cs' ? 'Menim heslo...' : 'Changing password...',
+    'security.googleOnly.title': language === 'cs' ? 'Prihlaseni pres Google' : 'Google Sign-In',
+    'security.googleOnly.desc': language === 'cs'
+      ? 'Vas ucet pouziva prihlaseni pres Google. Zmena hesla neni k dispozici — heslo spravuje Google.'
+      : 'Your account uses Google Sign-In. Password change is not available — your password is managed by Google.',
   };
 
   const tabs = [
@@ -287,75 +654,6 @@ const AccountPage = () => {
     exit: { opacity: 0, y: -10 }
   };
 
-  const cardVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: (i) => ({
-      opacity: 1,
-      y: 0,
-      transition: { delay: i * 0.1, duration: 0.4, ease: 'easeOut' }
-    })
-  };
-
-  /* ── Reusable FORGE Form Input ────────────────────────────────────────── */
-
-  const FormInput = ({ icon, label, type = 'text', value, onChange, placeholder }) => (
-    <div style={{ marginBottom: '0px' }}>
-      <label style={forgeLabelStyles}>{label}</label>
-      <div style={{ position: 'relative' }}>
-        {icon && (
-          <div style={{
-            position: 'absolute',
-            left: '12px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--forge-text-muted)',
-            pointerEvents: 'none',
-            display: 'flex',
-            alignItems: 'center',
-          }}>
-            <Icon name={icon} size={16} />
-          </div>
-        )}
-        <input
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          style={icon ? forgeInputWithIconStyles : forgeInputStyles}
-          onFocus={(e) => {
-            e.target.style.borderColor = 'var(--forge-accent-primary)';
-            e.target.style.boxShadow = '0 0 0 2px rgba(0,212,170,0.15)';
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = '';
-            e.target.style.boxShadow = '';
-          }}
-        />
-      </div>
-    </div>
-  );
-
-  /* ── Reusable FORGE Card Component ────────────────────────────────────── */
-
-  const Card = ({ icon, title, children, index = 0, style = {} }) => (
-    <motion.div
-      custom={index}
-      variants={cardVariants}
-      initial="initial"
-      animate="animate"
-      style={{ ...forgeCardStyles, ...style }}
-    >
-      <div style={forgeCardHeaderStyles}>
-        <div style={forgeCardHeaderIconBox}>
-          <Icon name={icon} size={18} />
-        </div>
-        <h3 style={forgeCardTitle}>{title}</h3>
-      </div>
-      <div style={forgeCardBody}>
-        {children}
-      </div>
-    </motion.div>
-  );
 
   /* ════════════════════════════════════════════════════════════════════════
      RENDER
@@ -388,7 +686,7 @@ const AccountPage = () => {
                 fontWeight: 700,
                 boxShadow: '0 0 24px rgba(0,212,170,0.18)',
               }}>
-                {profileData.firstName[0]}{profileData.lastName[0]}
+                {(profileData.firstName || '?')[0]}{(profileData.lastName || '?')[0]}
               </div>
               <button style={{
                 position: 'absolute',
@@ -439,16 +737,24 @@ const AccountPage = () => {
           transition={{ delay: 0.1 }}
           style={{ marginBottom: '32px' }}
         >
-          <div style={{
-            display: 'flex',
-            gap: '0',
-            borderBottom: '1px solid var(--forge-border-default)',
-          }}>
+          <div
+            role="tablist"
+            aria-label={t['account.title']}
+            style={{
+              display: 'flex',
+              gap: '0',
+              borderBottom: '1px solid var(--forge-border-default)',
+            }}
+          >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  id={`tab-${tab.id}`}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`tabpanel-${tab.id}`}
                   onClick={() => setActiveTab(tab.id)}
                   style={{
                     position: 'relative',
@@ -480,6 +786,10 @@ const AccountPage = () => {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
+            role="tabpanel"
+            id={`tabpanel-${activeTab}`}
+            aria-labelledby={`tab-${activeTab}`}
+            tabIndex={0}
             variants={contentVariants}
             initial="initial"
             animate="animate"
@@ -497,6 +807,7 @@ const AccountPage = () => {
                       value={profileData.firstName}
                       onChange={(e) => handleProfileChange('firstName', e.target.value)}
                       placeholder={t['profile.firstName']}
+                      error={validationErrors.firstName}
                     />
                     <FormInput
                       icon="User"
@@ -504,13 +815,15 @@ const AccountPage = () => {
                       value={profileData.lastName}
                       onChange={(e) => handleProfileChange('lastName', e.target.value)}
                       placeholder={t['profile.lastName']}
+                      error={validationErrors.lastName}
                     />
                     <FormInput
                       icon="Mail"
                       label={t['profile.email']}
                       type="email"
                       value={profileData.email}
-                      onChange={(e) => handleProfileChange('email', e.target.value)}
+                      readOnly
+                      note={t['profile.email.readonly']}
                       placeholder={t['profile.email']}
                     />
                     <FormInput
@@ -520,6 +833,7 @@ const AccountPage = () => {
                       value={profileData.phone}
                       onChange={(e) => handleProfileChange('phone', e.target.value)}
                       placeholder={t['profile.phone']}
+                      error={validationErrors.phone}
                     />
                   </div>
 
@@ -531,14 +845,23 @@ const AccountPage = () => {
                     paddingTop: '24px',
                     borderTop: '1px solid var(--forge-border-default)',
                   }}>
-                    <button style={forgeOutlineBtn}>
+                    <button
+                      onClick={handleCancelProfile}
+                      style={forgeOutlineBtn}
+                      disabled={saving}
+                    >
                       {t['common.cancel']}
                     </button>
                     <button
                       onClick={handleSaveProfile}
-                      style={forgePrimaryBtn}
+                      disabled={saving}
+                      style={{
+                        ...forgePrimaryBtn,
+                        ...(saving ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                      }}
                     >
-                      {t['common.save']}
+                      {saving && <Icon name="Loader2" size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                      {saving ? t['common.saving'] : t['common.save']}
                     </button>
                   </div>
                 </Card>
@@ -553,22 +876,25 @@ const AccountPage = () => {
                     <FormInput
                       icon="Building2"
                       label={t['company.name']}
-                      value={profileData.company}
-                      onChange={(e) => handleProfileChange('company', e.target.value)}
+                      value={companyData.companyName}
+                      onChange={(e) => handleCompanyChange('companyName', e.target.value)}
                       placeholder={t['company.name']}
+                      error={companyValidation.companyName}
                     />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <FormInput
                         label={t['company.ico']}
-                        value={profileData.ico}
-                        onChange={(e) => handleProfileChange('ico', e.target.value)}
-                        placeholder={t['company.ico']}
+                        value={companyData.ico}
+                        onChange={(e) => handleCompanyChange('ico', e.target.value)}
+                        placeholder="12345678"
+                        error={companyValidation.ico}
                       />
                       <FormInput
                         label={t['company.dic']}
-                        value={profileData.dic}
-                        onChange={(e) => handleProfileChange('dic', e.target.value)}
-                        placeholder={t['company.dic']}
+                        value={companyData.dic}
+                        onChange={(e) => handleCompanyChange('dic', e.target.value)}
+                        placeholder="CZ12345678"
+                        error={companyValidation.dic}
                       />
                     </div>
                   </div>
@@ -579,29 +905,30 @@ const AccountPage = () => {
                     <FormInput
                       icon="MapPin"
                       label={t['company.address']}
-                      value={profileData.address}
-                      onChange={(e) => handleProfileChange('address', e.target.value)}
+                      value={companyData.address}
+                      onChange={(e) => handleCompanyChange('address', e.target.value)}
                       placeholder={t['company.address']}
                     />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <FormInput
                         label={t['company.city']}
-                        value={profileData.city}
-                        onChange={(e) => handleProfileChange('city', e.target.value)}
+                        value={companyData.city}
+                        onChange={(e) => handleCompanyChange('city', e.target.value)}
                         placeholder={t['company.city']}
                       />
                       <FormInput
                         label={t['company.zip']}
-                        value={profileData.zip}
-                        onChange={(e) => handleProfileChange('zip', e.target.value)}
-                        placeholder={t['company.zip']}
+                        value={companyData.zip}
+                        onChange={(e) => handleCompanyChange('zip', e.target.value)}
+                        placeholder="110 00"
+                        error={companyValidation.zip}
                       />
                     </div>
                     <div>
                       <label style={forgeLabelStyles}>{t['company.country']}</label>
                       <select
-                        value={profileData.country}
-                        onChange={(e) => handleProfileChange('country', e.target.value)}
+                        value={companyData.country}
+                        onChange={(e) => handleCompanyChange('country', e.target.value)}
                         style={forgeSelectStyles}
                         onFocus={(e) => {
                           e.target.style.borderColor = 'var(--forge-accent-primary)';
@@ -612,25 +939,34 @@ const AccountPage = () => {
                           e.target.style.boxShadow = '';
                         }}
                       >
-                        <option>Ceska republika</option>
-                        <option>Slovensko</option>
-                        <option>Polsko</option>
-                        <option>Nemecko</option>
-                        <option>Rakousko</option>
+                        <option value="CZ">{language === 'cs' ? 'Ceska republika' : 'Czech Republic'}</option>
+                        <option value="SK">{language === 'cs' ? 'Slovensko' : 'Slovakia'}</option>
+                        <option value="PL">{language === 'cs' ? 'Polsko' : 'Poland'}</option>
+                        <option value="DE">{language === 'cs' ? 'Nemecko' : 'Germany'}</option>
+                        <option value="AT">{language === 'cs' ? 'Rakousko' : 'Austria'}</option>
                       </select>
                     </div>
                   </div>
                 </Card>
 
                 <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-                  <button style={forgeOutlineBtn}>
+                  <button
+                    onClick={handleCancelCompany}
+                    style={forgeOutlineBtn}
+                    disabled={companySaving}
+                  >
                     {t['common.cancel']}
                   </button>
                   <button
-                    onClick={handleSaveProfile}
-                    style={forgePrimaryBtn}
+                    onClick={handleSaveCompany}
+                    disabled={companySaving}
+                    style={{
+                      ...forgePrimaryBtn,
+                      ...(companySaving ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                    }}
                   >
-                    {t['common.save']}
+                    {companySaving && <Icon name="Loader2" size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                    {companySaving ? t['common.saving'] : t['common.save']}
                   </button>
                 </div>
               </div>
@@ -640,79 +976,136 @@ const AccountPage = () => {
             {activeTab === 'security' && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
                 <Card icon="Key" title={t['security.title']} index={0}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <FormInput
-                      icon="Lock"
-                      label={t['security.current']}
-                      type="password"
-                      value={passwordData.currentPassword}
-                      onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
-                      placeholder="--------"
-                    />
-                    <div>
-                      <FormInput
-                        icon="Key"
-                        label={t['security.new']}
-                        type="password"
-                        value={passwordData.newPassword}
-                        onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                        placeholder="--------"
-                      />
-                      {passwordData.newPassword && (
-                        <div style={{ marginTop: '12px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--forge-text-muted)' }}>
-                              {language === 'cs' ? 'Sila hesla' : 'Password strength'}
-                            </span>
-                            <span style={{ fontSize: '11px', fontWeight: 600, color: passwordStrength.textColor }}>
-                              {passwordStrength.text}
-                            </span>
-                          </div>
-                          <div style={{
-                            height: '4px',
-                            backgroundColor: 'var(--forge-bg-overlay)',
-                            borderRadius: '2px',
-                            overflow: 'hidden',
-                          }}>
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${passwordStrength.level}%` }}
-                              style={{
-                                height: '100%',
-                                backgroundColor: passwordStrength.color,
-                                borderRadius: '2px',
-                              }}
-                              transition={{ duration: 0.3 }}
-                            />
-                          </div>
+                  {currentUser?.authProvider === 'google' ? (
+                    /* Google-only accounts cannot change password */
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '14px',
+                      padding: '16px',
+                      borderRadius: 'var(--forge-radius-sm)',
+                      backgroundColor: 'rgba(77,168,218,0.08)',
+                      border: '1px solid rgba(77,168,218,0.2)',
+                    }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: 'var(--forge-radius-sm)',
+                        backgroundColor: 'rgba(77,168,218,0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--forge-info)',
+                        flexShrink: 0,
+                      }}>
+                        <Icon name="Info" size={18} />
+                      </div>
+                      <div>
+                        <div style={{
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          color: 'var(--forge-text-primary)',
+                          marginBottom: '4px',
+                        }}>
+                          {t['security.googleOnly.title']}
                         </div>
-                      )}
+                        <p style={{
+                          fontSize: '13px',
+                          color: 'var(--forge-text-secondary)',
+                          margin: 0,
+                          lineHeight: '1.5',
+                        }}>
+                          {t['security.googleOnly.desc']}
+                        </p>
+                      </div>
                     </div>
-                    <FormInput
-                      icon="Key"
-                      label={t['security.confirm']}
-                      type="password"
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                      placeholder="--------"
-                    />
-                  </div>
+                  ) : (
+                    /* Email/password accounts — password change form */
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <FormInput
+                          icon="Lock"
+                          label={t['security.current']}
+                          type="password"
+                          value={passwordData.currentPassword}
+                          onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                          placeholder="--------"
+                          error={passwordErrors.currentPassword}
+                        />
+                        <div>
+                          <FormInput
+                            icon="Key"
+                            label={t['security.new']}
+                            type="password"
+                            value={passwordData.newPassword}
+                            onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                            placeholder="--------"
+                            error={passwordErrors.newPassword}
+                          />
+                          {passwordData.newPassword && (
+                            <div style={{ marginTop: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '11px', color: 'var(--forge-text-muted)' }}>
+                                  {language === 'cs' ? 'Sila hesla' : 'Password strength'}
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: passwordStrength.textColor }}>
+                                  {passwordStrength.text}
+                                </span>
+                              </div>
+                              <div style={{
+                                height: '4px',
+                                backgroundColor: 'var(--forge-bg-overlay)',
+                                borderRadius: '2px',
+                                overflow: 'hidden',
+                              }}>
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${passwordStrength.level}%` }}
+                                  style={{
+                                    height: '100%',
+                                    backgroundColor: passwordStrength.color,
+                                    borderRadius: '2px',
+                                  }}
+                                  transition={{ duration: 0.3 }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <FormInput
+                          icon="Key"
+                          label={t['security.confirm']}
+                          type="password"
+                          value={passwordData.confirmPassword}
+                          onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                          placeholder="--------"
+                          error={passwordErrors.confirmPassword}
+                        />
+                      </div>
 
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: '12px',
-                    marginTop: '24px',
-                    paddingTop: '24px',
-                    borderTop: '1px solid var(--forge-border-default)',
-                  }}>
-                    <button
-                      onClick={handleChangePassword}
-                      style={forgePrimaryBtn}
-                    >
-                      {t['common.change']}
-                    </button>
-                  </div>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        gap: '12px',
+                        marginTop: '24px',
+                        paddingTop: '24px',
+                        borderTop: '1px solid var(--forge-border-default)',
+                      }}>
+                        <button
+                          onClick={handleChangePassword}
+                          disabled={passwordSaving || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                          style={{
+                            ...forgePrimaryBtn,
+                            ...((passwordSaving || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword)
+                              ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                          }}
+                        >
+                          {passwordSaving && <Icon name="Loader2" size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                          {passwordSaving ? t['common.changingPassword'] : t['common.change']}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </Card>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -787,7 +1180,7 @@ const AccountPage = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <Card icon="CreditCard" title={t['billing.title']} index={0}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-                    {/* Current Plan */}
+                    {/* Current Plan — reads from tenant storage subscription:v1 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       <div style={{
                         padding: '20px',
@@ -815,32 +1208,47 @@ const AccountPage = () => {
                           <span style={{
                             padding: '4px 10px',
                             borderRadius: '100px',
-                            backgroundColor: 'rgba(0,212,170,0.1)',
-                            color: 'var(--forge-accent-primary)',
+                            backgroundColor: subscriptionData.status === 'active' ? 'rgba(0,212,170,0.1)' : 'rgba(255,181,71,0.1)',
+                            color: subscriptionData.status === 'active' ? 'var(--forge-accent-primary)' : 'var(--forge-warning)',
                             fontSize: '11px',
                             fontWeight: 700,
                             textTransform: 'uppercase',
                             letterSpacing: '0.05em',
                           }}>
-                            ACTIVE
+                            {t['billing.plan.active']}
                           </span>
                         </div>
                         <div style={{ marginTop: '16px' }}>
-                          <span style={{
-                            fontFamily: 'var(--forge-font-heading)',
-                            fontWeight: 700,
-                            fontSize: 'var(--forge-text-2xl)',
-                            color: 'var(--forge-accent-primary)',
-                          }}>
-                            1,299 Kc
-                          </span>
-                          <span style={{
-                            fontSize: '13px',
-                            color: 'var(--forge-text-muted)',
-                            marginLeft: '4px',
-                          }}>
-                            / {language === 'cs' ? 'mesic' : 'month'}
-                          </span>
+                          {(() => {
+                            const currency = subscriptionData.currency || 'CZK';
+                            const priceDisplay = subscriptionData.priceMonthly
+                              ? `${subscriptionData.priceMonthly} ${currency}`
+                              : planConfig.price[currency] || planConfig.price.CZK;
+                            const isEnterprise = (subscriptionData.plan || 'starter').toLowerCase() === 'enterprise';
+                            return (
+                              <>
+                                <span style={{
+                                  fontFamily: 'var(--forge-font-heading)',
+                                  fontWeight: 700,
+                                  fontSize: 'var(--forge-text-2xl)',
+                                  color: 'var(--forge-accent-primary)',
+                                }}>
+                                  {isEnterprise && !subscriptionData.priceMonthly
+                                    ? t['billing.plan.custom']
+                                    : priceDisplay}
+                                </span>
+                                {!isEnterprise && (
+                                  <span style={{
+                                    fontSize: '13px',
+                                    color: 'var(--forge-text-muted)',
+                                    marginLeft: '4px',
+                                  }}>
+                                    / {t['billing.plan.period']}
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -854,58 +1262,42 @@ const AccountPage = () => {
                       </div>
                     </div>
 
-                    {/* Payment Method */}
+                    {/* Payment Methods — placeholder (no real payment integration yet) */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       <h4 style={forgeLabelStyles}>
                         {t['billing.payment.title']}
                       </h4>
 
                       <div style={{
-                        padding: '14px',
+                        padding: '24px 14px',
                         borderRadius: 'var(--forge-radius-sm)',
                         border: '1px solid var(--forge-border-default)',
                         backgroundColor: 'var(--forge-bg-elevated)',
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '14px',
+                        gap: '12px',
                       }}>
                         <div style={{
                           width: '44px',
-                          height: '30px',
-                          borderRadius: 'var(--forge-radius-sm)',
+                          height: '44px',
+                          borderRadius: 'var(--forge-radius-md)',
                           backgroundColor: 'var(--forge-bg-overlay)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           color: 'var(--forge-text-muted)',
-                          flexShrink: 0,
                         }}>
-                          <Icon name="CreditCard" size={18} />
+                          <Icon name="CreditCard" size={22} />
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 600,
-                            fontSize: '14px',
-                            color: 'var(--forge-text-primary)',
-                          }}>
-                            Visa {language === 'cs' ? 'koncici na' : 'ending in'} 4242
-                          </div>
-                          <div style={{ fontSize: '12px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>
-                            {t['billing.payment.expires']} 12/2025
-                          </div>
-                        </div>
-                        <button style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--forge-accent-primary)',
+                        <p style={{
                           fontSize: '13px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          padding: '4px 8px',
-                          fontFamily: 'var(--forge-font-body)',
+                          color: 'var(--forge-text-muted)',
+                          margin: 0,
+                          textAlign: 'center',
                         }}>
-                          {language === 'cs' ? 'Upravit' : 'Edit'}
-                        </button>
+                          {t['billing.payment.none']}
+                        </p>
                       </div>
 
                       <button style={{
@@ -942,86 +1334,33 @@ const AccountPage = () => {
                 </Card>
 
                 <Card icon="FileText" title={t['billing.history.title']} index={1}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {[1, 2, 3].map((item) => (
-                      <div
-                        key={item}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '14px',
-                          borderRadius: 'var(--forge-radius-sm)',
-                          transition: 'background-color 0.15s',
-                          cursor: 'default',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                          <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: 'var(--forge-radius-sm)',
-                            backgroundColor: 'var(--forge-bg-overlay)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--forge-text-muted)',
-                            flexShrink: 0,
-                          }}>
-                            <Icon name="FileText" size={16} />
-                          </div>
-                          <div>
-                            <div style={{
-                              fontWeight: 600,
-                              fontSize: '14px',
-                              color: 'var(--forge-text-primary)',
-                            }}>
-                              {language === 'cs' ? 'Faktura' : 'Invoice'} #{2024000 + item}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>
-                              1. {item === 1 ? (language === 'cs' ? 'prosince' : 'December') : item === 2 ? (language === 'cs' ? 'listopadu' : 'November') : (language === 'cs' ? 'rijna' : 'October')} 2024
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <div style={{
-                            fontWeight: 600,
-                            fontSize: '14px',
-                            color: 'var(--forge-text-primary)',
-                            fontFamily: 'var(--forge-font-tech)',
-                          }}>
-                            1,299 Kc
-                          </div>
-                          <button style={{
-                            padding: '6px',
-                            borderRadius: 'var(--forge-radius-sm)',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            color: 'var(--forge-text-muted)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'color 0.15s',
-                          }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--forge-accent-primary)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = 'var(--forge-text-muted)';
-                            }}
-                          >
-                            <Icon name="Download" size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div style={{
+                    padding: '32px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: 'var(--forge-radius-md)',
+                      backgroundColor: 'var(--forge-bg-overlay)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--forge-text-muted)',
+                    }}>
+                      <Icon name="FileText" size={24} />
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--forge-text-muted)',
+                      margin: 0,
+                      textAlign: 'center',
+                    }}>
+                      {t['billing.history.none']}
+                    </p>
                   </div>
                 </Card>
               </div>

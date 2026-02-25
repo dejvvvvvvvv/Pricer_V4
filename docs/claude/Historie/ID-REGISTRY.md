@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 064
-**Dalsi ID k pouziti:** 065
+**Posledni pouzite ID:** 075
+**Dalsi ID k pouziti:** 076
 
 ---
 
@@ -205,8 +205,19 @@ S{NN}
 | 062 | AU | Auth | KONVERZACE — Kompletni konverzace Sprint 1 bugfixy session (7 zprav, plan, chyby procesu) | 2026-02-24 |
 | 063 | AU | Auth | OTAZKY — 4 Q&A (task tracking, background agenti, chybejici typy zaznamu, zakaz compactu) | 2026-02-24 |
 | 064 | BK | Backend | UPRAVY — dotenv ESM import order fix (index.js: side-effect import pred firebaseAdmin) | 2026-02-24 |
+| 065 | GN | General | KONVERZACE — Sprint 2 iniciace S03 (uzivatel spousti, Claude planuvi, 3 agenti explore) | 2026-02-24 |
+| 066 | GN | General | UPRAVY — Sprint 2 implementacni plan (12 fazi, 5 ukolu, CP1/CP2/CP3 framework) | 2026-02-24 |
+| 067 | FE | Frontend | KONVERZACE — Toast/Notification system implementace (Faze 1) | 2026-02-24 |
+| 068 | FE | Frontend | UPRAVY — NotificationContext.jsx, ToastContainer.jsx, App.jsx integrace | 2026-02-24 |
+| 069 | FE | Frontend | FAZE — Kontrolni kroky po Fazi 1 (build PASS, browser test preskocen) | 2026-02-24 |
+| 070 | AC | Account | UPRAVY — Profile tab realna data (useAuth, updateProfile, validace, toast) | 2026-02-24 |
+| 071 | AC | Account | UPRAVY — Company tab tenant storage (adminCompanyStorage.js, company:v1) | 2026-02-24 |
+| 072 | AC | Account | UPRAVY — Security tab zmena hesla + Billing tab plan config | 2026-02-24 |
+| 073 | AC | Account | KONVERZACE — Security+Billing implementace kontext | 2026-02-24 |
+| 074 | AC | Account | KONVERZACE — Sprint 2 finalni souhrn (vsech 5 ukolu hotovo) | 2026-02-24 |
+| 075 | AC | Account | UPRAVY — Sprint 2 kompletni zmeny (10 souboru, 3 nove, 7 upravenych) | 2026-02-24 |
 
 ---
 
-**Posledni aktualizace:** 2026-02-24
-**Posledni session:** S02 (2026-02-24) — Backend dotenv ESM fix (064-BK)
+**Posledni aktualizace:** 2026-02-25
+**Posledni session:** S03 (2026-02-24) — Sprint 2 Account Real Data (065-GN az 075-AC)

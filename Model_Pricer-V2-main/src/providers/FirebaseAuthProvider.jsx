@@ -6,6 +6,9 @@ import {
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
   createUserWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
@@ -216,6 +219,18 @@ export default function FirebaseAuthProvider({ children }) {
     }
   }, []);
 
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    if (!auth.currentUser) throw new Error('No user logged in');
+    if (!auth.currentUser.email) throw new Error('No email associated with this account');
+
+    // Re-authenticate first
+    const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+    await reauthenticateWithCredential(auth.currentUser, credential);
+
+    // Now update password
+    await updatePassword(auth.currentUser, newPassword);
+  }, []);
+
   const value = {
     currentUser,
     loading,
@@ -228,6 +243,7 @@ export default function FirebaseAuthProvider({ children }) {
     refreshToken,
     resetPassword,
     updateProfile,
+    changePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
