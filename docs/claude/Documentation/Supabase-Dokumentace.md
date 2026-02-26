@@ -795,6 +795,49 @@ enableDualWriteForAll()  // nebo enableSupabaseForAll()
 
 ---
 
+## 13. Auth Bridge — Firebase → Supabase
+
+### 13.1 Architektura
+
+Auth bridge umoznuje pouzivat Firebase Authentication spolu se Supabase RLS policies. Firebase JWT tokeny jsou trustovany Supabase pres Third-Party Auth integraci.
+
+### 13.2 Flow
+
+1. Uzivatel se prihlasi pres Firebase (email/heslo nebo Google)
+2. `FirebaseAuthProvider.jsx` nastavi `tenantId` a vola:
+   - `ensureSupabaseClaims(user, tenantId)` — nastavi custom claims v Firebase JWT
+   - `ensureTenantInSupabase(user)` — vytvori tenant zaznam v Supabase (fire-and-forget)
+3. Supabase client pouziva `accessToken` callback ktery vraci Firebase ID token
+4. Supabase API trustuje Firebase JWT a RLS policies ctou `auth.jwt()->>'tenant_id'`
+
+### 13.3 Klicove soubory
+
+| Soubor | Ucel |
+|--------|------|
+| `src/lib/supabase/client.js` | Supabase singleton s accessToken callback |
+| `src/lib/supabase/tenantRegistration.js` | Auto-registrace Firebase useru jako Supabase tenantu |
+| `src/providers/FirebaseAuthProvider.jsx` | Auth provider s integraci obou systemu |
+| `backend-local/src/routes/authClaims.js` | Endpoint pro nastaveni Firebase custom claims |
+
+### 13.4 Tenant Registration
+
+Funkce `ensureTenantInSupabase(user)`:
+- Idempotentni upsert — duplicitni volani nevytvari duplicity
+- Fire-and-forget — chyby neblokuji auth flow (jen console.warn)
+- Race condition handling pres PostgreSQL unique constraint (23505)
+- Vola se na 4 mistech v auth flow (onAuthStateChanged 2x, ensureGoogleUserProfile, register)
+
+### 13.5 Third-Party Auth Setup (Manualni kroky)
+
+1. Otevri Supabase Dashboard: https://supabase.com/dashboard
+2. Naviguj: Authentication > Third-party auth > Add integration > Firebase
+3. Zadej Firebase Project ID (z Firebase Console > Settings > General)
+4. Uloz a over ze integrace je aktivni (zeleny status)
+
+Po registraci Supabase API automaticky trustuje Firebase JWT tokeny a RLS policies mohou cist `auth.jwt()->>'tenant_id'`.
+
+---
+
 ## 14. Bezpecnost
 
 ### 14.1 Row Level Security (RLS)
