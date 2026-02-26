@@ -136,6 +136,18 @@ Nasledujici komponenty NEMAJI zatim zadny externi import (pripravene pro budouci
 
 ## 5. Design a vizual
 
+### 5.0 Builder tokens alignment (Session 2026-02-26)
+
+Widget Builder (`builder-tokens.css`) je nyni zarovnany s Forge design systemem:
+
+| Token | Puvodni | Nova | Ucel |
+|-------|---------|------|------|
+| `--builder-accent-primary` | modra | `#00D4AA` (Forge teal) | CTA buttons, hover states |
+| `--builder-font-heading` | Inter | Space Grotesk | Section headings |
+| `--builder-font-body` | Inter | IBM Plex Sans | Body text, labels |
+
+**Zmena:** Builder pouziva nyni stejne fonty a barvy jako hlavni Forge system.
+
 ### 5.1 Vsechny CSS tokeny/promenne
 
 Definovane v `src/styles/forge-tokens.css` na `:root`:
@@ -329,6 +341,86 @@ Forge nepouziva formalizovany spacing scale token. Spacing je definovan primo v 
 | Gap v accordion | `8px paddingLeft` | ForgeFaqAccordion |
 | Card-interactive hover lift | `-2px translateY` | forge-utilities.css |
 | Button hover lift | `-1px translateY` | ForgeButton primary |
+
+---
+
+## 6. Widget default theme -- Forge teal (#00D4AA)
+
+### 6.1 Widget theme default barvy
+
+Widget kalkulacka pouziva Forge theme (ne Tailwind). Default barvy:
+
+| Vlastnost | Barva | CSS var | Ucel |
+|-----------|-------|---------|------|
+| Button primary | `#00D4AA` | `--widget-btn-primary` | CTA tlacitka (byla modra #2563EB) |
+| Button hover | `#00A88A` | `--widget-btn-hover` | Hover stav |
+| Background | `#FFFFFF` | `--widget-bg` | Svetle pozadi |
+| Header text | `#1F2937` | `--widget-header` | Tmave nadpisy |
+| Body text | `#374151` | `--widget-text` | Hlavni text |
+| Muted text | `#6B7280` | `--widget-muted` | Sekundarni text |
+
+**Zmena (Session 2026-02-26):** Button primary zmenen z modre (#2563EB) na Forge teal (#00D4AA).
+
+### 6.2 Widget theme loading
+
+Pri nacteni WidgetPublicPage se theme konstruuje v `effectiveTheme`:
+
+```javascript
+// 1. Zacit s defaults
+const defaultTheme = getDefaultWidgetTheme();
+
+// 2. Merge widget.themeConfig
+const merged = { ...defaultTheme, ...widget.themeConfig };
+
+// 3. Apply branding overrides (pokud nastaven)
+if (branding.primaryColor) {
+  merged.buttonPrimaryColor = branding.primaryColor;
+}
+if (branding.fontFamily) {
+  merged.fontFamily = branding.fontFamily;
+}
+
+// 4. Apply widget.primaryColorOverride (nejvyssi priorita)
+if (widget.primaryColorOverride) {
+  merged.buttonPrimaryColor = widget.primaryColorOverride;
+}
+```
+
+---
+
+## 7. Widget Builder -- Quick themes (presety)
+
+### 7.1 Quick themes predefinovane presety
+
+BuilderPage nabizi "Quick themes" dropdown s presety:
+
+| Preset | Barva | Font | Specialni |
+|--------|-------|------|-----------|
+| **Forge Brand** | Teal (#00D4AA) | Space Grotesk + IBM Plex | DOPORUCENO (prvni v seznamu) |
+| Dark Pro | #0E1015 | Space Grotesk + IBM Plex | Tmave pozadi |
+| Light Modern | #FFFFFF | Space Grotesk + IBM Plex | Svetle pozadi |
+| Ocean Vibes | #006B8F | Space Grotesk + IBM Plex | Modry akcent |
+
+**Zmena (Session 2026-02-26):** "Forge Brand" je novy preset s teaem + Forge fonty (doporuceno pro nove widgety).
+
+### 7.2 Implementace v QuickThemeDropdown
+
+```javascript
+const QUICK_THEMES = [
+  {
+    name: 'Forge Brand',
+    apply: (theme) => ({
+      ...theme,
+      buttonPrimaryColor: '#00D4AA',
+      headingFontFamily: 'Space Grotesk, system-ui, sans-serif',
+      fontFamily: 'IBM Plex Sans, system-ui, sans-serif'
+    })
+  },
+  // ... dalsi presety
+];
+```
+
+Vybrani presetu je castecne (meni jen barvu + font, ne ostatni vlastnosti).
 
 ---
 
@@ -960,6 +1052,24 @@ Vyjimky pouzivajici CSS tridy: ForgeNumberedCard, ForgeStatusIndicator.
 
 `ForgeSlider` pri prvnim renderovani injektuje `<style>` tag do `<head>` pro
 pseudo-element styling (`::-webkit-slider-thumb`). Tag neni odstranen pri unmount.
+
+### 17.11 Typography rule enforcement (Session 2026-02-26)
+
+**KRITICKE PRAVIDLO pro AdminWidget a Widget Builder:**
+
+- `--forge-font-heading` (Space Grotesk) **POUZE** pro nadpisy (`text-lg` a vetsi, 16px+)
+- `--forge-font-body` (IBM Plex Sans) **VZDY** pro body text, labely, formularove prvky
+- `--forge-font-tech` (Space Mono) **POUZE** pro 10-12px uppercase tech labely, section markers
+
+**Kontrola v AdminWidget headings:**
+- Widget card names: `--forge-font-heading` (byla `--mp-font-body`, smazano)
+- Button text: `--forge-font-heading` s `font-weight: 600`
+- Dialog title: `--forge-font-heading` s `font-weight: 700`
+
+**Kontrola v Builder:**
+- Element label: `--forge-font-body` (14px)
+- Section heading: `--forge-font-heading` (18px+)
+- Status indicator: `--forge-font-tech` (10px uppercase)
 
 ---
 

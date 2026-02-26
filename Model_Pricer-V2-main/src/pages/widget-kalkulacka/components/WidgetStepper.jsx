@@ -18,6 +18,12 @@ const STEPS_5 = [
   { id: 5, label: 'Potvrzeni' },
 ];
 
+const STATE_LABELS = {
+  completed: 'dokonceno',
+  active: 'aktivni',
+  inactive: 'ceka',
+};
+
 /**
  * WidgetStepper - Configurable step progress indicator.
  *
@@ -139,9 +145,12 @@ const WidgetStepper = ({
       className="widget-stepper"
       style={containerStyle}
       onClick={builderMode ? handleBuilderClick : undefined}
+      role="navigation"
+      aria-label="Prubeh objednavky"
     >
       {/* Steps row */}
       <div
+        role="list"
         style={{
           display: 'flex',
           alignItems: 'flex-start',
@@ -151,9 +160,15 @@ const WidgetStepper = ({
       >
         {STEPS.map((step, index) => {
           const state = getStepState(step.id);
+          const stateLabel = STATE_LABELS[state] || 'ceka';
           return (
             <React.Fragment key={step.id}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div
+                role="listitem"
+                aria-label={`Krok ${step.id}: ${step.label}, ${stateLabel}`}
+                aria-current={state === 'active' ? 'step' : undefined}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+              >
                 <div style={getCircleStyle(state)}>
                   {state === 'completed' ? (
                     <Check size={16} strokeWidth={2.5} />
@@ -164,7 +179,7 @@ const WidgetStepper = ({
                 <span style={getLabelStyle(state)}>{step.label}</span>
               </div>
               {index < STEPS.length - 1 && (
-                <div style={getLineStyle(step.id)} />
+                <div style={getLineStyle(step.id)} aria-hidden="true" />
               )}
             </React.Fragment>
           );
@@ -174,6 +189,11 @@ const WidgetStepper = ({
       {/* Progress bar */}
       {stepperProgressVisible && (
         <div
+          role="progressbar"
+          aria-valuenow={Math.round(progressFraction * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Prubeh: ${Math.round(progressFraction * 100)}%`}
           style={{
             marginTop: '12px',
             height: 4,

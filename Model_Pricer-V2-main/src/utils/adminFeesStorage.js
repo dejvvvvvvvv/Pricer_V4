@@ -195,8 +195,15 @@ export function normalizeFeesConfigV3(input) {
   };
 }
 
-export function loadFeesConfigV3() {
-  const stored = readTenantJson(NS_FEES_V3, null);
+/**
+ * Load fees config from tenant-scoped V3 storage.
+ *
+ * @param {string} [tenantIdOverride] - Optional tenant ID override. When provided,
+ *   reads fees from this tenant's storage instead of the default (getTenantId()).
+ *   Used by public widget to load the widget owner's fees config.
+ */
+export function loadFeesConfigV3(tenantIdOverride) {
+  const stored = readTenantJson(NS_FEES_V3, null, tenantIdOverride);
   if (stored && typeof stored === 'object') {
     return normalizeFeesConfigV3(stored);
   }
@@ -205,13 +212,13 @@ export function loadFeesConfigV3() {
   // Migration is idempotent because we only run it when V3 is missing.
   const mig = migrateLegacyFeesToV3();
   if (mig?.migrated && mig?.data) {
-    writeTenantJson(NS_FEES_V3, mig.data);
+    writeTenantJson(NS_FEES_V3, mig.data, tenantIdOverride);
     return normalizeFeesConfigV3(mig.data);
   }
 
   // No legacy found => seed defaults and persist (so the tenant key exists).
   const seeded = normalizeFeesConfigV3(getDefaultFeesConfigV3());
-  writeTenantJson(NS_FEES_V3, seeded);
+  writeTenantJson(NS_FEES_V3, seeded, tenantIdOverride);
   return seeded;
 }
 

@@ -50,17 +50,17 @@ export function getDefaultWidgetTheme() {
     // Text colors
     headerColor: '#1F2937',
     textColor: '#374151',
-    mutedColor: '#6B7280',
+    mutedColor: '#637083',
 
     // Button colors
-    buttonPrimaryColor: '#2563EB',
+    buttonPrimaryColor: '#00D4AA',
     buttonTextColor: '#FFFFFF',
-    buttonHoverColor: '#1D4ED8',
+    buttonHoverColor: '#00C49A',
 
     // Input colors
     inputBgColor: '#FFFFFF',
     inputBorderColor: '#D1D5DB',
-    inputFocusColor: '#2563EB',
+    inputFocusColor: '#00D4AA',
 
     // Summary/result area
     summaryBgColor: '#F3F4F6',
@@ -69,7 +69,7 @@ export function getDefaultWidgetTheme() {
     borderColor: '#E5E7EB',
 
     // Typography
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: '"IBM Plex Sans", system-ui, sans-serif',
 
     // Dimensions
     cornerRadius: 12,
@@ -86,12 +86,12 @@ export function getDefaultWidgetTheme() {
     // Upload zone
     uploadBgColor: '#FAFBFC',
     uploadBorderColor: '#E2E8F0',
-    uploadBorderHoverColor: '#3B82F6',
+    uploadBorderHoverColor: '#00D4AA',
     uploadIconColor: '#94A3B8',
     uploadBorderStyle: 'dashed',
 
     // Stepper
-    stepperActiveColor: '#3B82F6',
+    stepperActiveColor: '#00D4AA',
     stepperCompletedColor: '#10B981',
     stepperInactiveColor: '#E5E7EB',
     stepperProgressVisible: true,
@@ -102,12 +102,12 @@ export function getDefaultWidgetTheme() {
 
     // Fees section
     feesBgColor: '#F9FAFB',
-    feesCheckboxColor: '#3B82F6',
+    feesCheckboxColor: '#00D4AA',
 
     // Price summary
     summaryHeaderColor: '#1F2937',
     summaryDividerColor: '#E5E7EB',
-    summaryTotalBgColor: '#EFF6FF',
+    summaryTotalBgColor: '#ECFDF8',
     summaryTotalFontSize: 20,
 
     // CTA button
@@ -119,10 +119,10 @@ export function getDefaultWidgetTheme() {
     // Footer
     footerBgColor: 'transparent',
     footerTextColor: '#94A3B8',
-    footerLinkColor: '#3B82F6',
+    footerLinkColor: '#00D4AA',
 
     // Typography (extended)
-    headingFontFamily: '"DM Sans", system-ui, sans-serif',
+    headingFontFamily: '"Space Grotesk", system-ui, sans-serif',
     codeFontFamily: '"JetBrains Mono", monospace',
 
     // Effects

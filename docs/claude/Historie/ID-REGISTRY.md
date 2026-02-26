@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 084
-**Dalsi ID k pouziti:** 085
+**Posledni pouzite ID:** 088
+**Dalsi ID k pouziti:** 089
 
 ---
 
@@ -216,8 +216,21 @@ S{NN}
 | 073 | AC | Account | KONVERZACE — Security+Billing implementace kontext | 2026-02-24 |
 | 074 | AC | Account | KONVERZACE — Sprint 2 finalni souhrn (vsech 5 ukolu hotovo) | 2026-02-24 |
 | 075 | AC | Account | UPRAVY — Sprint 2 kompletni zmeny (10 souboru, 3 nove, 7 upravenych) | 2026-02-24 |
+| 076 | ST | Storage | KONVERZACE — Per-User Tenant Izolace (2026-02-25, S01) | 2026-02-25 |
+| 077 | ST | Storage | UPRAVY — 15 souboru tenant-scoped storage refaktor | 2026-02-25 |
+| 078 | ST | Storage | OTAZKY — 5 Q&A o tenant modelu a migraci | 2026-02-25 |
+| 079 | ST | Storage | KONVERZACE — P0 Code Review request + 3 agenti | 2026-02-25 |
+| 080 | ST | Storage | UPRAVY — 6 souboru: setTenantId, getTenantId scope, legacy keys | 2026-02-25 |
+| 081 | GN | General | KONVERZACE — P1 Fixes session (7 chyb, build PASS) | 2026-02-25 |
+| 082 | ST | Storage | UPRAVY — 7 souboru + BUGFIX-TRACKER.md | 2026-02-25 |
+| 083 | GN | General | DENNI-PREHLED — 2026-02-25 souhrn | 2026-02-25 |
+| 084 | ST | Storage | UPRAVY — P2 bugfixy (3 oblasti, console.debug cleanup) | 2026-02-25 |
+| 085 | WB | Widget-Builder | KONVERZACE — Widget Builder vlny 1-3 (2026-02-26, S02) | 2026-02-26 |
+| 086 | WB | Widget-Builder | UPRAVY — 17+ souboru (PostMessage, Storage, Security, Typography, UX, A11y) | 2026-02-26 |
+| 087 | WB | Widget-Builder | OTAZKY — 12 Q&A (embed, XSS, konkurence, ARIA) | 2026-02-26 |
+| 088 | GN | General | DENNI-PREHLED — 2026-02-26 Widget Builder complete | 2026-02-26 |
 
 ---
 
-**Posledni aktualizace:** 2026-02-25
-**Posledni session:** S01 (2026-02-25) — Per-User Tenant Izolace + P0 Code Review + P1 Fixes + P2 Fixes (076-ST az 084-ST)
+**Posledni aktualizace:** 2026-02-26
+**Posledni session:** S02 (2026-02-26) — Widget Builder Wave 1-3 Complete (085-WB az 088-GN)

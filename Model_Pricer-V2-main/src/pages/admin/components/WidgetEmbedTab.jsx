@@ -10,12 +10,20 @@ import Icon from '../../../components/AppIcon';
  *   widget - the selected widget object (from widgets list, NOT editor)
  */
 
+/**
+ * Sanitize widget name for safe use in HTML comments.
+ * Strips sequences that could break out of an HTML comment (-- and >).
+ */
+function sanitizeForComment(str) {
+  return String(str || '').replace(/-{2,}/g, '-').replace(/>/g, '');
+}
+
 function buildIframeEmbedCode(widget) {
   if (!widget) return '';
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com';
   const publicId = widget.publicId || 'WIDGET_ID';
-  const name = widget.name || publicId;
+  const name = sanitizeForComment(widget.name || publicId);
 
   return (
     `<!-- ModelPricer Widget: ${name} -->\n` +
@@ -24,9 +32,11 @@ function buildIframeEmbedCode(widget) {
     `  style="width: 100%; border: none; min-height: 600px;"\n` +
     `  title="3D Print Calculator"\n` +
     `  allow="clipboard-write"\n` +
+    `  sandbox="allow-scripts allow-same-origin allow-forms"\n` +
     `></iframe>\n` +
     `<script>\n` +
     `  window.addEventListener('message', function(e) {\n` +
+    `    if (e.origin !== '${origin}') return;\n` +
     `    if (e.data?.type === 'MODELPRICER_RESIZE') {\n` +
     `      var iframe = document.querySelector('iframe[src*="${publicId}"]');\n` +
     `      if (iframe && e.data.height) {\n` +

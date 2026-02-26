@@ -83,6 +83,7 @@
     iframe.src = resolveEmbedSrc(container, publicId);
     iframe.setAttribute('title', '3D print calculator');
     iframe.setAttribute('loading', 'lazy');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
 
     iframe.style.width = '100%';
     iframe.style.border = '0';
@@ -94,6 +95,18 @@
     iframe.setAttribute('data-modelpricer-public-id', publicId);
 
     container.appendChild(iframe);
+
+    // Collect allowed custom Shopify domains for redirect validation
+    var customDomains = container.getAttribute('data-shopify-custom-domains');
+    if (customDomains) {
+      var parts = customDomains.split(',');
+      for (var cd = 0; cd < parts.length; cd++) {
+        var d = parts[cd].trim().toLowerCase();
+        if (d && allowedCustomDomains.indexOf(d) === -1) {
+          allowedCustomDomains.push(d);
+        }
+      }
+    }
 
     // Detect Shopify config from data attributes and send to iframe
     var shopifyDomain = container.getAttribute('data-shopify-domain');
@@ -148,17 +161,25 @@
     for (var i = 0; i < containers.length; i++) initOne(containers[i]);
   }
 
+  // ─── Allowed custom Shopify domains (populated from widget container data attributes) ──
+  var allowedCustomDomains = [];
+
   // ─── URL validation for redirects ────────────────────────
   function isValidShopifyUrl(url) {
     if (!url || typeof url !== 'string') return false;
     try {
       var parsed = new URL(url);
       if (parsed.protocol !== 'https:') return false;
-      // Must be a Shopify domain
-      if (parsed.hostname.indexOf('.myshopify.com') !== -1) return true;
-      if (parsed.hostname.indexOf('.shopify.com') !== -1) return true;
-      // Custom domains: allow if HTTPS (URL came from Shopify API)
-      return true;
+      var host = parsed.hostname.toLowerCase();
+      // Must be a known Shopify domain
+      if (host === 'myshopify.com' || host.endsWith('.myshopify.com')) return true;
+      if (host === 'shopify.com' || host.endsWith('.shopify.com')) return true;
+      // Custom domains: only allow if explicitly configured via data-shopify-custom-domains
+      for (var i = 0; i < allowedCustomDomains.length; i++) {
+        var allowed = allowedCustomDomains[i].toLowerCase();
+        if (host === allowed || host.endsWith('.' + allowed)) return true;
+      }
+      return false;
     } catch (e) {
       return false;
     }

@@ -1,0 +1,1 @@
+module.exports = require(String.fromCharCode(39) + "./tmp-content" + String.fromCharCode(39)); 

@@ -276,11 +276,12 @@ appendTenantLogAsync(namespace: string, entry: object, maxItems?: number): Promi
 
 ```javascript
 // Cteni (s legacy migraci + normalizaci + writeback)
-loadPricingConfigV3(): PricingConfigV3
-// 1. Cte readTenantJson('pricing:v3')
+loadPricingConfigV3(tenantIdOverride?: string): PricingConfigV3
+// 1. Cte readTenantJson('pricing:v3', null, tenantIdOverride)
 // 2. Pokud existuje: normalizuje + writeback chybejicich poli
 // 3. Pokud neexistuje: pokusi se migrovat legacy klice
 // 4. Pokud nic: seed defaults
+// tenantIdOverride: umoznuje nacist pricing jineho tenanta (pouzivano public widgetem)
 
 // Zapis (vzdy normalizuje)
 savePricingConfigV3(config: object): PricingConfigV3
@@ -331,7 +332,8 @@ getColorEffectivePrice(material: object, colorId: string): number
 **Namespace:** `fees:v3` | **Schema version:** 3
 
 ```javascript
-loadFeesConfigV3(): FeesConfigV3
+loadFeesConfigV3(tenantIdOverride?: string): FeesConfigV3
+// tenantIdOverride: umoznuje nacist fees jineho tenanta (pouzivano public widgetem)
 saveFeesConfigV3(data: object): FeesConfigV3
 normalizeFeesConfigV3(input: object): FeesConfigV3
 getDefaultFeesConfigV3(): FeesConfigV3
@@ -589,6 +591,12 @@ isDomainAllowedByWhitelist(hostname, domains): boolean
 
 // Lookup
 getWidgetByPublicId(publicWidgetId): { widget, tenantId } | null
+getWidgetByIdOrPublicId(tenantIdHint, publicIdOrId): Widget | null
+// Hleda nejprve dle publicId (cross-tenant), pak dle interniho id.
+// Pouzivano WidgetEmbed.jsx pro resolve URL parametru.
+getWidgetBuilderData(tenantId, publicIdOrWidgetId): { root, content }
+// Vraci Puck-kompatibilni data strukturu s widget konfiguraci (theme, layout, meta).
+// Pouzivano WidgetEmbed.jsx pro Puck <Render />.
 
 // Theme (delegace)
 updateWidgetTheme(tenantId, widgetId, themeConfig): Widget
@@ -801,7 +809,16 @@ Helpery neposlouchaji `window.addEventListener('storage', ...)`. Zmeny v localSt
 
 ---
 
+## 18. Changelog
+
+| Datum | Zmena |
+|-------|-------|
+| 2026-02-13 | Prvni verze dokumentace (Phase 4 Supabase integrace) |
+| 2026-02-26 | Bug fix: pridano `getWidgetByIdOrPublicId()` a `getWidgetBuilderData()` do adminBrandingWidgetStorage (chybejici exporty pro WidgetEmbed). Fix cross-tenant pricing leak: `loadPricingConfigV3()` a `loadFeesConfigV3()` nyni prijimaji `tenantIdOverride` parametr. WidgetPublicPage predava `tenantId` prop do WidgetKalkulacka. |
+
+---
+
 > **Vlastnik:** `mp-mid-storage-tenant` (SINGLE OWNER pro `src/utils/admin*Storage.js`)
 > **Eskalace:** `mp-sr-storage`
 > **Konzumenti:** `mp-mid-frontend-admin`, `mp-mid-frontend-widget`
-> **Posledni aktualizace:** 2026-02-13
+> **Posledni aktualizace:** 2026-02-26

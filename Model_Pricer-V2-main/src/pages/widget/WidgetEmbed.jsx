@@ -12,6 +12,22 @@ import { createWidgetBuilderConfig } from '../../widgets/puck/widgetBuilderConfi
 import { getTenantId } from '../../utils/adminTenantStorage';
 
 /**
+ * Get target origin for postMessage.
+ * Uses document.referrer when embedded in iframe.
+ * Falls back to own origin instead of '*' to prevent data leakage.
+ */
+function getEmbedTargetOrigin() {
+  try {
+    if (document.referrer) {
+      return new URL(document.referrer).origin;
+    }
+  } catch {
+    // Invalid referrer URL
+  }
+  return window.location.origin;
+}
+
+/**
  * Iframe-friendly runtime route.
  *
  * URL: /widget/embed/:publicId
@@ -32,12 +48,13 @@ export default function WidgetEmbed() {
     const el = rootRef.current;
     if (!el) return;
 
+    const targetOrigin = getEmbedTargetOrigin();
     const postHeight = () => {
       const h = Math.ceil(el.getBoundingClientRect().height);
       try {
         window.parent?.postMessage(
           { type: 'MODELPRICER_WIDGET_HEIGHT', publicId, height: h },
-          '*'
+          targetOrigin
         );
       } catch {
         // ignore

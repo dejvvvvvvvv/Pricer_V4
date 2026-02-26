@@ -45,7 +45,14 @@ function lsSet(key, value) {
 function rand(n = 8) {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let out = '';
-  for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  // Use crypto.getRandomValues for unpredictable widget IDs; fall back to Math.random
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint32Array(n);
+    crypto.getRandomValues(buf);
+    for (let i = 0; i < n; i++) out += chars[buf[i] % chars.length];
+  } else {
+    for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  }
   return out;
 }
 
@@ -331,9 +338,15 @@ export function validateDomainInput(domainInput) {
   if (raw.includes(' ')) return { ok: false, reason: 'SPACE_NOT_ALLOWED' };
 
   // Basic hostname validation (allows punycode and subdomains).
+  // Rewritten without lookbehind (?<!-) for Safari < 16.4 compatibility.
   const host = raw.toLowerCase();
-  const re = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/;
-  if (!re.test(host)) return { ok: false, reason: 'INVALID_HOSTNAME' };
+  if (host.length > 253) return { ok: false, reason: 'INVALID_HOSTNAME' };
+  const labels = host.split('.');
+  for (const label of labels) {
+    if (label.length === 0 || label.length > 63) return { ok: false, reason: 'INVALID_HOSTNAME' };
+    if (!/^[a-z0-9-]+$/.test(label)) return { ok: false, reason: 'INVALID_HOSTNAME' };
+    if (label.startsWith('-') || label.endsWith('-')) return { ok: false, reason: 'INVALID_HOSTNAME' };
+  }
   if (!host.includes('.')) return { ok: false, reason: 'MISSING_TLD' };
   return { ok: true, host };
 }

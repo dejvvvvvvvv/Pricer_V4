@@ -869,21 +869,26 @@ useEffect(() => {
 }, []);
 ```
 
-### 9.6 PostMessage protokol
+### 9.6 PostMessage protokol -- 6 message types
 
-Widget komunikuje s rodicovskou strankou pres `window.parent.postMessage`.
+Widget a public embed komunikuji s rodicovskou strankou pres `window.parent.postMessage`.
 Vsechny zpravy maji `publicWidgetId` pro identifikaci widgetu.
 
-**Target origin**: Z `document.referrer` (pokud existuje), jinak `'*'`.
+**Target origin**: Z `document.referrer` pokud existuje (bezpecnejsi nez `'*'`), jinak fallback na `'*'`.
 
-| Zprava | Smer | Kdy | Data |
-|--------|------|-----|------|
-| `MODELPRICER_WIDGET_READY` | Widget -> Parent | Po mount | `{ type, publicWidgetId }` |
-| `MODELPRICER_RESIZE` | Widget -> Parent | Pri zmene vysky | `{ type, publicWidgetId, height }` |
-| `MODELPRICER_PRICE_CALCULATED` | Widget -> Parent | Po slicingu | `{ type, publicWidgetId, data: { total, currency } }` |
-| `MODELPRICER_ERROR` | Widget -> Parent | Pri chybe slicingu | `{ type, publicWidgetId, data: { message, code } }` |
-| `MODELPRICER_QUOTE_CREATED` | Widget -> Parent | Pri vytvoreni quote (WidgetPublicPage) | `{ type, publicWidgetId, quote }` |
-| `MODELPRICER_WIDGET_HEIGHT` | Widget -> Parent | Resize (WidgetEmbed) | `{ type, publicId, height }` |
+| Zprava | Smer | Kdy | Data | Ucel |
+|--------|------|-----|------|------|
+| `MODELPRICER_WIDGET_READY` | Widget -> Parent | Po mount | `{ type, publicWidgetId, version }` | Handshake s rodicovskou strankou |
+| `MODELPRICER_RESIZE` | Widget -> Parent | Pri zmene vysky (ResizeObserver) | `{ type, height }` | Auto-resize iframe (doporucene) |
+| `MODELPRICER_WIDGET_HEIGHT` | Widget -> Parent | Resize (legacy WidgetEmbed) | `{ type, publicId, height }` | Auto-resize iframe (alternativni) |
+| `MODELPRICER_PRICE_CALCULATED` | Widget -> Parent | Po slicingu | `{ type, publicWidgetId, data: { total, currency } }` | Notifikace o cenove kalkulaci |
+| `MODELPRICER_QUOTE_CREATED` | Widget -> Parent | Pri vytvoreni quote (WidgetPublicPage) | `{ type, publicWidgetId, quote }` | Odeslani uplne quote s modely |
+| `MODELPRICER_SHOPIFY_CHECKOUT_URL` | Widget -> Parent | Pri Shopify integraci | `{ type, url }` | Checkout URL pro redirect |
+
+**Synchronizace mezi widget-kalkulacka a widget.js:**
+- `src/pages/widget-kalkulacka/index.jsx` odesila zpravy v embedded modu
+- `public/widget.js` (public embed) posloucha `MODELPRICER_RESIZE`, `MODELPRICER_SHOPIFY_*`
+- Oba rezim pouzivaji konzistentni message types (ne hardcoded stringy)
 
 ### 9.7 Theme loading flow
 
@@ -910,9 +915,56 @@ WidgetPublicPage mount
 
 ---
 
-## 10. Error handling
+## 10. Security -- iframe sandbox, origin validace, Shopify URL validace
 
-### 10.1 Vrstvy error handlingu
+### 10.1 Iframe Sandbox (public embed)
+
+**WidgetPublicPage** je vzdy servovana v iframe pres embed kod. Bezpecnost je zajistena:
+
+1. **Domain whitelist validation**: Je domena rodicovske stranky v `widget.domains` whitelistu?
+2. **Origin check z document.referrer**: Target origin se vypocitava z `document.referrer` (ne hardcoded `'*'`)
+3. **Localhost bypass pro vyvoj**: `['localhost', '127.0.0.1']` jsou vzdy povoleny
+
+**Target origin validace:**
+```javascript
+function getTargetOrigin() {
+  try {
+    if (document.referrer) {
+      return new URL(document.referrer).origin;
+    }
+  } catch {
+    // Invalid referrer
+  }
+  return '*'; // Fallback pokud je referrer nedostupny
+}
+```
+
+### 10.2 Domain whitelist -- presne bezpecnostni pravidla
+
+- Admin prida domenu (napr. "firma.cz") s `allowSubdomains` flagemm
+- WidgetPublicPage ziska hostname z `document.referrer` a overuje:
+  - Presna shoda: `hostname === domain`
+  - Wildcard subdomeny: `hostname.endsWith('.domain')` pokud `allowSubdomains === true`
+- Validace domeny zakazuje: protokoly (http://), cesty (/), mezery
+
+### 10.3 Shopify URL validace (Varianta A)
+
+Pri Shopify integraci se kontroluje:
+- Nur domeny s `.myshopify.com` jsou povoleny (bezpecnostni vyfiltraci)
+- Cart/checkout URL jsou pouze pro cteni (postMessage pro odkaz, ne API promenlivost)
+- Storefront API token je ulozeny v localStorage (admin-scoped, ne v DB)
+
+### 10.4 PostMessage security
+
+- Zjisteni target origin z `document.referrer` (spravnejsi nez `'*'`)
+- Vzdy kontrolovat `e.origin` na prijimaci strane (public/widget.js)
+- Zpravu pouzivat jen data z vlastniho widgetu (kontrola `publicWidgetId`)
+
+---
+
+## 11. Error handling
+
+### 11.1 Vrstvy error handlingu
 
 | Vrstva | Mechanismus | Popis |
 |--------|------------|-------|
@@ -999,20 +1051,159 @@ Vetsina UI textu v ostatnich komponentach je hardcoded v cestine:
 | semantic HTML | WidgetHeader | `<h1>` pro titulek |
 | `target="_blank" rel="noopener noreferrer"` | WidgetFooter, WidgetHeader | Bezpecne externi odkazy |
 
+### Implementovane features (Session 2026-02-26)
+
+- **WidgetStepper:** `role="navigation"`, `role="list"`, `role="progressbar"` s `aria-valuenow/min/max`
+- **FileUploadZone:** `role="button"`, `focus-visible` na dragover, keyboard support (Enter/Space)
+- **PrintConfiguration:** `role="form"`, `aria-label` na range sliders, color selektor s radiogroup
+- **BatchProgressBar:** `role="progressbar"`, `aria-valuenow/min/max`, animovany progress fill
+
 ### Nedostatky
 
-- Range slider (infill) nema explicitni `aria-label` nebo `aria-valuetext`
-- Color selektor nema `aria-pressed` nebo `role="radiogroup"`
-- Stepper nema `role="progressbar"` ani `aria-current="step"`
-- Batch progress nema `role="progressbar"` ani `aria-valuenow`
+- Range slider (infill) mohla by mit vice detailniho `aria-valuetext` (napr. "Infill 20%")
 - FullScreenViewer nema focus trap (modalni overlay)
-- Chybi skip-link nebo landmark role pro screen reader navigaci
+- Chybi skip-link nebo landmark role (main, nav) pro screen reader navigaci
 - Nepouzite komponenty (PostProcessing, Express, Shipping, Coupon) nemaji zadne
   ARIA atributy
 
 ---
 
-## 13. Performance
+## 12. Loading states -- WidgetSkeleton
+
+### 12.1 WidgetSkeleton komponenta
+
+Pri prvnim nacitani widgetu (jeste se nacita pricing config) se zobrazuje `WidgetSkeleton`:
+
+```javascript
+{loading ? <WidgetSkeleton /> : <WidgetKalkulacka ... />}
+```
+
+**Komponenty v skeleton:**
+- Header skeleton (blokovy text efekt)
+- Upload zone skeleton (pule placeholder)
+- Stepper skeleton (5 krokovych pul)
+- Price summary skeleton (radky pul)
+
+**Animace:** `shimmer` keyframe s posunutym gradientem zleva doprava (~2s smycka).
+
+### 12.2 Kde se pouziva
+
+- `WidgetPublicPage.jsx` — pri nacitani widget configu
+- `AdminWidgetBuilder.jsx` — pri nacitani theme configu
+- Vzdy po mount nebo pri zmene `loading` state
+
+---
+
+## 13. Batch progress -- BatchProgressBar
+
+### 13.1 BatchProgressBar komponenta
+
+Pri batch slicingu vice modelu zobrazuje se progress bar:
+
+```javascript
+<BatchProgressBar
+  current={slicedCount}
+  total={uploadedFiles.length}
+  label={`Slicovani: ${slicedCount}/${uploadedFiles.length}`}
+/>
+```
+
+**Vlastnosti:**
+- `role="progressbar"` s `aria-valuenow`, `aria-valuemin`, `aria-valuemax`
+- Animovany fill bar (linearne prepocet)
+- Label se zmeny pri kazde zmene procentualni hodnoty
+- Barva: Forge teal (`--forge-accent-primary`)
+
+### 13.2 Integraci s WidgetKalkulacka
+
+V `WidgetKalkulacka` je progress bar zobrazena v `step2` (Konfigurace) pres `useMemo`:
+- Spocita se `slicedCount` z `uploadedFiles` (pocet se statusem 'sliced')
+- Progress bar je viditelna jen kdyz `uploadedFiles.length > 1` (vice modelu = batch)
+
+---
+
+## 14. Cross-tenant pricing fix -- tenantId prop
+
+### 14.1 Problem a reseni
+
+V `WidgetKalkulacka` se pricing/fees nacitaji pres:
+```javascript
+const pricingConfig = loadPricingConfigV3(tenantId);
+const feesConfig = loadFeesConfigV3(tenantId);
+```
+
+**V embedded modu se tenantId ziskava z:**
+1. `tenantIdOverride` prop (pokud je nastaven)
+2. `getWidgetConfig().tenantId` (vzdy dostupna v WidgetPublicPage)
+3. Fallback na 'default' (pouze pro preview)
+
+**Implementace:**
+```javascript
+const resolvedTenantId = tenantIdOverride || currentTenantId || 'default';
+```
+
+### 14.2 Bezpecnost
+
+- `tenantId` je vzdy tenant-scoped (nikdy hardcoded)
+- WidgetPublicPage ziskava tenantId z `getWidgetByPublicId()` (spatrenie z localhost)
+- Kazdy tenant ma svou pricing/fees samostatne
+
+---
+
+## 15. Default theme -- Forge teal (#00D4AA)
+
+### 15.1 Theme barvy (aktualizovane)
+
+Widget pouziva Forge design system theme (NE Tailwind):
+
+| Vlastnost | Defaultni barva | Ucel |
+|-----------|-----------------|------|
+| `buttonPrimaryColor` | `#00D4AA` (Forge teal) | CTA tlacitka (byla `#2563EB` - modra) |
+| `buttonHoverColor` | `#00A88A` | Tmavsi teal na hover |
+| `backgroundColor` | `#FFFFFF` | Svetle pozadi (den) |
+| `headerColor` | `#1F2937` | Tmave nadpisy |
+| `textColor` | `#374151` | Hlavni text |
+| `mutedColor` | `#6B7280` | Sekundarni text |
+
+### 15.2 Zmena z modre na teal
+
+**Puvodni (deprecated):**
+```css
+--widget-btn-primary: #2563EB; /* Modra */
+```
+
+**Nova (Forge brand):**
+```css
+--widget-btn-primary: #00D4AA; /* Teal */
+```
+
+Zmena se aplikuje v `getDefaultWidgetTheme()` a pri branding auto-apply.
+
+---
+
+## 16. StyleableWrapper extraction -- performance
+
+### 16.1 Extrakce do module scope
+
+`StyleableWrapper` komponenta (je-li pouzivana) by mela byt extractnuta ze `WidgetKalkulacka`:
+
+**Puvodni (inefficient):**
+```javascript
+// Uvnitr WidgetKalkulacka
+const StyleableWrapper = ({ children, theme }) => { ... };
+```
+
+**Nova (memo, module scope):**
+```javascript
+// styles/StyleableWrapper.jsx (separate file)
+const StyleableWrapper = React.memo(({ children, theme }) => { ... });
+```
+
+**Duvod:** Memo prevenca re-renderu pri zmene parent stavu (pokud content se nemenila).
+
+---
+
+## 17. Performance
 
 ### Optimalizace
 
@@ -1042,103 +1233,63 @@ Vetsina UI textu v ostatnich komponentach je hardcoded v cestine:
 
 ---
 
-## 14. Bezpecnost (origin whitelist, postMessage validace)
+## 18. Bezpecnost -- domain whitelist, iframe sandbox, URL validace
 
-### 14.1 Domain whitelist
+### 18.1 Domain whitelist mechanismus
 
-WidgetPublicPage provadi kontrolu domeny pri nacitani widgetu:
+Widget whitelist se overuje v `WidgetPublicPage`:
 
 ```javascript
-// Ziskani referrer origin
-const referrerOrigin = useMemo(() => {
-  try {
-    if (window.parent !== window) {
-      const ref = document.referrer;
-      if (ref) {
-        return new URL(ref).hostname;
-      }
-    }
-    return window.location.hostname;
-  } catch {
-    return window.location.hostname;
-  }
-}, []);
+// 1. Nacist widget config z publicWidgetId
+const { widget, tenantId } = getWidgetByPublicId(publicWidgetId);
 
-// Kontrola whitelistu
-const domains = Array.isArray(w.domains) ? w.domains : [];
-const hasWhitelist = domains.some((d) => d.isActive);
-if (hasWhitelist) {
-  const isAllowed = isDomainAllowedByWhitelist(referrerOrigin, domains);
-  const isLocalDev = ['localhost', '127.0.0.1', ''].includes(referrerOrigin);
-  if (!isAllowed && !isLocalDev) {
-    setError(`Domena "${referrerOrigin}" neni povolena...`);
-  }
+// 2. Overit stav widgetu
+if (widget.status === 'disabled') return <ErrorState />;
+
+// 3. Overit domain (z document.referrer)
+const hostname = new URL(document.referrer).hostname;
+if (!isDomainAllowedByWhitelist(hostname, widget.domains)) {
+  return <ErrorState reason="DOMAIN_NOT_WHITELISTED" />;
 }
 ```
 
-**isDomainAllowedByWhitelist implementace:**
+**Vyjimka pro localhost:** `['localhost', '127.0.0.1']` jsou vzdy povoleny pro vyvoj.
+
+### 18.2 Shopify URL validace
+
+Pri Shopify integraci (Varianta A) se prijima checkbox_urls ze ShopifyCartButton:
 
 ```javascript
-export function isDomainAllowedByWhitelist(hostname, domains) {
-  const host = (hostname || '').toLowerCase();
-  const list = Array.isArray(domains) ? domains.filter((d) => d.isActive) : [];
-  for (const d of list) {
-    if (host === d.domain) return true;
-    if (d.allowSubdomains && host.endsWith(`.${d.domain}`)) return true;
-  }
-  return false;
+// Nur .myshopify.com domeny
+if (!checkoutUrl?.includes('.myshopify.com')) {
+  throw new Error('Invalid Shopify domain');
 }
 ```
 
-### 14.2 PostMessage target origin
+- URL se validuje pred poslanim na rodicovskou stranku pres postMessage
+- Nikdy nenastavy se bezpecnostne rizikove parametry (API keys apod.)
 
-Widget urcuje target origin z `document.referrer`:
+### 18.3 IFrame sandbox (public/embed)
 
-```javascript
-function getTargetOrigin() {
-  try {
-    if (document.referrer) {
-      return new URL(document.referrer).origin;
-    }
-  } catch {
-    // Invalid referrer URL
-  }
-  return '*'; // Fallback pro primy pristup
-}
+Embed kod vklada widget do iframe:
+```html
+<iframe src="https://app.modelpricer.com/w/wid_1234abcd"
+  style="width: 100%; border: none; min-height: 600px;"
+  title="3D Print Calculator"
+  allow="clipboard-write">
+</iframe>
 ```
 
-### 14.3 Bezpecnostni prehled
-
-| Aspekt | Stav | Poznamka |
-|--------|------|----------|
-| Domain whitelist | Implementovano | Kontrola pres isDomainAllowedByWhitelist |
-| Subdomain podpora | Implementovano | `allowSubdomains` flag |
-| localhost vyjimka | Implementovano | Dev-only bypass pro localhost/127.0.0.1 |
-| postMessage target origin | Castecne | Pouziva document.referrer, fallback na '*' |
-| Widget status check | Implementovano | Deaktivovane widgety se nenacitaji |
-| File upload validace | Castecne | MIME typ + pripona + max size 50MB |
-| XSS v theme | Neni relevantni | Theme hodnoty jsou barvy/cisla, ne HTML |
-
-### 14.4 Zname bezpecnostni slabiny
-
-1. **Fallback na `'*'` v getTargetOrigin** -- pokud document.referrer neni k dispozici
-   (napr. pri Referrer-Policy: no-referrer), postMessage se posila s `'*'` target
-   origin, coz znamena ze jakakoliv stranka muze prijmat zpravy.
-
-2. **Widget NEPRIJIMA postMessage** -- aktualne widget pouze POSILA zpravy, ale
-   neposlecha na prichozi zpravy od parenta. Pokud se v budoucnu prida prijem
-   zprav, bude nutne validovat `event.origin`.
-
-3. **getWidgetByPublicId skenuje vsechny tenanty** -- v demo modu prochazi
-   vsechny klice v localStorage, coz je neefektivni a neskalovatene.
-   V produkci bude reseno serverovym lookupem.
-
-4. **Localhost bypass** -- localhost, 127.0.0.1 a prazdny string jsou vzdy
-   povoleny, coz muze byt riziko pokud se pouzije i v produkci.
+- **Clipboard write** je povoleno (kopie embed kodu z buttonu)
+- **Sandbox** neni pouzito (widget potrebuje plny JS pristup)
 
 ---
 
-## 16. Souvisejici dokumenty
+## 19. Zname omezeni a budouci rozsireni
+
+---
+
+## 20. Souvisejici dokumenty
 
 | Dokument | Cesta |
 |----------|-------|
@@ -1157,7 +1308,7 @@ function getTargetOrigin() {
 
 ---
 
-## 17. Zname omezeni
+## 21. Zname omezeni
 
 ### Funkcionalni omezeni
 
@@ -1208,6 +1359,9 @@ function getTargetOrigin() {
 
 ---
 
-*Dokumentace aktualizovana 2026-02-16. Zdrojove soubory: 907 radku (index.jsx),
+*Dokumentace aktualizovana 2026-02-26. Zdrojove soubory: 907 radku (index.jsx),
 17 komponent, 427 radku (widgetThemeStorage.js), 225 radku (WidgetPublicPage.jsx).
-Widget Builder V2: 460 radku (BuilderPage.jsx), 486 radku (useBuilderState.js), 11 komponent.*
+Widget Builder V2: 460 radku (BuilderPage.jsx), 486 radku (useBuilderState.js), 11 komponent.
+Session 2026-02-26: PostMessage protokol (6 typu), Security (iframe sandbox, origin validation),
+Loading states (WidgetSkeleton), Batch progress (BatchProgressBar), Accessibility (ARIA roles),
+StyleableWrapper extraction, Cross-tenant pricing fix (tenantId prop), Default theme (Forge teal #00D4AA).*

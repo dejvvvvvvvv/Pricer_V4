@@ -282,6 +282,19 @@ const PrintConfiguration = ({
 
   return (
     <div className="space-y-6">
+      {/* Focus-visible styles for interactive elements */}
+      <style>{`
+        .widget-preset-btn:focus-visible {
+          outline: 2px solid var(--widget-btn-bg, var(--widget-btn-primary, #00D4AA));
+          outline-offset: 2px;
+        }
+        .widget-infill-range:focus-visible {
+          outline: 2px solid var(--widget-btn-bg, var(--widget-btn-primary, #00D4AA));
+          outline-offset: 2px;
+          border-radius: 4px;
+        }
+      `}</style>
+
       {/* Slicing preset selector */}
       <div
         className="p-6"
@@ -353,7 +366,7 @@ const PrintConfiguration = ({
             <button
               key={key}
               onClick={() => applyPreset(key)}
-              className="p-4 text-left transition-colors"
+              className="widget-preset-btn p-4 text-left transition-colors"
               style={{
                 backgroundColor: 'var(--widget-card, #F9FAFB)',
                 border: '1px solid var(--widget-border, #E5E7EB)',
@@ -450,8 +463,9 @@ const PrintConfiguration = ({
               step="5"
               value={config?.infill}
               onChange={(e) => handleConfigChange('infill', parseInt(e?.target?.value))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="widget-infill-range w-full h-2 rounded-lg appearance-none cursor-pointer"
               style={{ backgroundColor: 'var(--widget-card, #F9FAFB)' }}
+              aria-label={`Vypln: ${config?.infill}%`}
             />
             <div className="flex justify-between text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>
               <span>Rychly (10%)</span>

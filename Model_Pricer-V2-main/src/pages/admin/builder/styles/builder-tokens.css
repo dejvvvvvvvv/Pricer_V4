@@ -31,19 +31,19 @@
   /* === Borders === */
   --builder-border-default: #2E3340;
   --builder-border-subtle: #23262E;
-  --builder-border-focus: #3B82F6;
+  --builder-border-focus: #00D4AA;
 
   /* === Accents === */
-  --builder-accent-primary: #3B82F6;
-  --builder-accent-hover: #2563EB;
+  --builder-accent-primary: #00D4AA;
+  --builder-accent-hover: #00C49A;
   --builder-accent-success: #10B981;
   --builder-accent-warning: #F59E0B;
   --builder-accent-error: #EF4444;
 
   /* === Selection / Interaction === */
-  --builder-selection-outline: #3B82F6;
-  --builder-hover-outline: rgba(59, 130, 246, 0.5);
-  --builder-active-overlay: rgba(59, 130, 246, 0.12);
+  --builder-selection-outline: #00D4AA;
+  --builder-hover-outline: rgba(0, 212, 170, 0.5);
+  --builder-active-overlay: rgba(0, 212, 170, 0.12);
   --builder-hover-overlay: rgba(255, 255, 255, 0.04);
 
   /* === Layout Dimensions === */
@@ -53,8 +53,8 @@
   --builder-tab-height: 44px;
 
   /* === Typography === */
-  --builder-font-heading: 'DM Sans', system-ui, sans-serif;
-  --builder-font-body: 'Inter', system-ui, sans-serif;
+  --builder-font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --builder-font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --builder-font-code: 'JetBrains Mono', monospace;
 
   /* === Border Radius === */
@@ -91,11 +91,11 @@
 
 @keyframes onboardingPulse {
   0%, 100% {
-    border-color: rgba(59, 130, 246, 0.3);
-    background: rgba(59, 130, 246, 0.02);
+    border-color: rgba(0, 212, 170, 0.3);
+    background: rgba(0, 212, 170, 0.02);
   }
   50% {
-    border-color: rgba(59, 130, 246, 0.6);
-    background: rgba(59, 130, 246, 0.06);
+    border-color: rgba(0, 212, 170, 0.6);
+    background: rgba(0, 212, 170, 0.06);
   }
 }

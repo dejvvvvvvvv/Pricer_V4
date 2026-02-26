@@ -447,9 +447,13 @@ function migrateLegacyPricingConfigIfAny() {
  * If missing, performs a small legacy migration attempt.
  *
  * CP2: Always returns a normalized config shape (incl. engine-root fields).
+ *
+ * @param {string} [tenantIdOverride] - Optional tenant ID override. When provided,
+ *   reads pricing from this tenant's storage instead of the default (getTenantId()).
+ *   Used by public widget to load the widget owner's pricing config.
  */
-export function loadPricingConfigV3() {
-  const existing = readTenantJson(NAMESPACE, null);
+export function loadPricingConfigV3(tenantIdOverride) {
+  const existing = readTenantJson(NAMESPACE, null, tenantIdOverride);
   if (existing && typeof existing === 'object') {
     const normalized = normalizePricingConfigV3(existing);
 
@@ -466,20 +470,20 @@ export function loadPricingConfigV3() {
       !isObj(existing.rounding) ||
       !isObj(existing.markup) ||
       (tpRate != null && tpRate > 0 && rootRate === 0);
-    if (needsWriteback) writeTenantJson(NAMESPACE, normalized);
+    if (needsWriteback) writeTenantJson(NAMESPACE, normalized, tenantIdOverride);
     return normalized;
   }
 
   const migrated = migrateLegacyPricingConfigIfAny();
   if (migrated) {
     const normalized = normalizePricingConfigV3(migrated);
-    writeTenantJson(NAMESPACE, normalized);
+    writeTenantJson(NAMESPACE, normalized, tenantIdOverride);
     return normalized;
   }
 
   // Seed defaults so pricingEngine/pricingService never receive null.
   const seeded = getDefaultPricingConfigV3();
-  writeTenantJson(NAMESPACE, seeded);
+  writeTenantJson(NAMESPACE, seeded, tenantIdOverride);
   return seeded;
 }
 

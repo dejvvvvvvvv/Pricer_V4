@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 84
-- **Posledni zaznam:** 084-ST (UPRAVY 2026-02-25)
-- **Posledni aktualizace:** 2026-02-25
+- **Celkem zaznamu:** 88
+- **Posledni zaznam:** 088-GN (DENNI-PREHLED 2026-02-26)
+- **Posledni aktualizace:** 2026-02-26
 
 ---
 
@@ -96,6 +96,15 @@
 | **083** | **GN** | **DENNI-PREHLED** | **Denni prehled 2026-02-25: P0 review + P1 fixes complete, 7 bugs fixed, build PASS** |
 | **084** | **ST** | **UPRAVY** | **P2 bugfixy — canUseLocalStorage() guardy v auditLog, teamAccess; getTenantId() cache v analytics; console.debug v tenantStorage** |
 
+### 2026-02-26 (S02)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **085** | **WB** | **KONVERZACE** | **Widget Builder vlny 1-3 — 9 paralelni agentu, kriticke bugy + design + verifikace** |
+| **086** | **WB** | **UPRAVY** | **17+ upravenych souboru: PostMessage, Storage exports, Security, Typography, UX, A11y** |
+| **087** | **WB** | **OTAZKY** | **12 Q&A: embed architektura, XSS sanitizace, konkurencni analyza, ARIA accessibility** |
+| **088** | **GN** | **DENNI-PREHLED** | **Denni prehled 2026-02-26: Widget Builder complete (3 vlny), build PASS** |
+
 ---
 
 ## Navigace
@@ -110,3 +119,4 @@
 | `Historie/2026-02-23/` | 7 zaznamu (login page, Sprint 1 testovani) |
 | `Historie/2026-02-24/` | 17 zaznamu (Sprint 1 bugfixy + Sprint 2 komplet) |
 | `Historie/2026-02-25/` | 8 zaznamu (Per-User Tenant Izolace + P0 Code Review + P1 Fixes) |
+| `Historie/2026-02-26/` | 4 zaznamy (Widget Builder Wave 1-3 Complete) |

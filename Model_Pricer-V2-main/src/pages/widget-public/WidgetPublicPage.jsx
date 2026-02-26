@@ -12,7 +12,8 @@ import { getShopifyConfig } from '../../utils/adminEcommerceStorage';
 
 /**
  * Get target origin for postMessage.
- * Uses document.referrer when embedded in iframe, falls back to '*' for direct access.
+ * Uses document.referrer when embedded in iframe.
+ * Falls back to own origin instead of '*' to prevent data leakage to arbitrary windows.
  */
 function getTargetOrigin() {
   try {
@@ -22,7 +23,8 @@ function getTargetOrigin() {
   } catch {
     // Invalid referrer URL
   }
-  return '*';
+  // Never use '*' -- fall back to own origin
+  return window.location.origin;
 }
 
 /**
@@ -226,6 +228,7 @@ const WidgetPublicPage = () => {
       publicWidgetId={publicWidgetId}
       onQuoteCalculated={handleQuoteCalculated}
       shopifyConfig={shopifyConf}
+      tenantId={tenantId}
     />
   );
 };

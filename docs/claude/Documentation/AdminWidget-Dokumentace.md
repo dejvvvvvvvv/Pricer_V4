@@ -199,6 +199,39 @@ Pokud jsou neulozene zmeny:
 - `beforeunload` event handler varue uzivatele pred odchodem ze stranky
 - Prepnuti na jiny widget vyzaduje potvrzeni (window.confirm)
 
+### 5.2a Toast system (NotificationContext)
+
+**Migrace z custom toast:** AdminWidget puvodni `{ msg, kind }` state byl nahrazen `useNotification()` hookem z `NotificationContext`:
+
+```javascript
+const { showSuccess, showError, showWarning, showInfo } = useNotification();
+
+// Pouziti:
+showSuccess('Widget ulozeny!');
+showError('Chyba pri ukladani: ' + error.message);
+```
+
+**Toast container:** `ToastContainer` je fixed v top-right rohu, max 5 toastu, s framer-motion animacemi.
+- Position: `top: 1rem, right: 1rem`
+- Auto-dismiss po 5s
+- Close button na kazdem toastu
+
+### 5.2b Modal accessibility (create widget)
+
+Modal pro vytvoreni widgetu ma nyni:
+- `role="dialog"`, `aria-modal="true"`, `aria-label` s nadpisem
+- **Focus trap:** Tab cykli mezi prvnim/poslednim focusable elementem
+- **Escape close:** Modal se zavre pri stisku ESC
+- **autofocus:** Focus se automaticky presune na nazev input pri otevreni
+- **Focus restore:** Po zavreni se focus vraci na "Vytvorit widget" button
+
+### 5.2c Loading skeleton
+
+Pri nacitani widget listu se zobrazuje `WidgetSkeleton`:
+- 3x seznam karet s shimmer animaci
+- Dynamicky pocet polozek dle planu (max_widget_instances)
+- Stejne vysky jako skutecne widgety pro stabilni layout
+
 ### 5.3 Taby
 
 | Tab | Komponenta | Funkcionalita |
@@ -269,6 +302,69 @@ const validateEditor = () => {
   return errors;
 };
 ```
+
+### 5.7 Keyboard shortcuts
+
+AdminWidget podporuje:
+
+| Zkratka | Cinnost | Kde |
+|---------|---------|-----|
+| `Ctrl+S` | Ulozit zmeny (builder) | AdminWidgetBuilder |
+| `Ctrl+Z` | Undo (builder) | BuilderPage (`useUndoRedo`) |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo (builder) | BuilderPage (`useUndoRedo`) |
+| `Escape` | Zavrit modal | Create modal, ForgeDialog |
+
+### 5.8 Typography -- Forge design system
+
+AdminWidget pouziva Forge design system fonty:
+
+| Prvek | Font | Velikost | Vaha | Poznamka |
+|-------|------|----------|------|----------|
+| Widget card nazev | Space Grotesk (`--forge-font-heading`) | text-lg | 600 | Byl `--mp-font-body` (smazano) |
+| Widget card label | IBM Plex Sans (`--forge-font-body`) | 14px | 400 | Sekundarni text |
+| Tab label | Space Mono (`--forge-font-tech`) | 13px | 400 | Uppercase tech font |
+| Button text | Space Grotesk | 14px | 600 | Heading font |
+| Error message | IBM Plex Sans | 12px | 400 | Body font |
+
+**Zmena (Session 2026-02-26):** Smazany `--mp-*` CSS token + "dead toggle" CSS u heading fontů.
+
+### 5.9 Embed code -- dva rezimy
+
+WidgetEmbedTab nabizi dva rezimy (prepinani pres tab):
+
+**Rezim 1: Script tag (DOPORUCENO)**
+```html
+<!-- ModelPricer Widget: Homepage -->
+<iframe
+  src="https://app.modelpricer.com/w/wid_1234abcd"
+  style="width: 100%; border: none; min-height: 600px;"
+  title="3D Print Calculator"
+  allow="clipboard-write"
+></iframe>
+<script>
+  window.addEventListener('message', function(e) {
+    if (e.data?.type === 'MODELPRICER_RESIZE') {
+      var iframe = document.querySelector('iframe[src*="wid_1234abcd"]');
+      if (iframe && e.data.height) {
+        iframe.style.height = e.data.height + 'px';
+      }
+    }
+  });
+</script>
+```
+
+**Rezim 2: Iframe direct**
+```html
+<iframe
+  src="https://app.modelpricer.com/w/wid_1234abcd"
+  style="width: 100%; border: none; min-height: 600px;"
+  title="3D Print Calculator"
+  allow="clipboard-write"
+></iframe>
+```
+
+- Script tab: Auto-resize via postMessage (DOPORUCENO pro admin)
+- Iframe tab: Bez auto-resize, pro jednoduchou integraci
 
 ---
 

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotification } from '../../contexts/NotificationContext';
 import { getTenantId } from '../../utils/adminTenantStorage';
 
 import {
@@ -58,6 +59,7 @@ const TABS = [
 const AdminWidget = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();
 
   const [loading, setLoading] = useState(true);
 
@@ -71,7 +73,6 @@ const AdminWidget = () => {
   const [domains, setDomains] = useState([]);
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
 
   const [activeTab, setActiveTab] = useState('config');
 
@@ -81,15 +82,8 @@ const AdminWidget = () => {
   const [createType, setCreateType] = useState('full_calculator');
   const [createError, setCreateError] = useState('');
 
-  const toastTimer = useRef(null);
   const createOverlayRef = useRef(null);
-
-  /* ---- toast ---- */
-  const showToast = (msg, kind = 'ok') => {
-    setToast({ msg, kind });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2500);
-  };
+  const modalRef = useRef(null);
 
   /* ---- data loading ---- */
   const refresh = () => {
@@ -168,6 +162,76 @@ const AdminWidget = () => {
     };
   }, [createOpen]);
 
+  // Modal focus trap + Escape handler
+  useEffect(() => {
+    if (!createOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setCreateOpen(false);
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const modal = modalRef.current;
+        if (!modal) return;
+
+        const focusable = modal.querySelectorAll(
+          'input, select, textarea, button, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Focus the first input when modal opens
+    const timer = setTimeout(() => {
+      const modal = modalRef.current;
+      if (modal) {
+        const firstInput = modal.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+    }, 50);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
+    };
+  }, [createOpen]);
+
+  // Ctrl+S / Cmd+S keyboard shortcut for saving
+  const onSaveRef = useRef(null);
+  const canSaveRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (canSaveRef.current && onSaveRef.current) {
+          onSaveRef.current();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   /* ---- plan limits ---- */
   const maxWidgets = plan?.features?.max_widget_instances ?? 1;
   const canUseWhitelist = plan?.features?.can_use_domain_whitelist ?? true;
@@ -199,6 +263,9 @@ const AdminWidget = () => {
   const errors = useMemo(validateEditor, [editor]);
   const canSave = isDirty && Object.keys(errors).length === 0 && !saving;
 
+  // Keep refs in sync for Ctrl+S handler
+  canSaveRef.current = canSave;
+
   /* ---- CRUD callbacks ---- */
 
   const selectWidget = (id) => {
@@ -218,7 +285,7 @@ const AdminWidget = () => {
   const onSave = async () => {
     if (!editor) return;
     if (Object.keys(errors).length > 0) {
-      showToast('Oprav chyby ve formulari.', 'err');
+      showError('Oprav chyby ve formulari.');
       return;
     }
 
@@ -237,15 +304,18 @@ const AdminWidget = () => {
       };
 
       updateWidget(getTenantId(), editor.id, payload);
-      showToast('Ulozeno');
+      showSuccess('Ulozeno');
       refresh();
     } catch (e) {
       console.error(e);
-      showToast('Ulozeni se nezdarilo.', 'err');
+      showError('Ulozeni se nezdarilo.');
     } finally {
       setSaving(false);
     }
   };
+
+  // Keep onSave ref in sync for Ctrl+S handler
+  onSaveRef.current = onSave;
 
   const onResetEditor = () => {
     if (!editorBase) return;
@@ -269,7 +339,7 @@ const AdminWidget = () => {
         return;
       }
       if (!canCreateMore) {
-        showToast(`Limit tarifu: max. ${maxWidgets} widget(y).`, 'err');
+        showError(`Limit tarifu: max. ${maxWidgets} widget(y).`);
         return;
       }
 
@@ -279,7 +349,7 @@ const AdminWidget = () => {
       });
 
       setCreateOpen(false);
-      showToast('Widget vytvoren');
+      showSuccess('Widget vytvoren');
 
       const w = getWidgets(getTenantId());
       setWidgets(w);
@@ -290,46 +360,46 @@ const AdminWidget = () => {
       setActiveTab('config');
     } catch (e) {
       console.error(e);
-      showToast('Nelze vytvorit widget (limit tarifu nebo chyba).', 'err');
+      showError('Nelze vytvorit widget (limit tarifu nebo chyba).');
     }
   };
 
   const onDuplicate = (id) => {
     try {
       if (!canCreateMore) {
-        showToast(`Limit tarifu: max. ${maxWidgets} widget(y).`, 'err');
+        showError(`Limit tarifu: max. ${maxWidgets} widget(y).`);
         return;
       }
       const dupe = duplicateWidget(getTenantId(), id);
-      showToast('Zduplikovano');
+      showSuccess('Zduplikovano');
       const w = getWidgets(getTenantId());
       setWidgets(w);
       setSelectedId(dupe.id);
     } catch (e) {
       console.error(e);
-      showToast('Duplikace se nezdarila.', 'err');
+      showError('Duplikace se nezdarila.');
     }
   };
 
   const onToggleEnabled = (id) => {
     try {
       toggleWidgetStatus(getTenantId(), id);
-      showToast('Zmeneno');
+      showSuccess('Zmeneno');
       refresh();
     } catch (e) {
       console.error(e);
-      showToast('Zmena stavu se nezdarila.', 'err');
+      showError('Zmena stavu se nezdarila.');
     }
   };
 
   const onDelete = (id) => {
     try {
       deleteWidget(getTenantId(), id);
-      showToast('Smazano');
+      showSuccess('Smazano');
       refresh();
     } catch (e) {
       console.error(e);
-      showToast('Smazani se nezdarilo.', 'err');
+      showError('Smazani se nezdarilo.');
     }
   };
 
@@ -340,9 +410,9 @@ const AdminWidget = () => {
         `<!-- ModelPricer Widget: ${widget.name || widget.publicId} -->\n` +
         `<iframe\n  src="${origin}/w/${widget.publicId}"\n  style="width: 100%; border: none; min-height: 600px;"\n  title="3D Print Calculator"\n  allow="clipboard-write"\n></iframe>`;
       await navigator.clipboard.writeText(code);
-      showToast('Embed kod zkopirovany');
+      showSuccess('Embed kod zkopirovany');
     } catch {
-      showToast('Nelze kopirovat do schranky.', 'err');
+      showError('Nelze kopirovat do schranky.');
     }
   };
 
@@ -360,7 +430,7 @@ const AdminWidget = () => {
 
     addWidgetDomain(getTenantId(), editor.id, res.host || candidate, allowSubdomains);
     setDomains(getWidgetDomains(getTenantId(), editor.id));
-    showToast('Domena pridana');
+    showSuccess('Domena pridana');
   };
 
   const onToggleDomain = (domainId, enabled) => {
@@ -369,7 +439,7 @@ const AdminWidget = () => {
       setDomains(getWidgetDomains(getTenantId(), editor.id));
     } catch (e) {
       console.error(e);
-      showToast('Zmena domeny se nezdarila.', 'err');
+      showError('Zmena domeny se nezdarila.');
     }
   };
 
@@ -381,10 +451,10 @@ const AdminWidget = () => {
     try {
       deleteWidgetDomain(getTenantId(), editor.id, domainId);
       setDomains(getWidgetDomains(getTenantId(), editor.id));
-      showToast('Domena smazana');
+      showSuccess('Domena smazana');
     } catch (e) {
       console.error(e);
-      showToast('Smazani domeny se nezdarilo.', 'err');
+      showError('Smazani domeny se nezdarilo.');
     }
   };
 
@@ -393,7 +463,50 @@ const AdminWidget = () => {
   if (loading) {
     return (
       <div className="aw-page">
-        <div className="aw-loading">Nacitam...</div>
+        {/* Skeleton top bar */}
+        <div className="aw-topbar">
+          <div>
+            <div className="aw-skeleton aw-skeleton-title" />
+            <div className="aw-skeleton aw-skeleton-subtitle" />
+          </div>
+          <div className="aw-skeleton aw-skeleton-btn" />
+        </div>
+
+        {/* Skeleton 2-column layout */}
+        <div className="aw-layout">
+          {/* Left: 3 skeleton widget cards */}
+          <div className="aw-left">
+            <div className="aw-card-list">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="aw-widget-card" style={{ cursor: 'default' }}>
+                  <div className="aw-card-bar" style={{ backgroundColor: 'var(--forge-bg-tertiary, #2a2f3a)' }} />
+                  <div className="aw-card-body">
+                    <div className="aw-skeleton aw-skeleton-card-name" />
+                    <div className="aw-skeleton aw-skeleton-card-id" />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[1, 2, 3].map((j) => (
+                        <div key={j} className="aw-skeleton aw-skeleton-icon" />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: skeleton detail panel */}
+          <div className="aw-right">
+            <div style={{ padding: 16 }}>
+              <div className="aw-skeleton aw-skeleton-tab-bar" />
+              <div style={{ marginTop: 16 }}>
+                <div className="aw-skeleton aw-skeleton-field" />
+                <div className="aw-skeleton aw-skeleton-field" style={{ width: '70%' }} />
+                <div className="aw-skeleton aw-skeleton-field" style={{ width: '50%' }} />
+                <div className="aw-skeleton aw-skeleton-field-tall" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -648,24 +761,19 @@ const AdminWidget = () => {
         </div>
       </div>
 
-      {/* Toast */}
-      {toast ? (
-        <div className={`aw-toast ${toast.kind === 'err' ? 'aw-toast-err' : 'aw-toast-ok'}`}>
-          {toast.kind === 'err' ? (
-            <Icon name="XCircle" size={18} />
-          ) : (
-            <Icon name="CheckCircle" size={18} />
-          )}
-          <span>{toast.msg}</span>
-        </div>
-      ) : null}
-
       {/* Create modal */}
       {createOpen ? (
         <div className="aw-overlay" ref={createOverlayRef} onClick={() => setCreateOpen(false)}>
-          <div className="aw-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="aw-modal"
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aw-create-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="aw-modal-header">
-              <div className="aw-modal-title">Vytvorit novy widget</div>
+              <div className="aw-modal-title" id="aw-create-modal-title">Vytvorit novy widget</div>
               <button className="aw-icon-btn" onClick={() => setCreateOpen(false)}>
                 <Icon name="X" size={16} />
               </button>
@@ -726,11 +834,76 @@ const AdminWidget = () => {
           padding: 20px;
         }
 
-        .aw-loading {
-          padding: 40px;
-          text-align: center;
-          color: var(--forge-text-muted);
-          font-family: var(--forge-font-tech);
+        /* ---- Skeleton loading ---- */
+        @keyframes aw-shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+
+        .aw-skeleton {
+          border-radius: var(--forge-radius-md, 6px);
+          background: linear-gradient(
+            90deg,
+            var(--forge-bg-tertiary, #1e2330) 25%,
+            var(--forge-bg-secondary, #2a2f3a) 50%,
+            var(--forge-bg-tertiary, #1e2330) 75%
+          );
+          background-size: 200% 100%;
+          animation: aw-shimmer 1.5s ease-in-out infinite;
+        }
+
+        .aw-skeleton-title {
+          width: 180px;
+          height: 24px;
+          margin-bottom: 6px;
+        }
+
+        .aw-skeleton-subtitle {
+          width: 300px;
+          height: 14px;
+        }
+
+        .aw-skeleton-btn {
+          width: 140px;
+          height: 36px;
+          border-radius: var(--forge-radius-md, 6px);
+        }
+
+        .aw-skeleton-card-name {
+          width: 60%;
+          height: 14px;
+          margin-bottom: 6px;
+        }
+
+        .aw-skeleton-card-id {
+          width: 80%;
+          height: 11px;
+          margin-bottom: 8px;
+        }
+
+        .aw-skeleton-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: var(--forge-radius-md, 6px);
+        }
+
+        .aw-skeleton-tab-bar {
+          width: 100%;
+          height: 42px;
+          border-radius: var(--forge-radius-md, 6px);
+        }
+
+        .aw-skeleton-field {
+          width: 100%;
+          height: 16px;
+          margin-bottom: 14px;
+          border-radius: 4px;
+        }
+
+        .aw-skeleton-field-tall {
+          width: 100%;
+          height: 80px;
+          border-radius: var(--forge-radius-md, 6px);
         }
 
         /* ---- Top bar ---- */
@@ -747,7 +920,7 @@ const AdminWidget = () => {
           font-weight: 800;
           margin: 0;
           color: var(--forge-text-primary);
-          font-family: var(--forge-font-tech);
+          font-family: var(--forge-font-heading);
           letter-spacing: 0.02em;
         }
 
@@ -786,7 +959,7 @@ const AdminWidget = () => {
           font-size: 13px;
           border: 1px solid transparent;
           transition: all 0.15s;
-          font-family: var(--forge-font-tech);
+          font-family: var(--forge-font-body);
           letter-spacing: 0.02em;
         }
 
@@ -886,7 +1059,7 @@ const AdminWidget = () => {
           color: #fbbf24;
           font-weight: 600;
           font-size: 13px;
-          font-family: var(--forge-font-tech);
+          font-family: var(--forge-font-body);
         }
 
         .aw-dirty-actions {
@@ -1322,56 +1495,6 @@ const AdminWidget = () => {
           font-size: 13px;
         }
 
-        /* ---- Toggle ---- */
-        .aw-toggle {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-          cursor: pointer;
-        }
-        .aw-toggle input {
-          display: none;
-        }
-        .aw-toggle span {
-          width: 42px;
-          height: 22px;
-          border-radius: 999px;
-          background: var(--forge-border-default);
-          position: relative;
-          transition: background 0.2s;
-        }
-        .aw-toggle span::after {
-          content: '';
-          width: 16px;
-          height: 16px;
-          border-radius: 999px;
-          background: var(--forge-text-muted);
-          position: absolute;
-          top: 3px;
-          left: 3px;
-          transition: transform 0.2s;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        }
-        .aw-toggle input:checked + span {
-          background: var(--forge-accent-primary);
-        }
-        .aw-toggle input:checked + span::after {
-          transform: translateX(20px);
-          background: #0a0f1a;
-        }
-
-        .aw-toggle-large span {
-          width: 48px;
-          height: 26px;
-        }
-        .aw-toggle-large span::after {
-          width: 20px;
-          height: 20px;
-        }
-        .aw-toggle-large input:checked + span::after {
-          transform: translateX(22px);
-        }
-
         /* ---- Settings tab ---- */
         .aw-settings-tab {
           display: flex;
@@ -1453,27 +1576,6 @@ const AdminWidget = () => {
           color: var(--forge-text-muted);
         }
 
-        /* ---- Toast ---- */
-        .aw-toast {
-          position: fixed;
-          right: 18px;
-          bottom: 18px;
-          display: flex;
-          gap: 8px;
-          align-items: center;
-          padding: 10px 14px;
-          border-radius: var(--forge-radius-md);
-          border: 1px solid var(--forge-border-default);
-          background: var(--forge-bg-surface);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-          z-index: 9999;
-          font-weight: 600;
-          font-size: 13px;
-          color: var(--forge-text-primary);
-        }
-        .aw-toast-ok { border-color: rgba(0,212,170,0.4); color: var(--forge-accent-primary); }
-        .aw-toast-err { border-color: rgba(239,68,68,0.4); color: #f87171; }
-
         /* ---- Modal ---- */
         .aw-overlay {
           position: fixed;
@@ -1509,7 +1611,7 @@ const AdminWidget = () => {
           font-weight: 800;
           font-size: 15px;
           color: var(--forge-text-primary);
-          font-family: var(--forge-font-tech);
+          font-family: var(--forge-font-heading);
         }
 
         .aw-modal-body {

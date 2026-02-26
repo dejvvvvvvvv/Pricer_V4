@@ -75,10 +75,18 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme })
 
   return (
     <div className="space-y-6">
+      {/* Focus-visible styles for the dropzone (pseudo-classes cannot be inline) */}
+      <style>{`
+        .widget-upload-dropzone:focus-visible {
+          outline: 2px solid var(--widget-btn-bg, var(--widget-btn-primary, #00D4AA));
+          outline-offset: 2px;
+        }
+      `}</style>
+
       {/* Upload Zone */}
       <div
         {...getRootProps()}
-        className="relative border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200"
+        className="widget-upload-dropzone relative border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200"
         style={{
           borderRadius,
           borderColor: isDragActive ? 'var(--widget-btn-primary, #2563EB)' : 'var(--widget-border, #E5E7EB)',
