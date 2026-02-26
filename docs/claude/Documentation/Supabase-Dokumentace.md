@@ -21,6 +21,8 @@ vlastni feature flag urcujici zda se cte/pise z localStorage, Supabase, nebo obo
 
 **Stav:** Phase 4 (demo faze). Autentizace pres JWT neni dosud implementovana -- RLS policies
 pouzivaji permisivni `anon` pristup. Produkci vyzaduje zprisneni na `auth.jwt()` claims.
+**Security assessment** (2026-02-26): 4 P0 + 4 P1 + 3 P2 nalezu —
+viz `docs/claude/Documentation/Security-Assessment-2026-02-26.md`.
 
 ---
 
@@ -998,4 +1000,115 @@ Vsechny seedy pouzivaji `ON CONFLICT ... DO NOTHING` -- bezpecne pro opetovne sp
 
 ---
 
-*Posledni aktualizace: 2026-02-13*
+---
+
+## 18. RLS Security Assessment (2026-02-26)
+
+### 18.1 Aktualni stav -- permisivni policies (KRITICKE)
+
+Vsech 25 tabulek a 3 storage buckety aktualne pouzivaji **permisivni anon policies**:
+
+```sql
+-- Priklad: kazdy muze cist/psat data libovolneho tenanta
+CREATE POLICY "pricing_configs_select_anon" ON pricing_configs
+  FOR SELECT USING (true);
+CREATE POLICY "pricing_configs_insert_anon" ON pricing_configs
+  FOR INSERT WITH CHECK (true);
+```
+
+**Dopad:** Zadna realna tenant izolace na DB urovni. Libovolny klient s anon klicem
+muze cist a modifikovat data jakehokoliv tenanta.
+
+### 18.2 Production RLS migration plan
+
+**Novy soubor:** `supabase/rls-policies-production.sql` (bude vytvoren v ramci implementace)
+
+**Cilovy stav:** Kazdy dotaz bude omezen na tenant z JWT claims:
+
+```sql
+-- Budouci production policies
+CREATE POLICY "pricing_configs_tenant_select" ON pricing_configs
+  FOR SELECT USING (tenant_id = (auth.jwt() ->> 'tenant_id')::uuid);
+
+CREATE POLICY "pricing_configs_tenant_insert" ON pricing_configs
+  FOR INSERT WITH CHECK (tenant_id = (auth.jwt() ->> 'tenant_id')::uuid);
+
+CREATE POLICY "pricing_configs_tenant_update" ON pricing_configs
+  FOR UPDATE USING (tenant_id = (auth.jwt() ->> 'tenant_id')::uuid);
+
+CREATE POLICY "pricing_configs_tenant_delete" ON pricing_configs
+  FOR DELETE USING (tenant_id = (auth.jwt() ->> 'tenant_id')::uuid);
+```
+
+**Migracni kroky:**
+1. Implementovat auth bridge (Firebase → Supabase JWT)
+2. Pridat `tenant_id` claim do custom JWT
+3. Vytvorit production RLS policies v `rls-policies-production.sql`
+4. Otestovat v staging prostredi
+5. Smazat stare anon policies
+6. Aplikovat nove policies
+
+### 18.3 Auth bridge strategie (Firebase → Supabase JWT)
+
+**Problem:** Projekt pouziva Firebase Auth pro autentizaci, ale Supabase RLS vyzaduje
+Supabase JWT s custom claims.
+
+**Reseni -- custom JWT bridge:**
+
+```
+1. Uzivatel se prihlasi pres Firebase Auth
+2. Frontend ziska Firebase ID token
+3. Backend endpoint /api/auth/supabase-token:
+   a) Overi Firebase token (firebase-admin)
+   b) Nacte tenant_id z uzivatelskych dat
+   c) Vytvori custom Supabase JWT s claims:
+      { sub: firebaseUid, tenant_id: tenantUuid, role: 'authenticated' }
+   d) Vrati Supabase JWT klientu
+4. Frontend nastavi Supabase session pres supabase.auth.setSession()
+5. Vsechny Supabase dotazy jdou s JWT → RLS policies enforced
+```
+
+**Alternativy zkoumane v research:**
+- Supabase Custom Access Tokens (beta, omezene)
+- Edge Function JWT minting (vyzaduje Supabase pro plan)
+- Service role key na backendu (bezpecne, ale vsechny dotazy pres backend)
+
+**Detaily:** viz `docs/claude/Research/Firebase-Supabase-Auth-Integration-Research.md`
+
+### 18.4 Storage bucket policies -- production
+
+Aktualne permisivni policies na `storage.objects` musi byt nahrazeny:
+
+```sql
+-- Production: tenant-scoped storage pristup
+-- Path format: {tenant_id}/{filename}
+CREATE POLICY "models_tenant_select" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'models'
+    AND (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+  );
+```
+
+**Nutne zmeny:**
+- Reorganizace storage paths na `{tenant_id}/` prefix
+- Update upload logiky na frontendove strane
+- Migrace existujicich souboru
+
+---
+
+## 19. Cross-device sync a Realtime (budouci)
+
+Aktualne StorageAdapter nepodporuje real-time synchronizaci mezi zarizenimi/taby.
+Podrobna analyza moznosti vcetne Supabase Realtime, Broadcast channels a offline-first
+strategii je zdokumentovana v:
+
+- `docs/claude/Research/Cross-Device-Sync-Research.md` (861 radku)
+
+Klicove zavery:
+- Supabase Realtime muze poskytnout live sync pricing/fees konfigurace
+- Conflict resolution strategie: last-write-wins pro config, CRDT pro kolaborativni editaci
+- Offline podpora vyzaduje Service Worker + IndexedDB cache
+
+---
+
+*Posledni aktualizace: 2026-02-26*

@@ -855,19 +855,24 @@ const trySliceWithFallback = async (presetId) => {
 ### 9.5 Storage sync
 
 Widget posloucha `storage` event pro synchronizaci pricing a fees konfigurace
-z jinych tabu/oken:
+z jinych tabu/oken. Od 2026-02-26 predava `tenantId` do storage helperu pro spravnou
+tenant izolaci:
 
 ```javascript
 useEffect(() => {
   const onStorage = (e) => {
     if (!e?.key) return;
-    if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3());
-    if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3());
+    if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3(tenantId));
+    if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3(tenantId));
   };
   window.addEventListener('storage', onStorage);
   return () => window.removeEventListener('storage', onStorage);
-}, []);
+}, [tenantId]);
 ```
+
+**Zmena oproti predchozi verzi:**
+- `loadPricingConfigV3()` a `loadFeesConfigV3()` nyni prijimaji `tenantId` parameter
+- Dependency array zmenen z `[]` na `[tenantId]` -- listener se preregistruje pri zmene tenanta
 
 ### 9.6 PostMessage protokol -- 6 message types
 
@@ -1122,31 +1127,87 @@ V `WidgetKalkulacka` je progress bar zobrazena v `step2` (Konfigurace) pres `use
 
 ---
 
-## 14. Cross-tenant pricing fix -- tenantId prop
+## 14. Cross-tenant pricing fix -- tenantId prop a tenant izolace
 
 ### 14.1 Problem a reseni
 
-V `WidgetKalkulacka` se pricing/fees nacitaji pres:
+Widget bezi v iframe na cizim webu a musi nacitat pricing/fees konfiguraci spravneho tenanta.
+Bez explicitniho `tenantId` prop by widget pouzil defaultni tenant z `getTenantId()`, coz
+v embedded modu muze ukazovat na spatna data.
+
+**Reseni (2026-02-26):** `tenantId` je nyni explicitni prop komponenty `WidgetKalkulacka`:
+
 ```javascript
-const pricingConfig = loadPricingConfigV3(tenantId);
-const feesConfig = loadFeesConfigV3(tenantId);
+// Destructured props -- tenantId = undefined (line 221)
+export const WidgetKalkulacka = ({
+  embedded = false,
+  showHeader = null,
+  publicWidgetId = null,
+  onQuoteCalculated,
+  shopifyConfig = null,
+  layoutConfig = null,
+  tenantId = undefined,   // <-- tenant override prop
+}) => {
 ```
 
+**Pouziti pro nacitani pricing/fees (lines 233-234):**
+```javascript
+const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfigV3(tenantId));
+const [feesConfig, setFeesConfig] = useState(() => loadFeesConfigV3(tenantId));
+```
+
+Kdyz `tenantId` je `undefined`, storage helpery pouziji defaultni `getTenantId()`.
+Kdyz `tenantId` je explicitne nastaven (napr. z `WidgetPublicPage`), pouzije se override.
+
 **V embedded modu se tenantId ziskava z:**
-1. `tenantIdOverride` prop (pokud je nastaven)
+1. `tenantId` prop predany z `WidgetPublicPage` (preferovany zdroj)
 2. `getWidgetConfig().tenantId` (vzdy dostupna v WidgetPublicPage)
 3. Fallback na 'default' (pouze pro preview)
 
-**Implementace:**
+### 14.2 Storage event listener s tenantId (lines 373-381)
+
+Storage event listener byl aktualizovan aby pouzival `tenantId` override pri reloadu
+konfigurace pri zmenach v jinych tabech:
+
 ```javascript
-const resolvedTenantId = tenantIdOverride || currentTenantId || 'default';
+useEffect(() => {
+  const onStorage = (e) => {
+    if (!e?.key) return;
+    if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3(tenantId));
+    if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3(tenantId));
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
+}, [tenantId]);  // <-- dependency array zahrnuje tenantId
 ```
 
-### 14.2 Bezpecnost
+**Klicova zmena:** Dependency array `[tenantId]` zajistuje, ze pri zmene tenanta se listener
+preregistruje s aktualnim `tenantId`. Predchozi verze mela prazdny dependency array `[]`.
 
+### 14.3 Tenant izolace -- architektura
+
+```
+WidgetPublicPage (resolves tenantId from publicWidgetId)
+  |
+  +-- getWidgetByPublicId(publicWidgetId)
+  |     --> vrati widget config vcetne tenantId
+  |
+  +-- predava tenantId jako prop
+  |
+  v
+WidgetKalkulacka({ tenantId, embedded: true, ... })
+  |
+  +-- loadPricingConfigV3(tenantId) --> localStorage key: modelpricer:{tenantId}:pricing:v3
+  +-- loadFeesConfigV3(tenantId)    --> localStorage key: modelpricer:{tenantId}:fees:v3
+  +-- storage event listener        --> reaguje na zmeny se spravnym tenantId
+```
+
+**Bezpecnostni aspekty:**
 - `tenantId` je vzdy tenant-scoped (nikdy hardcoded)
-- WidgetPublicPage ziskava tenantId z `getWidgetByPublicId()` (spatrenie z localhost)
-- Kazdy tenant ma svou pricing/fees samostatne
+- WidgetPublicPage ziskava tenantId z `getWidgetByPublicId()` (lookup v localStorage)
+- Kazdy tenant ma svou pricing/fees konfiguraci zcela separatne
+- V budouci Supabase migraci bude tenant izolace vynucena na DB urovni (RLS policies)
+- Widget v iframe nema pristup k localStorage hostitelskeho webu (same-origin policy)
 
 ---
 

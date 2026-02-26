@@ -5,11 +5,11 @@
 > detailni dokumenty.
 
 **Verze:** 3.0
-**Posledni aktualizace:** 2026-02-13
+**Posledni aktualizace:** 2026-02-26
 **Pocet zdrojovych souboru:** 291 (JS/JSX/MJS)
 **Pocet radku kodu:** ~72 500 (frontend + backend, bez node_modules/build/tools)
 **Pocet CSS souboru:** 12 (~1 440 radku)
-**Dokumentacnich souboru:** 45 (viz sekce 20)
+**Dokumentacnich souboru:** 46+ (viz sekce 20)
 
 ---
 
@@ -1381,6 +1381,25 @@ npm run serve        # → nahled produkciho buildu
 | `docs/claude/Error_Log.md` | Kodove chyby, state, security, config | 507 | 69+ |
 | `docs/claude/Design-Error_LOG.md` | Design nesrovnalosti, WCAG, fonty | 1183 | 166+ |
 
+### 20.10 Research dokumenty
+
+| Dokument | Popis | Radku |
+|----------|-------|-------|
+| [Supabase-Tenant-Isolation-Research](../Research/Supabase-Tenant-Isolation-Research.md) | RLS strategie, tenant izolace, JWT auth bridge | ~511 |
+| [Cross-Device-Sync-Research](../Research/Cross-Device-Sync-Research.md) | Supabase Realtime, offline sync, conflict resolution | ~861 |
+| [Firebase-Supabase-Auth-Integration-Research](../Research/Firebase-Supabase-Auth-Integration-Research.md) | Firebase → Supabase JWT bridge, custom claims, auth migrace | ~600 |
+
+**Umisteni:** `docs/claude/Research/`
+
+Tyto dokumenty vznikly v ramci Supabase migracniho sprintu (2026-02-26) a obsahuji
+podrobne analyzy architektonickych rozhodnuti vcetne bezpecnostnich doporuceni.
+
+### 20.11 Security assessmenty
+
+| Dokument | Popis | Datum |
+|----------|-------|-------|
+| [Security-Assessment-2026-02-26](Security-Assessment-2026-02-26.md) | Supabase RLS, storage, auth — 4 P0 + 4 P1 + 3 P2 nalezu | 2026-02-26 |
+
 ---
 
 ## Statistiky projektu
@@ -1403,4 +1422,4 @@ npm run serve        # → nahled produkciho buildu
 | npm dependencies | 38 |
 | npm devDependencies | 12 |
 | Nejvetsi soubor | `AdminPricing.jsx` (3173 r.) |
-| Dokumentacnich souboru | 45 |
+| Dokumentacnich souboru | 46+ |

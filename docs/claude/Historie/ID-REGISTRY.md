@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 092
-**Dalsi ID k pouziti:** 093
+**Posledni pouzite ID:** 093
+**Dalsi ID k pouziti:** 094
 
 ---
 
@@ -236,5 +236,5 @@ S{NN}
 
 ---
 
-**Posledni aktualizace:** 2026-02-26
-**Posledni session:** S03 (2026-02-26) — Supabase Migrace CP2 implementace (091-SB)
+**Posledni aktualizace:** 2026-02-27
+**Posledni session:** S01 (2026-02-27) — Pruzkum stavu + plan dalsich implementaci (093-GN)
