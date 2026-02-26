@@ -7,8 +7,8 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 88
-- **Posledni zaznam:** 088-GN (DENNI-PREHLED 2026-02-26)
+- **Celkem zaznamu:** 92
+- **Posledni zaznam:** 092-SB (DENNI-PREHLED 2026-02-26)
 - **Posledni aktualizace:** 2026-02-26
 
 ---
@@ -96,7 +96,7 @@
 | **083** | **GN** | **DENNI-PREHLED** | **Denni prehled 2026-02-25: P0 review + P1 fixes complete, 7 bugs fixed, build PASS** |
 | **084** | **ST** | **UPRAVY** | **P2 bugfixy — canUseLocalStorage() guardy v auditLog, teamAccess; getTenantId() cache v analytics; console.debug v tenantStorage** |
 
-### 2026-02-26 (S02)
+### 2026-02-26 (S02-S03)
 
 | ID | Zkratka | Typ | Popis |
 |----|---------|-----|-------|
@@ -104,6 +104,10 @@
 | **086** | **WB** | **UPRAVY** | **17+ upravenych souboru: PostMessage, Storage exports, Security, Typography, UX, A11y** |
 | **087** | **WB** | **OTAZKY** | **12 Q&A: embed architektura, XSS sanitizace, konkurencni analyza, ARIA accessibility** |
 | **088** | **GN** | **DENNI-PREHLED** | **Denni prehled 2026-02-26: Widget Builder complete (3 vlny), build PASS** |
+| **089** | **WB** | **TESTY** | **Browser testing: AdminWidget, Embed tab, Builder UI, test-kalkulacka — 14/14 PASS, 1 bug opraven** |
+| **090** | **SB** | **KONVERZACE** | **Supabase migrace sprint zahajeni (S03) — 6 paralelni research agentu, no questions asked** |
+| **091** | **SB** | **UPRAVY** | **CP2 implementace — backend security, RLS policies (102), JWT bridge scaffolding, 11 findings (4 P0 fixed)** |
+| **092** | **SB** | **DENNI-PREHLED** | **Sprint kompletni (17 deliverables, 76/76 tests PASS, build PASS, ready for production RLS + dual-write)** |
 
 ---
 
@@ -111,7 +115,7 @@
 
 | Slozka | Obsah |
 |--------|-------|
-| `Historie/SABLONY/` | 5 sablon (KONVERZACE, UPRAVY, OTAZKY, FAZE, DENNI-PREHLED) |
+| `Historie/SABLONY/` | 6 sablon (KONVERZACE, UPRAVY, OTAZKY, FAZE, DENNI-PREHLED, TESTY) |
 | `Historie/ID-REGISTRY.md` | Registr zkratek + globalni pocitadlo |
 | `Historie/2026-02-19/` | 8 zaznamu (historie system setup, pricing engine) |
 | `Historie/2026-02-20/` | 11 zaznamu (funkcni testy, auth research) |
@@ -119,4 +123,4 @@
 | `Historie/2026-02-23/` | 7 zaznamu (login page, Sprint 1 testovani) |
 | `Historie/2026-02-24/` | 17 zaznamu (Sprint 1 bugfixy + Sprint 2 komplet) |
 | `Historie/2026-02-25/` | 8 zaznamu (Per-User Tenant Izolace + P0 Code Review + P1 Fixes) |
-| `Historie/2026-02-26/` | 4 zaznamy (Widget Builder Wave 1-3 Complete) |
+| `Historie/2026-02-26/` | 6 zaznamu (Widget Builder Wave 1-3 Complete + Browser Testy + Supabase Migrace) |

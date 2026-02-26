@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 088
-**Dalsi ID k pouziti:** 089
+**Posledni pouzite ID:** 092
+**Dalsi ID k pouziti:** 093
 
 ---
 
@@ -229,8 +229,12 @@ S{NN}
 | 086 | WB | Widget-Builder | UPRAVY — 17+ souboru (PostMessage, Storage, Security, Typography, UX, A11y) | 2026-02-26 |
 | 087 | WB | Widget-Builder | OTAZKY — 12 Q&A (embed, XSS, konkurence, ARIA) | 2026-02-26 |
 | 088 | GN | General | DENNI-PREHLED — 2026-02-26 Widget Builder complete | 2026-02-26 |
+| 089 | WB | Widget-Builder | TESTY — Browser testing: AdminWidget, Embed tab, Builder UI (14/14 PASS) | 2026-02-26 |
+| 090 | SB | Supabase | KONVERZACE — Supabase migrace sprint zahajeni, 6 research agentu (S03) | 2026-02-26 |
+| 091 | SB | Supabase | UPRAVY — CP2 implementace (backend security, RLS policies, JWT bridge scaffolding, 11 findings) | 2026-02-26 |
+| 092 | SB | Supabase | DENNI-PREHLED — Sprint kompletni (17 deliverables, 76/76 tests PASS, build PASS, ready for prod RLS) | 2026-02-26 |
 
 ---
 
 **Posledni aktualizace:** 2026-02-26
-**Posledni session:** S02 (2026-02-26) — Widget Builder Wave 1-3 Complete (085-WB az 088-GN)
+**Posledni session:** S03 (2026-02-26) — Supabase Migrace CP2 implementace (091-SB)
