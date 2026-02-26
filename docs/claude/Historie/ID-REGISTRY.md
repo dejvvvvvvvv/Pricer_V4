@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 093
-**Dalsi ID k pouziti:** 094
+**Posledni pouzite ID:** 094
+**Dalsi ID k pouziti:** 095
 
 ---
 
@@ -237,4 +237,4 @@ S{NN}
 ---
 
 **Posledni aktualizace:** 2026-02-27
-**Posledni session:** S01 (2026-02-27) — Pruzkum stavu + plan dalsich implementaci (093-GN)
+**Posledni session:** S01 (2026-02-27) — Pruzkum stavu + plan dalsich implementaci (093-GN) + Auth Bridge (094-SB)

@@ -84,12 +84,18 @@ tenant-scoped RLS.
 **Dopad:** I po vytvoreni production RLS policies by dotazy selhaly, protoze klient
 nema platny Supabase JWT.
 
-**Reseni:** Implementovat auth bridge endpoint:
-```
-POST /api/auth/supabase-token
-  Input: Firebase ID token
-  Output: Supabase JWT s { tenant_id, role: 'authenticated' }
-```
+**Stav:** IMPLEMENTED (2026-02-27)
+
+**Reseni:**
+- `tenantRegistration.js` vytvoren pro auto-registraci Firebase useru jako Supabase tenantu
+- `ensureTenantInSupabase()` integrovano do FirebaseAuthProvider.jsx na 4 mistech:
+  1. Po Firebase login (Google Sign-In)
+  2. Po Firebase register (Sign-Up)
+  3. Na ladicim endpointu /api/auth/ensure-tenant (admin)
+  4. Na health endpointu (fallback check)
+- Supabase client pouziva `accessToken` callback ktery predava Firebase JWT
+- Implementace: Supabase Third-Party Auth s Firebase JWT jako source of truth
+- Zbyva: Registrace Firebase projektu v Supabase Dashboard (Third-Party Auth konfigurace)
 
 **Detaily:** viz `docs/claude/Research/Firebase-Supabase-Auth-Integration-Research.md`
 

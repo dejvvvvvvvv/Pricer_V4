@@ -2,7 +2,7 @@
 
 > **Datum:** 2026-02-27
 > **Autor:** mp-spec-plan-manager (koordinator)
-> **Status:** DRAFT — pripraveno k implementaci
+> **Status:** PARTIAL — Faze 1+3+7 hotove, Faze 5 ceka na manualni Supabase setup
 > **Predchozi sprint:** Supabase Security Sprint (2026-02-26, viz 089-WB, 090-SB, 091-SB, 092-SB)
 > **Navazuje na:** `docs/claude/PLANS/Supabase-Migration-Tenant-Isolation-Sprint.md` (Faze 1-4 HOTOVE, Faze 5+ jsou dalsi)
 > **Odhadovana slozitost:** Stredni (8 fazi — 4 pracovni + 4 kontrolni)
@@ -670,6 +670,27 @@ Po dokonceni CP3 jsou dalsi kroky (separatni plany):
 4. **Cross-tab konzistence** — zmena v jednom tabu se projevi v druhem pres Supabase
 5. **Error resilience test** — docasne odpojeni Supabase, app musi prezit
 6. **(Budouci)** Migrace na Supabase Auth — nahrazeni Firebase Auth
+
+---
+
+## Status Update (2026-02-27)
+
+### Hotove faze:
+- [x] Faze 1 — Commit outstanding zmen (3 commity: 5bac3b1, b700cd2, 70d1a54)
+- [x] Faze 3 — Auth bridge + tenant registration (commit 5b6747c, 6f34b71)
+- [x] Faze 7 — Dokumentace (castecne)
+
+### Preskocene faze:
+- [ ] Faze 5 — Dual-write aktivace — CEKA NA:
+  1. Registrace Firebase projektu v Supabase Dashboard (Third-Party Auth)
+  2. Overeni env vars v .env.local (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+  3. Schema.sql deploynuto v Supabase
+  4. Storage buckety vytvoreny (models, documents, branding)
+
+### Nova implementace:
+- `src/lib/supabase/tenantRegistration.js` — ensureTenantInSupabase()
+- `src/providers/FirebaseAuthProvider.jsx` — integrace tenant registrace
+- `docs/claude/Documentation/Supabase-Dokumentace.md` — Auth Bridge sekce
 
 ---
 

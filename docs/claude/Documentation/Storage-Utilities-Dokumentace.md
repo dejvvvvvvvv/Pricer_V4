@@ -182,7 +182,41 @@ import { getTenantId } from './adminTenantStorage';
 // 3. Fallback: 'demo-tenant'
 ```
 
-### 6.4 Feature flags klic
+### 6.4 Feature flags -- src/lib/supabase/featureFlags.js
+
+**Soubor:** `src/lib/supabase/featureFlags.js`
+
+**Ucel:** Per-namespace prepinace mezi tremi storage mody (localStorage, supabase, dual-write).
+
+#### Registrovane namespaces (20 total)
+```
+pricing:v3, fees:v3, orders:v1, orders:activity:v1, shipping:v1, coupons:v1,
+express:v1, form:v1, email:v1, kanban:v1, dashboard:v1, dashboard:v2,
+audit_log, analytics:events, team_users, team_invites, branding, widgets,
+plan_features, widget_theme
+```
+
+#### Hlavni funkce
+
+```javascript
+getStorageMode(namespace: string): 'localStorage' | 'supabase' | 'dual-write'
+// Vraci nastavenou polohu pro dany namespace
+// Default: 'localStorage' (bezpecny fallback)
+// Nacita z localStorage klic: modelpricer:feature_flags:storage_modes
+
+setStorageMode(namespace: string, mode: 'localStorage' | 'supabase' | 'dual-write'): void
+// Nastavi mod pro jeden namespace
+// Persituje do localStorage
+
+setAllStorageModes(mode: 'localStorage' | 'supabase' | 'dual-write'): void
+// Prepne VSE namespaces na zadany mod (hromadne)
+// Pouzivano pri AdminMigration UI pro rollout/rollback
+
+ALL_NAMESPACES
+// Array vsech 20 registrovanych namespace -- iterator pro hromadne operace
+```
+
+#### Persistentni klic
 
 ```
 modelpricer:feature_flags:storage_modes
@@ -214,6 +248,137 @@ Hodnota: JSON objekt `{ "pricing:v3": "localStorage", "fees:v3": "dual-write", .
 | `widgets` | `widget_configs` |
 | `plan_features` | `tenants` |
 | `widget_theme` | `widget_configs` |
+
+---
+
+## 7. Supabase Dual-Write Mody
+
+### 7.1 Tri dostupne mody
+
+| Mod | localStorage | Supabase | Popis |
+|-----|--------------|----------|-------|
+| `localStorage` | RW | -- | Vychozi, jen klientsky storage (bezpecny fallback) |
+| `supabase` | R (sync)/ -- (async) | RW | Plne prepnuto na Supabase po migraci |
+| `dual-write` | RW | RW | Prechodni rezim -- pise do OBOU, cte ze Supabase s fallbackem |
+
+**Vychozi mod:** `localStorage` -- aplikace je vne rizika bez Supabase.
+
+### 7.2 Zmena modu za chodu
+
+```javascript
+import { getStorageMode, setStorageMode, setAllStorageModes } from '@/lib/supabase/featureFlags';
+
+// Jeden namespace
+setStorageMode('pricing:v3', 'dual-write');
+
+// Vsechny najednou
+setAllStorageModes('dual-write');
+```
+
+**Pouziti:** AdminMigration UI volá `setAllStorageModes()` pri zmene stavu migraci.
+
+### 7.3 Sync API zachovane
+
+`writeTenantJson(namespace, value)` VZDY pise do localStorage, i v `supabase` modu. To je zamerne pro backward kompatibilitu:
+- Stary kod nepotrebuje zmenovat
+- Fallback na localStorage je vzdy dostupny
+- Supabase zapis je fire-and-forget (selhani se nehlasi)
+
+### 7.4 Async API respektuje mody
+
+```javascript
+// Async API — respektuje nastavenou polohu
+const data = await readTenantJsonAsync(namespace, fallback);
+await writeTenantJsonAsync(namespace, data);
+
+// Mody:
+// - 'localStorage': sync local read/write
+// - 'dual-write': Supabase primary, localStorage fallback + sync write to both
+// - 'supabase': Supabase only
+```
+
+---
+
+### 7.5 Rollback postup
+
+Pokud se migrace zhoršila nebo Supabase je недostupný:
+
+#### Primo AdminMigration UI
+```
+/admin/migration --> "Rollback to localStorage" tlacitko
+  |
+  v
+rollbackToLocalStorage() [AdminMigration.jsx]
+  |
+  v
+setAllStorageModes('localStorage') [featureFlags.js]
+  |
+  v
+Vsechny namespaces okamzite prepnuny na localStorage
+```
+
+#### Pomoci DevTools (pro debug)
+```javascript
+// V browser console
+import { setAllStorageModes } from '@/lib/supabase/featureFlags';
+setAllStorageModes('localStorage');
+```
+
+**Dulezite:** Data v localStorage jsou VZDY aktualni (dual-write pise do obou), takze rollback neztraci data. Supabase data zustanou na serveru pro budouci reaktivaci.
+
+---
+
+### 7.6 StorageAdapter -- src/lib/supabase/storageAdapter.js
+
+**Soubor:** `src/lib/supabase/storageAdapter.js`
+
+**Ucel:** Unifikovany adapter pro Supabase operace (read/write/readList/appendLog).
+
+#### NAMESPACE_TABLE_MAP
+
+```javascript
+// Mapovani namespace -> Supabase table
+const NAMESPACE_TABLE_MAP = {
+  'pricing:v3': 'pricing_configs',
+  'fees:v3': 'fees',
+  'orders:v1': 'orders',
+  // ... (20 celkem)
+}
+```
+
+#### Hlavni API
+
+```javascript
+storageAdapter.read(namespace, tenantId, key, fallback?)
+// Cteni z Supabase (resp. dle feature flag modu)
+// Returnuje: parsed JSON nebo fallback
+
+storageAdapter.write(namespace, tenantId, key, value)
+// Zapis do Supabase (resp. dle modu)
+// Fire-and-forget -- Promise se hlida, chyby se logují
+
+storageAdapter.readList(namespace, tenantId)
+// Nacte vsechny zaznamy v tabulce pro daneho tenanta
+
+storageAdapter.appendLog(namespace, tenantId, entry)
+// Append do log tabulky (audit_log, analytics_events, atd.)
+```
+
+#### V praksi
+
+Pouzivane z `adminTenantStorage.js`:
+```javascript
+// Sync API -- VZDY localStorage
+readTenantJson(namespace, fallback)
+  --> localStorage.getItem(...)
+
+// Async API -- respektuje mody
+readTenantJsonAsync(namespace, fallback)
+  --> storageAdapter.read(...) [dle modu]
+
+writeTenantJsonAsync(namespace, value)
+  --> storageAdapter.write(...) [dle modu]
+```
 
 ---
 
@@ -815,10 +980,11 @@ Helpery neposlouchaji `window.addEventListener('storage', ...)`. Zmeny v localSt
 |-------|-------|
 | 2026-02-13 | Prvni verze dokumentace (Phase 4 Supabase integrace) |
 | 2026-02-26 | Bug fix: pridano `getWidgetByIdOrPublicId()` a `getWidgetBuilderData()` do adminBrandingWidgetStorage (chybejici exporty pro WidgetEmbed). Fix cross-tenant pricing leak: `loadPricingConfigV3()` a `loadFeesConfigV3()` nyni prijimaji `tenantIdOverride` parametr. WidgetPublicPage predava `tenantId` prop do WidgetKalkulacka. |
+| 2026-02-27 | Dokumentace aktualizace: Nove sekce 7 (Supabase Dual-Write Mody) s detaily o trzech modech (localStorage, supabase, dual-write), feature flag API, rollback postupu. Sekce 6.4 expandovana s funkcemi z featureFlags.js. Nova sekce 7.6 s detaily o StorageAdapter API. |
 
 ---
 
 > **Vlastnik:** `mp-mid-storage-tenant` (SINGLE OWNER pro `src/utils/admin*Storage.js`)
 > **Eskalace:** `mp-sr-storage`
 > **Konzumenti:** `mp-mid-frontend-admin`, `mp-mid-frontend-widget`
-> **Posledni aktualizace:** 2026-02-26
+> **Posledni aktualizace:** 2026-02-27

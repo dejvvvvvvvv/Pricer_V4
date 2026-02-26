@@ -7,8 +7,8 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 93
-- **Posledni zaznam:** 093-GN (KONVERZACE 2026-02-27)
+- **Celkem zaznamu:** 94
+- **Posledni zaznam:** 094-SB (UPRAVY 2026-02-27)
 - **Posledni aktualizace:** 2026-02-27
 
 ---
@@ -114,6 +114,7 @@
 | ID | Zkratka | Typ | Popis |
 |----|---------|-----|-------|
 | **093** | **GN** | **KONVERZACE** | **Pruzkum stavu projektu + plan dalsich implementaci — parallelni diagnostika (pending plans, git, supabase, frontend build)** |
+| **094** | **SB** | **UPRAVY** | **Auth Bridge + Tenant Auto-Registration — Faze 3 dokonceni (tenantRegistration.js, 4x integrace, 43 radku docs)** |
 
 ---
 
