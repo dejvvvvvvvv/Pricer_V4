@@ -23,3 +23,4 @@ export {
   rollbackToLocalStorage,
   MIGRATIONS,
 } from './migrationRunner';
+export { ensureTenantInSupabase } from './tenantRegistration';

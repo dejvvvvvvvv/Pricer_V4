@@ -18,6 +18,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import AuthContext from '../context/AuthContext';
 import { setTenantId, clearTenantId } from '../utils/adminTenantStorage';
+import { ensureTenantInSupabase } from '../lib/supabase/tenantRegistration';
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -100,6 +101,8 @@ async function ensureGoogleUserProfile(user) {
 
   // Set Supabase RLS claims (non-blocking)
   ensureSupabaseClaims(user, resolvedTenantId);
+  // Fire-and-forget: ensure tenant exists in Supabase
+  ensureTenantInSupabase(user);
 }
 
 export default function FirebaseAuthProvider({ children }) {
@@ -136,11 +139,15 @@ export default function FirebaseAuthProvider({ children }) {
               if (!tokenResult?.claims?.tenant_id || tokenResult.claims.tenant_id !== tenantId) {
                 ensureSupabaseClaims(user, tenantId);
               }
+              // Fire-and-forget: ensure tenant exists in Supabase
+              ensureTenantInSupabase(user);
             } else {
               // User without profile (edge case) — use uid
               setTenantId(user.uid);
               setCurrentUser({ ...user, tenantId: user.uid });
               ensureSupabaseClaims(user, user.uid);
+              // Fire-and-forget: ensure tenant exists in Supabase
+              ensureTenantInSupabase(user);
             }
           }
         } else {
@@ -256,6 +263,8 @@ export default function FirebaseAuthProvider({ children }) {
 
     // Set Supabase RLS claims for the newly registered user (non-blocking)
     ensureSupabaseClaims(user, user.uid);
+    // Fire-and-forget: ensure tenant exists in Supabase
+    ensureTenantInSupabase(user);
 
     return user;
   }, []);
