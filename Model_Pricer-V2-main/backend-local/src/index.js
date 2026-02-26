@@ -26,6 +26,7 @@ import {
 } from "./presetsStore.js";
 
 import storageRouter from "./storage/storageRouter.js";
+import authClaimsRouter from "./routes/authClaims.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { requireTenant } from "./middleware/tenant.js";
 
@@ -77,14 +78,28 @@ app.use("/api/presets", requireAuth, requireTenant);
 app.use("/api/slice", requireAuth, requireTenant);
 app.use("/api/storage", requireAuth, requireTenant);
 
+// ===== Auth claims API (Firebase-to-Supabase RLS bridge) =====
+app.use("/api/auth", requireAuth, requireTenant, authClaimsRouter);
+
 // ===== Presets API (backend-local) =====
 
 function getTenantIdFromReq(req) {
   // If requireTenant middleware ran, use req.tenantId
   if (req.tenantId) return req.tenantId;
-  // Fallback for widget/public routes without auth
+  // Fallback for widget/public routes without auth (e.g. /api/widget/presets)
   const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
-  return fromHeader || "demo-tenant";
+  if (fromHeader) {
+    console.warn(
+      `[index] Using header-based tenant "${fromHeader}" — req.tenantId not set (public route?): ${req.method} ${req.originalUrl}`
+    );
+    return fromHeader;
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    return "demo-tenant";
+  }
+  // In production without any tenant source, still default but warn
+  console.warn(`[index] WARNING: No tenant resolved for ${req.method} ${req.originalUrl} — using demo-tenant`);
+  return "demo-tenant";
 }
 
 function ok(res, data) {
@@ -194,17 +209,24 @@ app.get("/api/widget/presets", async (req, res) => {
 
 app.get("/api/health/prusa", async (_req, res) => {
   try {
+    const isProd = process.env.NODE_ENV === 'production';
     const slicerCmd = await resolveSlicerCmd();
     if (!slicerCmd) {
       return res.status(500).json({
         ok: false,
         error: "PRUSA_SLICER_CMD not set and auto-detect failed.",
-        hint: `Put PrusaSlicer portable into ${path.join(projectRoot, "tools", "prusaslicer")} and/or set PRUSA_SLICER_CMD in backend-local/.env`
+        // Only expose filesystem hint in development
+        ...(!isProd && {
+          hint: `Put PrusaSlicer portable into ${path.join(projectRoot, "tools", "prusaslicer")} and/or set PRUSA_SLICER_CMD in backend-local/.env`
+        })
       });
     }
 
     if (!(await fileExists(slicerCmd))) {
-      return res.status(500).json({ ok: false, error: `Slicer not found at: ${slicerCmd}` });
+      return res.status(500).json({
+        ok: false,
+        error: isProd ? "Slicer binary not found." : `Slicer not found at: ${slicerCmd}`
+      });
     }
 
     // Windows portable builds often don't support --version. --help is the safest truth source.
@@ -216,11 +238,14 @@ app.get("/api/health/prusa", async (_req, res) => {
 
     res.json({
       ok: final.exitCode === 0,
-      slicerCmd,
       checkMethod,
       exitCode: final.exitCode,
-      stdout,
-      stderr
+      // Only expose paths and raw output in development
+      ...(!isProd && {
+        slicerCmd,
+        stdout,
+        stderr
+      })
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -344,14 +369,19 @@ app.post(
         await fs.writeFile(path.join(req.jobDir, "prusa_stdout.log"), run.stdout, "utf8").catch(() => {});
       }
 
+      const isProd = process.env.NODE_ENV === 'production';
+
       if (run.exitCode !== 0) {
         return res.status(500).json({
           success: false,
           error: "PrusaSlicer returned non-zero exit code.",
           exitCode: run.exitCode,
           jobId: req.jobId,
-          jobDir: req.jobDir,
-          stderr: run.stderr.slice(0, 5000)
+          // Only expose paths/stderr in development
+          ...(!isProd && {
+            jobDir: req.jobDir,
+            stderr: run.stderr.slice(0, 5000)
+          })
         });
       }
 
@@ -360,8 +390,11 @@ app.post(
           success: false,
           error: "out.gcode was not produced.",
           jobId: req.jobId,
-          jobDir: req.jobDir,
-          stderr: run.stderr.slice(0, 5000)
+          // Only expose paths/stderr in development
+          ...(!isProd && {
+            jobDir: req.jobDir,
+            stderr: run.stderr.slice(0, 5000)
+          })
         });
       }
 
@@ -371,23 +404,30 @@ app.post(
       res.json({
         success: true,
         jobId: req.jobId,
-        jobDir: req.jobDir,
-        outGcodePath: run.outGcodePath,
         durationMs: run.durationMs,
-        slicerCmd,
-        iniUsed: iniPath,
         usedPreset,
         modelUsed: modelFile.originalname,
         modelInfo,
         modelInfoError: modelInfoError || undefined,
-        metrics
+        metrics,
+        // Only expose internal paths in development
+        ...(!isProd && {
+          jobDir: req.jobDir,
+          outGcodePath: run.outGcodePath,
+          slicerCmd,
+          iniUsed: iniPath
+        })
       });
     } catch (e) {
+      const isProdCatch = process.env.NODE_ENV === 'production';
       res.status(500).json({
         success: false,
         jobId: req.jobId,
-        jobDir: req.jobDir,
-        error: String(e?.message || e)
+        error: String(e?.message || e),
+        // Only expose paths in development
+        ...(!isProdCatch && {
+          jobDir: req.jobDir
+        })
       });
     }
   }

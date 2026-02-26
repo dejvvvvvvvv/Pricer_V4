@@ -23,9 +23,50 @@ const googleProvider = new GoogleAuthProvider();
 
 const DEMO_TENANT_EMAILS = { 'david-kunak@seznam.cz': 'demo-tenant' };
 
+/**
+ * Calls the backend to set Firebase custom claims (role, tenant_id) that
+ * Supabase RLS policies use for tenant isolation.
+ *
+ * This is non-blocking: if it fails, the user can still use the app normally,
+ * but Supabase RLS features will not work until claims are successfully set.
+ * After setting claims, forces a token refresh so the new claims are included
+ * in subsequent Firebase ID tokens passed to Supabase.
+ *
+ * @param {import('firebase/auth').User} user - Firebase Auth user
+ * @param {string} tenantId - Resolved tenant ID for RLS
+ */
+async function ensureSupabaseClaims(user, tenantId) {
+  try {
+    const token = await user.getIdToken();
+    const response = await fetch('/api/auth/set-claims', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'x-tenant-id': tenantId,
+      },
+      body: JSON.stringify({ tenantId }),
+    });
+
+    if (response.ok) {
+      // Force token refresh to pick up the new custom claims
+      await user.getIdToken(true);
+      console.log('[Auth] Supabase RLS claims set for tenant:', tenantId);
+    } else {
+      const body = await response.json().catch(() => ({}));
+      console.warn('[Auth] Failed to set Supabase claims:', body.error || response.status);
+    }
+  } catch (error) {
+    // Non-blocking — Supabase features may not work until claims are set,
+    // but core app functionality via localStorage is unaffected.
+    console.warn('[Auth] Failed to set Supabase claims:', error);
+  }
+}
+
 // Helper: create Firestore profile for a Google user if it doesn't exist yet.
 // Used by both popup success path and redirect result path.
 async function ensureGoogleUserProfile(user) {
+  let resolvedTenantId = user.uid;
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref).catch(() => null);
   if (!snap?.exists()) {
@@ -53,8 +94,12 @@ async function ensureGoogleUserProfile(user) {
       tenantId = DEMO_TENANT_EMAILS[user.email] || user.uid;
       await updateDoc(ref, { tenantId }).catch(() => {});
     }
+    resolvedTenantId = tenantId;
     setTenantId(tenantId);
   }
+
+  // Set Supabase RLS claims (non-blocking)
+  ensureSupabaseClaims(user, resolvedTenantId);
 }
 
 export default function FirebaseAuthProvider({ children }) {
@@ -84,10 +129,18 @@ export default function FirebaseAuthProvider({ children }) {
 
               setTenantId(tenantId);
               setCurrentUser({ ...user, ...profile, tenantId });
+
+              // Ensure Supabase RLS claims are set (non-blocking).
+              // Checks if claims already exist in the token to avoid redundant calls.
+              const tokenResult = await user.getIdTokenResult().catch(() => null);
+              if (!tokenResult?.claims?.tenant_id || tokenResult.claims.tenant_id !== tenantId) {
+                ensureSupabaseClaims(user, tenantId);
+              }
             } else {
               // User without profile (edge case) — use uid
               setTenantId(user.uid);
               setCurrentUser({ ...user, tenantId: user.uid });
+              ensureSupabaseClaims(user, user.uid);
             }
           }
         } else {
@@ -200,6 +253,10 @@ export default function FirebaseAuthProvider({ children }) {
     }
 
     setTenantId(user.uid);
+
+    // Set Supabase RLS claims for the newly registered user (non-blocking)
+    ensureSupabaseClaims(user, user.uid);
+
     return user;
   }, []);
 

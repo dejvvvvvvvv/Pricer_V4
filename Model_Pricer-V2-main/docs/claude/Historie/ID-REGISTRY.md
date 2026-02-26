@@ -1,7 +1,7 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Globalni pocitadlo:** 050 (incrementovano po kazdem zaznamu)
-**Dalsi ID k pouziti:** 051
+**Globalni pocitadlo:** 089 (incrementovano po kazdem zaznamu)
+**Dalsi ID k pouziti:** 090
 
 ---
 
@@ -14,6 +14,7 @@
 | PR | Pricing Engine (cenovka, volume discounts, fees) | 0 |
 | ST | Storage (tenant storage, Supabase, migration) | 1 |
 | WG | Widget Builder (widget.js, postMessage, embed) | 0 |
+| WB | Widget Builder Testing (browser testing, design verification) | 1 |
 | KA | Kalkulacka (test-kalkulacka, checkbox, recalc) | 0 |
 | DN | Dokumentace (docs, markdown, typo fixy) | 0 |
 | BU | Bug fixes (libovolne) | 0 |
@@ -37,6 +38,7 @@
 | 048-AC | 2026-02-24 | Account | Sprint 2 Faze 7+9 — Security (changePassword) + Billing (subscription + i18n + a11y) | 10 |
 | 049-AC | 2026-02-24 | Account | Sprint 2 KOMPLETNE HOTOVO — 5 ukolu, 10 souboru, build PASS | 10 |
 | **050-ST** | 2026-02-25 | Storage | **Per-User Tenant Izolace — Core + Auth + Hardcoded cleanup** | **15** |
+| **089-WB** | 2026-02-26 | Testing | **Widget Builder + Forge Design — Browser Testing** | **0** |
 
 ---
 

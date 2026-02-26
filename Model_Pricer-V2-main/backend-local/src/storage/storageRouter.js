@@ -34,8 +34,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, "..", "..");
 
+/**
+ * Reads tenant ID from req.tenantId (set by requireTenant middleware).
+ * Falls back to x-tenant-id header ONLY for backward compat during transition,
+ * with a warning log.
+ */
 function getTenantId(req) {
-  return String(req.headers["x-tenant-id"] || "").trim() || "demo-tenant";
+  if (req.tenantId) {
+    return req.tenantId;
+  }
+  // Fallback: header-based (backward compat if middleware not applied)
+  const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
+  if (fromHeader) {
+    console.warn(
+      `[storageRouter] WARNING: req.tenantId not set, falling back to x-tenant-id header ("${fromHeader}"). Ensure requireTenant middleware is applied.`
+    );
+    return fromHeader;
+  }
+  console.warn(
+    "[storageRouter] WARNING: No tenant ID resolved — using 'demo-tenant'. This should not happen in production."
+  );
+  return "demo-tenant";
 }
 
 function getStorageRoot() {

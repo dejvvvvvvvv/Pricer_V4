@@ -35,6 +35,16 @@
 
 ---
 
+## 2026-02-26
+
+### S03: Widget Builder + Forge Design System Testovani
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **089-WB** | 2026-02-26 | TESTY | WB | Widget Builder + Forge Design — Browser Testing | 0 | 14 testu PASS (5 straniek + 9 visual checks); Build PASS 3023 modules; Teal #00D4AA, Space Grotesk, IBM Plex Sans; P1 Embed tab dual-mode fixed; P2 Builder route auth open |
+
+---
+
 ## Navi & Links
 
 - **ID-REGISTRY:** `docs/claude/Historie/ID-REGISTRY.md` — seznam zkratek + globalni pocitadlo

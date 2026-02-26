@@ -218,6 +218,7 @@ const WidgetKalkulacka = ({
   onQuoteCalculated,
   shopifyConfig = null,
   layoutConfig = null,
+  tenantId = undefined,
 }) => {
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
@@ -229,8 +230,8 @@ const WidgetKalkulacka = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [sliceAllProcessing, setSliceAllProcessing] = useState(false);
 
-  const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfigV3());
-  const [feesConfig, setFeesConfig] = useState(() => loadFeesConfigV3());
+  const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfigV3(tenantId));
+  const [feesConfig, setFeesConfig] = useState(() => loadFeesConfigV3(tenantId));
 
   const [feeSelections, setFeeSelections] = useState(() => ({
     selectedFeeIds: new Set(),
@@ -372,12 +373,12 @@ const WidgetKalkulacka = ({
   useEffect(() => {
     const onStorage = (e) => {
       if (!e?.key) return;
-      if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3());
-      if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3());
+      if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3(tenantId));
+      if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3(tenantId));
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     const fees = Array.isArray(feesConfig?.fees) ? feesConfig.fees : [];
