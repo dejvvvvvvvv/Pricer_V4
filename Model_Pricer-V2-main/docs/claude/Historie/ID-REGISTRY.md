@@ -1,7 +1,7 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Globalni pocitadlo:** 089 (incrementovano po kazdem zaznamu)
-**Dalsi ID k pouziti:** 090
+**Globalni pocitadlo:** 090 (incrementovano po kazdem zaznamu)
+**Dalsi ID k pouziti:** 091
 
 ---
 
@@ -23,6 +23,7 @@
 | SH | Shopify integrace (storefront, cart) | 0 |
 | SB | Supabase (migrace, schema, policies) | 0 |
 | AD | Admin (stranky, formulare, UI) | 0 |
+| MC | MCP Servers (Firebase, GitHub, Stripe, Sentry, Vercel) | 1 |
 
 ---
 
@@ -39,6 +40,7 @@
 | 049-AC | 2026-02-24 | Account | Sprint 2 KOMPLETNE HOTOVO — 5 ukolu, 10 souboru, build PASS | 10 |
 | **050-ST** | 2026-02-25 | Storage | **Per-User Tenant Izolace — Core + Auth + Hardcoded cleanup** | **15** |
 | **089-WB** | 2026-02-26 | Testing | **Widget Builder + Forge Design — Browser Testing** | **0** |
+| **090-MC** | 2026-02-27 | MCP Servers | **MCP Server Installation (P0+P1: Firebase, GitHub, Stripe, Sentry, Vercel)** | **2** |
 
 ---
 

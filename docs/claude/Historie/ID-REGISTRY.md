@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 094
-**Dalsi ID k pouziti:** 095
+**Posledni pouzite ID:** 097
+**Dalsi ID k pouziti:** 098
 
 ---
 
@@ -233,8 +233,11 @@ S{NN}
 | 090 | SB | Supabase | KONVERZACE — Supabase migrace sprint zahajeni, 6 research agentu (S03) | 2026-02-26 |
 | 091 | SB | Supabase | UPRAVY — CP2 implementace (backend security, RLS policies, JWT bridge scaffolding, 11 findings) | 2026-02-26 |
 | 092 | SB | Supabase | DENNI-PREHLED — Sprint kompletni (17 deliverables, 76/76 tests PASS, build PASS, ready for prod RLS) | 2026-02-26 |
+| 095 | SB | Supabase | KONVERZACE — Kompletni Supabase migrace & tenant izolace sprint (18 deliverables, dokumentace, design decisions, pending user actions) | 2026-02-27 |
+| 096 | SB | Supabase | KONVERZACE — RLS Deploy via MCP (102 politik) + Dual-Write Guide rewrite | 2026-02-27 |
+| 097 | SB | Supabase | UPRAVY — 4 RLS migrace (102 politik nasazeno) + Dual-Write Guide rewrite (820→200 radku, 7 casti A-G) | 2026-02-27 |
 
 ---
 
 **Posledni aktualizace:** 2026-02-27
-**Posledni session:** S01 (2026-02-27) — Pruzkum stavu + plan dalsich implementaci (093-GN) + Auth Bridge (094-SB)
+**Posledni session:** S05 (2026-02-27) — RLS Deploy via MCP (102 politik, 4 migrace) + Dual-Write Activation Guide rewrite

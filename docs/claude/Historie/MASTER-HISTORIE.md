@@ -7,8 +7,8 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 94
-- **Posledni zaznam:** 094-SB (UPRAVY 2026-02-27)
+- **Celkem zaznamu:** 97
+- **Posledni zaznam:** 097-SB (UPRAVY 2026-02-27)
 - **Posledni aktualizace:** 2026-02-27
 
 ---
@@ -109,12 +109,15 @@
 | **091** | **SB** | **UPRAVY** | **CP2 implementace — backend security, RLS policies (102), JWT bridge scaffolding, 11 findings (4 P0 fixed)** |
 | **092** | **SB** | **DENNI-PREHLED** | **Sprint kompletni (17 deliverables, 76/76 tests PASS, build PASS, ready for production RLS + dual-write)** |
 
-### 2026-02-27 (S01)
+### 2026-02-27 (S01-S05)
 
 | ID | Zkratka | Typ | Popis |
 |----|---------|-----|-------|
 | **093** | **GN** | **KONVERZACE** | **Pruzkum stavu projektu + plan dalsich implementaci — parallelni diagnostika (pending plans, git, supabase, frontend build)** |
 | **094** | **SB** | **UPRAVY** | **Auth Bridge + Tenant Auto-Registration — Faze 3 dokonceni (tenantRegistration.js, 4x integrace, 43 radku docs)** |
+| **095** | **SB** | **KONVERZACE** | **Kompletni Supabase migrace & tenant izolace sprint (18 deliverables, 76/76 tests PASS, build PASS, 20+ agentu, 4 pending user actions)** |
+| **096** | **SB** | **KONVERZACE** | **RLS Deploy via MCP (102 politik, 4 migrace) + Dual-Write Activation Guide rewrite (820→200 radku)** |
+| **097** | **SB** | **UPRAVY** | **4 Supabase RLS migrace pres MCP (102 politik nasazeno) + Dual-Write Guide rewrite (820→200 radku, 7 casti A-G)** |
 
 ---
 

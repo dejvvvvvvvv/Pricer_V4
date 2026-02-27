@@ -11,6 +11,12 @@
       "mcp__context7__*",
       "mcp__brave-search__*",
       "mcp__claude-in-chrome__*",
+      "mcp__firebase__*",
+      "mcp__github__*",
+      "mcp__stripe__*",
+      "mcp__sentry__*",
+      "mcp__vercel__*",
+      "mcp__idea-reality__*",
       "Bash(claude mcp list:*)",
       "Bash(claude mcp add:*)",
       "Bash(npm search:*)",
@@ -36,7 +42,21 @@
       "WebFetch(domain:elementor.com)",
       "WebFetch(domain:kontra.agency)",
       "WebFetch(domain:uitop.design)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "mcp__plugin_supabase_supabase__list_tables",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "mcp__plugin_supabase_supabase__apply_migration",
+      "mcp__plugin_supabase_supabase__*"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "idea-reality",
+    "firebase",
+    "github",
+    "stripe",
+    "sentry",
+    "vercel"
+  ]
 }

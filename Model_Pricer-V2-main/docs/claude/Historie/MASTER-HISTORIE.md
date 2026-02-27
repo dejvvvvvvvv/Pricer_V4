@@ -45,6 +45,17 @@
 
 ---
 
+## 2026-02-27
+
+### S01: MCP Server Research & Installation + Vercel Migration Planning
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **090-MC** | 2026-02-27 | UPRAVY | MC | MCP Server Installation (P0+P1: Firebase, GitHub, Stripe, Sentry, Vercel) | 2 | Vyzkum 5 agentu paralelne; P0 instalace (Firebase, GitHub, Stripe); P1 instalace (Sentry, Vercel); Detailni Vercel analyza (pricing, features, migrace); GitHub PAT token; Follow-up: Ubuntu backend, Cloud Run vs Fly.io, API proxy, timeline |
+| **091-VM** | 2026-02-27 | KONVERZACE | VM | Vercel Migration Plan — Cast 1 + Cast 2 (User Q&A + Simple Explanations) | 2 | Backend na Ubuntu (zdarma, SSH limit), Cloud Run vs Fly.io (srovnani), API Proxy (jednoduche vysvetleni VITE_API_URL), 4-faze plan (30+30+60+30 min). Rozhodnuti: Ubuntu + Vercel + VITE_API_URL. Ulozeni: Plan (PLANS/), Historia (090-MCP-KONVERZACE-CAST2.md) |
+
+---
+
 ## Navi & Links
 
 - **ID-REGISTRY:** `docs/claude/Historie/ID-REGISTRY.md` — seznam zkratek + globalni pocitadlo
@@ -54,6 +65,33 @@
 ---
 
 ## Popis zaznamu
+
+**090-MC — MCP Server Installation (P0+P1)** (2 soubory zmen)
+
+- **P0 Instalace (3 servery):**
+  - Firebase: stdio, `npx firebase-tools` (--only firestore,auth) — Firestore Admin API + Auth token verification
+  - GitHub: stdio, `npx @modelcontextprotocol/server-github` (PAT token) — Repository management, issues, PRs
+  - Stripe: HTTP OAuth, `https://mcp.stripe.com` — Payment processing, customer management
+
+- **P1 Instalace (2 servery):**
+  - Sentry: HTTP OAuth, `https://mcp.sentry.dev/mcp` — Error monitoring, releases, performance tracking
+  - Vercel: HTTP OAuth, `https://mcp.vercel.com` — Deployment automation, environment variables, analytics
+
+- **P2 Deferred (2 servery):**
+  - Cloudflare: Edge computing, DDoS protection
+  - Docker: Containerization
+
+- **Zmeny:**
+  - `.mcp.json` — pridano 5 novych MCP serveru (stdio/HTTP OAuth)
+  - `.claude/settings.local.json` — pridany wildcard permissions a enabledMcpjsonServers seznam
+  - `MEMORY.md` — dokumentace MCP serveru
+
+- **GitHub Account:** Osobni account uzivatele (Hobby plan compatible), PAT token ulozeno bezpecne
+- **Vercel Account:** Zatim nema — vytvori si, kdyz bude chtit migrovat frontend
+- **Backend Architecture:** Frontend na Vercel (serverless), Backend na Cloud Run/Fly.io (containerized)
+
+- **Research:** 5 paralelních agentu provedu kapsmle research; výsledky zakomponovány do P0/P1 vyberu
+- **Follow-up otazky:** Ubuntu server, Cloud Run vs Fly.io, API proxy, Vercel migration timeline
 
 **001-AU — Sprint 1 Auth Bugfixy FINAL** (11 souboru)
 
