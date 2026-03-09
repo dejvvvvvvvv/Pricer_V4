@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Icon from '../../../components/AppIcon';
@@ -10,6 +10,12 @@ import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 import { loadOrders, saveOrders, nowIso } from '../../../utils/adminOrdersStorage';
 import { saveOrderFiles } from '../../../services/storageApi';
 import { getTenantId } from '../../../utils/adminTenantStorage';
+import {
+  getEnabledPaymentMethods,
+  getBankTransferConfig,
+  getNextVariableSymbol,
+  getPaymentConfig,
+} from '../../../utils/adminPaymentStorage';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
 const fg = {
@@ -143,6 +149,55 @@ const fg = {
   },
 };
 
+/* ── Payment method radio styles ──────────────────────────────────────── */
+const pmStyles = {
+  option: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    border: '2px solid var(--forge-border-default)',
+    borderRadius: 'var(--forge-radius-lg)',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, background 0.15s',
+    background: 'var(--forge-bg-elevated)',
+  },
+  optionSelected: {
+    borderColor: 'var(--forge-accent-primary)',
+    background: 'rgba(0, 212, 170, 0.06)',
+  },
+  radio: {
+    marginTop: '0.15rem',
+    width: '1.125rem',
+    height: '1.125rem',
+    accentColor: 'var(--forge-accent-primary)',
+    flexShrink: 0,
+  },
+  iconWrap: {
+    width: '2rem',
+    height: '2rem',
+    borderRadius: 'var(--forge-radius-md)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(0, 212, 170, 0.10)',
+    flexShrink: 0,
+  },
+  label: {
+    fontSize: 'var(--forge-text-base)',
+    fontWeight: 600,
+    color: 'var(--forge-text-primary)',
+    fontFamily: 'var(--forge-font-body)',
+  },
+  description: {
+    fontSize: 'var(--forge-text-sm)',
+    color: 'var(--forge-text-muted)',
+    fontFamily: 'var(--forge-font-body)',
+    marginTop: '0.125rem',
+    lineHeight: 1.4,
+  },
+};
+
 function formatCzk(amount) {
   const n = Number.isFinite(amount) ? amount : 0;
   try {
@@ -169,6 +224,36 @@ function generateOrderNumber() {
   return `ORD-${ts}-${rand}`;
 }
 
+/* ── Payment method option descriptors ────────────────────────────────── */
+function getPaymentMethodMeta(methodId, t) {
+  switch (methodId) {
+    case 'bank_transfer':
+      return {
+        icon: 'Building2',
+        label: t('Platba na ucet', 'Bank Transfer'),
+        description: t(
+          'Platba prevodem na bankovni ucet. Platebni udaje obdrzite po odeslani objednavky.',
+          'Payment to bank account. You will receive payment details after placing the order.'
+        ),
+      };
+    case 'card':
+      return {
+        icon: 'CreditCard',
+        label: t('Platba kartou', 'Card Payment'),
+        description: t(
+          'Zaplaceni kreditni nebo debetni kartou.',
+          'Pay by credit/debit card.'
+        ),
+      };
+    default:
+      return {
+        icon: 'Wallet',
+        label: methodId,
+        description: '',
+      };
+  }
+}
+
 export default function CheckoutForm({
   uploadedFiles,
   printConfigs,
@@ -188,11 +273,41 @@ export default function CheckoutForm({
   const t = (cs, en) => (language === 'en' ? en : cs);
   const [savingFiles, setSavingFiles] = useState(false);
 
+  const tenantId = useMemo(() => getTenantId(), []);
+
+  // Load enabled payment methods
+  const enabledMethods = useMemo(() => {
+    const methods = getEnabledPaymentMethods(tenantId);
+    // If no methods enabled, fall back to bank_transfer only
+    if (!methods || methods.length === 0) {
+      return [{ id: 'bank_transfer', label: 'Bank Transfer' }];
+    }
+    return methods;
+  }, [tenantId]);
+
+  // Load bank transfer config for later use
+  const bankTransferConfig = useMemo(
+    () => getBankTransferConfig(tenantId),
+    [tenantId]
+  );
+
+  // Determine default payment method
+  const defaultMethod = useMemo(() => {
+    const config = getPaymentConfig(tenantId);
+    const preferred = config?.default_method || 'bank_transfer';
+    // Check that preferred method is actually enabled
+    if (enabledMethods.some((m) => m.id === preferred)) return preferred;
+    // Otherwise use first enabled
+    return enabledMethods[0]?.id || 'bank_transfer';
+  }, [tenantId, enabledMethods]);
+
   const schema = useMemo(() => getCheckoutSchema(language), [language]);
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
@@ -208,8 +323,18 @@ export default function CheckoutForm({
       country: language === 'en' ? '' : 'CZ',
       note: '',
       gdprConsent: false,
+      payment_method: defaultMethod,
     },
   });
+
+  const selectedPaymentMethod = watch('payment_method');
+
+  // If only 1 method, ensure it is always selected
+  useEffect(() => {
+    if (enabledMethods.length === 1 && selectedPaymentMethod !== enabledMethods[0].id) {
+      setValue('payment_method', enabledMethods[0].id);
+    }
+  }, [enabledMethods, selectedPaymentMethod, setValue]);
 
   const quote = useMemo(() => {
     if (!pricingConfig || !uploadedFiles?.length) return null;
@@ -239,9 +364,38 @@ export default function CheckoutForm({
     const now = nowIso();
     const orderFolderId = crypto.randomUUID();
 
+    // Build payment_info based on selected method
+    let paymentInfo;
+    if (data.payment_method === 'bank_transfer') {
+      const variableSymbol = getNextVariableSymbol(tenantId);
+      const dueDays = bankTransferConfig?.due_days || 7;
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + dueDays);
+
+      paymentInfo = {
+        method: 'bank_transfer',
+        variable_symbol: variableSymbol || orderNumber.replace(/\D/g, '').slice(-10),
+        bank_account: {
+          account_number: bankTransferConfig?.account_number || '',
+          iban: bankTransferConfig?.iban || '',
+          swift: bankTransferConfig?.swift || '',
+          bank_name: bankTransferConfig?.bank_name || '',
+        },
+        payment_instructions: bankTransferConfig?.payment_instructions || '',
+        due_date: dueDate.toISOString(),
+        status: 'pending',
+      };
+    } else {
+      // card or other future methods
+      paymentInfo = {
+        method: 'card',
+        status: 'pending',
+      };
+    }
+
     const order = {
       id: orderNumber,
-      tenant_id: getTenantId(),
+      tenant_id: tenantId,
       created_at: now,
       status: 'NEW',
       customer_snapshot: {
@@ -259,16 +413,15 @@ export default function CheckoutForm({
         zip: data.zip,
         country: data.country,
       },
+      payment_method: data.payment_method,
+      payment_info: paymentInfo,
       models: (uploadedFiles || [])
         .filter(f => f?.status === 'completed' && f?.result)
         .map((f, idx) => {
           const cfg = printConfigs?.[f.id] || {};
           const metrics = f.result?.metrics || {};
-          // Get per-model pricing from quote.models array
           const modelResult = quote?.models?.find(m => String(m.id) === String(f.id)) || null;
           const qty = cfg.quantity || 1;
-          // Pricing engine returns totals including quantity — divide to get per-piece
-          // (seed orders store per-piece in model_total; computeOrderTotals multiplies by qty)
           const totalWithQty = modelResult?.totals?.subtotalAfterPerModelRounding
             ?? modelResult?.totals?.subtotalAfterMin
             ?? modelResult?.totals?.subtotalBeforeMin
@@ -306,7 +459,6 @@ export default function CheckoutForm({
       notes: data.note ? [{ text: data.note, created_at: now }] : [],
       activity: [{ timestamp: now, user_id: 'customer', type: 'CREATED', payload: { status: 'NEW' } }],
       updated_at: now,
-      // Storage info placeholder
       storage: {
         orderFolderId,
         storagePath: null,
@@ -324,12 +476,10 @@ export default function CheckoutForm({
     // Try to save files to backend storage
     setSavingFiles(true);
     try {
-      // Collect original File objects from uploadedFiles
       const modelFiles = (uploadedFiles || [])
         .filter(f => f?.status === 'completed' && f?.file)
         .map(f => f.file);
 
-      // Build model mapping for gcode/preset copying
       const modelMapping = (uploadedFiles || [])
         .filter(f => f?.status === 'completed' && f?.result)
         .map(f => ({
@@ -344,7 +494,6 @@ export default function CheckoutForm({
         modelFiles
       );
 
-      // Update order with storage info
       order.storage = {
         orderFolderId: storageResult.orderFolderId,
         storagePath: storageResult.storagePath,
@@ -359,13 +508,11 @@ export default function CheckoutForm({
         payload: { fileCount: storageResult.files.length },
       });
 
-      // Re-save with storage info
       const updatedOrders = loadOrders();
       const idx = updatedOrders.findIndex(o => o.id === order.id);
       if (idx >= 0) updatedOrders[idx] = order;
       saveOrders(updatedOrders);
     } catch (err) {
-      // Storage failed — order still saved to localStorage
       console.warn('[CheckoutForm] File storage failed:', err);
       order.storage.status = 'failed';
 
@@ -388,7 +535,7 @@ export default function CheckoutForm({
     <div style={{ maxWidth: '56rem', margin: '0 auto' }}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-          {/* Left: Contact + Shipping form */}
+          {/* Left: Contact + Shipping + Payment form */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={fg.card}>
               <h3 style={fg.sectionTitle}>
@@ -482,6 +629,60 @@ export default function CheckoutForm({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Payment Method Selection */}
+            <div style={fg.card}>
+              <h3 style={fg.sectionTitle}>
+                <Icon name="Wallet" size={20} style={{ marginRight: '0.5rem' }} />
+                {t('ZPUSOB PLATBY', 'PAYMENT METHOD')}
+              </h3>
+
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+                role="radiogroup"
+                aria-label={t('Vyber zpusobu platby', 'Select payment method')}
+              >
+                {enabledMethods.map((method) => {
+                  const meta = getPaymentMethodMeta(method.id, t);
+                  const isSelected = selectedPaymentMethod === method.id;
+                  return (
+                    <label
+                      key={method.id}
+                      style={{
+                        ...pmStyles.option,
+                        ...(isSelected ? pmStyles.optionSelected : {}),
+                      }}
+                      htmlFor={`pm-${method.id}`}
+                    >
+                      <input
+                        type="radio"
+                        id={`pm-${method.id}`}
+                        value={method.id}
+                        style={pmStyles.radio}
+                        {...register('payment_method')}
+                        aria-describedby={`pm-desc-${method.id}`}
+                      />
+                      <div style={pmStyles.iconWrap}>
+                        <Icon
+                          name={meta.icon}
+                          size={18}
+                          style={{ color: 'var(--forge-accent-primary)' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={pmStyles.label}>{meta.label}</div>
+                        <div id={`pm-desc-${method.id}`} style={pmStyles.description}>
+                          {meta.description}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              {errors.payment_method?.message && (
+                <p style={fg.error}>{errors.payment_method.message}</p>
+              )}
             </div>
 
             {/* Note */}

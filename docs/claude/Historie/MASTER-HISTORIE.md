@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 102 (2x ID 101)
-- **Posledni zaznam:** 101-AO (UPRAVY 2026-03-05)
-- **Posledni aktualizace:** 2026-03-05
+- **Celkem zaznamu:** 104 (2x ID 101 + 102-103)
+- **Posledni zaznam:** 103-PY (UPRAVY 2026-03-09)
+- **Posledni aktualizace:** 2026-03-09
 
 ---
 
@@ -134,6 +134,13 @@
 | **101** | **AO** | **KONVERZACE** | **Kompletni session S01 — 3 originalni fixes + 4 extra (price fallback, kanban unifikace), 8 souboru, build PASS, browser test OK** |
 | **101** | **AO** | **UPRAVY** | **8 upravenych souboru: AdminOrders (filter collapse), adminOrdersStorage (fallback chains), OrderDetailModal (StatusDropdown), CheckoutForm (price fix), KanbanCard/Board (field mapping), statusTransitions (UPPERCASE), adminKanbanStorage (migration)** |
 
+### 2026-03-09 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **102** | **PY** | **KONVERZACE** | **Payment Methods + Checkout integrace — AdminPayments stranka, adminPaymentStorage, CheckoutForm radio vyber, OrderConfirmation platebni udaje** |
+| **103** | **PY** | **UPRAVY** | **2 nove + 5 upravenych souboru: AdminPayments.jsx, adminPaymentStorage.js, Routes.jsx, AdminLayout.jsx, CheckoutForm.jsx (+225), OrderConfirmation.jsx (+398), checkoutSchema.js** |
+
 ---
 
 ## Navigace
@@ -151,3 +158,4 @@
 | `Historie/2026-02-26/` | 6 zaznamu (Widget Builder Wave 1-3 Complete + Browser Testy + Supabase Migrace) |
 | `Historie/2026-03-04/` | 3 zaznamu (Admin Orders: filter collapse, order data, status dropdown + price fallback, kanban, mock removal) |
 | `Historie/2026-03-05/` | 2 zaznamu (Admin Orders kompletni session S01: konverzace + technicke zmeny, 8 souboru) |
+| `Historie/2026-03-09/` | 2 zaznamu (Payment Methods + Checkout integrace: AdminPayments, storage, radio vyber, platebni udaje) |

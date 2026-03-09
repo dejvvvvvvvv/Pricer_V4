@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 101
-**Dalsi ID k pouziti:** 102
+**Posledni pouzite ID:** 103
+**Dalsi ID k pouziti:** 104
 
 ---
 
@@ -57,6 +57,7 @@ S{NN}
 | AR | Admin-Parameters | src/pages/admin/AdminParameters.jsx |
 | AE | Admin-Express | src/pages/admin/AdminExpress.jsx |
 | DP | Doprava-Shipping | src/pages/admin/AdminShipping.jsx |
+| PY | Admin-Payments | src/pages/admin/AdminPayments.jsx |
 
 ### Kalkulacky a widgety
 | Zkratka | Oblast | Cesta |
@@ -241,8 +242,10 @@ S{NN}
 | 100 | AO | Admin-Orders | UPRAVY — Price fallback (totals_snapshot), KanbanCard field fix, mock data removal | 2026-03-04 |
 | 101 | AO | Admin-Orders | KONVERZACE — Kompletni session S01 (3 originalni fixes + 4 extra, filter collapse, price/kanban fixes) | 2026-03-05 |
 | 101 | AO | Admin-Orders | UPRAVY — Filter minimization, fallback chains, StatusDropdown, kanban unifikace, mock removal, 8 souboru | 2026-03-05 |
+| 102 | PY | Admin-Payments | KONVERZACE — Payment Methods + Checkout integrace (AdminPayments, storage, radio vyber, platebni udaje) | 2026-03-09 |
+| 103 | PY | Admin-Payments | UPRAVY — 2 nove + 5 upravenych souboru (AdminPayments, adminPaymentStorage, CheckoutForm, OrderConfirmation, checkoutSchema) | 2026-03-09 |
 
 ---
 
-**Posledni aktualizace:** 2026-03-05
-**Posledni session:** S01 (2026-03-05) — Admin Orders comprehensive fixes (filter, data fallbacks, status dropdown, kanban unifikace)
+**Posledni aktualizace:** 2026-03-09
+**Posledni session:** S01 (2026-03-09) — Payment Methods + Checkout integrace (bank transfer, card payment, admin panel, checkout flow)

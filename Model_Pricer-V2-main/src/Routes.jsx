@@ -36,6 +36,7 @@ const AdminEmails = React.lazy(() => import('./pages/admin/AdminEmails'));
 const AdminCoupons = React.lazy(() => import('./pages/admin/AdminCoupons'));
 const AdminMigration = React.lazy(() => import('./pages/admin/AdminMigration'));
 const AdminIntegrations = React.lazy(() => import('./pages/admin/AdminIntegrations'));
+const AdminPayments = React.lazy(() => import('./pages/admin/AdminPayments'));
 const SlicerPage = React.lazy(() => import('./pages/slicer'));
 const AdminModelStorage = React.lazy(() => import('./pages/admin/AdminModelStorage'));
 
@@ -101,6 +102,7 @@ export default function Routes() {
               <Route path="parameters/*" element={<AdminParameters />} />
               <Route path="presets/*" element={<AdminPresets />} />
               <Route path="orders/*" element={<AdminOrders />} />
+              <Route path="payments" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminPayments /></Suspense>} />
               <Route path="model-storage" element={<Suspense fallback={<div style={{padding:'32px'}}>Loading...</div>}><AdminModelStorage /></Suspense>} />
               <Route path="widget" element={<AdminWidget />} />
               <Route path="analytics" element={<AdminAnalytics />} />

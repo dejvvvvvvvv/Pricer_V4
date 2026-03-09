@@ -46,3 +46,10 @@ Pouze tito agenti mohou používat Brave Search:
 | 2026-02-26T15:00:15Z | mp-researcher-web | Supabase service_role tenant isolation | Supabase service_role key current_setting RLS tenant isolation x-tenant-id header | service_role bypasses RLS (risky) |
 | 2026-02-26T15:00:30Z | mp-researcher-web | Firebase to Supabase user migration | migrate Firebase Auth to Supabase Auth user migration guide 2024 2025 | Official migration tools exist |
 | 2026-02-26T15:00:45Z | mp-researcher-web | Supabase accessToken callback pattern | supabase createClient accessToken callback firebase JWT third party auth RLS | PR #1004 accessToken param in v2.x |
+| 2026-03-09T10:00:00Z | mp-researcher-web | Shoptet bank transfer VS settings | Shoptet platba na ucet variabilni symbol nastaveni | VS = cislo objednavky, Shoptet Pay auto-parovani |
+| 2026-03-09T10:00:15Z | mp-researcher-web | WooCommerce CZ bank transfer plugins | WooCommerce Czech bank transfer variabilni symbol plugin platba prevodem | Toret Fio, Ceske pluginy QR, Platiti FIO |
+| 2026-03-09T10:00:30Z | mp-researcher-web | VS legal rules and max length | variabilni symbol maximalni delka 10 cislic pravidla CNB | Max 10 cislic, pouze cislice, zadna zavazna pravidla slozeni |
+| 2026-03-09T10:00:45Z | mp-researcher-web | PrestaShop CZ bank transfer modules | PrestaShop Czech bank transfer module platba prevodem variabilni symbol | Moduly pro ciselny VS, QR kod, auto-parovani Fio/KB/CSOB |
+| 2026-03-09T10:01:00Z | mp-researcher-web | Shoptet admin payment confirmation settings | Shoptet nastaveni platba prevodem potvrzeni objednavky IBAN QR splatnost | Splatnost 7/14/21 dni, QR na fakturach, IBAN+SWIFT v nastaveni men |
+| 2026-03-09T10:01:15Z | mp-researcher-web | Thank-you page best practices international | e-shop bank transfer confirmation page what information display | Order summary, bank details, payment instructions |
+| 2026-03-09T10:01:30Z | mp-researcher-web | CZ bank API automatic payment matching | Czech bank transfer payment automatic matching FIO API CSOB API parovani plateb | Fio API (REST, read-only token), parovani VS+castka, 1-3h interval |

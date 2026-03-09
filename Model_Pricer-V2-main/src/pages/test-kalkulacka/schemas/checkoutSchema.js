@@ -61,5 +61,7 @@ export function getCheckoutSchema(language = 'cs') {
           'You must consent to the processing of personal data'
         ),
       }),
+
+    payment_method: z.enum(['bank_transfer', 'card']).default('bank_transfer'),
   });
 }
