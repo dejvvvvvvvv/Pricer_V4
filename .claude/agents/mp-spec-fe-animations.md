@@ -2,7 +2,7 @@
 name: mp-spec-fe-animations
 description: "CSS animace a transitions — page transitions, loading states, skeleton screens."
 color: "#4ADE80"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

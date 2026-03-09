@@ -2,7 +2,7 @@
 name: mp-spec-storage-tenant-id
 description: "Tenant ID generovani a validace — UUID format, namespace izolace, collision prevence."
 color: "#A78BFA"
-model: claude-haiku-4-5-20251001
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]
