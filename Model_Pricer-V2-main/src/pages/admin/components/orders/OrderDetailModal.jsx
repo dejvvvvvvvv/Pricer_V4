@@ -4,7 +4,155 @@ import TabCustomer from './TabCustomer';
 import TabShipping from './TabShipping';
 import TabItemsFiles from './TabItemsFiles';
 import StorageStatusBadge from './StorageStatusBadge';
-import { getStatusLabel } from '../../../../utils/adminOrdersStorage';
+import { getStatusLabel, ORDER_STATUSES } from '../../../../utils/adminOrdersStorage';
+
+/* ── Status color map ── */
+const STATUS_COLORS = {
+  NEW:         { bg: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa', border: 'rgba(59, 130, 246, 0.30)' },
+  REVIEW:      { bg: 'rgba(99, 102, 241, 0.12)', color: '#818cf8', border: 'rgba(99, 102, 241, 0.30)' },
+  APPROVED:    { bg: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: 'rgba(245, 158, 11, 0.30)' },
+  PRINTING:    { bg: 'rgba(249, 115, 22, 0.12)', color: '#fb923c', border: 'rgba(249, 115, 22, 0.30)' },
+  POSTPROCESS: { bg: 'rgba(234, 179, 8, 0.12)',  color: '#facc15', border: 'rgba(234, 179, 8, 0.30)' },
+  READY:       { bg: 'rgba(0, 212, 170, 0.10)',   color: '#00d4aa', border: 'rgba(0, 212, 170, 0.25)' },
+  SHIPPED:     { bg: 'rgba(20, 184, 166, 0.12)',  color: '#2dd4bf', border: 'rgba(20, 184, 166, 0.30)' },
+  DONE:        { bg: 'rgba(34, 197, 94, 0.12)',   color: '#4ade80', border: 'rgba(34, 197, 94, 0.30)' },
+  CANCELED:    { bg: 'rgba(239, 68, 68, 0.12)',   color: '#f87171', border: 'rgba(239, 68, 68, 0.30)' },
+};
+
+function getStatusColor(status) {
+  return STATUS_COLORS[status] || STATUS_COLORS.NEW;
+}
+
+/* ── StatusDropdown ── */
+function StatusDropdown({ currentStatus, onStatusChange, orderId }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const colors = getStatusColor(currentStatus);
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
+      {/* Trigger badge */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          padding: '4px 10px',
+          borderRadius: '999px',
+          fontSize: '11px',
+          fontFamily: 'var(--forge-font-tech)',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          backgroundColor: colors.bg,
+          color: colors.color,
+          border: `1px solid ${colors.border}`,
+          cursor: 'pointer',
+          transition: 'filter 120ms ease',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.15)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        {getStatusLabel(currentStatus, 'en')}
+        <svg
+          width="10" height="10" viewBox="0 0 10 10" fill="none"
+          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 150ms ease' }}
+        >
+          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {/* Dropdown list */}
+      {isOpen && (
+        <div
+          role="listbox"
+          aria-label="Change order status"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            minWidth: '160px',
+            backgroundColor: 'var(--forge-bg-surface)',
+            border: '1px solid var(--forge-border-default)',
+            borderRadius: '8px',
+            boxShadow: 'var(--forge-shadow-lg)',
+            padding: '4px 0',
+            zIndex: 50,
+            overflow: 'hidden',
+          }}
+        >
+          {ORDER_STATUSES.map((status) => {
+            const sc = getStatusColor(status);
+            const isActive = status === currentStatus;
+            return (
+              <button
+                key={status}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                onClick={() => {
+                  if (status !== currentStatus && onStatusChange) {
+                    onStatusChange(orderId, status);
+                  }
+                  setIsOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '7px 12px',
+                  border: 'none',
+                  background: isActive ? 'var(--forge-bg-overlay)' : 'transparent',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontFamily: 'var(--forge-font-body)',
+                  fontWeight: isActive ? 600 : 400,
+                  color: 'var(--forge-text-primary)',
+                  textAlign: 'left',
+                  transition: 'background-color 100ms ease',
+                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)'; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: sc.color,
+                  flexShrink: 0,
+                }} />
+                <span>{getStatusLabel(status, 'en')}</span>
+                {isActive && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 'auto' }}>
+                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--forge-accent-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const TABS = [
   { id: 'customer', label: 'Customer', icon: 'User' },
@@ -12,7 +160,7 @@ const TABS = [
   { id: 'items', label: 'Items + Files', icon: 'Package' },
 ];
 
-export default function OrderDetailModal({ open, order, onClose, onSaveNote, onUpdateOrders }) {
+export default function OrderDetailModal({ open, order, onClose, onSaveNote, onUpdateOrders, onStatusChange }) {
   const overlayRef = useRef(null);
   const bodyRef = useRef(null);
   const [activeTab, setActiveTab] = useState('customer');
@@ -143,22 +291,11 @@ export default function OrderDetailModal({ open, order, onClose, onSaveNote, onU
             }}>
               {order.id}
             </h2>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '4px 10px',
-              borderRadius: '999px',
-              fontSize: '11px',
-              fontFamily: 'var(--forge-font-tech)',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              backgroundColor: 'rgba(0, 212, 170, 0.1)',
-              color: 'var(--forge-accent-primary)',
-              border: '1px solid rgba(0, 212, 170, 0.25)',
-            }}>
-              {getStatusLabel(order.status, 'en')}
-            </span>
+            <StatusDropdown
+              currentStatus={order.status}
+              orderId={order.id}
+              onStatusChange={onStatusChange}
+            />
             <StorageStatusBadge status={storageStatus} compact />
           </div>
 

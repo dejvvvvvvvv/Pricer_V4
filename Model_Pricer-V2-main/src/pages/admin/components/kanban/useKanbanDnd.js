@@ -16,7 +16,7 @@ export default function useKanbanDnd({ orders, onStatusChange }) {
     const order = (orders || []).find(o => String(o.id) === String(orderId));
     if (!order) return false;
 
-    const currentStatus = order.status || 'new';
+    const currentStatus = order.status || 'NEW';
     if (!canTransition(currentStatus, newStatus)) return false;
 
     onStatusChange?.(orderId, newStatus, currentStatus);

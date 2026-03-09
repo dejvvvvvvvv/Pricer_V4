@@ -1,7 +1,7 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Globalni pocitadlo:** 090 (incrementovano po kazdem zaznamu)
-**Dalsi ID k pouziti:** 091
+**Globalni pocitadlo:** 091 (incrementovano po kazdem zaznamu)
+**Dalsi ID k pouziti:** 092
 
 ---
 
@@ -17,7 +17,7 @@
 | WB | Widget Builder Testing (browser testing, design verification) | 1 |
 | KA | Kalkulacka (test-kalkulacka, checkbox, recalc) | 0 |
 | DN | Dokumentace (docs, markdown, typo fixy) | 0 |
-| BU | Bug fixes (libovolne) | 0 |
+| BU | Bug fixes (libovolne) | 1 |
 | RS | Research / Investigation | 0 |
 | FG | Forge Design System (CSS, theme, tokens) | 0 |
 | SH | Shopify integrace (storefront, cart) | 0 |
@@ -41,6 +41,7 @@
 | **050-ST** | 2026-02-25 | Storage | **Per-User Tenant Izolace — Core + Auth + Hardcoded cleanup** | **15** |
 | **089-WB** | 2026-02-26 | Testing | **Widget Builder + Forge Design — Browser Testing** | **0** |
 | **090-MC** | 2026-02-27 | MCP Servers | **MCP Server Installation (P0+P1: Firebase, GitHub, Stripe, Sentry, Vercel)** | **2** |
+| **091-BU** | 2026-03-05 | Bug fixes | **Orders Page Fixes — Ceny + Rozmery + Layout** | **2** |
 
 ---
 

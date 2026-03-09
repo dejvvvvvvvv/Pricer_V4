@@ -60,6 +60,20 @@ function formatTime(min) {
   return `${h}h ${r}m`;
 }
 
+/** Extract time in minutes from slicer_snapshot (supports seed format + calculator format) */
+function getSlicerTimeMin(slicer) {
+  if (!slicer) return 0;
+  if (Number(slicer.time_min) > 0) return Number(slicer.time_min);
+  if (Number(slicer.estimatedTimeSeconds) > 0) return Number(slicer.estimatedTimeSeconds) / 60;
+  return 0;
+}
+
+/** Extract weight in grams from slicer_snapshot (supports seed format + calculator format) */
+function getSlicerWeightG(slicer) {
+  if (!slicer) return 0;
+  return Number(slicer.weight_g) || Number(slicer.filamentGrams) || 0;
+}
+
 function Badge({ children, tone = 'gray' }) {
   const toneMap = {
     gray: { bg: 'var(--forge-bg-elevated)', color: 'var(--forge-text-secondary)', border: 'var(--forge-border-default)' },
@@ -101,8 +115,8 @@ function PillButton({ active, onClick, children }) {
         background: active ? 'var(--forge-accent-primary)' : (hovered ? 'var(--forge-bg-overlay)' : 'var(--forge-bg-elevated)'),
         color: active ? '#08090C' : 'var(--forge-text-secondary)',
         borderRadius: '999px',
-        padding: '6px 12px',
-        fontSize: '11px',
+        padding: '2px 8px',
+        fontSize: '10px',
         fontFamily: 'var(--forge-font-tech)',
         fontWeight: 600,
         textTransform: 'uppercase',
@@ -201,6 +215,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
   const [sortKey, setSortKey] = useState('newest');
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   useEffect(() => {
     try {
@@ -314,6 +329,18 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     setSortKey('newest');
   }
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter.size > 0) count++;
+    if (materialFilter.size > 0) count++;
+    if (presetFilter.size > 0) count++;
+    if (flagFilter.size > 0) count++;
+    if (dateFrom) count++;
+    if (dateTo) count++;
+    if (sortKey !== 'newest') count++;
+    return count;
+  }, [statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey]);
+
   function exportCsv() {
     const headers = [
       'order_id',
@@ -387,105 +414,125 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 
       <div className="panel sticky">
         <div className="filters">
-          <div className="search">
-            <Icon name="Search" size={18} />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Hledat: order ID, soubor, jmeno, email..."
-            />
+          {/* Always-visible row: search + toggle + count + reset */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div className="search" style={{ flex: '1 1 220px', minWidth: 180 }}>
+              <Icon name="Search" size={16} />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Hledat: order ID, soubor, jmeno, email..."
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setFiltersExpanded((v) => !v)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                border: `1px solid ${activeFilterCount > 0 ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
+                background: activeFilterCount > 0 ? 'rgba(0, 212, 170, 0.08)' : 'var(--forge-bg-elevated)',
+                color: activeFilterCount > 0 ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
+                borderRadius: 'var(--forge-radius-lg)',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontFamily: 'var(--forge-font-tech)',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.03em',
+                cursor: 'pointer',
+                transition: 'all var(--forge-duration-micro) ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Icon name={filtersExpanded ? 'ChevronUp' : 'SlidersHorizontal'} size={14} />
+              Filtry{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </button>
+            <div style={{
+              fontSize: '11px',
+              fontFamily: 'var(--forge-font-tech)',
+              color: 'var(--forge-text-muted)',
+              whiteSpace: 'nowrap',
+            }}>
+              Zobrazeno: {filtered.length}
+            </div>
+            {activeFilterCount > 0 && (
+              <button className="btn" onClick={clearFilters} type="button" style={{ padding: '4px 10px', fontSize: '11px' }}>
+                <Icon name="X" size={12} /> Reset
+              </button>
+            )}
           </div>
 
-          <div className="filter-row">
-            <div className="filter-group">
-              <div className="filter-label">STATUS</div>
-              <div className="pill-row">
+          {/* Collapsible filter body */}
+          <div style={{
+            maxHeight: filtersExpanded ? '300px' : '0px',
+            overflow: 'hidden',
+            transition: 'max-height 0.25s ease',
+            marginTop: filtersExpanded ? '8px' : '0px',
+          }}>
+            {/* Row 1: STATUS + MATERIAL */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Status</span>
                 {ORDER_STATUSES.map((s) => (
-                  <PillButton
-                    key={s}
-                    active={statusFilter.has(s)}
-                    onClick={() => toggleSet(setStatusFilter, s)}
-                  >
+                  <PillButton key={s} active={statusFilter.has(s)} onClick={() => toggleSet(setStatusFilter, s)}>
                     {getStatusLabel(s, language)}
                   </PillButton>
                 ))}
               </div>
-            </div>
-
-            <div className="filter-group">
-              <div className="filter-label">MATERIAL</div>
-              <div className="pill-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Material</span>
                 {allMaterials.length === 0 ? (
                   <span className="muted">--</span>
                 ) : allMaterials.map((m) => (
-                  <PillButton
-                    key={m}
-                    active={materialFilter.has(m)}
-                    onClick={() => toggleSet(setMaterialFilter, m)}
-                  >
+                  <PillButton key={m} active={materialFilter.has(m)} onClick={() => toggleSet(setMaterialFilter, m)}>
                     {m}
                   </PillButton>
                 ))}
               </div>
             </div>
 
-            <div className="filter-group">
-              <div className="filter-label">PRESET</div>
-              <div className="pill-row">
+            {/* Row 2: PRESET + FLAGS */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Preset</span>
                 {allPresets.length === 0 ? (
                   <span className="muted">--</span>
                 ) : allPresets.map((p) => (
-                  <PillButton
-                    key={p}
-                    active={presetFilter.has(p)}
-                    onClick={() => toggleSet(setPresetFilter, p)}
-                  >
+                  <PillButton key={p} active={presetFilter.has(p)} onClick={() => toggleSet(setPresetFilter, p)}>
                     {p}
                   </PillButton>
                 ))}
               </div>
-            </div>
-
-            <div className="filter-group">
-              <div className="filter-label">FLAGS</div>
-              <div className="pill-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Flags</span>
                 {ORDER_FLAGS.map((f) => (
-                  <PillButton
-                    key={f}
-                    active={flagFilter.has(f)}
-                    onClick={() => toggleSet(setFlagFilter, f)}
-                  >
+                  <PillButton key={f} active={flagFilter.has(f)} onClick={() => toggleSet(setFlagFilter, f)}>
                     {f}
                   </PillButton>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div className="filter-row" style={{ marginTop: 12 }}>
-            <div className="date-range">
-              <div className="filter-label">OD</div>
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            </div>
-            <div className="date-range">
-              <div className="filter-label">DO</div>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            </div>
-
-            <div className="sort">
-              <div className="filter-label">RAZENI</div>
-              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
-                <option value="newest">Nejnovejsi</option>
-                <option value="highest_price">Nejvyssi cena</option>
-                <option value="longest_time">Nejdelsi cas tisku</option>
-              </select>
-            </div>
-
-            <div className="right-actions">
-              <button className="btn" onClick={clearFilters} type="button">
-                <Icon name="X" size={16} /> Reset filtru
-              </button>
-              <div className="count">Zobrazeno: {filtered.length}</div>
+            {/* Row 3: Date range + Sort */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="date-range" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Od</span>
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div className="date-range" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Do</span>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+              <div className="sort" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Razeni</span>
+                <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+                  <option value="newest">Nejnovejsi</option>
+                  <option value="highest_price">Nejvyssi cena</option>
+                  <option value="longest_time">Nejdelsi cas tisku</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -580,7 +627,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
       ) : (
         <KanbanBoard
           orders={filtered}
-          onOrderClick={(orderId) => navigate(`./${orderId}`)}
+          onViewOrder={(order) => navigate(`./${order?.id || order}`)}
           onStatusChange={(orderId, newStatus) => {
             const next = orders.map(o => {
               if (o.id !== orderId) return o;
@@ -952,11 +999,11 @@ function OrderDetail({ orders, setOrders }) {
                     <div className="model-mid">
                       <div className="mini">
                         <div className="mini-k">CAS</div>
-                        <div className="mini-v">{formatTime(m?.slicer_snapshot?.time_min || 0)}</div>
+                        <div className="mini-v">{formatTime(getSlicerTimeMin(m?.slicer_snapshot))}</div>
                       </div>
                       <div className="mini">
                         <div className="mini-k">HMOTNOST</div>
-                        <div className="mini-v">{round2(m?.slicer_snapshot?.weight_g || 0)} g</div>
+                        <div className="mini-v">{round2(getSlicerWeightG(m?.slicer_snapshot))} g</div>
                       </div>
                       <div className="mini">
                         <div className="mini-k">XYZ</div>
@@ -1020,10 +1067,12 @@ function OrderDetail({ orders, setOrders }) {
 
           <div className="panel">
             <div className="panel-title">INTERNI POZNAMKY</div>
-            <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Napis interni poznamku..." />
-            <button className="btn-primary" onClick={addNote} type="button">
-              <Icon name="Plus" size={16} /> Pridat poznamku
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Napis interni poznamku..." />
+              <button className="btn-primary" onClick={addNote} type="button" style={{ alignSelf: 'flex-start' }}>
+                <Icon name="Plus" size={16} /> Pridat poznamku
+              </button>
+            </div>
 
             <div className="notes">
               {(order.notes || []).length === 0 ? (
@@ -1307,8 +1356,8 @@ function ModelDetail({ orders, setOrders }) {
             <div className="k">Filename</div><div className="v">{model.file_snapshot?.filename}</div>
             <div className="k">Size</div><div className="v">{Math.round((model.file_snapshot?.size || 0) / 1024)} KB</div>
             <div className="k">Uploaded</div><div className="v">{formatDateTime(model.file_snapshot?.uploaded_at)}</div>
-            <div className="k">Time</div><div className="v">{formatTime(model.slicer_snapshot?.time_min)}</div>
-            <div className="k">Weight</div><div className="v">{round2(model.slicer_snapshot?.weight_g)} g</div>
+            <div className="k">Time</div><div className="v">{formatTime(getSlicerTimeMin(model.slicer_snapshot))}</div>
+            <div className="k">Weight</div><div className="v">{round2(getSlicerWeightG(model.slicer_snapshot))} g</div>
             <div className="k">XYZ</div><div className="v">{model.slicer_snapshot?.dimensions_xyz?.x}x{model.slicer_snapshot?.dimensions_xyz?.y}x{model.slicer_snapshot?.dimensions_xyz?.z} mm</div>
           </div>
 
@@ -1513,6 +1562,33 @@ export default function AdminOrders() {
         onClose={() => setSelectedOrderId(null)}
         onSaveNote={handleSaveNote}
         onUpdateOrders={setOrders}
+        onStatusChange={(orderId, newStatus) => {
+          const next = orders.map((o) => {
+            if (o.id !== orderId) return o;
+            return {
+              ...o,
+              status: newStatus,
+              updated_at: nowIso(),
+              activity: [
+                {
+                  timestamp: nowIso(),
+                  user_id: 'admin',
+                  type: 'STATUS_CHANGE',
+                  payload: { from: o.status, to: newStatus },
+                },
+                ...(o.activity || []),
+              ].slice(0, 200),
+            };
+          });
+          setOrders(next);
+          saveOrders(next);
+          appendOrderActivity(orderId, {
+            timestamp: nowIso(),
+            user_id: 'admin',
+            type: 'STATUS_CHANGE',
+            payload: { from: selectedOrder?.status, to: newStatus },
+          });
+        }}
       />
     </>
   );

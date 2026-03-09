@@ -20,7 +20,7 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
     return visibleStatuses.map(status => ({
       status,
       wipLimit: wipLimits[status] || 0,
-      orders: orders.filter(o => (o.status || 'new') === status),
+      orders: orders.filter(o => (o.status || 'NEW') === status),
     }));
   }, [orders, kanbanConfig]);
 
@@ -28,7 +28,7 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
     const order = orders.find(o => String(o.id) === String(orderId));
     if (!order) return;
 
-    const currentStatus = order.status || 'new';
+    const currentStatus = order.status || 'NEW';
     if (currentStatus === newStatus) return;
 
     if (!canTransition(currentStatus, newStatus)) {

@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 97
-- **Posledni zaznam:** 097-SB (UPRAVY 2026-02-27)
-- **Posledni aktualizace:** 2026-02-27
+- **Celkem zaznamu:** 102 (2x ID 101)
+- **Posledni zaznam:** 101-AO (UPRAVY 2026-03-05)
+- **Posledni aktualizace:** 2026-03-05
 
 ---
 
@@ -119,6 +119,21 @@
 | **096** | **SB** | **KONVERZACE** | **RLS Deploy via MCP (102 politik, 4 migrace) + Dual-Write Activation Guide rewrite (820→200 radku)** |
 | **097** | **SB** | **UPRAVY** | **4 Supabase RLS migrace pres MCP (102 politik nasazeno) + Dual-Write Guide rewrite (820→200 radku, 7 casti A-G)** |
 
+### 2026-03-04 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **098** | **AO** | **KONVERZACE** | **3 fixes pro Admin Orders: filter collapse, order data fallback chains, status dropdown** |
+| **099** | **AO** | **UPRAVY** | **Filter minimization (toggle, count), order totals fallback (time/weight/price), StatusDropdown component** |
+| **100** | **AO** | **UPRAVY** | **Price fallback (totals_snapshot), KanbanCard field mappings fixed, mock seed data removed** |
+
+### 2026-03-05 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **101** | **AO** | **KONVERZACE** | **Kompletni session S01 — 3 originalni fixes + 4 extra (price fallback, kanban unifikace), 8 souboru, build PASS, browser test OK** |
+| **101** | **AO** | **UPRAVY** | **8 upravenych souboru: AdminOrders (filter collapse), adminOrdersStorage (fallback chains), OrderDetailModal (StatusDropdown), CheckoutForm (price fix), KanbanCard/Board (field mapping), statusTransitions (UPPERCASE), adminKanbanStorage (migration)** |
+
 ---
 
 ## Navigace
@@ -134,3 +149,5 @@
 | `Historie/2026-02-24/` | 17 zaznamu (Sprint 1 bugfixy + Sprint 2 komplet) |
 | `Historie/2026-02-25/` | 8 zaznamu (Per-User Tenant Izolace + P0 Code Review + P1 Fixes) |
 | `Historie/2026-02-26/` | 6 zaznamu (Widget Builder Wave 1-3 Complete + Browser Testy + Supabase Migrace) |
+| `Historie/2026-03-04/` | 3 zaznamu (Admin Orders: filter collapse, order data, status dropdown + price fallback, kanban, mock removal) |
+| `Historie/2026-03-05/` | 2 zaznamu (Admin Orders kompletni session S01: konverzace + technicke zmeny, 8 souboru) |

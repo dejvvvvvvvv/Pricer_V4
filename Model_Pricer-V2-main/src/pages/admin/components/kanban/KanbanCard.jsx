@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Icon from '../../../../components/AppIcon';
+import { computeOrderTotals } from '../../../../utils/adminOrdersStorage';
 
 export default function KanbanCard({ order, onView, isDragging }) {
   const [isHovered, setIsHovered] = useState(false);
@@ -7,8 +8,11 @@ export default function KanbanCard({ order, onView, isDragging }) {
   if (!order) return null;
 
   const totalModels = Array.isArray(order.models) ? order.models.length : 0;
-  const totalAmount = order.total ?? order.totals?.grandTotal ?? 0;
-  const customerName = order.customer?.name || order.contact?.name || 'Unknown';
+  const computed = useMemo(() => {
+    try { return computeOrderTotals(order); } catch { return null; }
+  }, [order]);
+  const totalAmount = computed?.total ?? order.totals_snapshot?.total ?? 0;
+  const customerName = order.customer_snapshot?.name || order.customer?.name || order.contact?.name || 'Unknown';
   const createdAt = order.created_at || order.createdAt;
 
   const formatDate = (iso) => {

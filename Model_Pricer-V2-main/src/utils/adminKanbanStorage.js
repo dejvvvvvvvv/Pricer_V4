@@ -55,14 +55,15 @@ export function getDefaultKanbanConfigV1() {
     schema_version: SCHEMA_VERSION,
     view_mode: 'table',
     columns: [
-      { id: 'new', label: 'New', wip_limit: 0, color: '#3b82f6', sort_order: 0, visible: true },
-      { id: 'confirmed', label: 'Confirmed', wip_limit: 0, color: '#8b5cf6', sort_order: 1, visible: true },
-      { id: 'printing', label: 'Printing', wip_limit: 5, color: '#f59e0b', sort_order: 2, visible: true },
-      { id: 'post_processing', label: 'Post-Processing', wip_limit: 3, color: '#06b6d4', sort_order: 3, visible: true },
-      { id: 'ready', label: 'Ready', wip_limit: 0, color: '#10b981', sort_order: 4, visible: true },
-      { id: 'shipped', label: 'Shipped', wip_limit: 0, color: '#6366f1', sort_order: 5, visible: true },
-      { id: 'completed', label: 'Completed', wip_limit: 0, color: '#22c55e', sort_order: 6, visible: true },
-      { id: 'cancelled', label: 'Cancelled', wip_limit: 0, color: '#ef4444', sort_order: 7, visible: true },
+      { id: 'NEW', label: 'New', wip_limit: 0, color: '#3b82f6', sort_order: 0, visible: true },
+      { id: 'REVIEW', label: 'Review', wip_limit: 0, color: '#8b5cf6', sort_order: 1, visible: true },
+      { id: 'APPROVED', label: 'Approved', wip_limit: 0, color: '#a855f7', sort_order: 2, visible: true },
+      { id: 'PRINTING', label: 'Printing', wip_limit: 5, color: '#f59e0b', sort_order: 3, visible: true },
+      { id: 'POSTPROCESS', label: 'Post-Processing', wip_limit: 3, color: '#06b6d4', sort_order: 4, visible: true },
+      { id: 'READY', label: 'Ready', wip_limit: 0, color: '#10b981', sort_order: 5, visible: true },
+      { id: 'SHIPPED', label: 'Shipped', wip_limit: 0, color: '#6366f1', sort_order: 6, visible: true },
+      { id: 'DONE', label: 'Done', wip_limit: 0, color: '#22c55e', sort_order: 7, visible: true },
+      { id: 'CANCELED', label: 'Cancelled', wip_limit: 0, color: '#ef4444', sort_order: 8, visible: true },
     ],
     updated_at: nowIso(),
   };
@@ -87,7 +88,21 @@ export function normalizeKanbanConfigV1(input) {
 export function loadKanbanConfigV1() {
   const stored = readTenantJson(NS_KANBAN_V1, null);
   if (stored && typeof stored === 'object') {
-    return normalizeKanbanConfigV1(stored);
+    const normalized = normalizeKanbanConfigV1(stored);
+
+    // Migration: detect old lowercase column IDs and re-seed with new uppercase defaults.
+    // Old configs used 'new', 'confirmed', 'printing' etc. which never match ORDER_STATUSES.
+    const firstCol = Array.isArray(normalized.columns) && normalized.columns[0];
+    const hasLowercaseIds = firstCol && firstCol.id && firstCol.id !== firstCol.id.toUpperCase();
+    if (hasLowercaseIds) {
+      const seeded = normalizeKanbanConfigV1(getDefaultKanbanConfigV1());
+      // Preserve user's view_mode preference
+      seeded.view_mode = normalized.view_mode;
+      writeTenantJson(NS_KANBAN_V1, seeded);
+      return seeded;
+    }
+
+    return normalized;
   }
 
   // No existing data — seed defaults and persist so the tenant key exists.

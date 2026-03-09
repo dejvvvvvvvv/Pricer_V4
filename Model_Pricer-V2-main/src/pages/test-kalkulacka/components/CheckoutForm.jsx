@@ -264,8 +264,16 @@ export default function CheckoutForm({
         .map((f, idx) => {
           const cfg = printConfigs?.[f.id] || {};
           const metrics = f.result?.metrics || {};
-          // Get per-model pricing from quote breakdown if available
-          const modelBreakdown = quote?.breakdown?.modelTotalsById?.[f.id] || null;
+          // Get per-model pricing from quote.models array
+          const modelResult = quote?.models?.find(m => String(m.id) === String(f.id)) || null;
+          const qty = cfg.quantity || 1;
+          // Pricing engine returns totals including quantity — divide to get per-piece
+          // (seed orders store per-piece in model_total; computeOrderTotals multiplies by qty)
+          const totalWithQty = modelResult?.totals?.subtotalAfterPerModelRounding
+            ?? modelResult?.totals?.subtotalAfterMin
+            ?? modelResult?.totals?.subtotalBeforeMin
+            ?? 0;
+          const perPieceTotal = qty > 0 ? totalWithQty / qty : 0;
           return {
             id: `M-${idx + 1}`,
             file_snapshot: {
@@ -273,16 +281,22 @@ export default function CheckoutForm({
               size: f.size,
               uploaded_at: f.uploadedAt ? new Date(f.uploadedAt).toISOString() : now,
             },
-            quantity: cfg.quantity || 1,
+            quantity: qty,
             material_snapshot: {
               material_id: cfg.material || 'pla',
               name: (cfg.material || 'pla').toUpperCase(),
             },
             config_snapshot: cfg,
-            slicer_snapshot: metrics,
-            price_breakdown_snapshot: modelBreakdown ? {
-              model_total: modelBreakdown.totalAfterFees ?? modelBreakdown.total ?? 0,
-            } : null,
+            slicer_snapshot: {
+              ...metrics,
+              dimensions_xyz: f.result?.modelInfo?.sizeMm || null,
+            },
+            price_breakdown_snapshot: {
+              model_total: perPieceTotal,
+              material_cost: modelResult?.base?.materialCostPerPiece ?? 0,
+              time_cost: modelResult?.base?.timeCostPerPiece ?? 0,
+              fees_total: modelResult?.totals?.feesTotal ?? 0,
+            },
           };
         }),
       totals_snapshot: quote

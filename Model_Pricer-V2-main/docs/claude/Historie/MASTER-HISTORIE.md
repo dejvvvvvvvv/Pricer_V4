@@ -45,6 +45,16 @@
 
 ---
 
+## 2026-03-05
+
+### S01: Orders Page Bug Fixes
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **091-BU** | 2026-03-05 | UPRAVY | BU | Orders Page Fixes — Ceny + Rozmery + Layout | 2 | Bug 1: File ID typ mismatch (Number vs String); Bug 2: dimensions_xyz chybelo v slicer_snapshot; Bug 3: Textarea + button layout bez flex |
+
+---
+
 ## 2026-02-27
 
 ### S01: MCP Server Research & Installation + Vercel Migration Planning
@@ -151,5 +161,14 @@
 - **Agenti:** mp-mid-frontend-public (Toast), mp-mid-frontend-admin (4 fase), mp-spec-docs-dev (docs), mp-spec-docs-historie (5x save)
 - **Historia:** Ulozena v 2 krocich (KONVERZACE.md + UPRAVY.md pro plny kontext)
 - **Kontext:** Sprint 2 je 100% HOTOV; pripravenost na Sprint 3 (Team Access nebo jiny feature); vsechna teach zmen je dukumentovano
+
+**091-BU — Orders Page Fixes** (2 soubory zmen)
+
+- **Bug 1 (Ceny 0.00 Kč):** File ID je `number` (Date.now() + Math.random()), ale pricing engine ho konvertuje na `string`. Porovnani `m.id === f.id` vzdy selhalo. Oprava: `String(m.id) === String(f.id)` na radku 268 v CheckoutForm.jsx.
+- **Bug 2 (Rozmery xx mm):** Rozměry jsou v `file.result?.modelInfo?.sizeMm`, ne v `metrics`. Přidán `dimensions_xyz` do `slicer_snapshot` na řádcích 290-293 CheckoutForm.jsx.
+- **Bug 3 (Layout Poznámky):** Textarea + button bez správného flex layoutu. Opraveno: flex column kontejner s gap:8px a button alignSelf:flex-start na řádcích 1070-1075 AdminOrders.jsx.
+- **Existence dat:** Staré objednávky zůstávají nezměněny (uložená data). Nové objednávky budou mít správné ceny a rozměry.
+- **Build:** PASS ✓
+- **Kontext:** Jednoduchý bug fix session — 2 soubory, 3 kritické opravy, nula refactoringu.
 
 ---

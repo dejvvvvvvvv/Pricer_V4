@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 097
-**Dalsi ID k pouziti:** 098
+**Posledni pouzite ID:** 101
+**Dalsi ID k pouziti:** 102
 
 ---
 
@@ -236,8 +236,13 @@ S{NN}
 | 095 | SB | Supabase | KONVERZACE — Kompletni Supabase migrace & tenant izolace sprint (18 deliverables, dokumentace, design decisions, pending user actions) | 2026-02-27 |
 | 096 | SB | Supabase | KONVERZACE — RLS Deploy via MCP (102 politik) + Dual-Write Guide rewrite | 2026-02-27 |
 | 097 | SB | Supabase | UPRAVY — 4 RLS migrace (102 politik nasazeno) + Dual-Write Guide rewrite (820→200 radku, 7 casti A-G) | 2026-02-27 |
+| 098 | AO | Admin-Orders | KONVERZACE — 3 fixes (filter collapse, order data fallback, status dropdown) | 2026-03-04 |
+| 099 | AO | Admin-Orders | UPRAVY — Filter minimization, order totals fallback chains, StatusDropdown component | 2026-03-04 |
+| 100 | AO | Admin-Orders | UPRAVY — Price fallback (totals_snapshot), KanbanCard field fix, mock data removal | 2026-03-04 |
+| 101 | AO | Admin-Orders | KONVERZACE — Kompletni session S01 (3 originalni fixes + 4 extra, filter collapse, price/kanban fixes) | 2026-03-05 |
+| 101 | AO | Admin-Orders | UPRAVY — Filter minimization, fallback chains, StatusDropdown, kanban unifikace, mock removal, 8 souboru | 2026-03-05 |
 
 ---
 
-**Posledni aktualizace:** 2026-02-27
-**Posledni session:** S05 (2026-02-27) — RLS Deploy via MCP (102 politik, 4 migrace) + Dual-Write Activation Guide rewrite
+**Posledni aktualizace:** 2026-03-05
+**Posledni session:** S01 (2026-03-05) — Admin Orders comprehensive fixes (filter, data fallbacks, status dropdown, kanban unifikace)
