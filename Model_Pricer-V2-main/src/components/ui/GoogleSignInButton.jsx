@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { debug } from '@/lib/debug';
 
 const googleLogoSvg = (
   <svg width="18" height="18" viewBox="0 0 48 48">
@@ -25,7 +26,7 @@ export default function GoogleSignInButton({ onSuccess, onError, label, disabled
         onSuccess?.(user);
       }
     } catch (err) {
-      console.error('Google Sign-In failed:', err);
+      debug('Google Sign-In failed:', err);
       onError?.(err);
     } finally {
       setLoading(false);

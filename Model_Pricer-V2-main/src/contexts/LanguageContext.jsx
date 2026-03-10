@@ -583,6 +583,19 @@ const translations = {
     'admin.volume.addTier': 'Přidat úroveň',
     'admin.volume.removeTier': 'Odebrat',
     'admin.volume.noTiers': 'Žádné úrovně slev. Přidejte první.',
+
+    // 404 Not Found
+    'notFound.title': 'Stránka nenalezena',
+    'notFound.description': 'Stránka, kterou hledáte, neexistuje nebo byla přesunuta.',
+    'notFound.goHome': 'Zpět na úvod',
+    'notFound.goBack': 'Zpět',
+    'notFound.helpfulLinks': 'Užitečné odkazy',
+    'notFound.link.calculator': 'Kalkulačka',
+    'notFound.link.pricing': 'Ceník',
+    'notFound.link.support': 'Podpora',
+
+    // Offline Banner
+    'offlineBanner': 'Jste offline. Některé funkce nemusí fungovat.',
   },
   en: {
     // Header
@@ -1126,5 +1139,18 @@ const translations = {
     'admin.volume.addTier': 'Add Tier',
     'admin.volume.removeTier': 'Remove',
     'admin.volume.noTiers': 'No discount tiers. Add the first one.',
+
+    // 404 Not Found
+    'notFound.title': 'Page Not Found',
+    'notFound.description': 'The page you are looking for does not exist or has been moved.',
+    'notFound.goHome': 'Go Home',
+    'notFound.goBack': 'Go Back',
+    'notFound.helpfulLinks': 'Helpful Links',
+    'notFound.link.calculator': 'Calculator',
+    'notFound.link.pricing': 'Pricing',
+    'notFound.link.support': 'Support',
+
+    // Offline Banner
+    'offlineBanner': 'You are offline. Some features may not work.',
   }
 };

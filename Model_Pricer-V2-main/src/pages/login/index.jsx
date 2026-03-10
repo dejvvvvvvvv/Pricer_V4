@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import LoginForm from './components/LoginForm';
 
 const pageStyle = {
@@ -24,6 +25,7 @@ const cardStyle = {
 };
 
 export default function Login() {
+  useDocumentTitle('Login');
   const { t } = useTranslation();
   const { currentUser, loading } = useAuth();
   const location = useLocation();

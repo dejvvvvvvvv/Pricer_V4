@@ -2,7 +2,7 @@
 name: mp-spec-research-web
 description: Web research agent - Context7-first, Brave minimal + povinny log, citace aplikovatelne na stack
 color: "#A3E635"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: plan
 mcpServers: [brave-search, context7]

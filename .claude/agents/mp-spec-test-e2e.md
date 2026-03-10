@@ -329,4 +329,4 @@ Predej `mp-mid-infra-build`:
 **Vlastnik**: `mp-spec-test-e2e`
 **Reportuje**: `mp-mid-quality-test`, `mp-sr-quality`
 **Tier**: Specific (haiku/sonnet)
-**Model**: claude-sonnet-4-5-20250929
+**Model**: claude-opus-4-6

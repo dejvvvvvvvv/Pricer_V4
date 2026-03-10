@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import Icon from '../../components/AppIcon';
 import {
   acceptInviteToken,
@@ -49,16 +50,11 @@ function formatDate(ts) {
   return d.toLocaleString();
 }
 
-function copyToClipboard(text) {
-  try {
-    navigator.clipboard?.writeText(text);
-  } catch {
-    // ignore
-  }
-}
+// Inline copyToClipboard replaced by useCopyToClipboard hook inside the component.
 
 export default function AdminTeamAccess() {
   const { t } = useLanguage();
+  const { copyToClipboard } = useCopyToClipboard();
   const [tab, setTab] = useState(TABS.users);
   const [refreshKey, setRefreshKey] = useState(0);
 

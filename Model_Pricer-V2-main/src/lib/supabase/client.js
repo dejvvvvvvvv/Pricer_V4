@@ -13,6 +13,7 @@
 */
 
 import { createClient } from '@supabase/supabase-js';
+import { debug } from '@/lib/debug';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -91,7 +92,7 @@ export async function checkSupabaseConnection() {
     if (error) {
       return { ok: false, error: error.message };
     }
-    console.log('[Supabase] Connected successfully');
+    debug('[Supabase] Connected successfully');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };

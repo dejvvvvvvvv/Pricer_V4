@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getPaymentConfig, savePaymentConfig } from '../../utils/adminPaymentStorage';
 
@@ -17,6 +18,8 @@ const DUE_DAYS_OPTIONS = [7, 14, 21, 30];
 export default function AdminPayments() {
   const { language } = useLanguage();
   const cs = language === 'cs';
+
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -94,8 +97,16 @@ export default function AdminPayments() {
     }
   };
 
-  const handleReset = () => {
-    const ok = window.confirm(cs ? 'Zahodit zmeny?' : 'Discard changes?');
+  const handleReset = async () => {
+    const ok = await confirm({
+      title: cs ? 'Zahodit zmeny' : 'Discard Changes',
+      message: cs
+        ? 'Opravdu chcete zahodit vsechny neulozene zmeny a nacist posledni ulozenou konfiguraci?'
+        : 'Are you sure you want to discard all unsaved changes and reload the last saved configuration?',
+      confirmLabel: cs ? 'Zahodit' : 'Discard',
+      cancelLabel: cs ? 'Zrusit' : 'Cancel',
+      destructive: true,
+    });
     if (!ok) return;
     try {
       const cfg = getPaymentConfig();
@@ -372,6 +383,8 @@ export default function AdminPayments() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog />
 
       <style>{`
         .admin-page {

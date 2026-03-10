@@ -84,6 +84,9 @@ Dev server bezi na portu **4028** s proxy na backend-local (Express) na portu **
 | `npm run dev` | `vite` | Alias pro start |
 | `npm run build` | `vite build --sourcemap` | Produkci build do `build/` se source mapami |
 | `npm run serve` | `vite preview` | Nahled produkciho buildu |
+| `npm test` | `vitest run` | Spusti vsechny unit testy jednorazove |
+| `npm run test:watch` | `vitest` | Watch mode — re-run pri zmene souboru |
+| `npm run test:coverage` | `vitest run --coverage` | Testy + coverage report (text, HTML, LCOV) |
 
 ### 2.6 Browserslist
 
@@ -698,5 +701,63 @@ pouzivaji semver range (`^`). To zabranjuje automatickym minor/patch updatum. Po
 
 ---
 
+---
+
+## 18. Vitest konfigurace
+
+### 18.1 vitest.config.mjs
+
+**Cesta:** `Model_Pricer-V2-main/vitest.config.mjs`
+**Format:** ESM (`.mjs`)
+
+Samostatny konfiguracni soubor pro Vitest (oddeleny od `vite.config.mjs`):
+
+```js
+import { defineConfig } from 'vitest/config';
+import { fileURLToPath, URL } from 'node:url';
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    include: ['src/**/*.test.{js,jsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/**/*.test.{js,jsx}', 'src/**/__tests__/**', 'node_modules/**'],
+    },
+  },
+});
+```
+
+| Vlastnost | Hodnota | Popis |
+|-----------|---------|-------|
+| `test.globals` | `true` | `describe`, `it`, `expect`, `vi` bez importu |
+| `test.environment` | `jsdom` | Simulovany DOM (localStorage, window) |
+| `test.include` | `src/**/*.test.{js,jsx}` | Pattern pro hledani testovych souboru |
+| `coverage.provider` | `v8` | Nativni V8 coverage engine |
+| `coverage.reporter` | `text`, `html`, `lcov` | Tri formaty reportu |
+| `resolve.alias.@` | `./src` | Stejna aliasova resoluce jako hlavni Vite config |
+
+### 18.2 Proc samostatny config
+
+Vitest config je oddeleny od `vite.config.mjs` aby:
+- Neovlivnoval produkci build (zadne testovaci zavislosti v bundlu)
+- Mel vlastni `environment: 'jsdom'` (produkce nepotrebuje DOM simulaci)
+- Mohl definovat coverage exclude pravidla nezavisle
+
+### 18.3 Detailni dokumentace testu
+
+Viz `Testing-Dokumentace.md` — 336 unit testu ve 7 souborech s pokrytim pricing engine, storage, Shopify integrace a utilit.
+
+---
+
 *Dokumentace vytvorena: 2026-02-13*
-*Zdrojove soubory: vite.config.mjs, tailwind.config.js, postcss.config.js, package.json, jsconfig.json*
+*Aktualizovano: 2026-03-10 (vitest.config.mjs, testovaci skripty)*
+*Zdrojove soubory: vite.config.mjs, vitest.config.mjs, tailwind.config.js, postcss.config.js, package.json, jsconfig.json*

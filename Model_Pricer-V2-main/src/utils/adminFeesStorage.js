@@ -11,6 +11,7 @@
 */
 
 import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const NS_FEES_V3 = 'fees:v3';
 const SCHEMA_VERSION = 3;
@@ -28,13 +29,6 @@ function parseBool(v, fallback = false) {
   if (v === true || v === 1 || v === '1') return true;
   if (v === false || v === 0 || v === '0') return false;
   return fallback;
-}
-
-function uuid(prefix = 'id') {
-  try {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
 
 function canUseLocalStorage() {
@@ -147,7 +141,7 @@ function normalizeFee(fee, idx = 0) {
   const normalizedChargeBasis = ['PER_PIECE', 'PER_FILE'].includes(charge_basis) ? charge_basis : 'PER_FILE';
 
   return {
-    id: String(f.id || '').trim() || uuid('fee'),
+    id: String(f.id || '').trim() || generateId('fee'),
     name: String(f.name || '').trim() || `Fee ${idx + 1}`,
     active: parseBool(f.active, true),
 

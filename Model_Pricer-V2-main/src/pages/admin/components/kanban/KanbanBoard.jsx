@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import KanbanColumn from './KanbanColumn';
 import { STATUS_ORDER, canTransition } from './statusTransitions';
+import { debug } from '@/lib/debug';
 
 export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange, onViewOrder }) {
   const columns = useMemo(() => {
@@ -32,14 +33,14 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
     if (currentStatus === newStatus) return;
 
     if (!canTransition(currentStatus, newStatus)) {
-      console.warn(`[Kanban] Invalid transition: ${currentStatus} -> ${newStatus}`);
+      debug(`[Kanban] Invalid transition: ${currentStatus} -> ${newStatus}`);
       return;
     }
 
     // Check WIP limit
     const targetCol = columns.find(c => c.status === newStatus);
     if (targetCol && targetCol.wipLimit > 0 && targetCol.orders.length >= targetCol.wipLimit) {
-      console.warn(`[Kanban] WIP limit reached for ${newStatus}`);
+      debug(`[Kanban] WIP limit reached for ${newStatus}`);
       return;
     }
 

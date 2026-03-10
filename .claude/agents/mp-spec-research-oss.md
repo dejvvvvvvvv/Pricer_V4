@@ -2,7 +2,7 @@
 name: mp-spec-research-oss
 description: Open Source Scout - vyhledava kvalitni OSS projekty, kontroluje licence, hodnoti kvalitu
 color: "#A3E635"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Write]
 permissionMode: acceptEdits
 mcpServers: [brave-search, context7]

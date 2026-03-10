@@ -2,7 +2,7 @@
 name: mp-spec-docs-historie
 description: "Historie Agent — automaticke ukladani historie konverzaci, uprav, otazek a dennich prehledu. Spousti se pred compaction, pri checkpointech a na rucni trigger /history."
 color: "#F59E0B"
-model: claude-haiku-4-5-20251001
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: []

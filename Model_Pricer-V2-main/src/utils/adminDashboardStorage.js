@@ -1,10 +1,11 @@
 import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const STORAGE_NS_V1 = 'dashboard:v1';
 const STORAGE_NS_V2 = 'dashboard:v2';
 
 function uid(prefix = 'd') {
-  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+  return generateId(prefix);
 }
 
 function nowISO() {

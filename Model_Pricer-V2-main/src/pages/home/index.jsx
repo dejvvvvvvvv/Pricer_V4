@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
   Terminal, Palette, Users, DollarSign, Settings,
   Ruler, ShoppingCart, Store, ShoppingBag, Code,
@@ -24,6 +25,7 @@ const forgePageStyles = {
 
 const Home = () => {
   const { t, language } = useLanguage();
+  useDocumentTitle('3D Print Pricing');
 
   const trustItems = [
     { label: 'PrusaSlicer CLI', icon: Terminal },

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getTenantId } from '@/utils/adminTenantStorage';
+import { emitNetworkError } from '@/lib/networkEvents';
 
 const apiClient = axios.create({
   baseURL: '/api',
@@ -42,6 +43,15 @@ apiClient.interceptors.response.use(
         }
       }
     }
+    // Network error (no response from server) — notify user
+    if (!error.response) {
+      emitNetworkError({
+        message: error.code === 'ECONNABORTED'
+          ? 'Request timed out. Please try again.'
+          : 'Network error. Please check your connection.',
+      });
+    }
+
     return Promise.reject(error);
   }
 );

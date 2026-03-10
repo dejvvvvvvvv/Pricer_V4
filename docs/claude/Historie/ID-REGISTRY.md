@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 103
-**Dalsi ID k pouziti:** 104
+**Posledni pouzite ID:** 112
+**Dalsi ID k pouziti:** 113
 
 ---
 
@@ -244,8 +244,17 @@ S{NN}
 | 101 | AO | Admin-Orders | UPRAVY — Filter minimization, fallback chains, StatusDropdown, kanban unifikace, mock removal, 8 souboru | 2026-03-05 |
 | 102 | PY | Admin-Payments | KONVERZACE — Payment Methods + Checkout integrace (AdminPayments, storage, radio vyber, platebni udaje) | 2026-03-09 |
 | 103 | PY | Admin-Payments | UPRAVY — 2 nove + 5 upravenych souboru (AdminPayments, adminPaymentStorage, CheckoutForm, OrderConfirmation, checkoutSchema) | 2026-03-09 |
+| 104 | AG | Agents | KONVERZACE — Vsechny agenty na Opus 4.6 (kontrola + prepnuti 28 agentu) | 2026-03-09 |
+| 105 | AG | Agents | UPRAVY — 28 agent .md souboru zmeneno, 5 inline referenci, 107/107 opus | 2026-03-09 |
+| 106 | TS | Tests | UPRAVY — Vitest setup (86 testu, 82% coverage) + code quality analyza | 2026-03-09 |
+| 107 | GN | General | UPRAVY — Code quality sprint (135 testu, secure ID, console cleanup, ErrorBoundary) | 2026-03-09 |
+| 108 | GN | General | UPRAVY — Code quality sprint pokracovani (189 testu, skeleton loading, backend validace, .env.example, console cleanup) | 2026-03-09 |
+| 109 | GN | General | UPRAVY — Code quality sprint finalizace (ukoly 19-27: apiClient testy, hooks, breadcrumb, rate limiting, backend validace testy) | 2026-03-09 |
+| 110 | GN | General | UPRAVY — Code quality sprint final (ukoly 28-38: CopyButton, clipboard refaktor, lazy loading, focus-visible, skip-to-content, ScrollToTop, breadcrumb testy, rate limiter testy, document titles, keyboard shortcuts) | 2026-03-09 |
+| 111 | GN | General | UPRAVY — Code quality sprint final batch (ukoly 39-50: network error handler, export data, request logger, useMediaQuery, ForgeConfirmDialog, apiClient testy, lazy loading, a11y, clipboard refaktor) | 2026-03-09 |
+| 112 | GN | General | UPRAVY — Code quality sprint final batch 2 (ukoly 51-57: useOnlineStatus testy, formatRelativeTime, useSortableData, print styles, ForgeConfirmDialog 5 stranek, OfflineBanner, health check) | 2026-03-09 |
 
 ---
 
-**Posledni aktualizace:** 2026-03-09
-**Posledni session:** S01 (2026-03-09) — Payment Methods + Checkout integrace (bank transfer, card payment, admin panel, checkout flow)
+**Posledni aktualizace:** 2026-03-10
+**Posledni session:** S07 (2026-03-09) — Code quality sprint final batch 2 (675+ testu, 60+ ukolu)

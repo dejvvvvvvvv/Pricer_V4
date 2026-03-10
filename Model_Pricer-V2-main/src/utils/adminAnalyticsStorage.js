@@ -2,6 +2,7 @@
 // Works without backend. For future Variant B, replace these helpers with API calls.
 
 import { appendAuditEntry } from './adminAuditLogStorage';
+import { generateId } from './generateId';
 import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
@@ -37,8 +38,7 @@ export const ANALYTICS_EVENT_TYPES = {
 };
 
 export function generateSessionId() {
-  const rnd = Math.random().toString(36).slice(2, 8);
-  return `sess_${Date.now().toString(36)}_${rnd}`;
+  return generateId('sess');
 }
 
 export function getAnalyticsEvents() {
@@ -69,7 +69,7 @@ export function trackAnalyticsEvent({
 
   const events = getAnalyticsEvents();
   events.push({
-    id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+    id: generateId('evt'),
     tenantId,
     widgetInstanceId,
     sessionId,
@@ -420,18 +420,18 @@ export function seedAnalyticsDemo({
       const t3 = new Date(toMs(t2) + 30 * 1000).toISOString();
 
       // view
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.WIDGET_VIEW, timestamp: t0, metadata: {} });
+      events.push({ id: generateId('evt'), tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.WIDGET_VIEW, timestamp: t0, metadata: {} });
       // upload
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.MODEL_UPLOAD_COMPLETED, timestamp: t1, metadata: { material, preset } });
+      events.push({ id: generateId('evt'), tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.MODEL_UPLOAD_COMPLETED, timestamp: t1, metadata: { material, preset } });
       // slicing complete
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, timestamp: t2, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, result_status: 'success' } });
+      events.push({ id: generateId('evt'), tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, timestamp: t2, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, result_status: 'success' } });
       // price shown
       const feesSel = Math.random() < 0.3 ? ['fee_packaging'] : [];
-      events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.PRICE_SHOWN, timestamp: t3, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, price_total: price, currency: 'CZK', fees_selected: feesSel } });
+      events.push({ id: generateId('evt'), tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.PRICE_SHOWN, timestamp: t3, metadata: { material, preset, print_time_seconds: timeS, weight_grams: weight, price_total: price, currency: 'CZK', fees_selected: feesSel } });
 
       if (Math.random() < conversionRate) {
         const t4 = new Date(toMs(t3) + 25 * 1000).toISOString();
-        events.push({ id: `evt_${Math.random().toString(36).slice(2, 10)}`, tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, timestamp: t4, metadata: { price_total: price, currency: 'CZK' } });
+        events.push({ id: generateId('evt'), tenantId: currentTenantId, widgetInstanceId, sessionId: sess, eventType: ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, timestamp: t4, metadata: { price_total: price, currency: 'CZK' } });
       }
     }
   }

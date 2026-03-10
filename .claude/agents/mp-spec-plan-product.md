@@ -2,7 +2,7 @@
 name: mp-spec-plan-product
 description: Produktovy specifikator - acceptance criteria, edge cases, scope locks pro ModelPricer
 color: "#A78BFA"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

@@ -2,7 +2,7 @@
 name: mp-spec-plan-backend
 description: Backend planovac - API endpointy, data flow, integrace (PrusaSlicer, storage), error handling
 color: "#A78BFA"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

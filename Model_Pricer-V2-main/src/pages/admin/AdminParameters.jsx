@@ -316,12 +316,15 @@ function ConfirmModal({ open, title, description, confirmText = 'Confirm', cance
     const el = overlayRef.current;
     if (!el) return;
     const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    const handleKeyDown = (e) => { if (e.key === 'Escape' && onCancel) onCancel(); };
     el.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       el.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [open]);
+  }, [open, onCancel]);
 
   if (!open) return null;
   return (

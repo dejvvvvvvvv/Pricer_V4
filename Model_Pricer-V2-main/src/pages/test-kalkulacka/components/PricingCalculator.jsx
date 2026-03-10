@@ -238,12 +238,25 @@ export default function PricingCalculator({
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {quote && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                iconName="Printer"
+                iconPosition="left"
+                data-no-print
+              >
+                Tisk
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowDeveloper((v) => !v)}
               iconName="Code2"
               iconPosition="left"
+              data-no-print
             >
               {showDeveloper ? 'Zákaznický' : 'Developer'}
             </Button>
@@ -253,7 +266,7 @@ export default function PricingCalculator({
 
       <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* Actions */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} data-no-print>
           <Button
             variant="outline"
             size="sm"

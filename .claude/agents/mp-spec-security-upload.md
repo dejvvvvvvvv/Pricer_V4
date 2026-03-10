@@ -293,6 +293,6 @@ Context7 dotazy pro file type detection, multer config, ZIP validation jsou povo
 ---
 
 **Tier:** Specific (haiku/sonnet)
-**Model:** claude-sonnet-4-5-20250929
+**Model:** claude-opus-4-6
 **Handoff boundary:** Upload security audit konci handoffem findings na mp-backend-node (implementation) a mp-slicer-integration (file processing security).
 **Eskalace:** mp-mid-security-app (coordination) → mp-sr-security (architecture)

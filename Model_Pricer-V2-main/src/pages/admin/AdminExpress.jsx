@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadExpressConfigV1, saveExpressConfigV1 } from '../../utils/adminExpressStorage';
 
@@ -36,6 +37,7 @@ const SURCHARGE_TYPES = [
 export default function AdminExpress() {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -117,13 +119,13 @@ export default function AdminExpress() {
     setBanner(null);
   };
 
-  const removeTier = (id) => {
+  const removeTier = async (id) => {
     const tier = config?.tiers?.find((t) => t.id === id);
     if (tier?.is_default) {
       setBanner({ type: 'error', text: cs ? 'Nelze smazat vychozi uroven.' : 'Cannot delete default tier.' });
       return;
     }
-    const ok = window.confirm(cs ? 'Smazat tuto uroven?' : 'Delete this tier?');
+    const ok = await confirm({ title: cs ? 'Smazat uroven' : 'Delete tier', message: cs ? 'Smazat tuto uroven?' : 'Delete this tier?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
     if (!ok) return;
     setConfig((prev) => ({
       ...prev,
@@ -170,8 +172,8 @@ export default function AdminExpress() {
     }
   };
 
-  const handleReset = () => {
-    const ok = window.confirm(cs ? 'Zahodit zmeny a nacist ulozenou konfiguraci?' : 'Discard changes and reload saved config?');
+  const handleReset = async () => {
+    const ok = await confirm({ title: cs ? 'Zahodit zmeny' : 'Discard changes', message: cs ? 'Zahodit zmeny a nacist ulozenou konfiguraci?' : 'Discard changes and reload saved config?', confirmLabel: cs ? 'Zahodit' : 'Discard', destructive: true });
     if (!ok) return;
     try {
       const cfg = loadExpressConfigV1();
@@ -658,6 +660,7 @@ export default function AdminExpress() {
           font-family: var(--forge-font-tech); letter-spacing: 0.08em;
         }
       `}</style>
+      <ConfirmDialog />
     </div>
   );
 }

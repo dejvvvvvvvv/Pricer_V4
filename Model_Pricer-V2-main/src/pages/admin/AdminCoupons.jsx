@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   loadCouponsConfigV1,
@@ -62,6 +63,7 @@ const TABS = [
 export default function AdminCoupons() {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -153,8 +155,8 @@ export default function AdminCoupons() {
     }));
   };
 
-  const removeCoupon = (idx) => {
-    const ok = window.confirm(cs ? 'Opravdu smazat tento kupon?' : 'Really delete this coupon?');
+  const removeCoupon = async (idx) => {
+    const ok = await confirm({ title: cs ? 'Smazat kupon' : 'Delete coupon', message: cs ? 'Opravdu smazat tento kupon?' : 'Really delete this coupon?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
     if (!ok) return;
     setConfig((prev) => {
       const coupons = [...(prev.coupons || [])];
@@ -194,8 +196,8 @@ export default function AdminCoupons() {
     }));
   };
 
-  const removePromotion = (idx) => {
-    const ok = window.confirm(cs ? 'Opravdu smazat tuto akci?' : 'Really delete this promotion?');
+  const removePromotion = async (idx) => {
+    const ok = await confirm({ title: cs ? 'Smazat akci' : 'Delete promotion', message: cs ? 'Opravdu smazat tuto akci?' : 'Really delete this promotion?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
     if (!ok) return;
     setConfig((prev) => {
       const promotions = [...(prev.promotions || [])];
@@ -221,8 +223,8 @@ export default function AdminCoupons() {
     }
   };
 
-  const handleReset = () => {
-    const ok = window.confirm(cs ? 'Zahodit zmeny?' : 'Discard changes?');
+  const handleReset = async () => {
+    const ok = await confirm({ title: cs ? 'Zahodit zmeny' : 'Discard changes', message: cs ? 'Zahodit zmeny?' : 'Discard changes?', confirmLabel: cs ? 'Zahodit' : 'Discard', destructive: true });
     if (!ok) return;
     try {
       const cfg = loadCouponsConfigV1();
@@ -984,6 +986,7 @@ export default function AdminCoupons() {
           .header-actions { justify-content: flex-start; }
         }
       `}</style>
+      <ConfirmDialog />
     </div>
   );
 }

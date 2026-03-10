@@ -13,6 +13,9 @@ vite.config.*s.*
 .env.*
 .env.local
 .env.production
+# Allow .env.example files (documentation, no secrets)
+!.env.example
+!**/.env.example
 nul
 node_modules/
 # MCP config (may contain API keys)

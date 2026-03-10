@@ -11,6 +11,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { debug } from '@/lib/debug';
 import { getTenantId } from '../../utils/adminTenantStorage';
 import {
   getEcommerceConfig,
@@ -25,6 +26,7 @@ import {
   updateIntegrationsMeta,
 } from '../../utils/adminEcommerceStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
+import { SkeletonCard } from '../../components/ui/forge/ForgeSkeleton';
 import {
   testShopifyConnection,
   validateShopifyConfig,
@@ -263,7 +265,7 @@ export default function AdminIntegrations() {
       setConfig(cfg);
       setLoading(false);
     } catch (e) {
-      console.error('[AdminIntegrations] Load error:', e);
+      debug('[AdminIntegrations] Load error:', e);
       setLoading(false);
     }
   }, []);
@@ -356,8 +358,10 @@ export default function AdminIntegrations() {
 
   if (loading || !config) {
     return (
-      <div style={{ padding: '32px', color: 'var(--forge-text-muted)' }}>
-        Loading...
+      <div style={{ padding: '32px', display: 'grid', gap: '16px' }}>
+        <SkeletonCard textLines={2} />
+        <SkeletonCard textLines={3} />
+        <SkeletonCard textLines={2} />
       </div>
     );
   }

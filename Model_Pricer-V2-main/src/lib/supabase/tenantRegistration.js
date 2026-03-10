@@ -3,6 +3,7 @@
 // Fire-and-forget, idempotent, non-blocking
 
 import { supabase, isSupabaseAvailable } from './client';
+import { debug } from '@/lib/debug';
 
 /**
  * Ensures a Firebase user has a corresponding tenant record in Supabase.
@@ -73,7 +74,7 @@ export async function ensureTenantInSupabase(user) {
       return null;
     }
 
-    console.log('[tenantRegistration] Created tenant:', created.slug);
+    debug('[tenantRegistration] Created tenant:', created.slug);
     return created;
   } catch (err) {
     console.warn('[tenantRegistration] Error:', err.message);

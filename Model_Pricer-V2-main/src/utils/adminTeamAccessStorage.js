@@ -4,6 +4,7 @@
 import { getTenantId } from './adminTenantStorage';
 import { getPlanFeatures } from './adminBrandingWidgetStorage';
 import { appendAuditEntry } from './adminAuditLogStorage';
+import { generateId } from './generateId';
 import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
@@ -33,7 +34,7 @@ function nowIso() {
 
 function randomToken() {
   // Short, URL-safe-ish token for demo purposes.
-  return `inv_${Math.random().toString(36).slice(2, 8)}${Math.random().toString(36).slice(2, 8)}`;
+  return generateId('inv');
 }
 
 function isValidEmail(email) {
@@ -180,7 +181,7 @@ export function inviteUser(
   const createdAt = nowIso();
   const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
   const invite = {
-    id: `inv_${Date.now()}`,
+    id: generateId('inv'),
     tenantId,
     email: cleanEmail,
     role,
@@ -293,7 +294,7 @@ export function acceptInviteByToken(
   let newUser = existing;
   if (!existing) {
     newUser = {
-      id: `u_${Math.random().toString(36).slice(2, 10)}`,
+      id: generateId('u'),
       name: String(name || '').trim() || invite.email.split('@')[0],
       email: invite.email,
       role: invite.role,

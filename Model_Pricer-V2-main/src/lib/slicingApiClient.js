@@ -1,6 +1,7 @@
 // API client for backend slicing (PrusaSlicer on server)
 // NOTE: This file intentionally contains NO legacy engine references.
 import { API_BASE_URL } from '../config/api';
+import { debug } from '@/lib/debug';
 
 /**
  * @typedef {Object} SlicingConfig
@@ -94,7 +95,7 @@ export async function sliceModel(file, config) {
     if (!response.ok) {
       // For demo purposes we still fall back, because most local runs won't have the backend.
       // If you want strict behaviour later (Varianta B), change this to throw.
-      console.warn('[slicingApiClient] Backend responded with error, using DEMO estimate:', response.status);
+      debug('[slicingApiClient] Backend responded with error, using DEMO estimate:', response.status);
       return demoEstimate(file, config);
     }
 
@@ -102,7 +103,7 @@ export async function sliceModel(file, config) {
     const data = await response.json();
     return data;
   } catch (err) {
-    console.warn('[slicingApiClient] Backend not reachable, using DEMO estimate:', err);
+    debug('[slicingApiClient] Backend not reachable, using DEMO estimate:', err);
     return demoEstimate(file, config);
   }
 }

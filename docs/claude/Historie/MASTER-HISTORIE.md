@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 104 (2x ID 101 + 102-103)
-- **Posledni zaznam:** 103-PY (UPRAVY 2026-03-09)
-- **Posledni aktualizace:** 2026-03-09
+- **Celkem zaznamu:** 113 (2x ID 101 + 102-112)
+- **Posledni zaznam:** 112-GN (UPRAVY 2026-03-09)
+- **Posledni aktualizace:** 2026-03-10
 
 ---
 
@@ -140,6 +140,15 @@
 |----|---------|-----|-------|
 | **102** | **PY** | **KONVERZACE** | **Payment Methods + Checkout integrace — AdminPayments stranka, adminPaymentStorage, CheckoutForm radio vyber, OrderConfirmation platebni udaje** |
 | **103** | **PY** | **UPRAVY** | **2 nove + 5 upravenych souboru: AdminPayments.jsx, adminPaymentStorage.js, Routes.jsx, AdminLayout.jsx, CheckoutForm.jsx (+225), OrderConfirmation.jsx (+398), checkoutSchema.js** |
+| **104** | **AG** | **KONVERZACE** | **Vsechny agenty na Opus 4.6 — kontrola + prepnuti 28 agentu (20 Sonnet + 8 Haiku)** |
+| **105** | **AG** | **UPRAVY** | **28 agent definic zmeneno (.claude/agents/), 5 inline referenci opraveno, 107/107 na opus** |
+| **106** | **TS** | **UPRAVY** | **Vitest setup (86 testu, 82% coverage pricingEngineV3) + code quality analyza (hardcoded URL, CORS, console.log)** |
+| **107** | **GN** | **UPRAVY** | **Code quality sprint: 135 unit testu (58 storage + 77 adapter), secure ID (crypto.randomUUID v 10 souborech), console.log cleanup, ErrorBoundary vylepseni + Routes izolace** |
+| **108** | **GN** | **UPRAVY** | **Code quality sprint pokracovani: 189 novych testu (pricing validator 23, feature flags 51, Shopify 93, generateId 14, debug 8), skeleton loading (5 admin stranek), dashboard UX, .env.example, backend validace (11 endpointu), console.log cleanup (9 souboru)** |
+| **109** | **GN** | **UPRAVY** | **Code quality sprint finalizace (ukoly 19-27): apiClient testy (15), useDocumentTitle + SEO (9 stranek), useKeyboardShortcut (3 modaly), hook testy (23), ForgeBreadcrumb, rate limiting (3 urovne), backend validace testy (56). Celkem 504 testu, 27 ukolu.** |
+| **110** | **GN** | **UPRAVY** | **Code quality sprint final (ukoly 28-38): CopyButton + useCopyToClipboard (4 refaktor), focus-visible + skip-to-content, lazy loading 15 rout, ScrollToTopButton, ForgeBreadcrumb testy (8), rate limiter testy (16), clipboard testy (12), document titles (9 stranek), keyboard shortcuts (3 modaly). Celkem 540 testu, 38 ukolu.** |
+| **111** | **GN** | **UPRAVY** | **Code quality sprint final batch (ukoly 39-50): network error handler + toast (2s debounce), exportData utilita (CSV/JSON) + admin integrace, request logger middleware (smart levels, slow detection), useMediaQuery hook, ForgeConfirmDialog (promise-based), apiClient testy (15), lazy loading 15 rout, focus-visible + skip-to-content a11y, copy-to-clipboard refaktor (4 soubory). Celkem 601 testu, 50 ukolu.** |
+| **112** | **GN** | **UPRAVY** | **Code quality sprint final batch 2 (ukoly 51-57): useOnlineStatus + OfflineBanner testy (9), formatRelativeTime utilita + 37 testu + AdminDashboard integrace, useSortableData hook + AdminOrders 4 sloupce, print styly + Print tlacitko, ForgeConfirmDialog na 5 admin strankach (10 confirm nahrazeno), online/offline system (hook + banner + App.jsx), health check vylepseni (uptime, memory, verze). Celkem 675+ testu, 60+ ukolu.** |
 
 ---
 
@@ -158,4 +167,4 @@
 | `Historie/2026-02-26/` | 6 zaznamu (Widget Builder Wave 1-3 Complete + Browser Testy + Supabase Migrace) |
 | `Historie/2026-03-04/` | 3 zaznamu (Admin Orders: filter collapse, order data, status dropdown + price fallback, kanban, mock removal) |
 | `Historie/2026-03-05/` | 2 zaznamu (Admin Orders kompletni session S01: konverzace + technicke zmeny, 8 souboru) |
-| `Historie/2026-03-09/` | 2 zaznamu (Payment Methods + Checkout integrace: AdminPayments, storage, radio vyber, platebni udaje) |
+| `Historie/2026-03-09/` | 11 zaznamu (Payment Methods + Checkout integrace + Agents model upgrade + Vitest setup & code quality + Code quality sprint 5x + Code quality sprint final batch 2) |

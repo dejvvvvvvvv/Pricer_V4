@@ -4,6 +4,7 @@ import { auth } from '../../../firebase'; // cesta podle tveho projektu
 import { sendEmailVerification } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Link } from 'react-router-dom';
+import { debug } from '@/lib/debug';
 
 /* ──────────────────────────────────────────────────────────────────────────
    FORGE inline styles
@@ -148,7 +149,7 @@ export default function AccountOverviewCard() {
       setSent(true);
       setMessage('Overovaci e-mail byl odeslan. Zkontrolujte svou schranku.');
     } catch (e) {
-      console.error(e);
+      debug(e);
       setMessage('Nepodarilo se odeslat overovaci e-mail. Zkuste to prosim znovu.');
     } finally {
       setSending(false);
@@ -164,7 +165,7 @@ export default function AccountOverviewCard() {
       await fn({ uid: user.uid });
       setMessage('Vsechny relace budou odhlaseny behem nasledujici hodiny.');
     } catch (e) {
-      console.error(e);
+      debug(e);
       setMessage('Nepodarilo se odhlasit na vsech zarizenich.');
     } finally {
       setRevoking(false);

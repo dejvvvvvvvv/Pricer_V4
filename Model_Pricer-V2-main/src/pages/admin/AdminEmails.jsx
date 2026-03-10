@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadEmailConfigV1, saveEmailConfigV1 } from '../../utils/adminEmailStorage';
 import { readTenantJson } from '../../utils/adminTenantStorage';
@@ -44,6 +45,7 @@ const TABS = [
 export default function AdminEmails() {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -139,8 +141,8 @@ export default function AdminEmails() {
     }
   };
 
-  const handleReset = () => {
-    const ok = window.confirm(cs ? 'Zahodit zmeny?' : 'Discard changes?');
+  const handleReset = async () => {
+    const ok = await confirm({ title: cs ? 'Zahodit zmeny' : 'Discard changes', message: cs ? 'Zahodit zmeny?' : 'Discard changes?', confirmLabel: cs ? 'Zahodit' : 'Discard', destructive: true });
     if (!ok) return;
     try {
       const cfg = loadEmailConfigV1();
@@ -633,6 +635,7 @@ export default function AdminEmails() {
           .log-header span:nth-child(n+3), .log-row span:nth-child(n+3) { display: none; }
         }
       `}</style>
+      <ConfirmDialog />
     </div>
   );
 }

@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { readTenantJsonAsync, getTenantId } from '../utils/adminTenantStorage';
+import { debug } from '@/lib/debug';
 
 // Simple in-memory cache to avoid re-fetching on re-renders
 const queryCache = new Map();
@@ -74,7 +75,7 @@ export function useStorageQuery(namespace, fallback, options = {}) {
       }
     } catch (err) {
       if (fetchId === fetchIdRef.current && mountedRef.current) {
-        console.warn(`[useStorageQuery] Error fetching ${namespace}:`, err);
+        debug(`[useStorageQuery] Error fetching ${namespace}:`, err);
         setError(err);
         setLoading(false);
       }

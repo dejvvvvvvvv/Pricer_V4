@@ -11,6 +11,7 @@
 */
 
 import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const NS_KANBAN_V1 = 'kanban:v1';
 const SCHEMA_VERSION = 1;
@@ -30,18 +31,11 @@ function parseBool(v, fallback = false) {
   return fallback;
 }
 
-function uuid(prefix = 'id') {
-  try {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-}
-
 function normalizeColumn(col, idx = 0) {
   const c = col && typeof col === 'object' ? col : {};
 
   return {
-    id: String(c.id || '').trim() || uuid('col'),
+    id: String(c.id || '').trim() || generateId('col'),
     label: String(c.label || '').trim() || `Column ${idx + 1}`,
     wip_limit: safeNum(c.wip_limit, 0), // 0 = unlimited
     color: String(c.color || '').trim() || '#3b82f6',

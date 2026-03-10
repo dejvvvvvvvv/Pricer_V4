@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import multer from "multer";
 
 import { ensureDir, fileExists } from "./util/fsSafe.js";
+import { getHealthStatus } from "./util/health.js";
 import { findPrusaSlicerConsole } from "./util/findSlicer.js";
 import { runPrusaSlicer } from "./slicer/runPrusaSlicer.js";
 import { parseGcodeMetrics } from "./slicer/parseGcode.js";
@@ -29,6 +30,9 @@ import storageRouter from "./storage/storageRouter.js";
 import authClaimsRouter from "./routes/authClaims.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { requireTenant } from "./middleware/tenant.js";
+import { validate, presetSchemas } from "./middleware/validate.js";
+import { rateLimit } from "./middleware/rateLimit.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +40,11 @@ const backendRoot = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(backendRoot, "..");
 
 const isWin = process.platform === "win32";
+
+// Read version from package.json (safe — no sensitive data exposed)
+const PKG_VERSION = await fs.readFile(path.join(backendRoot, "package.json"), "utf8")
+  .then((raw) => JSON.parse(raw).version || "unknown")
+  .catch(() => "unknown");
 
 const PORT = Number(process.env.PORT || 3001);
 const WORKSPACE_ROOT = process.env.SLICER_WORKSPACE_ROOT || (isWin ? "C:\\modelpricer\\tmp" : path.join(os.tmpdir(), "modelpricer"));
@@ -50,7 +59,7 @@ app.use(express.json({ limit: "2mb" }));
 const corsOriginsRaw = (process.env.CORS_ORIGINS || "").trim();
 const corsOrigins = corsOriginsRaw
   ? corsOriginsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-  : ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"];
+  : ["http://localhost:4028", "http://127.0.0.1:4028", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"];
 
 app.use(
   cors({
@@ -64,12 +73,35 @@ app.use(
   })
 );
 
+// ===== Request logging =====
+app.use(requestLogger({ skipPaths: ["/api/health"] }));
+
+// ===== Rate limiting =====
+// Global: 100 req/min per IP for all /api routes
+app.use("/api", rateLimit({ windowMs: 60_000, max: 100 }));
+
+// Stricter: /api/slice is CPU-heavy (PrusaSlicer) — 10 req/min per IP
+app.use("/api/slice", rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  message: "Too many slicing requests, please try again later",
+}));
+
+// Stricter: /api/auth — 20 req/min per IP to limit brute-force
+app.use("/api/auth", rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  message: "Too many auth requests, please try again later",
+}));
+
+/**
+ * GET /api/health — server health check with diagnostics.
+ * Returns: status, version, uptime, timestamp, memory, node version.
+ * Does NOT expose: file paths, env vars, IPs, credentials.
+ */
 app.get("/api/health", async (_req, res) => {
-  res.json({
-    ok: true,
-    service: "modelpricer-backend-local",
-    time: new Date().toISOString(),
-  });
+  const health = getHealthStatus({ version: PKG_VERSION });
+  res.json({ ok: true, data: health });
 });
 
 // ===== Auth middleware for protected routes =====
@@ -150,7 +182,7 @@ app.post("/api/presets", presetUpload, async (req, res) => {
   }
 });
 
-app.patch("/api/presets/:id", async (req, res) => {
+app.patch("/api/presets/:id", validate(presetSchemas.update), async (req, res) => {
   try {
     const tenantId = getTenantIdFromReq(req);
     const presetId = String(req.params.id || "").trim();
@@ -164,7 +196,7 @@ app.patch("/api/presets/:id", async (req, res) => {
   }
 });
 
-app.post("/api/presets/:id/default", async (req, res) => {
+app.post("/api/presets/:id/default", validate(presetSchemas.byId), async (req, res) => {
   try {
     const tenantId = getTenantIdFromReq(req);
     const presetId = String(req.params.id || "").trim();
@@ -178,7 +210,7 @@ app.post("/api/presets/:id/default", async (req, res) => {
   }
 });
 
-app.delete("/api/presets/:id", async (req, res) => {
+app.delete("/api/presets/:id", validate(presetSchemas.byId), async (req, res) => {
   try {
     const tenantId = getTenantIdFromReq(req);
     const presetId = String(req.params.id || "").trim();
@@ -433,9 +465,38 @@ app.post(
   }
 );
 
-// ===== Error handler (CORS etc.) =====
+// ===== Error handler (CORS, multer, validation etc.) =====
 app.use((err, _req, res, _next) => {
-  res.status(500).json({ success: false, error: String(err?.message || err) });
+  // Multer file size limit
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({
+      ok: false,
+      errorCode: "MP_UPLOAD_TOO_LARGE",
+      message: "Uploaded file exceeds the size limit",
+    });
+  }
+  // Multer file type or other multer errors
+  if (err.name === "MulterError" || err.message?.includes("Unsupported file type") || err.message?.includes("Only .ini files")) {
+    return res.status(400).json({
+      ok: false,
+      errorCode: "MP_VALIDATION_ERROR",
+      message: String(err.message),
+    });
+  }
+  // CORS errors
+  if (err.message?.startsWith("CORS blocked")) {
+    return res.status(403).json({
+      ok: false,
+      errorCode: "MP_CORS_BLOCKED",
+      message: String(err.message),
+    });
+  }
+  // Generic fallback
+  res.status(500).json({
+    ok: false,
+    errorCode: "MP_INTERNAL_ERROR",
+    message: String(err?.message || err),
+  });
 });
 
 app.listen(PORT, () => {

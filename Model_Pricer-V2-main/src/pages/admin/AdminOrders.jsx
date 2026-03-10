@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-do
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSortableData } from '../../hooks/useSortableData';
 import {
   ORDER_FLAGS,
   ORDER_STATUSES,
@@ -19,6 +20,7 @@ import {
   round2,
   saveOrders,
 } from '../../utils/adminOrdersStorage';
+import { exportJSON } from '../../utils/exportData';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import { loadKanbanConfigV1, saveKanbanConfigV1 } from '../../utils/adminKanbanStorage';
 import OrderDetailModal from './components/orders/OrderDetailModal';
@@ -130,6 +132,27 @@ function PillButton({ active, onClick, children }) {
   );
 }
 
+function SortIcon({ active, direction }) {
+  return (
+    <span style={{ marginLeft: '4px', opacity: active ? 1 : 0.3, fontSize: '0.7em' }}>
+      {direction === 'asc' ? '\u25B2' : '\u25BC'}
+    </span>
+  );
+}
+
+function SortableTh({ sortKey, currentSort, onSort, children }) {
+  const active = currentSort && currentSort.key === sortKey;
+  return (
+    <th
+      onClick={() => onSort(sortKey)}
+      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+    >
+      {children}
+      <SortIcon active={active} direction={active ? currentSort.direction : 'asc'} />
+    </th>
+  );
+}
+
 function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelText = 'Zrusit', onConfirm, onCancel }) {
   const overlayRef = useRef(null);
 
@@ -139,12 +162,15 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
     const el = overlayRef.current;
     if (!el) return;
     const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    const handleKeyDown = (e) => { if (e.key === 'Escape' && onCancel) onCancel(); };
     el.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       el.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [open]);
+  }, [open, onCancel]);
 
   if (!open) return null;
   return (
@@ -303,12 +329,27 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     return sorted;
   }, [orders, q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Column-header sorting: enrich filtered data with sortable fields
+  const enrichedFiltered = useMemo(() => {
+    return filtered.map((o) => {
+      const totals = computeOrderTotals(o);
+      return {
+        ...o,
+        _customerName: (o.customer_snapshot?.name || '').toLowerCase(),
+        _total: totals.total || 0,
+        _status: o.status || '',
+      };
+    });
+  }, [filtered]);
+
+  const { sortedData: columnSorted, sortConfig: columnSortConfig, requestSort: requestColumnSort } = useSortableData(enrichedFiltered);
+
+  const pageCount = Math.max(1, Math.ceil(columnSorted.length / PAGE_SIZE));
+  const pageItems = columnSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
-  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey]);
+  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey, columnSortConfig]);
 
   function toggleSet(setter, value) {
     setter((prev) => {
@@ -390,6 +431,27 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     URL.revokeObjectURL(url);
   }
 
+  function exportOrdersJson() {
+    const rows = filtered.map((o) => {
+      const totals = computeOrderTotals(o);
+      return {
+        order_id: o.id,
+        created_at: o.created_at,
+        status: o.status,
+        customer_name: o.customer_snapshot?.name || '',
+        customer_email: o.customer_snapshot?.email || '',
+        models_count: (o.models || []).length,
+        pieces: totals.sum_pieces,
+        materials: extractOrderMaterials(o),
+        print_time_min: totals.sum_time_min,
+        weight_g: totals.sum_weight_g,
+        total_price: totals.total,
+        flags: collectOrderFlags(o),
+      };
+    });
+    exportJSON(rows, `orders_export_${new Date().toISOString().slice(0, 10)}.json`);
+  }
+
   return (
     <div className="orders">
       <div className="page-header">
@@ -408,6 +470,9 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
           </div>
           <button className="btn" onClick={exportCsv} type="button">
             <Icon name="Download" size={16} /> Export CSV
+          </button>
+          <button className="btn" onClick={exportOrdersJson} type="button" style={{ background: 'transparent' }}>
+            <Icon name="Download" size={16} /> Export JSON
           </button>
         </div>
       </div>
@@ -545,14 +610,14 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
               <thead>
                 <tr>
                   <th>ORDER ID</th>
-                  <th>CREATED</th>
-                  <th>CUSTOMER</th>
+                  <SortableTh sortKey="created_at" currentSort={columnSortConfig} onSort={requestColumnSort}>CREATED</SortableTh>
+                  <SortableTh sortKey="_customerName" currentSort={columnSortConfig} onSort={requestColumnSort}>CUSTOMER</SortableTh>
                   <th>MODELS / PCS</th>
                   <th>MATERIAL(S)</th>
                   <th>PRINT TIME</th>
                   <th>WEIGHT</th>
-                  <th>TOTAL</th>
-                  <th>STATUS</th>
+                  <SortableTh sortKey="_total" currentSort={columnSortConfig} onSort={requestColumnSort}>TOTAL</SortableTh>
+                  <SortableTh sortKey="_status" currentSort={columnSortConfig} onSort={requestColumnSort}>STATUS</SortableTh>
                   <th>FLAGS</th>
                   <th></th>
                 </tr>

@@ -19,6 +19,7 @@ import { auth, db } from '../firebase';
 import AuthContext from '../context/AuthContext';
 import { setTenantId, clearTenantId } from '../utils/adminTenantStorage';
 import { ensureTenantInSupabase } from '../lib/supabase/tenantRegistration';
+import { debug } from '@/lib/debug';
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -52,7 +53,7 @@ async function ensureSupabaseClaims(user, tenantId) {
     if (response.ok) {
       // Force token refresh to pick up the new custom claims
       await user.getIdToken(true);
-      console.log('[Auth] Supabase RLS claims set for tenant:', tenantId);
+      debug('[Auth] Supabase RLS claims set for tenant:', tenantId);
     } else {
       const body = await response.json().catch(() => ({}));
       console.warn('[Auth] Failed to set Supabase claims:', body.error || response.status);
@@ -172,13 +173,13 @@ export default function FirebaseAuthProvider({ children }) {
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          console.log('Redirect auth successful:', result.user.email);
+          debug('[Auth] Redirect auth successful:', result.user.email);
           // Tenant binding handled by onAuthStateChanged listener
         }
       })
       .catch((err) => {
         // Silently ignore — errors here are non-critical (no redirect was in progress)
-        console.log('getRedirectResult (no redirect in progress or error):', err?.code);
+        debug('[Auth] getRedirectResult (no redirect in progress or error):', err?.code);
       });
   }, []);
 
@@ -227,7 +228,7 @@ export default function FirebaseAuthProvider({ children }) {
         code === 'auth/cancelled-popup-request'
       ) {
         // Popup was blocked or closed — fall back to redirect flow
-        console.log('Popup failed, falling back to redirect:', code);
+        debug('[Auth] Popup failed, falling back to redirect:', code);
         await signInWithRedirect(auth, googleProvider);
         // signInWithRedirect navigates away; result handled by getRedirectResult on next load
         return null;

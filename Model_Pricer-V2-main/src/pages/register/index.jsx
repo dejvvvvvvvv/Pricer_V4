@@ -2,9 +2,11 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import RegistrationForm from './components/RegistrationForm';
 
 const Register = () => {
+  useDocumentTitle('Register');
   const { t } = useTranslation();
   const { currentUser, loading } = useAuth();
 

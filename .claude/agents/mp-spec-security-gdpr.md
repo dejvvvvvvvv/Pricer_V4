@@ -19,7 +19,7 @@ mcpServers: []
 
 Tier: **Specific**
 Domain: **Security (Data Privacy)**
-Model: **claude-sonnet-4-5-20250929**
+Model: **claude-opus-4-6**
 Status: **Future-facing (pro EU market launch)**
 
 ---

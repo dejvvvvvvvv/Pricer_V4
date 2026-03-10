@@ -224,6 +224,9 @@
   .forge-underline-stroke {
     animation: none;
   }
+  .forge-shimmer::after {
+    animation: none;
+  }
   .forge-draw-check {
     stroke-dashoffset: 0;
   }

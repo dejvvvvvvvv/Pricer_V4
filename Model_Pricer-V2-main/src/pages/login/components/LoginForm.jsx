@@ -8,6 +8,7 @@ import ForgeButton from '@/components/ui/forge/ForgeButton';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import Icon from '@/components/AppIcon';
 import { useTranslation } from 'react-i18next';
+import { debug } from '@/lib/debug';
 
 const createLoginSchema = (t) => z.object({
   email: z.string().email(t('loginForm.emailInvalid')),
@@ -80,7 +81,7 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
           errorMessage = t('loginForm.tooManyRequests');
           break;
         default:
-          console.error("Login error:", error);
+          debug("Login error:", error);
       }
       setError('root.serverError', { type: 'manual', message: errorMessage });
     }
@@ -92,7 +93,7 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
 
   const handleGoogleError = (err) => {
     if (err?.code === 'auth/popup-closed-by-user') return;
-    console.error('Google login error:', err);
+    debug('Google login error:', err);
 
     const msg = err?.code === 'auth/account-exists-with-different-credential'
       ? t('loginForm.accountExistsWithDifferentCredential', 'This email is already registered with a different method.')

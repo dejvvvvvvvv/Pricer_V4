@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -166,9 +167,13 @@ export default function AdminPresets() {
       overrideHint: pickLang(language, '\u2014 v\u00fdchoz\u00ed z .ini \u2014', '\u2014 default from .ini \u2014'),
       overrideYes: pickLang(language, 'Ano', 'Yes'),
       overrideNo: pickLang(language, 'Ne', 'No'),
+      searchPlaceholder: pickLang(language, 'Hledat presety...', 'Search presets...'),
+      noResults: pickLang(language, 'Zadne presety nenalezeny', 'No presets found'),
     }),
     [language]
   );
+
+  const [search, setSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [offlineMode, setOfflineMode] = useState(false);
@@ -200,6 +205,16 @@ export default function AdminPresets() {
 
   // Materials from pricing config for preset-material linking
   const [availableMaterials, setAvailableMaterials] = useState([]);
+
+  const filteredPresets = useMemo(() => {
+    if (!search.trim()) return presets;
+    const q = search.toLowerCase();
+    return presets.filter(p =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.material_key || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q)
+    );
+  }, [presets, search]);
 
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -294,16 +309,19 @@ export default function AdminPresets() {
     };
   }, []);
 
-  // Scroll containment for delete confirmation modal
+  // Scroll containment + Escape key for delete confirmation modal
   useEffect(() => {
     if (!deleteModal.open) return;
     document.body.style.overflow = 'hidden';
     const el = deleteOverlayRef.current;
     if (!el) return;
     const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
+    const handleKeyDown = (e) => { if (e.key === 'Escape') setDeleteModal({ open: false, presetId: null }); };
     el.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       el.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
   }, [deleteModal.open]);
@@ -720,16 +738,38 @@ export default function AdminPresets() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="loading">
-          <Icon name="Loader2" size={18} className="spin" />
-          <span>{strings.loading}</span>
+      {!loading && presets.length > 0 && (
+        <div style={{ marginTop: 12, marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder={strings.searchPlaceholder}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              maxWidth: '300px',
+              padding: '8px 12px',
+              borderRadius: 'var(--forge-radius-md, 8px)',
+              border: '1px solid var(--forge-border, #2a2d35)',
+              background: 'var(--forge-bg-input, #1a1c22)',
+              color: 'var(--forge-text-primary, #E8EAED)',
+              fontSize: '0.875rem',
+            }}
+          />
         </div>
+      )}
+
+      {loading ? (
+        <SkeletonTable rows={4} cols={5} />
       ) : presets.length === 0 ? (
         <div className="empty">
           <p>{strings.emptyTitle}</p>
           <p className="muted">{strings.emptyHint}</p>
         </div>
+      ) : filteredPresets.length === 0 && search ? (
+        <p style={{ color: 'var(--forge-text-muted)', padding: '24px', textAlign: 'center' }}>
+          {strings.noResults}
+        </p>
       ) : (
         <div className="card">
           <div className="tableWrap">
@@ -744,7 +784,7 @@ export default function AdminPresets() {
                 </tr>
               </thead>
               <tbody>
-                {presets
+                {filteredPresets
                   .slice()
                   .sort((a, b) => {
                     const byOrder = (b.order || 0) - (a.order || 0);

@@ -12,6 +12,7 @@ import { getTeamSummary, getSeatLimit } from '../../utils/adminTeamAccessStorage
 import { loadOrders } from '../../utils/adminOrdersStorage';
 import { getAuditEntries } from '../../utils/adminAuditLogStorage';
 import { readTenantJson, getTenantId } from '../../utils/adminTenantStorage';
+import { formatRelativeTime } from '../../utils/formatRelativeTime';
 
 import { loadDashboardConfig, saveDashboardConfig, resetDashboardConfig } from '../../utils/adminDashboardStorage';
 import { DASHBOARD_CATEGORIES, DASHBOARD_METRICS, getMetricByKey } from '../../utils/dashboardMetricRegistry';
@@ -279,6 +280,11 @@ const AdminDashboard = () => {
     return tips.slice(0, 3);
   }, [BRANDING_TENANT_ID, refreshKey, language]);
 
+  // First-time user detection (no orders + no pricing configured)
+  const isFirstTimeUser = useMemo(() => {
+    return ordersSummary.totalOrders === 0 && pricingData.materialCount === 0;
+  }, [ordersSummary.totalOrders, pricingData.materialCount]);
+
   // Recent activity from Audit Log
   const recentActivity = useMemo(() => {
     const entries = getAuditEntries();
@@ -287,7 +293,7 @@ const AdminDashboard = () => {
       text: e.summary || e.action,
       actor: e.actor_email || 'System',
       type: e.action.includes('CREATE') || e.action.includes('ADD') ? 'add' : 'update',
-      time: formatTime(e.timestamp),
+      time: formatRelativeTime(e.timestamp, language),
     }));
   }, [refreshKey]);
 
@@ -599,6 +605,28 @@ const AdminDashboard = () => {
       );
     }
 
+    // Detect empty/zero state for friendly empty messages
+    const rawValue = res.value;
+    const isEmptyValue = rawValue === 0 || rawValue === null || rawValue === undefined || rawValue === '';
+    let emptyHint = '';
+    if (isEmptyValue) {
+      // Provide contextual empty hints based on metric category
+      const cat = metric.category || '';
+      if (cat === 'orders' || cat === 'analytics') {
+        emptyHint = language === 'cs' ? 'Zatim zadna data' : 'No data yet';
+      } else if (cat === 'pricing') {
+        emptyHint = language === 'cs' ? 'Neni nastaveno' : 'Not configured';
+      } else if (cat === 'fees') {
+        emptyHint = language === 'cs' ? 'Zadne poplatky' : 'No fees';
+      } else if (cat === 'team') {
+        emptyHint = language === 'cs' ? 'Zatim prazdne' : 'Empty';
+      } else if (cat === 'widget') {
+        emptyHint = language === 'cs' ? 'Zadne widgety' : 'No widgets';
+      } else {
+        emptyHint = language === 'cs' ? 'Zatim prazdne' : 'Empty';
+      }
+    }
+
     return {
       metric,
       label,
@@ -609,6 +637,8 @@ const AdminDashboard = () => {
       subtextNode,
       supportsDays: !!metric.supportsDays,
       days,
+      isEmptyValue,
+      emptyHint,
     };
   };
 
@@ -715,6 +745,35 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* Welcome card for first-time users */}
+      {isFirstTimeUser && !editing && (
+        <div className="welcome-card">
+          <div className="welcome-card-icon">
+            <Icon name="Rocket" size={24} />
+          </div>
+          <div className="welcome-card-content">
+            <h3 className="welcome-card-title">
+              {language === 'cs' ? 'Vitejte v ModelPricer!' : 'Welcome to ModelPricer!'}
+            </h3>
+            <p className="welcome-card-text">
+              {language === 'cs'
+                ? 'Zacnete nastavenim ceniku a materialu v sekci Pricing. Pote muzete vytvorit widget pro svuj web.'
+                : 'Start by configuring your pricing and materials in the Pricing section. Then you can create a widget for your website.'}
+            </p>
+            <div className="welcome-card-actions">
+              <button className="btn-primary" onClick={() => navigate('/admin/pricing')}>
+                <Icon name="Settings" size={16} />
+                {language === 'cs' ? 'Nastavit cenik' : 'Configure Pricing'}
+              </button>
+              <button className="btn-secondary" onClick={() => navigate('/admin/widget')}>
+                <Icon name="Layout" size={16} />
+                {language === 'cs' ? 'Vytvorit widget' : 'Create Widget'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sections toggles (edit mode) */}
       {editing && (
         <div className="dashboard-edit-toggles">
@@ -803,8 +862,14 @@ const AdminDashboard = () => {
                 </div>
                 <div className="stat-content">
                   <p className="stat-label">{r.label}</p>
-                  <h2 className="stat-value">{r.valueText}</h2>
-                  {r.change ? <p className="stat-change">{r.change}</p> : <p className="stat-change empty"> </p>}
+                  <h2 className={`stat-value${r.isEmptyValue ? ' stat-value--empty' : ''}`}>{r.valueText}</h2>
+                  {r.isEmptyValue && r.emptyHint ? (
+                    <p className="stat-empty-hint">{r.emptyHint}</p>
+                  ) : r.change ? (
+                    <p className="stat-change">{r.change}</p>
+                  ) : (
+                    <p className="stat-change empty"> </p>
+                  )}
                   {r.subtextNode}
                 </div>
               </div>
@@ -854,19 +919,31 @@ const AdminDashboard = () => {
           <div className="quick-stats-grid">
             <div className="quick-stat" style={{ borderTop: '2px solid #00D4AA' }}>
               <span className="quick-stat-label">{language === 'cs' ? 'Prumerna cena (30d)' : 'Avg Price (30d)'}</span>
-              <span className="quick-stat-value">{analyticsByDays?.[30]?.metrics?.avg_price?.toFixed?.(0) || 0} Kc</span>
+              {(analyticsByDays?.[30]?.metrics?.avg_price || 0) > 0
+                ? <span className="quick-stat-value">{analyticsByDays[30].metrics.avg_price.toFixed(0)} Kc</span>
+                : <span className="quick-stat-value quick-stat-value--empty">{language === 'cs' ? '-- Kc' : '-- CZK'}</span>
+              }
             </div>
             <div className="quick-stat" style={{ borderTop: '2px solid #FF6B35' }}>
               <span className="quick-stat-label">{language === 'cs' ? 'Prumerny cas (30d)' : 'Avg Time (30d)'}</span>
-              <span className="quick-stat-value">{analyticsByDays?.[30]?.metrics?.avg_time_min?.toFixed?.(1) || 0} min</span>
+              {(analyticsByDays?.[30]?.metrics?.avg_time_min || 0) > 0
+                ? <span className="quick-stat-value">{analyticsByDays[30].metrics.avg_time_min.toFixed(1)} min</span>
+                : <span className="quick-stat-value quick-stat-value--empty">-- min</span>
+              }
             </div>
             <div className="quick-stat" style={{ borderTop: '2px solid #4DA8DA' }}>
               <span className="quick-stat-label">{language === 'cs' ? 'Pending pozvanek' : 'Pending Invites'}</span>
-              <span className="quick-stat-value">{teamSummary.pendingInvites}</span>
+              {teamSummary.pendingInvites > 0
+                ? <span className="quick-stat-value">{teamSummary.pendingInvites}</span>
+                : <span className="quick-stat-value quick-stat-value--empty">{language === 'cs' ? 'Zadne' : 'None'}</span>
+              }
             </div>
             <div className="quick-stat" style={{ borderTop: '2px solid #00D4AA' }}>
               <span className="quick-stat-label">{language === 'cs' ? 'Nove objednavky' : 'New Orders'}</span>
-              <span className="quick-stat-value">{ordersSummary.newOrders}</span>
+              {ordersSummary.newOrders > 0
+                ? <span className="quick-stat-value">{ordersSummary.newOrders}</span>
+                : <span className="quick-stat-value quick-stat-value--empty">{language === 'cs' ? 'Zadne' : 'None'}</span>
+              }
             </div>
           </div>
         </div>
@@ -1550,6 +1627,76 @@ const AdminDashboard = () => {
           overflow: visible;
         }
 
+        /* Empty state hint for KPI cards */
+        .stat-value--empty {
+          opacity: 0.4;
+        }
+
+        .stat-empty-hint {
+          margin: 0;
+          font-size: 11px;
+          font-family: var(--forge-font-body, 'IBM Plex Sans', sans-serif);
+          color: var(--forge-text-muted, #64748B);
+          font-style: italic;
+        }
+
+        /* Quick stat empty value */
+        .quick-stat-value--empty {
+          opacity: 0.4;
+          font-style: italic;
+        }
+
+        /* Welcome card for first-time users */
+        .welcome-card {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+          background: var(--forge-bg-surface, #111827);
+          border: 1px solid var(--forge-border-highlight, rgba(0, 212, 170, 0.2));
+          border-radius: var(--forge-radius-lg, 8px);
+          padding: 20px 24px;
+          margin-bottom: 20px;
+          box-shadow: 0 0 24px rgba(0, 212, 170, 0.06);
+        }
+
+        .welcome-card-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: var(--forge-radius-md, 6px);
+          background: var(--forge-accent-primary-subtle, rgba(0, 212, 170, 0.15));
+          color: var(--forge-accent-primary, #00D4AA);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .welcome-card-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .welcome-card-title {
+          margin: 0 0 6px 0;
+          font-size: 18px;
+          font-weight: 700;
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+          color: var(--forge-text-primary, #F1F5F9);
+        }
+
+        .welcome-card-text {
+          margin: 0 0 14px 0;
+          font-size: 14px;
+          color: var(--forge-text-secondary, #94A3B8);
+          line-height: 1.5;
+        }
+
+        .welcome-card-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
         /* Scrollbar styling for dark theme */
         .modal-body::-webkit-scrollbar {
           width: 6px;
@@ -1802,11 +1949,6 @@ function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange
       </div>
     </div>
   );
-}
-
-function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function labelByLang(obj, lang) {

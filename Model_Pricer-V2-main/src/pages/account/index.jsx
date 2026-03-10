@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useAuth } from '@/context/AuthContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { readCompanyData, writeCompanyData } from '@/utils/adminCompanyStorage';
@@ -270,6 +271,7 @@ Card.displayName = 'Card';
 /* ════════════════════════════════════════════════════════════════════════ */
 
 const AccountPage = () => {
+  useDocumentTitle('Account');
   const { language } = useLanguage();
   const { currentUser, updateProfile, changePassword } = useAuth();
   const { showSuccess, showError } = useNotification();

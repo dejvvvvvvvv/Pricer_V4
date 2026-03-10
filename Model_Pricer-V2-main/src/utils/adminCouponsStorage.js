@@ -12,6 +12,7 @@
 */
 
 import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const NS_COUPONS_V1 = 'coupons:v1';
 const SCHEMA_VERSION = 1;
@@ -31,13 +32,6 @@ function parseBool(v, fallback = false) {
   return fallback;
 }
 
-function uuid(prefix = 'id') {
-  try {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-}
-
 function normalizeCoupon(coupon, idx = 0) {
   const c = coupon && typeof coupon === 'object' ? coupon : {};
 
@@ -50,7 +44,7 @@ function normalizeCoupon(coupon, idx = 0) {
   const normalizedAppliesTo = allowedAppliesTo.includes(appliesTo) ? appliesTo : 'all';
 
   return {
-    id: String(c.id || '').trim() || uuid('cpn'),
+    id: String(c.id || '').trim() || generateId('cpn'),
     code: String(c.code || '').trim().toUpperCase(),
     type: normalizedType,
     value: safeNum(c.value, 0),
@@ -73,7 +67,7 @@ function normalizePromotion(promo, idx = 0) {
   const normalizedType = allowedTypes.includes(type) ? type : 'percent';
 
   return {
-    id: String(p.id || '').trim() || uuid('promo'),
+    id: String(p.id || '').trim() || generateId('promo'),
     name: String(p.name || '').trim() || `Promotion ${idx + 1}`,
     type: normalizedType,
     value: safeNum(p.value, 0),

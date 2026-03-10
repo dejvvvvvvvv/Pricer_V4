@@ -4,6 +4,7 @@
 // NOTE: In Varianta B, this becomes server-side (DB) with enforcement + pagination.
 
 import { getTenantId } from './adminTenantStorage';
+import { generateId } from './generateId';
 import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
@@ -31,7 +32,7 @@ function nowIso() {
 }
 
 function randomId(prefix = 'aud') {
-  return `${prefix}_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`;
+  return generateId(prefix);
 }
 
 export function getAuditEntries(tenantId = getTenantId()) {

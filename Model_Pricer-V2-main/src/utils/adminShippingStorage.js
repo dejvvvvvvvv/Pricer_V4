@@ -11,6 +11,7 @@
 */
 
 import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const NS_SHIPPING_V1 = 'shipping:v1';
 const SCHEMA_VERSION = 1;
@@ -28,13 +29,6 @@ function parseBool(v, fallback = false) {
   if (v === true || v === 1 || v === '1') return true;
   if (v === false || v === 0 || v === '0') return false;
   return fallback;
-}
-
-function uuid(prefix = 'id') {
-  try {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
 
 function normalizeWeightTier(wt) {
@@ -56,7 +50,7 @@ function normalizeMethod(method, idx = 0) {
   const weightTiers = normalizedType === 'WEIGHT_BASED' ? weightTiersRaw.map(normalizeWeightTier) : [];
 
   return {
-    id: String(m.id || '').trim() || uuid('ship'),
+    id: String(m.id || '').trim() || generateId('ship'),
     name: String(m.name || '').trim() || `Shipping ${idx + 1}`,
     type: normalizedType,
     price: safeNum(m.price, 0),

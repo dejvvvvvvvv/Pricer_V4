@@ -9,6 +9,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
+import { SkeletonCard, SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadShippingConfigV1, saveShippingConfigV1 } from '../../utils/adminShippingStorage';
 
@@ -33,6 +35,7 @@ const SHIPPING_TYPES = [
 export default function AdminShipping() {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -115,8 +118,8 @@ export default function AdminShipping() {
     setBanner(null);
   };
 
-  const removeMethod = (id) => {
-    const ok = window.confirm(cs ? 'Smazat tuto metodu dopravy?' : 'Delete this shipping method?');
+  const removeMethod = async (id) => {
+    const ok = await confirm({ title: cs ? 'Smazat metodu' : 'Delete method', message: cs ? 'Smazat tuto metodu dopravy?' : 'Delete this shipping method?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
     if (!ok) return;
     setConfig((prev) => ({
       ...prev,
@@ -176,8 +179,8 @@ export default function AdminShipping() {
     }
   };
 
-  const handleReset = () => {
-    const ok = window.confirm(cs ? 'Zahodit zmeny?' : 'Discard changes?');
+  const handleReset = async () => {
+    const ok = await confirm({ title: cs ? 'Zahodit zmeny' : 'Discard changes', message: cs ? 'Zahodit zmeny?' : 'Discard changes?', confirmLabel: cs ? 'Zahodit' : 'Discard', destructive: true });
     if (!ok) return;
     try {
       const cfg = loadShippingConfigV1();
@@ -193,13 +196,9 @@ export default function AdminShipping() {
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-card">
-          <div className="card-body" style={{ padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Icon name="Loader2" size={18} />
-              <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
-            </div>
-          </div>
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <SkeletonCard textLines={2} />
+          <SkeletonTable rows={4} cols={3} />
         </div>
       </div>
     );
@@ -665,6 +664,7 @@ export default function AdminShipping() {
           display: grid; grid-template-columns: 1fr 1fr 40px; gap: 8px; align-items: center;
         }
       `}</style>
+      <ConfirmDialog />
     </div>
   );
 }

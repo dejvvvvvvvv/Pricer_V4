@@ -3,6 +3,7 @@ import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics, isSupported as analyticsSupported } from "firebase/analytics";
+import { debug } from '@/lib/debug';
 
 const env = import.meta.env;
 
@@ -33,8 +34,8 @@ const firebaseConfig = {
   ...(env.VITE_FIREBASE_MEASUREMENT_ID ? { measurementId: env.VITE_FIREBASE_MEASUREMENT_ID } : {}),
 };
 
-console.log("Firebase projectId:", firebaseConfig.projectId);
-console.log("Firebase authDomain:", firebaseConfig.authDomain);
+debug("[firebase] projectId:", firebaseConfig.projectId);
+debug("[firebase] authDomain:", firebaseConfig.authDomain);
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 

@@ -11,6 +11,7 @@
 */
 
 import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const NS_EXPRESS_V1 = 'express:v1';
 const SCHEMA_VERSION = 1;
@@ -30,13 +31,6 @@ function parseBool(v, fallback = false) {
   return fallback;
 }
 
-function uuid(prefix = 'id') {
-  try {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-}
-
 function normalizeTier(tier, idx = 0) {
   const t = tier && typeof tier === 'object' ? tier : {};
 
@@ -44,7 +38,7 @@ function normalizeTier(tier, idx = 0) {
   const normalizedSurchargeType = ['percent', 'fixed'].includes(surchargeType) ? surchargeType : 'percent';
 
   return {
-    id: String(t.id || '').trim() || uuid('tier'),
+    id: String(t.id || '').trim() || generateId('tier'),
     name: String(t.name || '').trim() || `Tier ${idx + 1}`,
     surcharge_type: normalizedSurchargeType,
     surcharge_value: safeNum(t.surcharge_value, 0),

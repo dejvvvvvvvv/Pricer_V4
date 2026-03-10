@@ -1,7 +1,7 @@
 ---
 name: mp-spec-security-api-keys
 description: API Keys & Secrets Guardian
-model: claude-haiku-4-5-20251001
+model: claude-opus-4-6
 color: "#F87171"
 tools:
   - Read
@@ -15,7 +15,7 @@ mcpServers: []
 
 **Tier:** Specific
 **Domena:** Security (Infrastructure)
-**Model:** claude-haiku-4-5-20251001
+**Model:** claude-opus-4-6
 **Barva:** #F87171 (red — security critical)
 **Reportuje:** mp-mid-security-infra, mp-sr-security
 

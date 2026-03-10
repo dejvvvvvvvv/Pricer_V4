@@ -11,6 +11,7 @@
 */
 
 import { readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { generateId } from './generateId';
 
 const NS_EMAIL_V1 = 'email:v1';
 const SCHEMA_VERSION = 1;
@@ -23,13 +24,6 @@ function parseBool(v, fallback = false) {
   if (v === true || v === 1 || v === '1') return true;
   if (v === false || v === 0 || v === '0') return false;
   return fallback;
-}
-
-function uuid(prefix = 'id') {
-  try {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
 
 function normalizeTrigger(trigger, idx = 0) {

@@ -8,6 +8,7 @@ import ForgeButton from '@/components/ui/forge/ForgeButton';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import Icon from '@/components/AppIcon';
 import { useTranslation } from 'react-i18next';
+import { debug } from '@/lib/debug';
 
 const createRegistrationSchema = (t) => z.object({
   firstName: z.string().min(1, t('registrationForm.firstNameRequired')),
@@ -95,7 +96,7 @@ const RegistrationForm = () => {
       } else {
         setError('root.serverError', { type: 'manual', message: errorMessage });
       }
-      console.error("Registration error:", error);
+      debug("Registration error:", error);
     }
   };
 
@@ -105,7 +106,7 @@ const RegistrationForm = () => {
 
   const handleGoogleError = (err) => {
     if (err?.code === 'auth/popup-closed-by-user') return;
-    console.error('Google registration error:', err);
+    debug('Google registration error:', err);
 
     const msg = err?.code === 'auth/account-exists-with-different-credential'
       ? t('registrationForm.accountExistsError', 'Tento ucet je jiz registrovan jinou metodou.')

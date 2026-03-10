@@ -981,6 +981,95 @@ Helpery neposlouchaji `window.addEventListener('storage', ...)`. Zmeny v localSt
 | 2026-02-13 | Prvni verze dokumentace (Phase 4 Supabase integrace) |
 | 2026-02-26 | Bug fix: pridano `getWidgetByIdOrPublicId()` a `getWidgetBuilderData()` do adminBrandingWidgetStorage (chybejici exporty pro WidgetEmbed). Fix cross-tenant pricing leak: `loadPricingConfigV3()` a `loadFeesConfigV3()` nyni prijimaji `tenantIdOverride` parametr. WidgetPublicPage predava `tenantId` prop do WidgetKalkulacka. |
 | 2026-02-27 | Dokumentace aktualizace: Nove sekce 7 (Supabase Dual-Write Mody) s detaily o trzech modech (localStorage, supabase, dual-write), feature flag API, rollback postupu. Sekce 6.4 expandovana s funkcemi z featureFlags.js. Nova sekce 7.6 s detaily o StorageAdapter API. |
+| 2026-03-10 | Pridana sekce 19 (generateId utility) a sekce 20 (debug logger). Storage helpery nyni pouzivaji crypto.randomUUID pro generovani ID. |
+
+---
+
+## 19. generateId() — Utility pro generovani unikatnich ID
+
+**Soubor:** `Model_Pricer-V2-main/src/utils/generateId.js`
+
+**Ucel:** Centralizovana utilita pro generovani unikatnich identifikatoru pouzivanych storage helpery (objednavky, kupony, widgety, pozvani atd.).
+
+### 19.1 API
+
+```javascript
+import { generateId } from '@/utils/generateId';
+
+generateId()          // => "550e8400-e29b-41d4-a716-446655440000" (UUID v4)
+generateId('order')   // => "order_550e8400-e29b-41d4-a716-446655440000"
+generateId('inv')     // => "inv_550e8400-e29b-41d4-a716-446655440000"
+```
+
+### 19.2 Implementace
+
+```javascript
+export function generateId(prefix = '') {
+  const id = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+  return prefix ? `${prefix}_${id}` : id;
+}
+```
+
+### 19.3 Fallback strategie
+
+| Prostredi | Metoda | Format |
+|-----------|--------|--------|
+| Moderni prohlizec (vetsina) | `crypto.randomUUID()` | UUID v4 (`xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`) |
+| Starsi prohlizec / test | `Date.now().toString(36) + Math.random()...` | Kratsi alfanumericky retezec |
+
+### 19.4 Pouziti v storage helperech
+
+Vsechny storage helpery ktere generuji ID (napr. `adminOrdersStorage`, `adminCouponsStorage`, `adminBrandingWidgetStorage`, `adminTeamAccessStorage`) nyni pouzivaji `generateId()` misto primo `crypto.randomUUID()` nebo `Math.random()`. Toto zajistuje:
+
+- **Konzistentni ID format** napric celou aplikaci
+- **Fallback** pro prostredi bez `crypto.randomUUID` (napr. stare prohlizece, testy)
+- **Testovatelnost** — jedna funkce ktera se da snadno mockovat
+
+### 19.5 Testy
+
+**Soubor:** `Model_Pricer-V2-main/src/utils/__tests__/generateId.test.js`
+**Pocet testu:** 14
+
+---
+
+## 20. debug() — Development Logger
+
+**Soubor:** `Model_Pricer-V2-main/src/lib/debug.js`
+
+**Ucel:** Jednoduchy debug logger ktery loguje jen v development modu. V produkcnim buildu je tree-shaken pryc Vitem.
+
+### 20.1 API
+
+```javascript
+import { debug } from '@/lib/debug';
+
+debug('Storage write:', namespace, value);
+debug('Pricing calc result:', result);
+```
+
+### 20.2 Implementace
+
+```javascript
+export const debug = (...args) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+};
+```
+
+### 20.3 Chovani
+
+| Prostredi | Chovani |
+|-----------|---------|
+| `npm start` / `npm run dev` | Loguje do konzole (`import.meta.env.DEV === true`) |
+| `npm run build` (produkce) | Tree-shaken — volani debug() je odstrancno z bundlu |
+
+### 20.4 Testy
+
+**Soubor:** `Model_Pricer-V2-main/src/lib/__tests__/debug.test.js`
+**Pocet testu:** 8
 
 ---
 

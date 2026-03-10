@@ -31,3 +31,161 @@ html.lenis {
 .lenis.lenis-smooth [data-lenis-prevent] {
   overscroll-behavior: contain;
 }
+
+/* ==========================================================================
+   Global Focus-Visible Styles (WCAG 2.1 — keyboard navigation)
+   Uses :focus-visible so mouse clicks do NOT show outlines.
+   ========================================================================== */
+
+*:focus-visible {
+  outline: 2px solid var(--forge-accent-primary, #00D4AA);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--forge-accent-primary, #00D4AA);
+  outline-offset: 2px;
+  border-radius: var(--forge-radius-sm, 4px);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--forge-accent-primary, #00D4AA);
+  outline-offset: 0;
+}
+
+.forge-card:focus-within {
+  border-color: var(--forge-accent-primary, #00D4AA);
+}
+
+/* ==========================================================================
+   Skip-to-Content Link (keyboard a11y)
+   Visually hidden until focused via Tab key.
+   ========================================================================== */
+
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 12px 24px;
+  background: var(--forge-accent-primary, #00D4AA);
+  color: var(--forge-bg-void, #08090C);
+  font-family: var(--forge-font-body, system-ui, sans-serif);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  border-radius: 0 0 var(--forge-radius-sm, 4px) 0;
+}
+
+.skip-to-content:focus {
+  left: 0;
+}
+
+/* ==========================================================================
+   Print Styles — clean quote output for printing
+   Hides navigation, decorative elements, and optimizes layout for paper.
+   ========================================================================== */
+
+@media print {
+  /* Hide non-essential UI elements */
+  header,
+  footer,
+  nav,
+  .skip-to-content,
+  .scroll-to-top-btn,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* White background, black text for ink saving */
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Full-width content */
+  main,
+  .max-w-7xl {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Override dark theme surfaces for readability */
+  [style*="--forge-bg-void"],
+  [style*="--forge-bg-surface"],
+  [style*="--forge-bg-elevated"] {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Ensure card borders are visible on paper */
+  [style*="--forge-border-default"] {
+    border-color: #ccc !important;
+  }
+
+  /* Override forge text colors for print contrast */
+  [style*="--forge-text-primary"] {
+    color: #000 !important;
+  }
+  [style*="--forge-text-secondary"],
+  [style*="--forge-text-muted"] {
+    color: #555 !important;
+  }
+  [style*="--forge-accent-primary"] {
+    color: #000 !important;
+  }
+
+  /* Tables */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  table th,
+  table td {
+    border: 1px solid #ccc;
+    padding: 6px 8px;
+    text-align: left;
+  }
+
+  /* Page break control */
+  .page-break-before {
+    page-break-before: always;
+  }
+  .no-page-break {
+    page-break-inside: avoid;
+  }
+
+  /* Avoid breaking inside pricing cards and model breakdowns */
+  details,
+  [class*="rounded-xl"],
+  [class*="rounded-lg"] {
+    page-break-inside: avoid;
+  }
+
+  /* Show link URLs */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  /* Print margin */
+  @page {
+    margin: 1.5cm;
+  }
+}

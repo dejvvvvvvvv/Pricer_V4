@@ -9,6 +9,8 @@ import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
 
 import { fileURLToPath } from "node:url";
+import { validate, storageSchemas } from "../middleware/validate.js";
+
 import {
   createOrderFolder,
   browseFolder,
@@ -146,7 +148,7 @@ router.get("/browse", async (req, res) => {
 
 // ── GET /api/storage/file — Download file (attachment) ────────────────────
 
-router.get("/file", async (req, res) => {
+router.get("/file", validate(storageSchemas.filePath), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -188,7 +190,7 @@ router.get("/file", async (req, res) => {
 
 // ── GET /api/storage/file/preview — Inline preview ────────────────────────
 
-router.get("/file/preview", async (req, res) => {
+router.get("/file/preview", validate(storageSchemas.filePath), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -229,7 +231,7 @@ router.get("/file/preview", async (req, res) => {
 
 // ── POST /api/storage/zip — ZIP export ────────────────────────────────────
 
-router.post("/zip", async (req, res) => {
+router.post("/zip", validate(storageSchemas.zip), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -316,7 +318,7 @@ router.post("/upload", libraryUpload.array("files", 10), async (req, res) => {
 
 // ── DELETE /api/storage/file — Soft delete ────────────────────────────────
 
-router.delete("/file", async (req, res) => {
+router.delete("/file", validate(storageSchemas.deleteFile), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -335,7 +337,7 @@ router.delete("/file", async (req, res) => {
 
 // ── POST /api/storage/restore — Restore from trash ────────────────────────
 
-router.post("/restore", async (req, res) => {
+router.post("/restore", validate(storageSchemas.restore), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -371,7 +373,7 @@ router.get("/search", async (req, res) => {
 
 // ── POST /api/storage/folder — Create folder ──────────────────────────────
 
-router.post("/folder", async (req, res) => {
+router.post("/folder", validate(storageSchemas.createFolder), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -403,7 +405,7 @@ router.get("/stats", async (req, res) => {
 
 // ── POST /api/storage/rename — Rename file/folder ─────────────────────────
 
-router.post("/rename", async (req, res) => {
+router.post("/rename", validate(storageSchemas.rename), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();
@@ -423,7 +425,7 @@ router.post("/rename", async (req, res) => {
 
 // ── POST /api/storage/move — Move file/folder ─────────────────────────────
 
-router.post("/move", async (req, res) => {
+router.post("/move", validate(storageSchemas.move), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const storageRoot = getStorageRoot();

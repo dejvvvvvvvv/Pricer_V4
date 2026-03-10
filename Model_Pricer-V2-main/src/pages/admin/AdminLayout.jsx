@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { ForgeBreadcrumb } from '../../components/ui/forge/ForgeBreadcrumb';
 
 const ADMIN_NAV = [
   {
@@ -41,6 +43,7 @@ const ADMIN_NAV = [
 ];
 
 const AdminLayout = () => {
+  useDocumentTitle('Admin');
   const location = useLocation();
   const { t } = useLanguage();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -467,6 +470,7 @@ const AdminLayout = () => {
         <div style={{
           padding: isMobile ? '16px' : (windowWidth < 1200 ? '24px' : '32px'),
         }}>
+          <ForgeBreadcrumb />
           <Outlet />
         </div>
       </main>

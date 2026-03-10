@@ -2,7 +2,7 @@
 name: mp-spec-design-user-friendly
 description: "User-friendliness auditor — anti-AI-generic guardrails, intuitivnost, mikro-UX, error states."
 color: "#F472B6"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

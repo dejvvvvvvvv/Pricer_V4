@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeSquiggle from '../../components/ui/forge/ForgeSquiggle';
 import ForgeButton from '../../components/ui/forge/ForgeButton';
@@ -17,6 +18,7 @@ const forgePageStyles = {
 
 const Pricing = () => {
   const { t, language } = useLanguage();
+  useDocumentTitle('Pricing Plans');
   const [activeTab, setActiveTab] = useState(0);
 
   const faqCategories = getFaqCategories(language);

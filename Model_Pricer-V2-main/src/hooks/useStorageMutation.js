@@ -16,6 +16,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { writeTenantJsonAsync } from '../utils/adminTenantStorage';
 import { invalidateStorageQuery } from './useStorageQuery';
+import { debug } from '@/lib/debug';
 
 /**
  * @param {string} namespace - Storage namespace (e.g., 'pricing:v3')
@@ -62,7 +63,7 @@ export function useStorageMutation(namespace, options = {}) {
         onSettled?.(value, null);
       }
     } catch (err) {
-      console.warn(`[useStorageMutation] Error writing ${namespace}:`, err);
+      debug(`[useStorageMutation] Error writing ${namespace}:`, err);
       if (mountedRef.current) {
         setError(err);
         setLoading(false);

@@ -6,6 +6,7 @@ import Button from './Button';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import logoImg from '../../assets/logo.png';
+import { debug } from '@/lib/debug';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -77,7 +78,7 @@ const Header = () => {
       await logout();
       window.location.href = '/login';
     } catch (e) {
-      console.error('Sign out failed:', e);
+      debug('Sign out failed:', e);
     }
   }
 

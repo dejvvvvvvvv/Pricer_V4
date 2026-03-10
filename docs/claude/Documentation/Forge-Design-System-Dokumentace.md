@@ -1,6 +1,6 @@
 # Forge Design System -- Dokumentace
 
-> 26 Forge UI komponent + 7 CSS souboru: tokeny, typografie, textury, animace, utility tridy.
+> 27 Forge UI komponent + 7 CSS souboru: tokeny, typografie, textury, animace, utility tridy.
 > Tmave industrialni tema pro ModelPricer. Vsechny tridy opt-in pres `.forge-*` prefix.
 
 ---
@@ -12,7 +12,7 @@ inspirovane 3D tiskem. System se sklada z:
 
 - **CSS tokenu** (custom properties na `:root`) pro barvy, typografii, spacing, stiny, radii, animace
 - **7 CSS souboru** s utility tridami a animacemi
-- **26 JSX komponent** v `src/components/ui/forge/` (+ 1 backup soubor)
+- **27 JSX komponent** v `src/components/ui/forge/` (+ 1 backup soubor)
 - **Inline styles** s referencemi na `--forge-*` CSS custom properties (ne Tailwind pro Forge komponenty)
 
 **Klicove principy:**
@@ -65,7 +65,7 @@ forge-utilities.css
 @tailwind base / components / utilities
 ```
 
-### 3.2 Forge komponenty (26 aktivnich + 1 backup)
+### 3.2 Forge komponenty (27 aktivnich + 1 backup)
 
 Vsechny v: `src/components/ui/forge/`
 
@@ -96,6 +96,7 @@ Vsechny v: `src/components/ui/forge/`
 | 23 | `ForgeTabs.jsx` | Navigacni |
 | 24 | `ForgeToast.jsx` | Feedback / notifikace |
 | 25 | `ForgeToggle.jsx` | Formularove |
+| 26 | `ForgeSkeleton.jsx` | Loading / feedback (5 sub-komponent) |
 | -- | `ForgePrinterSVG.backup.jsx` | Backup (nepouzivat) |
 
 ---
@@ -424,7 +425,7 @@ Vybrani presetu je castecne (meni jen barvu + font, ne ostatni vlastnosti).
 
 ---
 
-## 8. Komponenty -- tabulka VSECH 26 komponent
+## 8. Komponenty -- tabulka VSECH 27 komponent
 
 ### ForgeButton
 
@@ -1070,6 +1071,61 @@ pseudo-element styling (`::-webkit-slider-thumb`). Tag neni odstranen pri unmoun
 - Element label: `--forge-font-body` (14px)
 - Section heading: `--forge-font-heading` (18px+)
 - Status indicator: `--forge-font-tech` (10px uppercase)
+
+---
+
+---
+
+### ForgeSkeleton (5 sub-komponent)
+
+| Vlastnost | Hodnota |
+|-----------|---------|
+| **Soubor** | `src/components/ui/forge/ForgeSkeleton.jsx` |
+| **Popis** | Znovupouzitelne loading skeleton komponenty se shimmer animaci. Pouziva Forge design tokeny a existujici `forge-shimmer` animaci z `forge-animations.css` |
+| **Export** | Named: `Skeleton`, `SkeletonText`, `SkeletonCard`, `SkeletonTable`, `SkeletonCircle`. Default: `Skeleton` |
+
+#### Sub-komponenty
+
+| Komponenta | Popis | Props |
+|------------|-------|-------|
+| `Skeleton` | Zakladni obdelnikovy placeholder se shimmer efektem | `width` (default '100%'), `height` (default '1rem'), `borderRadius`, `className`, `style` |
+| `SkeletonText` | Vice-radkovy textovy placeholder (posledni radek kratsi na 60%) | `lines` (default 3), `gap` (default '0.5rem'), `lineHeight` (default '0.875rem') |
+| `SkeletonCard` | Karta s title barem a textovymi radky | `textLines` (default 3) |
+| `SkeletonTable` | Tabulka s header radkem a datovymi radky | `rows` (default 5), `cols` (default 4) |
+| `SkeletonCircle` | Kruhovy placeholder pro avatary/ikony | `size` (default '2.5rem') |
+
+#### Styling
+
+- Pouziva CSS tridu `.forge-shimmer` z `forge-animations.css` pro shimmer animaci
+- Pozadi: `var(--forge-bg-overlay, #1C1F28)` (Skeleton), `var(--forge-bg-elevated, #161920)` (Card/Table)
+- Border: `var(--forge-border-default, #1E2230)`
+- Border radius: `var(--forge-radius-sm, 4px)` (Skeleton), `var(--forge-radius-lg, 8px)` (Card), `var(--forge-radius-md, 6px)` (Table)
+
+#### Pristupnost
+
+- `role="status"` a `aria-label="Loading"` na zakladnim Skeleton
+- `aria-hidden="true"` na vsech sub-komponentach (dekorativni obsah)
+
+#### Pouziti
+
+```jsx
+import { Skeleton, SkeletonText, SkeletonCard, SkeletonTable, SkeletonCircle } from '@/components/ui/forge/ForgeSkeleton';
+
+// Zakladni placeholder
+<Skeleton height="2rem" width="200px" />
+
+// Text placeholder (3 radky)
+<SkeletonText lines={4} />
+
+// Cela karta
+<SkeletonCard textLines={3} />
+
+// Tabulka (5 radku, 4 sloupce)
+<SkeletonTable rows={5} cols={4} />
+
+// Avatar/ikona
+<SkeletonCircle size="3rem" />
+```
 
 ---
 

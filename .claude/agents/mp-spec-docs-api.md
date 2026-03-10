@@ -2,7 +2,7 @@
 name: mp-spec-docs-api
 description: API dokumentace - OpenAPI/Swagger specs, endpoint examples, response schemas
 color: "#A3E635"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

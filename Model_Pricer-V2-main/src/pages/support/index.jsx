@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import Reveal from '../../components/marketing/Reveal';
 import ForgeSquiggle from '../../components/ui/forge/ForgeSquiggle';
 import ForgeButton from '../../components/ui/forge/ForgeButton';
@@ -15,6 +16,7 @@ const forgePageStyles = {
 
 const Support = () => {
   const { t, language } = useLanguage();
+  useDocumentTitle('Support');
   const [searchQuery, setSearchQuery] = useState('');
 
   const faqs = language === 'cs' ? [

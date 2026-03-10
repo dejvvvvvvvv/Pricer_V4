@@ -9,6 +9,7 @@ import {
   getDefaultWidgetTheme,
 } from '../../utils/adminBrandingWidgetStorage';
 import { getShopifyConfig } from '../../utils/adminEcommerceStorage';
+import { debug } from '@/lib/debug';
 
 /**
  * Get target origin for postMessage.
@@ -126,7 +127,7 @@ const WidgetPublicPage = () => {
       setShopifyConf(shopifyEnabled ? shopify : null);
       setLoading(false);
     } catch (e) {
-      console.error('[WidgetPublicPage] Error loading widget:', e);
+      debug('[WidgetPublicPage] Error loading widget:', e);
       setError('Chyba pri nacitani widgetu');
       setLoading(false);
     }
@@ -178,7 +179,7 @@ const WidgetPublicPage = () => {
         quote: quoteData,
       }, getTargetOrigin());
     } catch (e) {
-      console.error('[WidgetPublicPage] postMessage error:', e);
+      debug('[WidgetPublicPage] postMessage error:', e);
     }
   };
 

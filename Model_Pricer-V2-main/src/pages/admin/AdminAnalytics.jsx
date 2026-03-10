@@ -11,6 +11,7 @@ import {
   getAnalyticsSessions,
   logExportToAudit,
 } from '../../utils/adminAnalyticsStorage';
+import { exportJSON } from '../../utils/exportData';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 function isoDaysAgo(days) {
@@ -183,6 +184,7 @@ export default function AdminAnalytics() {
     exportLost: cs ? 'Ztracene kalkulace' : 'Lost calculations',
     exportOverview: cs ? 'Shrnuti prehledu' : 'Overview summary',
     generate: cs ? 'Generovat & Stahnout CSV' : 'Generate & Download CSV',
+    generateJson: cs ? 'Stahnout JSON' : 'Download JSON',
     exportNote: cs
       ? 'Export se v demo rezimu generuje synchronne z localStorage. Vytvoreni exportu se zapisuje do Audit logu (G).'
       : 'Export is generated synchronously from localStorage in demo mode. Export creation is logged to Audit log (G).',
@@ -279,6 +281,29 @@ export default function AdminAnalytics() {
       toISO,
     });
     downloadTextFile({ filename, content: csv, mime: 'text/csv;charset=utf-8' });
+    forceRefresh();
+  }
+
+  function handleExportJson() {
+    let data;
+    let filename;
+    if (exportType === 'calculations') {
+      data = sessions.filter((s) => s.has_price_shown);
+      filename = 'analytics_calculations';
+    } else if (exportType === 'lost') {
+      data = lost;
+      filename = 'analytics_lost';
+    } else {
+      data = overview;
+      filename = 'analytics_overview';
+    }
+    logExportToAudit({
+      actor: { email: 'demo@modelpricer.local', role: 'admin' },
+      type: `${exportType}_json`,
+      fromISO,
+      toISO,
+    });
+    exportJSON(data, `${filename}_${new Date().toISOString().slice(0, 10)}.json`);
     forceRefresh();
   }
 
@@ -579,6 +604,7 @@ export default function AdminAnalytics() {
                 </select>
               </div>
               <button type="button" className="mp-btn" onClick={handleExport}>{ui.generate}</button>
+              <button type="button" className="mp-btn mp-btn-ghost" onClick={handleExportJson}>{ui.generateJson}</button>
             </div>
             <p className="mp-muted" style={{ marginTop: 10 }}>
               {ui.exportNote}

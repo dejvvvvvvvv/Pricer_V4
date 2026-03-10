@@ -20,7 +20,7 @@ mcpServers:
 **Tier:** Specific
 **Domain:** Quality Engineering
 **Specialty:** Unit Testing
-**Model:** claude-sonnet-4-5-20250929
+**Model:** claude-opus-4-6
 **Reports to:** mp-mid-quality-test
 
 ---

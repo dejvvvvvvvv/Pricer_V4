@@ -2,7 +2,7 @@
 name: mp-spec-plan-frontend
 description: Frontend planovac - UI architektura, komponenty, routing, API kontrakty z pohledu FE
 color: "#A78BFA"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

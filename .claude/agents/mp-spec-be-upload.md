@@ -2,7 +2,7 @@
 name: mp-spec-be-upload
 description: "Backend upload handling — multipart, validace, temp storage, virus scan hook, size limits."
 color: "#60A5FA"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Bash, Write, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

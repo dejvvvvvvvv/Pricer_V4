@@ -2,7 +2,7 @@
 name: mp-spec-plan-ux
 description: UX planovac - user flows, interakce, design patterns, anti-AI-generic standardy
 color: "#A78BFA"
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-6
 tools: [Read, Glob, Grep]
 permissionMode: bypassPermissions
 mcpServers: [context7]

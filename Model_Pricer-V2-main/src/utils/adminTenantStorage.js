@@ -15,6 +15,7 @@
 import { storageAdapter, getTableForNamespace } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
+import { debug } from '@/lib/debug';
 
 function canUseLocalStorage() {
   try {
@@ -36,13 +37,13 @@ export function setTenantId(id) {
     console.warn('[adminTenantStorage] setTenantId called with invalid id:', id);
     return;
   }
-  console.debug('[adminTenantStorage] setTenantId:', id.trim());
+  debug('[adminTenantStorage] setTenantId:', id.trim());
   window.localStorage.setItem('modelpricer:tenant_id', id.trim());
 }
 
 export function clearTenantId() {
   if (!canUseLocalStorage()) return;
-  console.debug('[adminTenantStorage] clearTenantId');
+  debug('[adminTenantStorage] clearTenantId');
   window.localStorage.removeItem('modelpricer:tenant_id');
 }
 

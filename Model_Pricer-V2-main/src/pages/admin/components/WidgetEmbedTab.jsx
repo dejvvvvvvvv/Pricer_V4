@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import Icon from '../../../components/AppIcon';
+import { CopyButton } from '../../../components/ui/forge/CopyButton';
 
 /**
  * WidgetEmbedTab -- Tab 2: Embed code display + copy.
@@ -75,34 +76,12 @@ const MODE_DESCRIPTIONS = {
 };
 
 const WidgetEmbedTab = ({ widget }) => {
-  const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState('script');
 
   const embedCode = useMemo(
     () => mode === 'script' ? buildScriptEmbedCode(widget) : buildIframeEmbedCode(widget),
     [widget, mode]
   );
-
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(embedCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      try {
-        const el = document.createElement('textarea');
-        el.value = embedCode;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch {
-        // silent fail
-      }
-    }
-  };
 
   if (!widget) return null;
 
@@ -120,7 +99,7 @@ const WidgetEmbedTab = ({ widget }) => {
         {['script', 'iframe'].map((m) => (
           <button
             key={m}
-            onClick={() => { setMode(m); setCopied(false); }}
+            onClick={() => setMode(m)}
             style={{
               flex: 1,
               padding: '8px 12px',
@@ -147,13 +126,11 @@ const WidgetEmbedTab = ({ widget }) => {
           </div>
           <div className="aw-muted">{MODE_DESCRIPTIONS[mode]}</div>
         </div>
-        <button
-          className={`aw-btn ${copied ? 'aw-btn-success' : 'aw-btn-secondary'}`}
-          onClick={onCopy}
-        >
-          <Icon name={copied ? 'Check' : 'Copy'} size={16} />
-          {copied ? 'Zkopirovano!' : 'Kopirovat'}
-        </button>
+        <CopyButton
+          text={embedCode}
+          label="Kopirovat"
+          copiedLabel="Zkopirovano!"
+        />
       </div>
 
       <textarea

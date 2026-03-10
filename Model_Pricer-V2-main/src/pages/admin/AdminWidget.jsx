@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { getTenantId } from '../../utils/adminTenantStorage';
 
 import {
@@ -60,6 +61,7 @@ const AdminWidget = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
+  const { copyToClipboard: copyText } = useCopyToClipboard();
 
   const [loading, setLoading] = useState(true);
 
@@ -404,14 +406,14 @@ const AdminWidget = () => {
   };
 
   const onCopyEmbed = async (widget) => {
-    try {
-      const origin = window.location.origin;
-      const code =
-        `<!-- ModelPricer Widget: ${widget.name || widget.publicId} -->\n` +
-        `<iframe\n  src="${origin}/w/${widget.publicId}"\n  style="width: 100%; border: none; min-height: 600px;"\n  title="3D Print Calculator"\n  allow="clipboard-write"\n></iframe>`;
-      await navigator.clipboard.writeText(code);
+    const origin = window.location.origin;
+    const code =
+      `<!-- ModelPricer Widget: ${widget.name || widget.publicId} -->\n` +
+      `<iframe\n  src="${origin}/w/${widget.publicId}"\n  style="width: 100%; border: none; min-height: 600px;"\n  title="3D Print Calculator"\n  allow="clipboard-write"\n></iframe>`;
+    const ok = await copyText(code);
+    if (ok) {
       showSuccess('Embed kod zkopirovany');
-    } catch {
+    } else {
       showError('Nelze kopirovat do schranky.');
     }
   };

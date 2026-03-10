@@ -2,7 +2,7 @@
 name: mp-spec-i18n-translations
 description: Sprava CZ/EN prekladu - JSON soubory, doplnovani chybejicich klicu, konzistence
 color: "#2DD4BF"
-model: claude-haiku-4-5-20251001
+model: claude-opus-4-6
 tools: [Read, Glob, Grep, Edit]
 permissionMode: acceptEdits
 mcpServers: [context7]

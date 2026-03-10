@@ -1355,6 +1355,12 @@ npm run serve        # → nahled produkciho buildu
 | [Storage-Utilities](Storage-Utilities-Dokumentace.md) | 20 tenant-scoped helperu | `src/utils/` |
 | [Hooks](Hooks-Dokumentace.md) | 5 custom React hooks | `src/hooks/` |
 
+### 20.6b Testing
+
+| Dokument | Popis | Soubor |
+|----------|-------|--------|
+| [Testing](Testing-Dokumentace.md) | 336 unit testu, Vitest, coverage | `vitest.config.mjs` + `src/**/__tests__/` |
+
 ### 20.7 Infrastructure
 
 | Dokument | Popis | Soubor |
@@ -1362,7 +1368,7 @@ npm run serve        # → nahled produkciho buildu
 | [Supabase](Supabase-Dokumentace.md) | Schema, RLS, migrace | `supabase/` + `src/lib/supabase/` |
 | [Build-Config](Build-Config-Dokumentace.md) | Vite, Tailwind, PostCSS | `vite.config.mjs` + configs |
 | [Firebase](Firebase-Dokumentace.md) | Auth, Hosting, Firestore | `firebase.json` + `firestore.rules` |
-| [Forge-Design-System](Forge-Design-System-Dokumentace.md) | Design tokeny, 26 komponent, CSS | `src/styles/` + `src/components/ui/forge/` |
+| [Forge-Design-System](Forge-Design-System-Dokumentace.md) | Design tokeny, 27 komponent, CSS | `src/styles/` + `src/components/ui/forge/` |
 
 ### 20.8 Komponenty a Utility
 
@@ -1416,7 +1422,7 @@ podrobne analyzy architektonickych rozhodnuti vcetne bezpecnostnich doporuceni.
 | API endpointu | 22 |
 | Storage helperu | 20 |
 | Custom hooks | 5 |
-| Forge komponent | 26 |
+| Forge komponent | 27 |
 | Prekladovych klicu | 462 (CS + EN) |
 | Supabase tabulek | 25 |
 | npm dependencies | 38 |

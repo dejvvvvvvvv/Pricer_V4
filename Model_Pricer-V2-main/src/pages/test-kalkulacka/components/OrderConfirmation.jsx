@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
+import { CopyButton } from '../../../components/ui/forge/CopyButton';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
 function formatCzk(amount) {
@@ -354,48 +355,7 @@ const animStyle = `
 }
 `;
 
-/* ── Copy to clipboard helper ──────────────────────────────────────────── */
-function CopyButton({ text, t }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand('copy');
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch { /* noop */ }
-      document.body.removeChild(textarea);
-    }
-  }, [text]);
-
-  return (
-    <button
-      type="button"
-      style={paymentCardStyles.copyBtn}
-      onClick={handleCopy}
-      aria-label={t('Kopirovat do schranky', 'Copy to clipboard')}
-    >
-      <Icon
-        name={copied ? 'Check' : 'Copy'}
-        size={14}
-        style={{ color: copied ? 'var(--forge-success)' : 'currentColor' }}
-      />
-      {copied ? t('Zkopirovano', 'Copied') : t('Kopirovat', 'Copy')}
-    </button>
-  );
-}
+/* ── Copy to clipboard — uses shared CopyButton from forge ────────────── */
 
 /* ── Bank Transfer Payment Details ─────────────────────────────────────── */
 function BankTransferPaymentCard({ paymentInfo, total, language, t }) {
@@ -427,7 +387,12 @@ function BankTransferPaymentCard({ paymentInfo, total, language, t }) {
               {paymentInfo.variable_symbol}
             </div>
           </div>
-          <CopyButton text={paymentInfo.variable_symbol} t={t} />
+          <CopyButton
+            text={paymentInfo.variable_symbol}
+            label={t('Kopirovat', 'Copy')}
+            copiedLabel={t('Zkopirovano', 'Copied')}
+            style={paymentCardStyles.copyBtn}
+          />
         </div>
       )}
 

@@ -10,8 +10,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { SkeletonCard, SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadPricingConfigV3, savePricingConfigV3 } from '../../utils/adminPricingStorage';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 
 const DEFAULT_RULES = {
   // time
@@ -280,6 +282,7 @@ function calcPricingPreview(rules, preview) {
 const AdminPricing = () => {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
+  const { copyToClipboard: copyText } = useCopyToClipboard();
 
   // Tenant-scoped V3 storage is the single source of truth.
 
@@ -822,18 +825,11 @@ const AdminPricing = () => {
   };
 
   const handleExport = async () => {
-    try {
-      const json = JSON.stringify(currentConfigFull, null, 2);
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(json);
-        setBanner({ type: 'success', text: ui.copyOk });
-      } else {
-        // fallback
-        window.prompt('Zkopíruj JSON:', json);
-        setBanner({ type: 'info', text: ui.copyFail });
-      }
-    } catch (e) {
-      const json = JSON.stringify(currentConfigFull, null, 2);
+    const json = JSON.stringify(currentConfigFull, null, 2);
+    const ok = await copyText(json);
+    if (ok) {
+      setBanner({ type: 'success', text: ui.copyOk });
+    } else {
       window.prompt('Zkopíruj JSON:', json);
       setBanner({ type: 'error', text: ui.copyFail });
     }
@@ -1129,7 +1125,14 @@ const AdminPricing = () => {
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="loading">{language === 'cs' ? 'Načítám...' : 'Loading...'}</div>
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+            <SkeletonCard textLines={2} />
+            <SkeletonCard textLines={2} />
+            <SkeletonCard textLines={2} />
+          </div>
+          <SkeletonTable rows={5} cols={4} />
+        </div>
       </div>
     );
   }

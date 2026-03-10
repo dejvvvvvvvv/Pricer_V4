@@ -1,10 +1,11 @@
 import React from 'react';
 import ForgeButton from '../../../components/ui/forge/ForgeButton';
 import Icon from '../../../components/AppIcon';
+import { debug } from '@/lib/debug';
 
 const SocialLogin = () => {
   const handleSocialLogin = (provider) => {
-    console.log(`Logging in with ${provider}`);
+    debug(`[SocialLogin] Logging in with ${provider}`);
   };
 
   const providers = [

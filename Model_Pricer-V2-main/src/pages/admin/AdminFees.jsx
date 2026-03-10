@@ -9,7 +9,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { SkeletonCard, SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadFeesConfigV3, saveFeesConfigV3, normalizeFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -299,6 +301,7 @@ const TABS = [
 const AdminFees = () => {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -604,8 +607,8 @@ const AdminFees = () => {
     });
   };
 
-  const removeFee = (id) => {
-    const ok = window.confirm(cs ? 'Smazat tento poplatek?' : 'Delete this fee?');
+  const removeFee = async (id) => {
+    const ok = await confirm({ title: cs ? 'Smazat poplatek' : 'Delete fee', message: cs ? 'Smazat tento poplatek?' : 'Delete this fee?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
     if (!ok) return;
     setFees((prev) => (prev || []).filter((f) => f?.id !== id));
     setSelectedIds((prev) => prev.filter((x) => x !== id));
@@ -768,9 +771,9 @@ const AdminFees = () => {
     setBanner({ type: 'success', text: cs ? 'Duplikovano.' : 'Duplicated.' });
   };
 
-  const bulkDelete = () => {
+  const bulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    const ok = window.confirm(ui.confirmDelete);
+    const ok = await confirm({ title: cs ? 'Smazat vybrane' : 'Delete selected', message: ui.confirmDelete, confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
     if (!ok) return;
     setFees((prev) => (prev || []).filter((f) => !selectedSet.has(f?.id)));
     if (selectedSet.has(editingFeeId)) {
@@ -814,13 +817,9 @@ const AdminFees = () => {
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-card">
-          <div className="card-body" style={{ padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Icon name="Loader2" size={18} />
-              <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
-            </div>
-          </div>
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <SkeletonCard textLines={2} />
+          <SkeletonTable rows={6} cols={5} />
         </div>
       </div>
     );
@@ -2411,6 +2410,7 @@ const AdminFees = () => {
           background: var(--forge-text-muted);
         }
       `}</style>
+      <ConfirmDialog />
     </div>
   );
 };

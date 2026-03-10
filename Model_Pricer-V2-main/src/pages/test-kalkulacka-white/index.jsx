@@ -20,6 +20,7 @@ import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
 import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
+import { debug } from '@/lib/debug';
 
 // Default config is used for newly uploaded models (so switching between models does not
 // accidentally reset already-sliced results when a config entry is missing).
@@ -372,7 +373,7 @@ const TestKalkulacka = () => {
     try {
       updateModelStatus(selectedFile.id, { status: 'processing', error: null });
 
-      console.log('[test-kalkulacka] Slicing (local) file:', selectedFile.name, 'config:', cfg);
+      debug('[test-kalkulacka] Slicing (local) file:', selectedFile.name, 'config:', cfg);
 
       const trySliceWithFallback = async (pid) => {
         try {
@@ -440,7 +441,7 @@ const TestKalkulacka = () => {
 
         try {
           updateModelStatus(fileItem.id, { status: 'processing', error: null });
-          console.log('[test-kalkulacka] Batch slicing (local):', fileItem.name);
+          debug('[test-kalkulacka] Batch slicing (local):', fileItem.name);
 
           const trySliceWithFallback = async (presetId) => {
             try {
