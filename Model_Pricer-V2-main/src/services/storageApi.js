@@ -78,7 +78,14 @@ export async function browseFolder(folderPath = "") {
 export async function downloadFile(filePath) {
   const params = new URLSearchParams({ path: filePath });
   const res = await fetch(`${BASE}/file?${params}`, { headers: await authHeaders() });
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      throw new Error(data.message || `Download failed: ${res.status}`);
+    }
+    throw new Error(`Download failed: ${res.status}`);
+  }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
@@ -126,7 +133,15 @@ export async function createZip(paths) {
     body: JSON.stringify({ paths }),
   });
 
-  if (!res.ok) throw new Error(`ZIP failed: ${res.status}`);
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      throw new Error(`ZIP creation failed: ${res.status} - ${data.message || "Unknown error"}`);
+    }
+    const errorText = await res.text();
+    throw new Error(`ZIP creation failed: ${res.status} - ${errorText}`);
+  }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

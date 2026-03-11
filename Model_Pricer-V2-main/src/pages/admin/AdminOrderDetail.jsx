@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import StorageStatusBadge from './components/orders/StorageStatusBadge';
+import { downloadFile, createZip } from '../../services/storageApi';
 import {
   ORDER_STATUSES,
   appendOrderActivity,
@@ -64,6 +66,13 @@ function getSlicerTimeMin(slicer) {
 function getSlicerWeightG(slicer) {
   if (!slicer) return 0;
   return Number(slicer.weight_g) || Number(slicer.filamentGrams) || 0;
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ── StatusBadge ──
@@ -381,6 +390,11 @@ export default function AdminOrderDetail({ orders, setOrders }) {
   const materials = extractOrderMaterials(order);
   const customer = order.customer_snapshot || {};
 
+  // Storage data
+  const storage = order.storage || {};
+  const storageStatus = storage.status || 'pending';
+  const hasStorage = storageStatus === 'complete' && !!storage.storagePath;
+
   function persist(nextOrder, activityEntry) {
     const next = orders.map((o) => (o.id === nextOrder.id ? nextOrder : o));
     setOrders(next);
@@ -478,6 +492,32 @@ export default function AdminOrderDetail({ orders, setOrders }) {
     setTimeout(() => printWindow.print(), 300);
   }
 
+  function handleOpenFolder() {
+    const folderPath = storage.storagePath || '';
+    navigate(`/admin/model-storage?path=${encodeURIComponent(folderPath)}`);
+  }
+
+  function handleDownloadZip() {
+    if (!hasStorage) return;
+    createZip([storage.storagePath]).catch(console.error);
+  }
+
+  async function handleDownloadFile(filePath) {
+    try {
+      const filename = filePath.split('/').pop() || 'download';
+      const blobUrl = await downloadFile(filePath);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
+  }
+
   const statusTone = order.status === 'CANCELED' ? 'red' : order.status === 'DONE' ? 'green' : 'blue';
 
   return (
@@ -556,6 +596,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                     <th>Hmotnost</th>
                     <th>Cena/ks</th>
                     <th>Celkem</th>
+                    {hasStorage && <th></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -586,15 +627,166 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                         <td style={{ fontFamily: 'var(--forge-font-tech)', fontWeight: 700, color: 'var(--forge-text-primary)' }}>
                           {formatMoney(unitPrice * qty)}
                         </td>
+                        {hasStorage && (() => {
+                          const filename = m.file_snapshot?.filename || '';
+                          const manifestEntry = (storage.fileManifest || []).find(
+                            (f) => f.type === 'model' && (f.filename === filename || f.filename === filename.replace(/[^a-zA-Z0-9._-]/g, '_'))
+                          );
+                          const basePath = (storage.storagePath || '').replace(/\/+$/, '');
+                          const filePath = manifestEntry?.path || (manifestEntry ? `${basePath}/models/${manifestEntry.filename}` : '');
+                          return (
+                            <td style={{ padding: '10px' }}>
+                              {manifestEntry && filePath && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadFile(filePath)}
+                                  title="Stahnout model"
+                                  style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'var(--forge-accent-primary)', padding: '4px',
+                                  }}
+                                >
+                                  <Icon name="Download" size={14} />
+                                </button>
+                              )}
+                            </td>
+                          );
+                        })()}
                       </tr>
                     );
                   })}
                   {(order.models || []).length === 0 && (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: 'var(--forge-text-muted)' }}>Zadne polozky</td></tr>
+                    <tr><td colSpan={hasStorage ? 9 : 8} style={{ textAlign: 'center', padding: '24px', color: 'var(--forge-text-muted)' }}>Zadne polozky</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          {/* Storage section */}
+          <Card title="Soubory a uloziste" icon="HardDrive">
+            {/* Storage status + action buttons */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: '12px', padding: '12px 16px',
+              background: 'var(--forge-bg-elevated)', borderRadius: 'var(--forge-radius-md)',
+              border: '1px solid var(--forge-border-default)', flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{
+                  fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
+                  color: 'var(--forge-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}>Storage:</span>
+                <StorageStatusBadge status={storageStatus} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {hasStorage && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleOpenFolder}
+                      className="od-btn-primary"
+                      style={{ gap: '6px' }}
+                    >
+                      <Icon name="FolderOpen" size={14} />
+                      Otevrit v Model Storage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadZip}
+                      className="od-btn"
+                    >
+                      <Icon name="Download" size={14} />
+                      Stahnout ZIP
+                    </button>
+                  </>
+                )}
+                {!hasStorage && storage.storagePath && (
+                  <button
+                    type="button"
+                    onClick={handleOpenFolder}
+                    className="od-btn"
+                  >
+                    <Icon name="FolderOpen" size={14} />
+                    Otevrit slozku
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* File manifest */}
+            {hasStorage && storage.fileManifest?.length > 0 && (() => {
+              const basePath = (storage.storagePath || '').replace(/\/+$/, '');
+              const TYPE_SUBDIR = { model: 'models', gcode: 'gcode', preset: 'presets', meta: 'meta' };
+              const visibleFiles = storage.fileManifest.filter(
+                (f) => !f.filename?.toLowerCase().endsWith('.json')
+              );
+              if (visibleFiles.length === 0) return null;
+              return (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{
+                    fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
+                    color: 'var(--forge-text-muted)', textTransform: 'uppercase',
+                    letterSpacing: '0.06em', marginBottom: '8px',
+                  }}>
+                    Manifest souboru ({visibleFiles.length} souboru)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {visibleFiles.map((file, idx) => {
+                      const subdir = TYPE_SUBDIR[file.type] || file.type;
+                      const dlPath = file.path || `${basePath}/${subdir}/${file.filename}`;
+                      return (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 10px', borderRadius: 'var(--forge-radius-sm)',
+                          background: idx % 2 === 0 ? 'transparent' : 'var(--forge-bg-elevated)',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{
+                              fontSize: '10px', fontFamily: 'var(--forge-font-tech)',
+                              color: 'var(--forge-accent-primary)', textTransform: 'uppercase', minWidth: '48px',
+                            }}>{file.type}</span>
+                            <span style={{
+                              fontSize: '12px', fontFamily: 'var(--forge-font-body)',
+                              color: 'var(--forge-text-primary)',
+                            }}>{file.filename}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{
+                              fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
+                              color: 'var(--forge-text-muted)',
+                            }}>{formatSize(file.sizeBytes)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(dlPath)}
+                              title={`Stahnout ${file.filename}`}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: 'var(--forge-accent-primary)', padding: '4px',
+                                display: 'inline-flex', alignItems: 'center',
+                              }}
+                            >
+                              <Icon name="Download" size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* No storage data fallback */}
+            {!order.storage && (
+              <div style={{
+                marginTop: '12px', padding: '16px', textAlign: 'center',
+                color: 'var(--forge-text-muted)', fontSize: '13px', fontFamily: 'var(--forge-font-body)',
+              }}>
+                <Icon name="FolderX" size={24} style={{ opacity: 0.3, marginBottom: '8px', display: 'block', margin: '0 auto 8px' }} />
+                Soubory objednavky nejsou v ulozisti.
+              </div>
+            )}
           </Card>
 
           {/* Pricing breakdown */}

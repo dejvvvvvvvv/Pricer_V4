@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../../components/AppIcon';
 import StorageStatusBadge from './StorageStatusBadge';
-import { getDownloadUrl, createZip } from '../../../../services/storageApi';
+import { downloadFile, createZip } from '../../../../services/storageApi';
 import { round2 } from '../../../../utils/adminOrdersStorage';
 
 function formatMoney(amount) {
@@ -42,14 +42,20 @@ export default function TabItemsFiles({ order, onClose }) {
     createZip([storage.storagePath]).catch(console.error);
   };
 
-  const handleDownloadFile = (filePath) => {
-    const url = getDownloadUrl(filePath);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownloadFile = async (filePath) => {
+    try {
+      const filename = filePath.split('/').pop() || 'download';
+      const blobUrl = await downloadFile(filePath);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
   };
 
   return (

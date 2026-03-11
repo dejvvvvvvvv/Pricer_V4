@@ -13,9 +13,10 @@ function TreeItem({ name, path, icon, currentPath, onNavigate, depth = 0, always
     if (isActive && !expanded) setExpanded(true);
   }, [isActive]);
 
-  const loadSubFolders = async () => {
-    if (loaded) return;
+  const loadSubFolders = async (force = false) => {
+    if (loaded && !force) return;
     setLoadError(false);
+    setLoaded(false);
     try {
       const result = await browseFolder(path);
       const folders = (result.items || []).filter((i) => i.type === 'folder');
@@ -30,20 +31,22 @@ function TreeItem({ name, path, icon, currentPath, onNavigate, depth = 0, always
 
   const handleToggle = (e) => {
     e.stopPropagation();
-    if (!expanded && !loaded) loadSubFolders();
-    if (!expanded && loadError) { setLoaded(false); loadSubFolders(); }
+    if (!expanded) {
+      if (!loaded || loadError) loadSubFolders(loadError);
+    }
     setExpanded(!expanded);
   };
 
   const handleClick = () => {
-    if (!loaded) loadSubFolders();
-    if (loadError) { setLoaded(false); loadSubFolders(); }
+    if (!loaded || loadError) loadSubFolders(loadError);
     setExpanded(true);
     onNavigate(path);
   };
 
-  // Show arrow if: has children, or not yet loaded, or is a top-level item
-  const showArrow = alwaysExpandable || subFolders?.length > 0 || !loaded;
+  // Always show arrow for folders — they are all expandable/collapsible in the tree.
+  // Even if a folder has no sub-folders, the arrow serves as a visual indicator
+  // that the folder has been explored and allows toggling the expanded state.
+  const showArrow = true;
 
   return (
     <div>

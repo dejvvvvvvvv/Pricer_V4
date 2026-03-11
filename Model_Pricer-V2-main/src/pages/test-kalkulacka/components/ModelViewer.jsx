@@ -660,8 +660,42 @@ const FullScreenModel = ({ url, ext }) => {
 };
 
 const FullScreenViewer = ({ fileUrl, ext, onClose }) => {
+  const overlayRef = useRef(null);
+
+  // Lock body scroll and listen for Escape key while fullscreen is open
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  // Prevent wheel events on the overlay from scrolling the page behind
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   return (
     <div
+      ref={overlayRef}
       style={fg.fullscreenOverlay}
       onClick={onClose}
     >

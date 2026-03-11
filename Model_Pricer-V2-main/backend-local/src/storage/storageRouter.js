@@ -180,7 +180,15 @@ router.get("/file", validate(storageSchemas.filePath), async (req, res) => {
     };
     res.setHeader("Content-Type", mimeMap[ext] || "application/octet-stream");
 
-    createReadStream(absPath).pipe(res);
+    const stream = createReadStream(absPath);
+    stream.on('error', (err) => {
+      if (!res.headersSent) {
+        res.status(500).json({ ok: false, error: 'File read error' });
+      } else {
+        res.end();
+      }
+    });
+    stream.pipe(res);
   } catch (e) {
     if (e.code === "PATH_TRAVERSAL") return fail(res, 403, "MP_PATH_TRAVERSAL", e.message);
     if (e.code === "ENOENT") return fail(res, 404, "MP_NOT_FOUND", "File not found");
@@ -250,13 +258,16 @@ router.post("/zip", validate(storageSchemas.zip), async (req, res) => {
     }
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="download-${Date.now()}.zip"`);
+    const folderName = paths[0]?.split('/')[1] || 'archive';
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(folderName)}.zip"`);
 
     const archive = archiver("zip", { zlib: { level: 6 } });
     archive.pipe(res);
 
     archive.on("error", (err) => {
-      res.status(500).end();
+      if (!res.headersSent) {
+        res.status(500).json({ ok: false, error: `Archive error: ${err.message}` });
+      }
     });
 
     for (const relPath of paths) {

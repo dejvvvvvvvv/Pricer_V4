@@ -14,26 +14,26 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
 .page-fade-in {
-  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ---- Page Fade-In with slight delay (staggered children) ---- */
 
 .page-fade-in-delay-1 {
-  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 50ms both;
+  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 50ms forwards;
 }
 
 .page-fade-in-delay-2 {
-  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both;
+  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 100ms forwards;
 }
 
 .page-fade-in-delay-3 {
-  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 150ms forwards;
 }
 
 /* ---- Slide-In from bottom (file cards, list items) ---- */
@@ -45,12 +45,12 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
 .slide-in-up {
-  animation: slide-in-up 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-in-up 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ---- Scale-In (pricing result appearance) ---- */
@@ -62,12 +62,12 @@
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 
 .scale-fade-in {
-  animation: scale-fade-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: scale-fade-in 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ---- Step transition (horizontal slide) ---- */
@@ -79,7 +79,7 @@
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
@@ -90,16 +90,16 @@
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
 .slide-in-right {
-  animation: slide-in-right 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-in-right 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .slide-in-left {
-  animation: slide-in-left 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-in-left 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ---- Skeleton pulse (alternative to shimmer for larger areas) ---- */
@@ -182,8 +182,8 @@
   .skeleton-pulse,
   .content-appear,
   .progress-pulse {
-    animation: none;
-    opacity: 1;
-    transform: none;
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
