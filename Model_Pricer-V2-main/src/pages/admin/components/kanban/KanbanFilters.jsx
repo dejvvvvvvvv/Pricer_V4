@@ -39,7 +39,7 @@ export default function KanbanFilters({ filters = {}, onFiltersChange }) {
           onChange={e => handleChange('status', e.target.value)}
           style={selectStyle}
         >
-          <option value="">All Statuses</option>
+          <option value="">Vsechny stavy</option>
           {STATUS_ORDER.map(s => (
             <option key={s} value={s}>{getStatusLabel(s)}</option>
           ))}
@@ -98,7 +98,7 @@ export default function KanbanFilters({ filters = {}, onFiltersChange }) {
           onMouseLeave={e => e.currentTarget.style.color = 'var(--forge-text-secondary)'}
         >
           <Icon name="X" size={12} />
-          Clear
+          Smazat
         </button>
       )}
     </div>

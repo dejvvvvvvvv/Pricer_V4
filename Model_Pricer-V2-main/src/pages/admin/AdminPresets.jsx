@@ -6,7 +6,10 @@ import { SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
-import { deletePreset, listPresets, patchPreset, setDefaultPreset, uploadPreset } from '../../services/presetsApi';
+import { deletePreset, fetchPresetContent, listPresets, patchPreset, setDefaultPreset, uploadPreset, updatePreset, validatePresetConfig } from '../../services/presetsApi';
+import PresetComparison from './components/PresetComparison';
+import PresetTemplates from './components/PresetTemplates';
+import PresetInlineEditor from './components/PresetInlineEditor';
 
 // =============================================================
 // Admin / Presets (backend sync)
@@ -199,9 +202,19 @@ export default function AdminPresets() {
   const [deleteModal, setDeleteModal] = useState({ open: false, presetId: null });
   const deleteOverlayRef = useRef(null);
 
+  // Comparison feature
+  const [showComparison, setShowComparison] = useState(false);
+  const [compareIds, setCompareIds] = useState([]);
+
+  // Inline editor
+  const [inlineEditId, setInlineEditId] = useState(null);
+
   // ForgeDialog editing state
   const [editingPresetId, setEditingPresetId] = useState(null);
   const [presetDraft, setPresetDraft] = useState(null);
+  const [dialogTab, setDialogTab] = useState('settings'); // 'settings' | 'ini'
+  const [iniContent, setIniContent] = useState(null);
+  const [iniLoading, setIniLoading] = useState(false);
 
   // Materials from pricing config for preset-material linking
   const [availableMaterials, setAvailableMaterials] = useState([]);
@@ -552,11 +565,42 @@ export default function AdminPresets() {
       print_overrides: p.print_overrides ? { ...p.print_overrides } : {},
     });
     setEditingPresetId(presetId);
+    setDialogTab('settings');
+    setIniContent(null);
   };
 
   const closePresetDialog = () => {
     setEditingPresetId(null);
     setPresetDraft(null);
+    setDialogTab('settings');
+    setIniContent(null);
+  };
+
+  const switchToIniTab = async () => {
+    setDialogTab('ini');
+    if (iniContent !== null) return; // already loaded
+    setIniLoading(true);
+    const res = await fetchPresetContent(editingPresetId);
+    if (res.ok && res.data?.content) {
+      setIniContent(res.data.content);
+    } else if (res.ok && !res.data?.content) {
+      setIniContent(null); // empty — will show error state
+    } else {
+      // Prefix with ERR: to distinguish from valid content
+      const reason = res.errorCode === 'MP_NOT_FOUND'
+        ? pickLang(language,
+          'INI soubor pro tento preset nebyl nalezen na serveru. Soubor mohl být smazán nebo nebyl správně nahrán.',
+          'INI file for this preset was not found on the server. The file may have been deleted or not uploaded correctly.')
+        : res.errorCode === 'NETWORK_ERROR'
+          ? pickLang(language,
+            'Backend není dostupný. Zkontrolujte, zda běží lokální server.',
+            'Backend is not available. Check that the local server is running.')
+          : pickLang(language,
+            `Chyba při načítání: ${res.message || 'Neznámá chyba'} (${res.errorCode || 'UNKNOWN'})`,
+            `Error loading: ${res.message || 'Unknown error'} (${res.errorCode || 'UNKNOWN'})`);
+      setIniContent('ERR:' + reason);
+    }
+    setIniLoading(false);
   };
 
   const savePresetDialog = async () => {
@@ -617,6 +661,140 @@ export default function AdminPresets() {
     });
   };
 
+  // Handle creating a preset from a template
+  const onCreateFromTemplate = async (template) => {
+    if (offlineMode) {
+      const nowIso = new Date().toISOString();
+      const id = `tpl-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const nextPreset = normalizePreset({
+        id,
+        name: template.name || 'Template preset',
+        order: 0,
+        visibleInWidget: true,
+        material_key: template.material || null,
+        print_overrides: {
+          layer_height: template.layerHeight,
+          infill_sparse_density: template.infillDensity,
+          max_print_speed: template.printSpeed,
+          temperature: template.temperature,
+          bed_temperature: template.bedTemperature,
+          support_material: template.supports || false,
+        },
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+      setPresets(prev => [...prev, nextPreset]);
+      showToast('ok', strings.toastSaved);
+      return;
+    }
+
+    // Use updatePreset (PUT) which generates INI from config
+    const configForBackend = {
+      name: template.name,
+      layerHeight: template.layerHeight,
+      nozzleDiameter: template.nozzleDiameter,
+      infillDensity: template.infillDensity,
+      printSpeed: template.printSpeed,
+      temperature: template.temperature,
+      bedTemperature: template.bedTemperature,
+      supports: template.supports,
+      brim: template.brim,
+      material_key: template.material || null,
+      visibleInWidget: true,
+      order: 0,
+      print_overrides: {
+        layer_height: template.layerHeight,
+        infill_sparse_density: template.infillDensity,
+        max_print_speed: template.printSpeed,
+        temperature: template.temperature,
+        bed_temperature: template.bedTemperature,
+        support_material: template.supports || false,
+      },
+    };
+
+    // First, we need to create a dummy ini file (backend requires INI upload for new presets)
+    const iniLines = [
+      `# generated from template: ${template.name}`,
+      `layer_height = ${template.layerHeight}`,
+      `fill_density = ${template.infillDensity}%`,
+      `perimeter_speed = ${template.printSpeed}`,
+      `temperature = ${template.temperature}`,
+      `bed_temperature = ${template.bedTemperature}`,
+      `support_material = ${template.supports ? '1' : '0'}`,
+      `brim_width = ${template.brim ? '5' : '0'}`,
+      '',
+    ].join('\n');
+
+    const blob = new Blob([iniLines], { type: 'text/plain' });
+    const file = new File([blob], `${(template.name || 'template').replace(/[^a-z0-9_-]/gi, '_')}.ini`, { type: 'text/plain' });
+
+    const res = await uploadPreset(file, {
+      name: template.name,
+      order: 0,
+      visibleInWidget: true,
+      material_key: template.material || null,
+    });
+
+    if (!res.ok) {
+      showError(res.message);
+      return;
+    }
+
+    showToast('ok', `${strings.toastSaved} (${template.name})`);
+    await load();
+  };
+
+  // Handle inline editor save
+  const onInlineSave = async (presetId, draftData) => {
+    if (offlineMode) {
+      const nowIso = new Date().toISOString();
+      setPresets(prev =>
+        prev.map(p =>
+          p.id === presetId
+            ? {
+                ...p,
+                name: draftData.name,
+                order: draftData.order,
+                visibleInWidget: draftData.visibleInWidget,
+                material_key: draftData.material_key,
+                print_overrides: draftData.print_overrides || {},
+                updatedAt: nowIso,
+              }
+            : p
+        )
+      );
+      // Sync edits state
+      setEdits(s => ({
+        ...s,
+        [presetId]: {
+          name: draftData.name,
+          order: draftData.order,
+          visibleInWidget: draftData.visibleInWidget,
+          material_key: draftData.material_key,
+        },
+      }));
+      showToast('ok', strings.toastSaved);
+      setInlineEditId(null);
+      return;
+    }
+
+    const res = await patchPreset(presetId, {
+      name: String(draftData.name || '').trim(),
+      order: Number.parseInt(String(draftData.order ?? 0), 10) || 0,
+      visibleInWidget: !!draftData.visibleInWidget,
+      material_key: draftData.material_key || null,
+      print_overrides: draftData.print_overrides || {},
+    });
+
+    if (!res.ok) {
+      throw new Error(res.message || 'Save failed');
+    }
+
+    showToast('ok', strings.toastSaved);
+    await load();
+    setInlineEditId(null);
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -630,6 +808,16 @@ export default function AdminPresets() {
         </div>
 
         <div className="right">
+          {presets.length >= 2 && (
+            <button
+              className={`btn ${showComparison ? 'primary' : ''}`}
+              onClick={() => setShowComparison(!showComparison)}
+              disabled={loading}
+            >
+              <Icon name="Columns" size={16} />
+              {pickLang(language, 'Porovnat', 'Compare')}
+            </button>
+          )}
           <button className="btn" onClick={load} disabled={loading}>
             <Icon name="RefreshCcw" size={16} />
             {strings.refresh}
@@ -738,6 +926,24 @@ export default function AdminPresets() {
         </div>
       </div>
 
+      {/* Preset Templates */}
+      <PresetTemplates
+        onCreateFromTemplate={onCreateFromTemplate}
+        language={language}
+        disabled={actionsDisabled}
+      />
+
+      {/* Preset Comparison */}
+      {showComparison && (
+        <PresetComparison
+          allPresets={presets}
+          selectedIds={compareIds}
+          onChangeSelection={setCompareIds}
+          onClose={() => { setShowComparison(false); setCompareIds([]); }}
+          language={language}
+        />
+      )}
+
       {!loading && presets.length > 0 && (
         <div style={{ marginTop: 12, marginBottom: 12 }}>
           <input
@@ -799,7 +1005,14 @@ export default function AdminPresets() {
                     const defaulting = !!defaultingById[p.id];
                     const deleting = !!deletingById[p.id];
                     return (
-                      <tr key={p.id} onClick={() => openPresetDialog(p.id)} style={{ cursor: 'pointer' }}>
+                      <React.Fragment key={p.id}>
+                      <tr onClick={() => {
+                        if (inlineEditId === p.id) {
+                          setInlineEditId(null);
+                        } else {
+                          setInlineEditId(p.id);
+                        }
+                      }} style={{ cursor: 'pointer', background: inlineEditId === p.id ? 'var(--forge-bg-elevated)' : undefined }}>
                         <td>
                           <div className="nameCell">
                             <div className="nameLine">
@@ -892,6 +1105,16 @@ export default function AdminPresets() {
 
                             <button
                               className="btnSmall"
+                              onClick={() => openPresetDialog(p.id)}
+                              disabled={actionsDisabled}
+                              title={pickLang(language, 'Otevrit detail', 'Open detail')}
+                            >
+                              <Icon name="Settings" size={16} />
+                              {pickLang(language, 'Detail', 'Detail')}
+                            </button>
+
+                            <button
+                              className="btnSmall"
                               onClick={() => onSetDefault(p.id)}
                               disabled={actionsDisabled || isDefault || defaulting || deleting}
                               title={actionsTitle}
@@ -912,6 +1135,20 @@ export default function AdminPresets() {
                           </div>
                         </td>
                       </tr>
+                      {inlineEditId === p.id && (
+                        <tr>
+                          <td colSpan={5} style={{ padding: 0, border: 'none' }}>
+                            <PresetInlineEditor
+                              preset={p}
+                              onSave={onInlineSave}
+                              onCancel={() => setInlineEditId(null)}
+                              language={language}
+                              availableMaterials={availableMaterials}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
               </tbody>
@@ -966,141 +1203,248 @@ export default function AdminPresets() {
         open={!!editingPresetId}
         onClose={closePresetDialog}
         title={presetDraft?.name || strings.dialogTitle}
-        maxWidth="600px"
+        maxWidth="50vw"
         footer={
-          <>
+          dialogTab === 'settings' ? (
+            <>
+              <button className="btn" onClick={closePresetDialog}>
+                {strings.dialogCancel}
+              </button>
+              <button className="btn primary" onClick={savePresetDialog}>
+                <Icon name="Save" size={16} />
+                {strings.dialogSave}
+              </button>
+            </>
+          ) : (
             <button className="btn" onClick={closePresetDialog}>
-              {strings.dialogCancel}
+              {pickLang(language, 'Zavřít', 'Close')}
             </button>
-            <button className="btn primary" onClick={savePresetDialog}>
-              <Icon name="Save" size={16} />
-              {strings.dialogSave}
-            </button>
-          </>
+          )
         }
       >
         {presetDraft && (
           <div>
-            {/* Section 1: Metadata */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', marginBottom: 12 }}>
-                {strings.sectionMeta}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="field">
-                  <div className="label">{strings.colName}</div>
-                  <input
-                    className="input"
-                    value={presetDraft.name}
-                    onChange={(e) => updatePresetDraft('name', e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">{strings.orderLabel}</div>
-                  <input
-                    className="input"
-                    type="number"
-                    value={presetDraft.order}
-                    onChange={(e) => updatePresetDraft('order', Number(e.target.value))}
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">{strings.materialLabel}</div>
-                  <select
-                    className="input"
-                    value={presetDraft.material_key || ''}
-                    onChange={(e) => updatePresetDraft('material_key', e.target.value || null)}
-                  >
-                    <option value="">{strings.allMaterials}</option>
-                    {availableMaterials.map(m => (
-                      <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <ForgeCheckbox
-                    checked={!!presetDraft.visibleInWidget}
-                    onChange={(e) => updatePresetDraft('visibleInWidget', e.target.checked)}
-                    label={strings.visibleInWidget}
-                  />
-                </div>
-              </div>
+            {/* Tab bar */}
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--forge-border-default)', marginBottom: 16 }}>
+              <button
+                className={`preset-tab ${dialogTab === 'settings' ? 'active' : ''}`}
+                onClick={() => setDialogTab('settings')}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderBottom: dialogTab === 'settings' ? '2px solid var(--forge-accent-primary)' : '2px solid transparent',
+                  background: 'transparent',
+                  color: dialogTab === 'settings' ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
+                  fontWeight: dialogTab === 'settings' ? 700 : 500,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--forge-font-heading)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <Icon name="Settings" size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
+                {pickLang(language, 'Nastavení', 'Settings')}
+              </button>
+              <button
+                className={`preset-tab ${dialogTab === 'ini' ? 'active' : ''}`}
+                onClick={switchToIniTab}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderBottom: dialogTab === 'ini' ? '2px solid var(--forge-accent-primary)' : '2px solid transparent',
+                  background: 'transparent',
+                  color: dialogTab === 'ini' ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
+                  fontWeight: dialogTab === 'ini' ? 700 : 500,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--forge-font-heading)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <Icon name="FileText" size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
+                {pickLang(language, 'INI obsah', 'INI Content')}
+              </button>
             </div>
 
-            {/* Divider */}
-            <div style={{ borderTop: '1px solid var(--forge-border-default)', margin: '16px 0' }} />
-
-            {/* Section 2: Print Parameter Overrides */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', marginBottom: 12 }}>
-                {strings.sectionOverrides}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {PRINT_OVERRIDE_FIELDS.map(field => {
-                  const currentVal = presetDraft.print_overrides?.[field.key];
-                  const hasValue = currentVal !== undefined && currentVal !== null && currentVal !== '';
-                  const label = pickLang(language, field.label_cs, field.label_en);
-
-                  if (field.type === 'boolean') {
-                    return (
-                      <div className="field" key={field.key}>
-                        <div className="label">{label}</div>
-                        <select
-                          className="input"
-                          value={hasValue ? (currentVal ? 'true' : 'false') : ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v === '') updatePresetOverride(field.key, null);
-                            else updatePresetOverride(field.key, v === 'true');
-                          }}
-                        >
-                          <option value="">{strings.overrideHint}</option>
-                          <option value="true">{strings.overrideYes}</option>
-                          <option value="false">{strings.overrideNo}</option>
-                        </select>
-                      </div>
-                    );
-                  }
-
-                  if (field.type === 'select') {
-                    return (
-                      <div className="field" key={field.key}>
-                        <div className="label">{label}</div>
-                        <select
-                          className="input"
-                          value={hasValue ? currentVal : ''}
-                          onChange={(e) => updatePresetOverride(field.key, e.target.value || null)}
-                        >
-                          <option value="">{strings.overrideHint}</option>
-                          {field.options.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  }
-
-                  // number
-                  return (
-                    <div className="field" key={field.key}>
-                      <div className="label">{label}</div>
+            {/* Settings tab */}
+            {dialogTab === 'settings' && (
+              <div>
+                {/* Section 1: Metadata */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', marginBottom: 12 }}>
+                    {strings.sectionMeta}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="field">
+                      <div className="label">{strings.colName}</div>
+                      <input
+                        className="input"
+                        value={presetDraft.name}
+                        onChange={(e) => updatePresetDraft('name', e.target.value)}
+                      />
+                    </div>
+                    <div className="field">
+                      <div className="label">{strings.orderLabel}</div>
                       <input
                         className="input"
                         type="number"
-                        step={field.step || 1}
-                        placeholder={strings.overrideHint}
-                        value={hasValue ? currentVal : ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v === '') updatePresetOverride(field.key, null);
-                          else updatePresetOverride(field.key, Number(v));
-                        }}
+                        value={presetDraft.order}
+                        onChange={(e) => updatePresetDraft('order', Number(e.target.value))}
                       />
                     </div>
-                  );
-                })}
+                    <div className="field">
+                      <div className="label">{strings.materialLabel}</div>
+                      <select
+                        className="input"
+                        value={presetDraft.material_key || ''}
+                        onChange={(e) => updatePresetDraft('material_key', e.target.value || null)}
+                      >
+                        <option value="">{strings.allMaterials}</option>
+                        {availableMaterials.map(m => (
+                          <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <ForgeCheckbox
+                        checked={!!presetDraft.visibleInWidget}
+                        onChange={(e) => updatePresetDraft('visibleInWidget', e.target.checked)}
+                        label={strings.visibleInWidget}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div style={{ borderTop: '1px solid var(--forge-border-default)', margin: '16px 0' }} />
+
+                {/* Section 2: Print Parameter Overrides */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', marginBottom: 12 }}>
+                    {strings.sectionOverrides}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {PRINT_OVERRIDE_FIELDS.map(field => {
+                      const currentVal = presetDraft.print_overrides?.[field.key];
+                      const hasValue = currentVal !== undefined && currentVal !== null && currentVal !== '';
+                      const label = pickLang(language, field.label_cs, field.label_en);
+
+                      if (field.type === 'boolean') {
+                        return (
+                          <div className="field" key={field.key}>
+                            <div className="label">{label}</div>
+                            <select
+                              className="input"
+                              value={hasValue ? (currentVal ? 'true' : 'false') : ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === '') updatePresetOverride(field.key, null);
+                                else updatePresetOverride(field.key, v === 'true');
+                              }}
+                            >
+                              <option value="">{strings.overrideHint}</option>
+                              <option value="true">{strings.overrideYes}</option>
+                              <option value="false">{strings.overrideNo}</option>
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      if (field.type === 'select') {
+                        return (
+                          <div className="field" key={field.key}>
+                            <div className="label">{label}</div>
+                            <select
+                              className="input"
+                              value={hasValue ? currentVal : ''}
+                              onChange={(e) => updatePresetOverride(field.key, e.target.value || null)}
+                            >
+                              <option value="">{strings.overrideHint}</option>
+                              {field.options.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      // number
+                      return (
+                        <div className="field" key={field.key}>
+                          <div className="label">{label}</div>
+                          <input
+                            className="input"
+                            type="number"
+                            step={field.step || 1}
+                            placeholder={strings.overrideHint}
+                            value={hasValue ? currentVal : ''}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === '') updatePresetOverride(field.key, null);
+                              else updatePresetOverride(field.key, Number(v));
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* INI Content tab */}
+            {dialogTab === 'ini' && (
+              <div style={{ minHeight: '55vh' }}>
+                {iniLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: 'var(--forge-text-muted)' }}>
+                    <Icon name="Loader" size={18} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />
+                    {pickLang(language, 'Načítání...', 'Loading...')}
+                  </div>
+                ) : iniContent && !iniContent.startsWith('ERR:') ? (
+                  <pre style={{
+                    margin: 0,
+                    padding: 16,
+                    background: 'var(--forge-bg-elevated)',
+                    border: '1px solid var(--forge-border-default)',
+                    borderRadius: 'var(--forge-radius-md)',
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    color: 'var(--forge-text-primary)',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                    overflowY: 'auto',
+                    maxHeight: '55vh',
+                  }}>
+                    {iniContent}
+                  </pre>
+                ) : (
+                  <div style={{
+                    padding: 24,
+                    background: 'rgba(255,71,87,0.06)',
+                    border: '1px solid rgba(255,71,87,0.25)',
+                    borderRadius: 'var(--forge-radius-md)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--forge-error)', fontWeight: 700, fontSize: 14 }}>
+                      <Icon name="AlertTriangle" size={18} />
+                      {pickLang(language, 'INI soubor není dostupný', 'INI file not available')}
+                    </div>
+                    <div style={{ color: 'var(--forge-text-secondary)', fontSize: 13, lineHeight: 1.5 }}>
+                      {iniContent
+                        ? iniContent.replace('ERR:', '')
+                        : pickLang(language,
+                          'INI soubor pro tento preset nebyl nalezen. Soubor mohl být smazán nebo nebyl nahrán.',
+                          'INI file for this preset was not found. The file may have been deleted or was not uploaded.'
+                        )
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </ForgeDialog>

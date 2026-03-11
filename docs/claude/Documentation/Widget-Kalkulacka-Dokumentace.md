@@ -75,7 +75,7 @@ src/pages/widget-kalkulacka/
     geomEstimate.js                  -- Odhad hmotnosti z objemu
   components/
     FileUploadZone.jsx               -- Drag-and-drop zona pro nahrani modelu
-    ModelViewer.jsx                   -- 3D STL nahled + metriky + fullscreen
+    ModelViewer.jsx                   -- 3D STL nahled + metriky + fullscreen + build plate viewer + mesh repair panel
     PrintConfiguration.jsx           -- Konfigurace tisku (material, barva, kvalita, vypln, presety, fees)
     PricingCalculator.jsx            -- Cenovy souhrn + rozpis objednavky
     GenerateButton.jsx               -- CTA tlacitko "Spocitat cenu" (Uiverse styl)
@@ -627,9 +627,41 @@ Obsahuje tri sekce:
 3D nahled STL modelu s Three.js. Zahrnuje:
 
 - **STLCanvas**: WebGL canvas s OrbitControls a auto-rotaci
-- **STLModel**: Nacte STL geometrii, vycentruje a volitelne spocita povrch
+- **STLModel**: Nacte STL geometrii, vycentruje a volitelne spocita povrch; predava geometrii pres `onGeometryLoaded`
 - **FullScreenViewer**: Modalni cela obrazovka s auto-rotaci a svetly
 - **Metriky**: Rozmery (mm), objem (cm3), povrch (cm2), cas tisku, hmotnost
+- **ViewerTabBar**: Tab system "3D Nahled" / "Tiskova deska" (portovano z test-kalkulacky)
+- **BuildPlateCanvas / BuildPlateScene / BuildPlateGrid / BuildPlateModel**: Vizualizace tiskove desky Prusa MK3S+ (250x210mm) s modelem, auto-orientaci a rozmerovymi stitivky
+- **ModelDimensionLabels**: 3D kotovaci cary a HTML labelky s rozmery modelu na tiskove desce
+- **MeshRepairPanel**: Skladaci sekce pod viewerem s analyzou a opravou meshe (importuje `src/lib/meshRepair.js`)
+
+**Tab system:**
+| Tab | Konstanta | Popis |
+|-----|-----------|-------|
+| 3D Nahled | `TAB_PREVIEW` | Klasicky otocny 3D nahled (default) |
+| Tiskova deska | `TAB_BUILD_PLATE` | Model na tiskove desce s rozmery |
+
+- V builder mode jsou taby zobrazeny, ale disabled (grayed out).
+- Tab se resetuje na "3D Nahled" pri zmene souboru.
+- Fullscreen tlacitko je viditelne jen v tabu "3D Nahled".
+
+**Build Plate Viewer:**
+- Deska 250x210mm, mrizka 10mm, ohraniceni s accent barvou tenanta
+- Auto-orient: najde nejvetsi plochou smer (Fibonacci sphere binning, 42 binu) a rotuje model tak, aby lezal na desce
+- Tlacitka: "Auto polozeni" (auto-orient), "Reset" (zrusi orientaci), "Rozmery" (toggle dimension labels)
+- Barva: pouziva `--widget-btn-bg` / `--widget-btn-primary` CSS var, fallback na #1E90FF
+- Funkce `resolveAccentColor()` cte computed CSS var z kontejneru widgetu
+
+**MeshRepairPanel (skladaci sekce):**
+- Viditelna jen kdyz: neni builder mode, soubor je STL, neni prilis velky, a geometrie byla nactena
+- Tlacitka: "Analyzovat" (spusti `analyzeMesh`), "Auto oprava" (spusti `repairMesh`), "Stahnout" (spusti `exportSTL`)
+- Zobrazuje: seznam nalezku (ikony dle severity), summary stats (trojuhelniky, vertexy, vodotesnost, cas)
+- Pouziva sdilenou knihovnu `src/lib/meshRepair.js`
+- State se resetuje pri zmene geometrie
+
+**Prop `builderMode` (novy):**
+- Predavan z index.jsx do ModelViewer
+- Ovlivnuje: disabled taby, skryti MeshRepairPanel
 
 **Omezeni 3D nahledu:**
 - Max 12 MB pro preview (`MAX_PREVIEW_MB`)

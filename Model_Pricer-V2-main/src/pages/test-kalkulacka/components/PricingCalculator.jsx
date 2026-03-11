@@ -1,8 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import Icon from '../../../components/ui/Icon';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
+import PriceBreakdownChart from '../../../components/charts/PriceBreakdownChart';
+import PrintTimeVisualization from './PrintTimeVisualization';
+import FilamentUsageVisualization from './FilamentUsageVisualization';
+import PricingHistory from './PricingHistory';
+import VolumeDiscountChart from './VolumeDiscountChart';
+import { usePricingHistory } from '../../../hooks/usePricingHistory';
+import '../../../styles/animations.css';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
 const fg = {
@@ -181,8 +188,10 @@ export default function PricingCalculator({
   selectedShippingMethodId,
   couponsConfig,
   appliedCouponCode,
+  onApplyHistoryConfig,
 }) {
   const [showDeveloper, setShowDeveloper] = useState(false);
+  const { history, addEntry, clearHistory, compareEntries } = usePricingHistory();
 
   const readyModels = useMemo(() => {
     const files = Array.isArray(uploadedFiles) ? uploadedFiles : [];
@@ -227,17 +236,51 @@ export default function PricingCalculator({
 
   const quote = quoteState.quote;
 
+  // Track pricing history — record each successful non-partial quote
+  const lastRecordedTotal = useRef(null);
+  useEffect(() => {
+    if (!quote || quoteState.isPartial || quoteState.error) return;
+    // Avoid recording the same total twice in a row (no config change)
+    if (lastRecordedTotal.current === quote.total) return;
+    lastRecordedTotal.current = quote.total;
+
+    // Build a config summary from the first model's printConfig
+    const firstModelId = readyModels[0]?.id;
+    const cfg = firstModelId && printConfigs ? printConfigs[firstModelId] : {};
+
+    addEntry(
+      {
+        material: cfg?.material,
+        quality: cfg?.quality,
+        infill: cfg?.infill,
+        supports: cfg?.supports,
+        quantity: cfg?.quantity,
+        modelCount: readyModels.length,
+      },
+      {
+        total: quote.total,
+        breakdown: {
+          material: quote.simple?.material,
+          time: quote.simple?.time,
+          services: quote.simple?.services,
+          discount: quote.simple?.discount,
+          markup: quote.simple?.markup,
+        },
+      },
+    );
+  }, [quote, quoteState.isPartial, quoteState.error, readyModels, printConfigs, addEntry]);
+
   return (
     <Card style={fg.card}>
       <CardHeader style={{ paddingBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+        <div className="tk-pricing-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
           <div>
             <CardTitle style={fg.sectionTitle}>CENA A SOUHRN</CardTitle>
             <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', marginTop: '0.25rem', fontFamily: 'var(--forge-font-body)' }}>
               Výpočet používá Admin Pricing + Admin Fees (tenant) a pipeline base → fees → markup → minima → rounding.
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="tk-pricing-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {quote && (
               <Button
                 variant="outline"
@@ -266,7 +309,7 @@ export default function PricingCalculator({
 
       <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* Actions */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} data-no-print>
+        <div className="tk-pricing-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} data-no-print>
           <Button
             variant="outline"
             size="sm"
@@ -328,7 +371,7 @@ export default function PricingCalculator({
 
         {/* Main totals */}
         {quote && (
-          <div style={fg.summaryCard}>
+          <div className="scale-fade-in" style={fg.summaryCard}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <p style={fg.totalLabel}>
@@ -375,9 +418,37 @@ export default function PricingCalculator({
                 <div style={fg.totalRow} />
                 <MiniRow label="Celkem" value={formatCzk(quote.total)} emphasize />
               </div>
+
+              {/* Donut chart — price breakdown visualization */}
+              <div className="tk-pricing-chart">
+                <PriceBreakdownChart quote={quote} />
+              </div>
+
+              {/* Print time estimation */}
+              <PrintTimeVisualization uploadedFiles={uploadedFiles} />
+
+              {/* Filament usage visualization */}
+              <FilamentUsageVisualization uploadedFiles={uploadedFiles} />
+
+              {/* Volume discount chart */}
+              <VolumeDiscountChart
+                uploadedFiles={uploadedFiles}
+                printConfigs={printConfigs}
+                pricingConfig={pricingConfig}
+                feesConfig={feesConfig}
+                feeSelections={feeSelections}
+              />
             </div>
           </div>
         )}
+
+        {/* Pricing history panel */}
+        <PricingHistory
+          history={history}
+          onApplyConfig={onApplyHistoryConfig || null}
+          onClearHistory={clearHistory}
+          compareEntries={compareEntries}
+        />
 
         {/* Simple customer breakdown */}
         {quote && !showDeveloper && (

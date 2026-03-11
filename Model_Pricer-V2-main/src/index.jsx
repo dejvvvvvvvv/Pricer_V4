@@ -6,6 +6,7 @@ import "./styles/tailwind.css";
 import "./styles/index.css";
 import { ActiveAuthProvider } from "./providers";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { AppProvider } from "./contexts/AppContext";
 
 const container = document.getElementById("root");
 const root = createRoot(container);
@@ -13,7 +14,9 @@ const root = createRoot(container);
 root.render(
   <LanguageProvider>
     <ActiveAuthProvider>
-      <App />
+      <AppProvider>
+        <App />
+      </AppProvider>
     </ActiveAuthProvider>
   </LanguageProvider>
 );

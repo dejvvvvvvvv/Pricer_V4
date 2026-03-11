@@ -20,11 +20,12 @@ import {
   round2,
   saveOrders,
 } from '../../utils/adminOrdersStorage';
-import { exportJSON } from '../../utils/exportData';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import { loadKanbanConfigV1, saveKanbanConfigV1 } from '../../utils/adminKanbanStorage';
 import OrderDetailModal from './components/orders/OrderDetailModal';
 import StorageStatusBadge from './components/orders/StorageStatusBadge';
+import { ExportDropdown, BulkActionsBar } from './components/OrderExportActions';
+import AdminOrderDetail from './AdminOrderDetail';
 
 // =====================================
 // Admin Orders — Variant A (front-end demo)
@@ -242,6 +243,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   useEffect(() => {
     try {
@@ -382,75 +384,59 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     return count;
   }, [statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey]);
 
-  function exportCsv() {
-    const headers = [
-      'order_id',
-      'created_at',
-      'status',
-      'customer_name',
-      'customer_email',
-      'models_count',
-      'pieces',
-      'materials',
-      'print_time_min',
-      'weight_g',
-      'total_price',
-      'flags',
-    ];
+  // Clear selection when filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo]);
 
-    const rows = filtered.map((o) => {
-      const totals = computeOrderTotals(o);
-      return [
-        o.id,
-        o.created_at,
-        o.status,
-        o.customer_snapshot?.name || '',
-        o.customer_snapshot?.email || '',
-        (o.models || []).length,
-        totals.sum_pieces,
-        extractOrderMaterials(o).join('|'),
-        totals.sum_time_min,
-        totals.sum_weight_g,
-        totals.total,
-        collectOrderFlags(o).join('|'),
-      ];
+  function toggleSelection(orderId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
     });
-
-    const csv = [headers.join(','), ...rows.map((r) => r.map((v) => {
-      const s = String(v ?? '');
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    }).join(','))].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `orders_export_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
-  function exportOrdersJson() {
-    const rows = filtered.map((o) => {
-      const totals = computeOrderTotals(o);
+  function toggleSelectAll() {
+    const pageOrderIds = pageItems.map((o) => o.id);
+    const allSelected = pageOrderIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const id of pageOrderIds) next.delete(id);
+      } else {
+        for (const id of pageOrderIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function handleBulkStatusChange(newStatus) {
+    if (selectedIds.size === 0) return;
+    const next = orders.map((o) => {
+      if (!selectedIds.has(o.id) || o.status === newStatus) return o;
       return {
-        order_id: o.id,
-        created_at: o.created_at,
-        status: o.status,
-        customer_name: o.customer_snapshot?.name || '',
-        customer_email: o.customer_snapshot?.email || '',
-        models_count: (o.models || []).length,
-        pieces: totals.sum_pieces,
-        materials: extractOrderMaterials(o),
-        print_time_min: totals.sum_time_min,
-        weight_g: totals.sum_weight_g,
-        total_price: totals.total,
-        flags: collectOrderFlags(o),
+        ...o,
+        status: newStatus,
+        updated_at: nowIso(),
+        activity: [
+          { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } },
+          ...(o.activity || []),
+        ].slice(0, 200),
       };
     });
-    exportJSON(rows, `orders_export_${new Date().toISOString().slice(0, 10)}.json`);
+    setOrders(next);
+    saveOrders(next);
+    for (const id of selectedIds) {
+      const orig = orders.find((o) => o.id === id);
+      if (orig && orig.status !== newStatus) {
+        appendOrderActivity(id, { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: orig.status, to: newStatus } });
+      }
+    }
+    setSelectedIds(new Set());
   }
+
+  const allPageSelected = pageItems.length > 0 && pageItems.every((o) => selectedIds.has(o.id));
 
   return (
     <div className="orders">
@@ -468,12 +454,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
               <Icon name="Columns" size={16} />
             </button>
           </div>
-          <button className="btn" onClick={exportCsv} type="button">
-            <Icon name="Download" size={16} /> Export CSV
-          </button>
-          <button className="btn" onClick={exportOrdersJson} type="button" style={{ background: 'transparent' }}>
-            <Icon name="Download" size={16} /> Export JSON
-          </button>
+          <ExportDropdown orders={filtered} selectedIds={selectedIds} />
         </div>
       </div>
 
@@ -603,12 +584,28 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
         </div>
       </div>
 
+      <BulkActionsBar
+        selectedIds={selectedIds}
+        orders={filtered}
+        onDeselectAll={() => setSelectedIds(new Set())}
+        onBulkStatusChange={handleBulkStatusChange}
+      />
+
       {viewMode === 'table' ? (
         <div className="panel">
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: '36px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={allPageSelected}
+                      onChange={toggleSelectAll}
+                      title="Vybrat vse na strance"
+                      style={{ accentColor: 'var(--forge-accent-primary)', cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>ORDER ID</th>
                   <SortableTh sortKey="created_at" currentSort={columnSortConfig} onSort={requestColumnSort}>CREATED</SortableTh>
                   <SortableTh sortKey="_customerName" currentSort={columnSortConfig} onSort={requestColumnSort}>CUSTOMER</SortableTh>
@@ -628,7 +625,16 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                   const mats = extractOrderMaterials(o);
                   const flags = collectOrderFlags(o);
                   return (
-                    <tr key={o.id} className={idx % 2 === 0 ? 'row-even' : 'row-odd'}>
+                    <tr key={o.id} className={`${idx % 2 === 0 ? 'row-even' : 'row-odd'}${selectedIds.has(o.id) ? ' row-selected' : ''}`}>
+                      <td style={{ textAlign: 'center', width: '36px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(o.id)}
+                          onChange={() => toggleSelection(o.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ accentColor: 'var(--forge-accent-primary)', cursor: 'pointer' }}
+                        />
+                      </td>
                       <td className="mono">{o.id}</td>
                       <td className="mono">{formatDateTime(o.created_at)}</td>
                       <td>
@@ -662,8 +668,8 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                         </div>
                       </td>
                       <td className="actions">
-                        <button className="btn-primary btn-small" onClick={() => onSelectOrder?.(o.id)} type="button">
-                          Open
+                        <button className="btn-primary btn-small" onClick={() => navigate(`./${o.id}`)} type="button">
+                          Detail
                         </button>
                       </td>
                     </tr>
@@ -672,7 +678,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 
                 {pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="empty">Zadne objednavky pro zvolene filtry.</td>
+                    <td colSpan={12} className="empty">Zadne objednavky pro zvolene filtry.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -753,6 +759,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
         .row-even { background: var(--forge-bg-surface); }
         .row-odd { background: var(--forge-bg-elevated); }
         tr:hover td { background: var(--forge-bg-overlay); }
+        .row-selected td { background: rgba(0, 212, 170, 0.06); }
         .mono { font-family: var(--forge-font-mono); font-size: 12px; color: var(--forge-text-secondary); }
         .muted { color: var(--forge-text-muted); font-size: 13px; }
         .strong { font-weight: 800; color: var(--forge-accent-primary); font-family: var(--forge-font-mono); }
@@ -1616,7 +1623,7 @@ export default function AdminOrders() {
     <>
       <Routes>
         <Route index element={<OrdersList orders={orders} setOrders={setOrders} onSelectOrder={setSelectedOrderId} />} />
-        <Route path=":id" element={<OrderDetail orders={orders} setOrders={setOrders} />} />
+        <Route path=":id" element={<AdminOrderDetail orders={orders} setOrders={setOrders} />} />
         <Route path=":id/model/:modelId" element={<ModelDetail orders={orders} setOrders={setOrders} />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>

@@ -186,6 +186,48 @@ export const presetSchemas = {
 };
 
 /**
+ * Order validation schemas — reusable across order endpoints.
+ */
+export const orderSchemas = {
+  /** GET /api/orders — list with filters */
+  list: {
+    query: {
+      status: { type: "string", label: "Status filter" },
+      dateFrom: { type: "string", label: "Date from (ISO)" },
+      dateTo: { type: "string", label: "Date to (ISO)" },
+      search: { type: "string", maxLength: 200, label: "Search query" },
+      page: { type: "number", min: 1, label: "Page number" },
+      pageSize: { type: "number", min: 1, max: 200, label: "Page size" },
+    },
+  },
+
+  /** GET/PATCH/DELETE /api/orders/:id */
+  byId: {
+    params: {
+      id: { type: "string", required: true, minLength: 1, maxLength: 100, label: "Order ID" },
+    },
+  },
+
+  /** POST /api/orders — create order */
+  create: {
+    body: {
+      customerName: { type: "string", maxLength: 200, label: "Customer name" },
+      customerEmail: { type: "string", maxLength: 200, label: "Customer email" },
+    },
+  },
+
+  /** PATCH /api/orders/:id/status */
+  statusChange: {
+    params: {
+      id: { type: "string", required: true, minLength: 1, maxLength: 100, label: "Order ID" },
+    },
+    body: {
+      status: { type: "string", required: true, label: "New status" },
+    },
+  },
+};
+
+/**
  * Storage validation schemas.
  */
 export const storageSchemas = {

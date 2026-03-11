@@ -3,9 +3,11 @@ import Icon from '../../../components/AppIcon';
 
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import QuantityStepper from './QuantityStepper';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import ForgeCheckbox from '../../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import MaterialComparison from './MaterialComparison';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
 const fg = {
@@ -247,6 +249,14 @@ const PrintConfiguration = ({
   onFeeSelectionsChange,
   uploadedFiles,
   disabled = false,
+  // Material comparison props
+  printConfigs,
+  expressConfig,
+  selectedExpressTierId,
+  couponsConfig,
+  appliedCouponCode,
+  shippingConfig,
+  selectedShippingMethodId,
   // Widget slicing presets
   availablePresets = [],
   defaultPresetId = null,
@@ -546,7 +556,7 @@ const PrintConfiguration = ({
       <style>{sliderCSS}</style>
 
       {/* Slicing preset selector (loaded from backend) */}
-      <div style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card}>
         <h3 style={fg.sectionTitle}>
           <Icon name="Sliders" size={20} style={{ marginRight: '0.5rem' }} />
           {presetUi.label}
@@ -601,18 +611,18 @@ const PrintConfiguration = ({
       </div>
 
       {/* Quality Presets */}
-      <div style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card}>
         <h3 style={fg.sectionTitle}>
           <Icon name="Zap" size={20} style={{ marginRight: '0.5rem' }} />
           RYCHLÉ PŘEDVOLBY
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+        <div className="tk-print-preset-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
           {Object.entries(qualityPresets).map(([key, preset]) => (
             <button
               key={key}
               onClick={() => applyPreset(key)}
-              style={fg.presetBtn}
+              style={{ ...fg.presetBtn, minHeight: '44px' }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-default)'; }}
             >
@@ -626,13 +636,13 @@ const PrintConfiguration = ({
       </div>
 
       {/* Material Selection */}
-      <div style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card}>
         <h3 style={fg.sectionTitle}>
           <Icon name="Package" size={20} style={{ marginRight: '0.5rem' }} />
           MATERIÁL A BARVA
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="tk-print-material-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <Select
             label="MATERIÁL"
             options={materialOptions}
@@ -644,13 +654,14 @@ const PrintConfiguration = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={fg.label}>BARVA</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+            <div className="tk-print-color-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
               {uiColors?.map((color) => (
                 <button
                   key={color?.id}
                   onClick={() => handleColorChange(color?.id)}
                   disabled={disabled}
-                  style={fg.colorBtn(config?.color === color?.id)}
+                  className="tk-print-color-btn"
+                  style={{ ...fg.colorBtn(config?.color === color?.id), minHeight: '44px' }}
                 >
                   <div style={fg.colorDot(color?.hex)} />
                   <span style={fg.colorName}>{color?.name}</span>
@@ -666,14 +677,32 @@ const PrintConfiguration = ({
         </div>
       </div>
 
+      {/* Material Comparison (expandable) */}
+      <MaterialComparison
+        pricingConfig={pricingConfig}
+        feesConfig={feesConfig}
+        feeSelections={feeSelections}
+        selectedFile={selectedFile}
+        uploadedFiles={uploadedFiles}
+        printConfigs={printConfigs}
+        currentMaterialKey={config?.material}
+        onMaterialChange={handleMaterialChange}
+        expressConfig={expressConfig}
+        selectedExpressTierId={selectedExpressTierId}
+        couponsConfig={couponsConfig}
+        appliedCouponCode={appliedCouponCode}
+        shippingConfig={shippingConfig}
+        selectedShippingMethodId={selectedShippingMethodId}
+      />
+
       {/* Print Quality */}
-      <div style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card}>
         <h3 style={fg.sectionTitle}>
           <Icon name="Layers" size={20} style={{ marginRight: '0.5rem' }} />
           KVALITA TISKU
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="tk-print-quality-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <Select
             label="KVALITA VRSTVY"
             options={qualities}
@@ -713,21 +742,64 @@ const PrintConfiguration = ({
       </div>
 
       {/* Quantity */}
-      <div style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card}>
         <h3 style={fg.sectionTitle}>
           <Icon name="Package2" size={20} style={{ marginRight: '0.5rem' }} />
           MNOŽSTVÍ
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <Input
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <QuantityStepper
+            value={config?.quantity ?? 1}
+            onChange={(qty) => handleConfigChange('quantity', qty)}
+            min={1}
+            max={9999}
+            disabled={disabled}
             label="POČET KUSŮ"
-            type="number"
-            min="1"
-            max="100"
-            value={config?.quantity}
-            onChange={(e) => handleConfigChange('quantity', parseInt(e?.target?.value) || 1)}
+            unitPrice={
+              selectedFile?.result?.price != null && Number.isFinite(Number(selectedFile.result.price))
+                ? Number(selectedFile.result.price) / Math.max(1, config?.quantity ?? 1)
+                : null
+            }
+            currency="Kč"
           />
+
+          {/* Total pieces across all files */}
+          {(uploadedFiles?.length || 0) > 1 && printConfigs && (() => {
+            const totalPieces = (uploadedFiles || []).reduce((sum, f) => {
+              const q = printConfigs?.[f.id]?.quantity;
+              return sum + (Number.isFinite(Number(q)) ? Math.max(1, Number(q)) : 1);
+            }, 0);
+            return (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                borderRadius: 'var(--forge-radius-md)',
+                background: 'rgba(0, 212, 170, 0.06)',
+                border: '1px solid rgba(0, 212, 170, 0.15)',
+              }}>
+                <Icon name="Layers" size={14} style={{ color: 'var(--forge-accent-primary)', flexShrink: 0 }} />
+                <span style={{
+                  fontSize: 'var(--forge-text-sm)',
+                  fontFamily: 'var(--forge-font-body)',
+                  color: 'var(--forge-text-secondary)',
+                }}>
+                  Celkem:{' '}
+                  <span style={{
+                    fontFamily: 'var(--forge-font-mono)',
+                    fontWeight: 700,
+                    color: 'var(--forge-accent-primary)',
+                  }}>
+                    {totalPieces} {totalPieces === 1 ? 'kus' : totalPieces < 5 ? 'kusy' : 'kusů'}
+                  </span>
+                  {' '}({uploadedFiles.length} {uploadedFiles.length === 1 ? 'soubor' : uploadedFiles.length < 5 ? 'soubory' : 'souborů'})
+                </span>
+              </div>
+            );
+          })()}
+
           <p style={fg.textMuted}>
             Expresní příplatky a další služby nastavíš v <span style={{ fontWeight: 500 }}>Admin / Fees</span>.
           </p>
@@ -735,7 +807,7 @@ const PrintConfiguration = ({
       </div>
 
       {/* Additional services (fees from AdminFees) */}
-      <div style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card}>
         <h3 style={fg.sectionTitle}>
           <Icon name="Wrench" size={20} style={{ marginRight: '0.5rem' }} />
           DODATEČNÉ SLUŽBY
@@ -768,6 +840,7 @@ const PrintConfiguration = ({
               return (
                 <div
                   key={fee.id}
+                  className="tk-fee-card"
                   style={{
                     ...fg.feeCard,
                     cursor: 'pointer',
@@ -821,8 +894,8 @@ const PrintConfiguration = ({
                       <div style={{ ...fg.textMuted, marginBottom: '0.5rem' }}>
                         {language === 'en' ? 'Apply to:' : 'Aplikovat na:'}
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: 'var(--forge-text-base)', color: 'var(--forge-text-primary)' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <div className="tk-fee-radio-group" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: 'var(--forge-text-base)', color: 'var(--forge-text-primary)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '44px' }}>
                           <input
                             type="radio"
                             name={`fee_target_${fee.id}`}
@@ -832,7 +905,7 @@ const PrintConfiguration = ({
                           <span>{language === 'en' ? 'All models' : 'Všechny modely'}</span>
                         </label>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '44px' }}>
                           <input
                             type="radio"
                             name={`fee_target_${fee.id}`}
@@ -842,7 +915,7 @@ const PrintConfiguration = ({
                           <span>{language === 'en' ? 'This model' : 'Tento model'}</span>
                         </label>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '44px' }}>
                           <input
                             type="radio"
                             name={`fee_target_${fee.id}`}
@@ -936,7 +1009,7 @@ const PrintConfiguration = ({
 
           return (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="tk-print-result-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={fg.resultMetricCircle('rgba(0, 212, 170, 0.1)')}>
                   <Icon name="Clock" size={20} style={{ color: 'var(--forge-accent-primary)' }} />

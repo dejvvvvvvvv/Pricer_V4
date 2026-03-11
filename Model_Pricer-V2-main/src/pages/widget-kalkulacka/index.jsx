@@ -659,7 +659,7 @@ const WidgetKalkulacka = ({
     fees: () => null,
 
     viewer: () => (
-      <SW elementId="viewer"><ErrorBoundary><ModelViewer selectedFile={displaySelected || selectedFile} onRemove={builderMode ? undefined : handleFileDelete} onSurfaceComputed={builderMode ? undefined : handleSurfaceComputed} theme={effectiveTheme} /></ErrorBoundary></SW>
+      <SW elementId="viewer"><ErrorBoundary><ModelViewer selectedFile={displaySelected || selectedFile} onRemove={builderMode ? undefined : handleFileDelete} onSurfaceComputed={builderMode ? undefined : handleSurfaceComputed} theme={effectiveTheme} builderMode={builderMode} /></ErrorBoundary></SW>
     ),
 
     pricing: () => displayFiles.length > 0 ? (

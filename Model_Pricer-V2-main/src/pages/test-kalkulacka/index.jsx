@@ -5,10 +5,13 @@ import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import FileUploadZone from './components/FileUploadZone';
 import ModelViewer from './components/ModelViewer';
+import MeshRepairPanel from './components/MeshRepairPanel';
+import ModelInfoPanel from './components/ModelInfoPanel';
 import PrintConfiguration from './components/PrintConfiguration';
 import PricingCalculator from './components/PricingCalculator';
 import GenerateButton from './components/GenerateButton';
 import ErrorBoundary from './components/ErrorBoundary';
+import SortableFileList from './components/SortableFileList';
 import CheckoutForm from './components/CheckoutForm';
 import OrderConfirmation from './components/OrderConfirmation';
 import ShopifyCartButton from '../widget-kalkulacka/components/ShopifyCartButton';
@@ -25,6 +28,22 @@ import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
 import { debug } from '@/lib/debug';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
+import { useIsMobile } from '../../hooks/useMediaQuery';
+import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
+import OnboardingTour, { TOUR_STEPS } from './components/OnboardingTour';
+import { useOnboardingTour } from '../../hooks/useOnboardingTour';
+import SlicingProgressContainer, { useSlicingToasts } from './components/SlicingProgressToast';
+import { addNotification } from '../../utils/adminNotificationStorage';
+import { useAutoSaveConfig } from '../../hooks/useAutoSaveConfig';
+import { useThemeToggle } from '../../hooks/useThemeToggle';
+import { useUrlState } from '../../hooks/useUrlState';
+import { useUndoRedo } from '../../hooks/useUndoRedo';
+import ShareConfigButton from './components/ShareConfigButton';
+import UndoRedoButtons from './components/UndoRedoButtons';
+import '../../styles/responsive-kalkulacka.css';
+import '../../styles/animations.css';
+import '../../styles/light-theme-kalkulacka.css';
 
 // Default config is used for newly uploaded models (so switching between models does not
 // accidentally reset already-sliced results when a config entry is missing).
@@ -41,13 +60,58 @@ const TestKalkulacka = () => {
   useDocumentTitle('Calculator');
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const themeContainerRef = useRef(null);
+  const isMobile = useIsMobile();
+  const { theme, toggleTheme, isDark } = useThemeToggle(themeContainerRef);
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStepRaw] = useState(1);
+  const [highestStepReached, setHighestStepReached] = useState(1);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [selectedFileId, setSelectedFileId] = useState(null);
   const [printConfigs, setPrintConfigs] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [sliceAllProcessing, setSliceAllProcessing] = useState(false);
+
+  // Wrapper: track highest step reached for breadcrumb navigation
+  const setCurrentStep = useCallback((step) => {
+    const nextStep = typeof step === 'function' ? step(currentStep) : step;
+    setCurrentStepRaw(nextStep);
+    setHighestStepReached(prev => Math.max(prev, nextStep));
+  }, [currentStep]);
+
+  // Navigate to a previously completed step (preserves all data)
+  const handleStepClick = useCallback((stepId) => {
+    // Can only navigate to steps that have been reached before (completed or current)
+    if (stepId <= highestStepReached && stepId !== currentStep) {
+      setCurrentStepRaw(stepId);
+    }
+  }, [highestStepReached, currentStep]);
+
+  // Auto-save hook — persists print config to sessionStorage
+  const { savedConfig, saveConfig, clearConfig, lastSaved, isRestored, markRestored } = useAutoSaveConfig();
+
+  // Undo/redo for print configs (per-file history)
+  const configUndoRedo = useUndoRedo({ maxHistory: 30, debounceMs: 400 });
+
+  // URL state sharing — encode/decode calculator config in URL search params
+  const currentConfigForUrl = selectedFileId ? (printConfigs[selectedFileId] || null) : null;
+  const { initialUrlConfig, getShareableUrl } = useUrlState(currentConfigForUrl, { debounceMs: 300 });
+
+  // Apply URL-provided config to the first uploaded model (once)
+  const urlConfigAppliedRef = useRef(false);
+  useEffect(() => {
+    if (urlConfigAppliedRef.current || !initialUrlConfig) return;
+    if (!selectedFileId) return;
+
+    // Only apply if the model still has default config (user hasn't changed it yet)
+    const existing = printConfigs[selectedFileId];
+    if (!existing) return;
+
+    urlConfigAppliedRef.current = true;
+    const merged = { ...existing, ...initialUrlConfig };
+    setPrintConfigs(prev => ({ ...prev, [selectedFileId]: merged }));
+    debug('[test-kalkulacka] Applied URL config:', initialUrlConfig);
+  }, [initialUrlConfig, selectedFileId, printConfigs]);
 
   // Tenant-scoped pricing + fees (AdminPricing/AdminFees)
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfigV3());
@@ -72,6 +136,13 @@ const TestKalkulacka = () => {
   const [appliedCouponCode, setAppliedCouponCode] = useState('');
 
   const [batchProgress, setBatchProgress] = useState({ mode: null, done: 0, total: 0 });
+
+  // Slicing progress toasts
+  const slicingToasts = useSlicingToasts();
+
+  // Mesh repair panel state
+  const [modelGeometry, setModelGeometry] = useState(null);
+  const [meshRepairOpen, setMeshRepairOpen] = useState(false);
 
   // Keep calculator configs synced with localStorage changes (best-effort; storage events fire across tabs).
   useEffect(() => {
@@ -116,6 +187,39 @@ const TestKalkulacka = () => {
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetsError, setPresetsError] = useState(null);
 
+  // Restore saved config from sessionStorage on mount (auto-save recovery)
+  useEffect(() => {
+    if (!savedConfig || isRestored) return;
+    markRestored();
+
+    if (savedConfig.printConfigs && Object.keys(savedConfig.printConfigs).length > 0) {
+      setPrintConfigs(prev => ({ ...prev, ...savedConfig.printConfigs }));
+      debug('[test-kalkulacka] Restored printConfigs from session');
+    }
+    if (savedConfig.selectedPresetIds && Object.keys(savedConfig.selectedPresetIds).length > 0) {
+      setSelectedPresetIds(prev => ({ ...prev, ...savedConfig.selectedPresetIds }));
+      debug('[test-kalkulacka] Restored selectedPresetIds from session');
+    }
+    if (savedConfig.feeSelections) {
+      setFeeSelections(savedConfig.feeSelections);
+      debug('[test-kalkulacka] Restored feeSelections from session');
+    }
+  }, [savedConfig, isRestored, markRestored]);
+
+  // Auto-save config to sessionStorage on changes (debounced)
+  useEffect(() => {
+    // Don't save until restoration is complete (avoid overwriting saved data with empty state)
+    if (!isRestored && savedConfig) return;
+    // Only save if there's something meaningful to save
+    if (Object.keys(printConfigs).length === 0) return;
+
+    saveConfig({
+      printConfigs,
+      selectedPresetIds,
+      feeSelections,
+    });
+  }, [printConfigs, selectedPresetIds, feeSelections, saveConfig, isRestored, savedConfig]);
+
   // Shopify integration
   const [shopifyConfig] = useState(() => {
     const cfg = getShopifyConfig();
@@ -124,6 +228,12 @@ const TestKalkulacka = () => {
 
   // S02: Checkout state
   const [lastOrderResult, setLastOrderResult] = useState(null);
+
+  // Keyboard shortcuts help overlay
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+
+  // Onboarding tour
+  const onboarding = useOnboardingTour(TOUR_STEPS);
 
   const selectedFile = selectedFileId
     ? (uploadedFiles.find(f => f.id === selectedFileId) || null)
@@ -198,6 +308,17 @@ const TestKalkulacka = () => {
     [updateModelStatus]
   );
 
+  // Callback for when ModelViewer loads STL geometry — used by MeshRepairPanel.
+  const handleGeometryLoaded = useCallback((geometry) => {
+    setModelGeometry(geometry);
+  }, []);
+
+  // Reset geometry when selected file changes.
+  useEffect(() => {
+    setModelGeometry(null);
+    setMeshRepairOpen(false);
+  }, [selectedFileId]);
+
   // Bug 1 fix: auto-recalculation when config changes
   const doRecalc = useCallback((fileId) => {
     const file = uploadedFiles.find(f => f.id === fileId);
@@ -248,6 +369,10 @@ const TestKalkulacka = () => {
   const handleConfigChange = useCallback((newConfig, { isSlider } = {}) => {
     if (selectedFileId === null) return;
 
+    // Record state for undo/redo (debounced internally — rapid slider drags
+    // are batched into one undo step)
+    configUndoRedo.recordState(selectedFileId, newConfig);
+
     setPrintConfigs(prev => {
       const oldConfig = prev[selectedFileId] || {};
 
@@ -276,7 +401,53 @@ const TestKalkulacka = () => {
 
       return { ...prev, [selectedFileId]: newConfig };
     });
-  }, [selectedFileId, updateModelStatus, triggerRecalc, triggerRecalcSlider]);
+  }, [selectedFileId, updateModelStatus, triggerRecalc, triggerRecalcSlider, configUndoRedo]);
+
+  // Undo handler — restore previous config for current file
+  const handleUndo = useCallback(() => {
+    if (selectedFileId === null) return;
+    const restored = configUndoRedo.undo(selectedFileId);
+    if (restored) {
+      setPrintConfigs(prev => ({ ...prev, [selectedFileId]: restored }));
+      updateModelStatus(selectedFileId, { status: 'pending', result: null, error: null });
+      triggerRecalc(selectedFileId);
+    }
+  }, [selectedFileId, configUndoRedo, updateModelStatus, triggerRecalc]);
+
+  // Redo handler — restore next config for current file
+  const handleRedo = useCallback(() => {
+    if (selectedFileId === null) return;
+    const restored = configUndoRedo.redo(selectedFileId);
+    if (restored) {
+      setPrintConfigs(prev => ({ ...prev, [selectedFileId]: restored }));
+      updateModelStatus(selectedFileId, { status: 'pending', result: null, error: null });
+      triggerRecalc(selectedFileId);
+    }
+  }, [selectedFileId, configUndoRedo, updateModelStatus, triggerRecalc]);
+
+  // Keyboard shortcut for Ctrl+Z: skip if Shift is also pressed (that's redo)
+  const handleUndoKeyboard = useCallback((e) => {
+    if (e.shiftKey) return; // Ctrl+Shift+Z is redo, not undo
+    handleUndo();
+  }, [handleUndo]);
+
+  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  useKeyboardShortcut('z', handleUndoKeyboard, { ctrlKey: true, allowInInputs: true });
+  useKeyboardShortcut('y', handleRedo, { ctrlKey: true, allowInInputs: true });
+  useKeyboardShortcut('z', handleRedo, { ctrlKey: true, shiftKey: true, allowInInputs: true });
+
+  // Apply a config from pricing history to the currently selected model
+  const handleApplyHistoryConfig = useCallback((historyConfig) => {
+    if (selectedFileId === null || !historyConfig) return;
+    const newConfig = {
+      material: historyConfig.material || 'pla',
+      quality: historyConfig.quality || 'standard',
+      infill: historyConfig.infill ?? 20,
+      supports: !!historyConfig.supports,
+      quantity: historyConfig.quantity ?? 1,
+    };
+    handleConfigChange(newConfig);
+  }, [selectedFileId, handleConfigChange]);
 
   const steps = [
     { id: 1, title: 'Nahrání souborů', icon: 'Upload', description: 'Nahrajte 3D modely' },
@@ -383,6 +554,7 @@ const TestKalkulacka = () => {
 
     try {
       updateModelStatus(selectedFile.id, { status: 'processing', error: null });
+      slicingToasts.startSlice(selectedFile.id, selectedFile.name);
 
       debug('[test-kalkulacka] Slicing (local) file:', selectedFile.name, 'config:', cfg);
 
@@ -414,6 +586,10 @@ const TestKalkulacka = () => {
         result: res,
         error: null,
       });
+      slicingToasts.completeSlice(selectedFile.id);
+
+      // Log to admin notification storage
+      addNotification({ type: 'slicing', title: `Slicovani dokonceno: ${selectedFile.name}` });
 
       // After successful slice, it's useful to show the price step.
       if (currentStep < 3) setCurrentStep(3);
@@ -427,14 +603,24 @@ const TestKalkulacka = () => {
         errorSeverity: classified.severity,
         errorRaw: classified.raw,
       });
+      slicingToasts.failSlice(selectedFile.id, classified.userMessage);
+
+      // Log error to admin notification storage
+      addNotification({ type: 'error', title: `Slicovani selhalo: ${selectedFile.name}`, description: classified.userMessage });
     }
-  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds]);
+  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, slicingToasts]);
 
   const runBatchSlice = useCallback(async (targets, mode) => {
     if (!Array.isArray(targets) || targets.length === 0) return;
 
     setSliceAllProcessing(true);
     setBatchProgress({ mode, done: 0, total: targets.length });
+
+    const batchId = slicingToasts.startBatch(
+      targets.length,
+      targets.map(f => f.name)
+    );
+    let hasErrors = false;
 
     try {
       if (currentStep < 3) setCurrentStep(3);
@@ -444,6 +630,7 @@ const TestKalkulacka = () => {
         if (!fileItem?.file) {
           done += 1;
           setBatchProgress(prev => ({ ...prev, done }));
+          slicingToasts.updateBatch(batchId, done, fileItem?.name);
           continue;
         }
 
@@ -452,6 +639,7 @@ const TestKalkulacka = () => {
 
         try {
           updateModelStatus(fileItem.id, { status: 'processing', error: null });
+          slicingToasts.updateBatch(batchId, done, fileItem.name);
           debug('[test-kalkulacka] Batch slicing (local):', fileItem.name);
 
           const trySliceWithFallback = async (presetId) => {
@@ -483,6 +671,7 @@ const TestKalkulacka = () => {
             error: null,
           });
         } catch (err) {
+          hasErrors = true;
           console.error('[test-kalkulacka] Batch slice failed:', fileItem.name, err);
           const classified = parseSlicerError(err);
           updateModelStatus(fileItem.id, {
@@ -495,12 +684,21 @@ const TestKalkulacka = () => {
         } finally {
           done += 1;
           setBatchProgress(prev => ({ ...prev, done }));
+          slicingToasts.updateBatch(batchId, done, fileItem.name);
         }
       }
     } finally {
       setSliceAllProcessing(false);
+      slicingToasts.completeBatch(batchId, hasErrors);
+
+      // Log batch result to admin notification storage
+      const resultLabel = hasErrors ? 's chybami' : 'uspesne';
+      addNotification({
+        type: hasErrors ? 'error' : 'slicing',
+        title: `Davkove slicovani dokonceno ${resultLabel} (${targets.length} souboru)`,
+      });
     }
-  }, [currentStep, selectedPresetIds, updateModelStatus]);
+  }, [currentStep, selectedPresetIds, updateModelStatus, slicingToasts]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0) return;
@@ -564,16 +762,25 @@ const TestKalkulacka = () => {
 
   const handleAddModelClick = () => fileInputRef.current?.click();
 
+  // Drag-and-drop reorder: receives the already-reordered array from SortableFileList.
+  const handleReorderFiles = useCallback((reorderedFiles) => {
+    setUploadedFiles(reorderedFiles);
+    // selectedFileId stays the same — it references by id, not index.
+  }, []);
+
   const handleResetUpload = () => {
     setUploadedFiles([]);
     setSelectedFileId(null);
     setPrintConfigs({});
     setSelectedPresetIds(prev => ({ __default: prev.__default }));
-    setCurrentStep(1);
+    setCurrentStepRaw(1);
+    setHighestStepReached(1);
     setLastOrderResult(null);
     setSelectedExpressTierId(null);
     setSelectedShippingMethodId(null);
     setAppliedCouponCode('');
+    clearConfig(); // Clear auto-saved config on reset
+    configUndoRedo.clearAll(); // Clear undo/redo history on full reset
   };
 
   const handleFileDelete = (fileToDelete) => {
@@ -583,6 +790,7 @@ const TestKalkulacka = () => {
 
     setUploadedFiles(newUploadedFiles);
     setPrintConfigs(newPrintConfigs);
+    configUndoRedo.clearHistory(fileToDelete.id);
 
     // Bug 2 fix: clean up per-model preset
     setSelectedPresetIds(prev => {
@@ -611,7 +819,8 @@ const TestKalkulacka = () => {
   const handleCheckoutComplete = useCallback((orderResult) => {
     setLastOrderResult(orderResult);
     setCurrentStep(5);
-  }, []);
+    clearConfig(); // Clear auto-saved config after successful order
+  }, [clearConfig, setCurrentStep]);
 
   // S02: Called from confirmation page to start fresh
   const handleStartNewOrder = useCallback(() => {
@@ -631,28 +840,101 @@ const TestKalkulacka = () => {
     }
   };
 
-  const statusTooltips = {
-    pending: 'Čeká na zpracování',
-    processing: 'Výpočet...',
-    completed: 'Hotovo',
-    failed: 'Výpočet se nezdařil'
-  };
-
   const hasFailedModels = uploadedFiles.some(f => f.status === 'failed');
   const hasMultipleModels = uploadedFiles.length > 1;
 
+  // --- Keyboard shortcuts ---
 
+  // Ctrl+Enter: Trigger slicing (same as Generate/Slice button)
+  useKeyboardShortcut('Enter', useCallback(() => {
+    if (shortcutsHelpOpen) return;
+    if (selectedFile && selectedFile.status !== 'processing' && !sliceAllProcessing) {
+      handleSliceSelected();
+    }
+  }, [selectedFile, sliceAllProcessing, handleSliceSelected, shortcutsHelpOpen]), { ctrlKey: true });
+
+  // Escape: Close shortcuts help -> close checkout -> cancel operation
+  useKeyboardShortcut('Escape', useCallback(() => {
+    if (shortcutsHelpOpen) {
+      setShortcutsHelpOpen(false);
+      return;
+    }
+    // If on checkout step, go back to step 3
+    if (currentStep === 4) {
+      setCurrentStep(3);
+      return;
+    }
+    // If on confirmation step, do nothing (order is already placed)
+    if (currentStep === 5) return;
+    // Otherwise cancel pending recalc if any
+    cancelRecalc();
+  }, [shortcutsHelpOpen, currentStep, cancelRecalc]), { allowInInputs: true });
+
+  // Ctrl+S: Export pricing summary as JSON
+  useKeyboardShortcut('s', useCallback(() => {
+    if (shortcutsHelpOpen) return;
+    if (uploadedFiles.length === 0) return;
+
+    try {
+      const summary = uploadedFiles.map(f => ({
+        name: f.name,
+        status: f.status,
+        metrics: f.result?.metrics || null,
+      }));
+
+      const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pricing-summary.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      debug('[test-kalkulacka] Export failed:', err);
+    }
+  }, [uploadedFiles, shortcutsHelpOpen]), { ctrlKey: true });
+
+  // Ctrl+U: Focus file upload / trigger file picker
+  useKeyboardShortcut('u', useCallback(() => {
+    if (shortcutsHelpOpen) return;
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, [shortcutsHelpOpen]), { ctrlKey: true });
+
+  // ? key: Show keyboard shortcuts help
+  useKeyboardShortcut('?', useCallback(() => {
+    setShortcutsHelpOpen(prev => !prev);
+  }, []));
+
+  // F1: Also show keyboard shortcuts help
+  useKeyboardShortcut('F1', useCallback(() => {
+    setShortcutsHelpOpen(prev => !prev);
+  }, []));
 
   return (
     <div
+      ref={themeContainerRef}
       className="min-h-screen"
       style={{
         backgroundColor: 'var(--forge-bg-void)',
         color: 'var(--forge-text-primary)',
         minHeight: '100vh',
         fontFamily: 'var(--forge-font-body)',
+        position: 'relative',
       }}
     >
+      {/* Theme toggle button */}
+      <button
+        className="theme-toggle-btn"
+        onClick={toggleTheme}
+        title={isDark ? 'Přepnout na světlý motiv' : 'Přepnout na tmavý motiv'}
+        aria-label={isDark ? 'Přepnout na světlý motiv' : 'Přepnout na tmavý motiv'}
+      >
+        <span className="theme-toggle-icon">
+          <Icon name={isDark ? 'Sun' : 'Moon'} size={18} />
+        </span>
+      </button>
       <input
         type="file"
         ref={fileInputRef}
@@ -666,10 +948,10 @@ const TestKalkulacka = () => {
       />
 
       <div>
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto px-6 py-8 tk-page-container">
           <div className="mb-8">
             <div
-              className="flex items-center space-x-2 text-sm mb-2"
+              className="flex items-center space-x-2 text-sm mb-2 tk-breadcrumb"
               style={{ color: 'var(--forge-text-muted)' }}
             >
               <button
@@ -685,92 +967,159 @@ const TestKalkulacka = () => {
               <span style={{ color: 'var(--forge-text-primary)' }}>Nahrání modelu</span>
             </div>
             <h1
-              className="text-3xl font-bold mb-2"
+              className="text-3xl font-bold mb-2 tk-page-title"
               style={{ color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}
             >
               Nahrání 3D modelu
             </h1>
-            <p style={{ color: 'var(--forge-text-secondary)' }}>
+            <p className="tk-page-subtitle" style={{ color: 'var(--forge-text-secondary)' }}>
               Nahrajte své 3D modely a nakonfigurujte parametry tisku.
             </p>
           </div>
 
           <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                {steps.map((step, index) => (
-                  <div key={step.id} className="flex items-center">
-                    <div className="flex flex-col items-center">
-                      <div
-                        className="flex items-center justify-center transition-colors"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: '50%',
-                          border: '2px solid',
-                          borderColor: currentStep >= step.id
-                            ? 'var(--forge-accent-primary)'
-                            : 'var(--forge-border-active)',
-                          backgroundColor: currentStep >= step.id
-                            ? 'var(--forge-accent-primary)'
-                            : 'transparent',
-                          color: currentStep >= step.id
-                            ? 'var(--forge-bg-void)'
-                            : 'var(--forge-text-muted)',
-                        }}
-                      >
-                        <Icon name={step.icon} size={18} />
-                      </div>
-                      <div className="mt-2 text-center">
-                        <p
+            {/* Breadcrumb text path */}
+            <nav
+              aria-label="Breadcrumb"
+              className="tk-breadcrumb-nav"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                paddingBottom: '12px',
+                fontSize: '0.8125rem',
+                color: 'var(--forge-text-muted, #7A8291)',
+                fontFamily: 'var(--forge-font-body)',
+              }}
+            >
+              <span style={{ color: 'var(--forge-text-muted)' }}>Kalkulačka</span>
+              <span aria-hidden="true" style={{ color: 'var(--forge-text-muted)', opacity: 0.5, userSelect: 'none' }}>/</span>
+              <span style={{ color: 'var(--forge-text-primary, #E8EAED)' }} aria-current="step">
+                {steps.find(s => s.id === currentStep)?.title || ''}
+              </span>
+            </nav>
+
+            <div className="flex items-center justify-between" style={{ flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? '0.75rem' : '0' }}>
+              <div className="tk-stepper" role="navigation" aria-label="Kroky objednávky">
+                {steps.map((step, index) => {
+                  const isCompleted = step.id < currentStep || (step.id <= highestStepReached && step.id !== currentStep);
+                  const isCurrent = step.id === currentStep;
+                  const isReachable = step.id <= highestStepReached;
+                  const isFuture = step.id > highestStepReached;
+                  const isClickable = isReachable && !isCurrent;
+
+                  return (
+                    <div key={step.id} className="flex items-center">
+                      <div className="flex flex-col items-center">
+                        <button
+                          type="button"
+                          className={`flex items-center justify-center transition-colors tk-stepper-step-circle${isClickable ? ' tk-stepper-clickable' : ''}`}
+                          onClick={isClickable ? () => handleStepClick(step.id) : undefined}
+                          disabled={!isClickable}
+                          aria-current={isCurrent ? 'step' : undefined}
+                          aria-label={`${step.title}${isCompleted ? ' (dokončeno)' : isCurrent ? ' (aktuální krok)' : ''}`}
+                          title={isClickable ? `Přejít na: ${step.title}` : isFuture ? step.title : undefined}
                           style={{
-                            fontFamily: 'var(--forge-font-tech)',
-                            fontSize: '11px',
-                            fontWeight: 500,
-                            letterSpacing: '0.05em',
-                            textTransform: 'uppercase',
-                            color: currentStep >= step.id
-                              ? 'var(--forge-text-primary)'
+                            width: isMobile ? 32 : 40,
+                            height: isMobile ? 32 : 40,
+                            borderRadius: '50%',
+                            border: '2px solid',
+                            borderColor: isCurrent
+                              ? 'var(--forge-accent-primary)'
+                              : isReachable
+                                ? 'var(--forge-accent-primary)'
+                                : 'var(--forge-border-active)',
+                            backgroundColor: isCurrent
+                              ? 'var(--forge-accent-primary)'
+                              : isCompleted
+                                ? 'var(--forge-accent-primary)'
+                                : 'transparent',
+                            color: isCurrent || isCompleted
+                              ? 'var(--forge-bg-void)'
                               : 'var(--forge-text-muted)',
+                            cursor: isClickable ? 'pointer' : isFuture ? 'not-allowed' : 'default',
+                            opacity: isFuture ? 0.5 : 1,
+                            outline: 'none',
+                            padding: 0,
                           }}
                         >
-                          {step.title}
-                        </p>
-                        <p
-                          className="text-xs"
-                          style={{ color: 'var(--forge-text-muted)', fontSize: '10px' }}
-                        >
-                          {step.description}
-                        </p>
+                          {isCompleted && !isCurrent ? (
+                            <Icon name="Check" size={isMobile ? 14 : 18} />
+                          ) : (
+                            <Icon name={step.icon} size={isMobile ? 14 : 18} />
+                          )}
+                        </button>
+                        <div className="mt-2 text-center">
+                          <p
+                            className="tk-stepper-step-label"
+                            style={{
+                              fontFamily: 'var(--forge-font-tech)',
+                              fontSize: '11px',
+                              fontWeight: isCurrent ? 600 : 500,
+                              letterSpacing: '0.05em',
+                              textTransform: 'uppercase',
+                              color: isCurrent
+                                ? 'var(--forge-text-primary)'
+                                : isReachable
+                                  ? 'var(--forge-text-secondary, #B0B7C3)'
+                                  : 'var(--forge-text-muted)',
+                              cursor: isClickable ? 'pointer' : 'default',
+                            }}
+                            onClick={isClickable ? () => handleStepClick(step.id) : undefined}
+                          >
+                            {step.title}
+                          </p>
+                          <p
+                            className="text-xs tk-stepper-step-desc"
+                            style={{
+                              color: 'var(--forge-text-muted)',
+                              fontSize: '10px',
+                              opacity: isFuture ? 0.5 : 1,
+                            }}
+                          >
+                            {step.description}
+                          </p>
+                        </div>
                       </div>
+                      {index < steps.length - 1 && (
+                        <div
+                          className="mx-4 transition-colors tk-stepper-connector"
+                          style={{
+                            width: isMobile ? '1.5rem' : '4rem',
+                            height: 0,
+                            borderTop: step.id < currentStep || (isCompleted && step.id < highestStepReached)
+                              ? '2px solid var(--forge-accent-primary)'
+                              : '2px dashed var(--forge-border-active)',
+                          }}
+                        />
+                      )}
                     </div>
-                    {index < steps.length - 1 && (
-                      <div
-                        className="mx-4 transition-colors"
-                        style={{
-                          width: '4rem',
-                          height: 0,
-                          borderTop: currentStep > step.id
-                            ? '2px solid var(--forge-accent-primary)'
-                            : '2px dashed var(--forge-border-active)',
-                        }}
-                      />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* Calculation buttons - inline with stepper */}
+              {/* Calculation buttons - inline with stepper (hidden on mobile, shown in sticky bar) */}
               {uploadedFiles.length > 0 && selectedFile && (
-                <div className="flex flex-col items-end gap-1.5 ml-6">
+                <div className="flex flex-col items-end gap-1.5 ml-6 tk-generate-area" data-tour="generate-btn">
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <GenerateButton
-                      size="compact"
-                      label="Spočítat cenu"
-                      onClick={handleSliceSelected}
-                      loading={selectedFile.status === 'processing'}
-                      disabled={!selectedFile || selectedFile.status === 'processing' || sliceAllProcessing}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                      <GenerateButton
+                        size="compact"
+                        label="Spočítat cenu"
+                        onClick={handleSliceSelected}
+                        loading={selectedFile.status === 'processing'}
+                        disabled={!selectedFile || selectedFile.status === 'processing' || sliceAllProcessing}
+                      />
+                      <span style={{
+                        fontSize: '10px',
+                        color: 'var(--forge-text-muted)',
+                        fontFamily: 'var(--forge-font-tech, monospace)',
+                        letterSpacing: '0.03em',
+                        opacity: 0.7,
+                      }}>
+                        {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? '\u2318' : 'Ctrl'}+Enter
+                      </span>
+                    </div>
 
                     {hasMultipleModels && (
                       <GenerateButton
@@ -823,7 +1172,7 @@ const TestKalkulacka = () => {
 
           {/* S02: Checkout step (step 4) — Shopify mode replaces standard checkout */}
           {currentStep === 4 && shopifyConfig ? (
-            <div style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}>
+            <div className="page-fade-in" style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}>
               <div style={{ marginBottom: '16px' }}>
                 <button
                   onClick={() => setCurrentStep(3)}
@@ -887,24 +1236,68 @@ const TestKalkulacka = () => {
 
           {/* S02: Confirmation step (step 5) */}
           {currentStep === 5 && lastOrderResult && (
-            <OrderConfirmation
+            <div className="scale-fade-in"><OrderConfirmation
               order={lastOrderResult}
               onStartNew={handleStartNewOrder}
-            />
+            /></div>
           )}
 
           {/* Main grid — visible on steps 1-3 */}
           {currentStep <= 3 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
+          <div key={`step-${currentStep}`} className="grid grid-cols-1 lg:grid-cols-3 gap-8 tk-main-grid page-fade-in" style={isMobile ? { gap: '1rem' } : undefined}>
+            <div className="lg:col-span-2 space-y-8" style={isMobile ? { gap: '1rem' } : undefined}>
               {uploadedFiles.length === 0 && currentStep === 1 && (
-                <FileUploadZone onFilesUploaded={handleFilesUploaded} />
+                <div data-tour="upload-zone">
+                  <FileUploadZone onFilesUploaded={handleFilesUploaded} />
+                </div>
               )}
 
               {uploadedFiles.length > 0 && (
                 <>
                   {/* Keep the left configuration visible even on step 3 (after slicing) */}
-                  <div className={selectedFile ? 'block' : 'hidden'}>
+                  <div className={selectedFile ? 'block' : 'hidden'} data-tour="print-config">
+                    {/* Auto-save indicator + share button */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '0.5rem',
+                        minHeight: '24px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <ShareConfigButton
+                          getShareableUrl={getShareableUrl}
+                          compact={isMobile}
+                        />
+                        <UndoRedoButtons
+                          canUndo={configUndoRedo.canUndo(selectedFileId)}
+                          canRedo={configUndoRedo.canRedo(selectedFileId)}
+                          onUndo={handleUndo}
+                          onRedo={handleRedo}
+                          undoTooltip={configUndoRedo.getUndoDescription(selectedFileId)}
+                          redoTooltip={configUndoRedo.getRedoDescription(selectedFileId)}
+                        />
+                      </div>
+                      {lastSaved && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.375rem',
+                            fontSize: '11px',
+                            fontFamily: 'var(--forge-font-mono)',
+                            color: 'var(--forge-text-muted)',
+                            opacity: 0.7,
+                            transition: 'opacity 0.3s ease',
+                          }}
+                        >
+                          <Icon name="Check" size={12} style={{ color: 'var(--forge-success, #10B981)' }} />
+                          <span>Automaticky ulozeno</span>
+                        </div>
+                      )}
+                    </div>
                     <PrintConfiguration
                       key={selectedFile ? selectedFile.id : 'empty'}
                       selectedFile={selectedFile}
@@ -923,6 +1316,13 @@ const TestKalkulacka = () => {
                       onFeeSelectionsChange={setFeeSelections}
                       uploadedFiles={uploadedFiles}
                       disabled={uploadedFiles.some(f => f.status === 'processing')}
+                      printConfigs={printConfigs}
+                      expressConfig={expressConfig}
+                      selectedExpressTierId={selectedExpressTierId}
+                      couponsConfig={couponsConfig}
+                      appliedCouponCode={appliedCouponCode}
+                      shippingConfig={shippingConfig}
+                      selectedShippingMethodId={selectedShippingMethodId}
                     />
                   </div>
                 </>
@@ -931,14 +1331,92 @@ const TestKalkulacka = () => {
 
             <div className="space-y-4">
               <ErrorBoundary>
+            <div data-tour="model-viewer">
             <ModelViewer
               selectedFile={selectedFile}
               onRemove={handleFileDelete}
               onSurfaceComputed={handleSurfaceComputed}
+              onGeometryLoaded={handleGeometryLoaded}
             />
+            </div>
               </ErrorBoundary>
+
+              {/* Mesh repair collapsible panel */}
+              {selectedFile && modelGeometry && (
+                <div
+                  data-tour="mesh-repair"
+                  style={{
+                    borderRadius: 'var(--forge-radius-xl)',
+                    border: '1px solid var(--forge-border-default)',
+                    background: 'var(--forge-bg-surface)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setMeshRepairOpen(prev => !prev)}
+                    aria-expanded={meshRepairOpen}
+                    aria-controls="mesh-repair-panel"
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.75rem 1rem',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--forge-text-primary)',
+                      fontFamily: 'var(--forge-font-heading)',
+                      fontWeight: 600,
+                      fontSize: 'var(--forge-text-sm)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Icon name="Wrench" size={15} style={{ color: 'var(--forge-accent-primary)' }} />
+                      Oprava mesh
+                    </span>
+                    <Icon
+                      name="ChevronDown"
+                      size={16}
+                      style={{
+                        color: 'var(--forge-text-muted)',
+                        transition: 'transform 0.2s ease',
+                        transform: meshRepairOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      }}
+                    />
+                  </button>
+                  <div
+                    id="mesh-repair-panel"
+                    style={{
+                      maxHeight: meshRepairOpen ? '800px' : '0',
+                      overflow: 'hidden',
+                      transition: 'max-height 0.3s ease',
+                    }}
+                  >
+                    <div style={{ padding: '0 0.5rem 0.5rem 0.5rem' }}>
+                      <MeshRepairPanel
+                        geometry={modelGeometry}
+                        fileName={selectedFile?.name || 'model.stl'}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Model info panel — detailed stats, build plate fit, scale suggestions */}
+              {selectedFile && (
+                <ModelInfoPanel
+                  selectedFile={selectedFile}
+                  modelGeometry={modelGeometry}
+                />
+              )}
+
               {/* Metrics + price card (right column) */}
               {uploadedFiles.length > 0 && (
+                <div data-tour="pricing-results">
                 <PricingCalculator
                   selectedFile={selectedFile}
                   onSlice={handleSliceSelected}
@@ -956,103 +1434,18 @@ const TestKalkulacka = () => {
                   selectedShippingMethodId={selectedShippingMethodId}
                   couponsConfig={couponsConfig}
                   appliedCouponCode={appliedCouponCode}
+                  onApplyHistoryConfig={handleApplyHistoryConfig}
                 />
-              )}
-              {uploadedFiles.length > 0 && (
-                <div
-                  className="rounded-xl p-4 flex flex-col gap-4"
-                  style={{
-                    backgroundColor: 'var(--forge-bg-surface)',
-                    border: '1px solid var(--forge-border-default)',
-                    borderRadius: 'var(--forge-radius-lg)',
-                  }}
-                >
-                  <div className="flex justify-between items-center mb-2">
-                    <h3
-                      className="font-semibold"
-                      style={{ color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}
-                    >
-                      Nahrané modely
-                    </h3>
-                    <Button variant="ghost" size="icon" onClick={handleAddModelClick}>
-                      <Icon name="Plus" size={16} />
-                      <span className="sr-only">Přidání Modelu</span>
-                    </Button>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {uploadedFiles.map((file) => (
-                      <div key={file.id} className="flex flex-col">
-                        <Button
-                          variant={selectedFile && selectedFile.id === file.id ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setSelectedFileId(file.id)}
-                          className="w-full justify-start text-left h-auto py-2 px-3"
-                          title={statusTooltips[file.status] || 'Neznámý stav'}
-                          style={
-                            selectedFile && selectedFile.id === file.id
-                              ? { backgroundColor: 'var(--forge-accent-primary)', color: 'var(--forge-bg-void)', borderColor: 'var(--forge-accent-primary)' }
-                              : { backgroundColor: 'var(--forge-bg-elevated)', color: 'var(--forge-text-primary)', borderColor: 'var(--forge-border-default)' }
-                          }
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            {file.status === 'processing' && (
-                              <Icon name="Loader" size={14} className="animate-spin flex-shrink-0" />
-                            )}
-                            {file.status === 'pending' && (
-                              <Icon name="Clock" size={14} className="flex-shrink-0" style={{ color: 'var(--forge-text-muted)' }} />
-                            )}
-                            {file.status === 'completed' && (
-                              <Icon name="CheckCircle" size={14} className="flex-shrink-0" style={{ color: 'var(--forge-success)' }} />
-                            )}
-                            {file.status === 'failed' && (
-                              <Icon name="XCircle" size={14} className="flex-shrink-0" style={{ color: 'var(--forge-error)' }} />
-                            )}
-                            <span className="truncate flex-grow text-left">{file.name}</span>
-                            {file.status === 'completed' && file.result?.metrics && (
-                              <span
-                                className="whitespace-nowrap ml-auto"
-                                style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}
-                              >
-                                {Math.round((file.result.metrics.estimatedTimeSeconds || 0) / 60)} min
-                              </span>
-                            )}
-                          </div>
-                        </Button>
-                        {file.status === 'processing' && (
-                          <div className="mx-3 mt-1">
-                            <div
-                              className="rounded-full overflow-hidden"
-                              style={{ height: '4px', backgroundColor: 'var(--forge-bg-elevated)' }}
-                            >
-                              <div
-                                className="rounded-full animate-pulse"
-                                style={{ height: '100%', width: '60%', backgroundColor: 'var(--forge-accent-primary)' }}
-                              />
-                            </div>
-                            <p style={{ fontSize: '10px', color: 'var(--forge-text-muted)', marginTop: '2px' }}>Vypočítávám…</p>
-                          </div>
-                        )}
-                        {file.status === 'failed' && file.error && (
-                          <div className="mt-1 mx-3">
-                            <p
-                              style={{
-                                fontSize: '10px',
-                                color: file.errorSeverity === 'warning' ? 'var(--forge-warning)' : 'var(--forge-error)',
-                              }}
-                              title={file.errorRaw || file.error}
-                            >
-                              {file.error}
-                            </p>
-                            {file.errorCategory && file.errorCategory !== 'UNKNOWN' && (
-                              <span style={{ fontSize: '9px', color: 'var(--forge-text-muted)' }}>{file.errorCategory}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
+              <SortableFileList
+                uploadedFiles={uploadedFiles}
+                selectedFileId={selectedFileId}
+                onSelectFile={setSelectedFileId}
+                onRemoveFile={handleFileDelete}
+                onReorderFiles={handleReorderFiles}
+                onAddModel={handleAddModelClick}
+              />
             </div>
           </div>
           )}
@@ -1060,7 +1453,7 @@ const TestKalkulacka = () => {
           {/* Bottom navigation — hidden on step 5 (confirmation) */}
           {currentStep < 5 && (
             <div
-              className="flex items-center justify-between mt-8 pt-6"
+              className="flex items-center justify-between mt-8 pt-6 tk-bottom-nav"
               style={{ borderTop: '1px solid var(--forge-border-default)' }}
             >
               <Button
@@ -1070,7 +1463,9 @@ const TestKalkulacka = () => {
                 iconName="ChevronLeft"
                 iconPosition="left"
               >
-                Zpět
+                {currentStep > 1
+                  ? `Zpět na: ${steps.find(s => s.id === currentStep - 1)?.title || 'Zpět'}`
+                  : 'Zpět'}
               </Button>
               <div className="flex items-center space-x-4">
                 {currentStep < 3 ? (
@@ -1099,6 +1494,110 @@ const TestKalkulacka = () => {
           )}
         </div>
       </div>
+
+      {/* Floating keyboard shortcuts button */}
+      <button
+        type="button"
+        onClick={() => setShortcutsHelpOpen(true)}
+        aria-label="Zobrazit kl\u00e1vesov\u00e9 zkratky"
+        title="Kl\u00e1vesov\u00e9 zkratky (?)"
+        className="tk-floating-shortcuts-btn"
+        style={{
+          position: 'fixed',
+          bottom: isMobile ? '70px' : '20px',
+          right: '20px',
+          width: isMobile ? '44px' : '36px',
+          height: isMobile ? '44px' : '36px',
+          borderRadius: '8px',
+          border: '1px solid var(--forge-border-default)',
+          backgroundColor: 'var(--forge-bg-surface)',
+          color: 'var(--forge-text-muted)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '14px',
+          fontFamily: 'var(--forge-font-tech, monospace)',
+          fontWeight: 600,
+          opacity: 0.6,
+          transition: 'opacity 0.2s, border-color 0.2s',
+          zIndex: 50,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+          e.currentTarget.style.borderColor = 'var(--forge-border-active)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0.6';
+          e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+        }}
+      >
+        ?
+      </button>
+
+      {/* Sticky mobile bottom bar with Generate button */}
+      {isMobile && uploadedFiles.length > 0 && selectedFile && currentStep <= 3 && (
+        <div className="tk-sticky-bottom">
+          <GenerateButton
+            size="compact"
+            label="Spočítat cenu"
+            onClick={handleSliceSelected}
+            loading={selectedFile.status === 'processing'}
+            disabled={!selectedFile || selectedFile.status === 'processing' || sliceAllProcessing}
+          />
+          {hasMultipleModels && (
+            <GenerateButton
+              size="compact"
+              label="Vše"
+              onClick={handleSliceAll}
+              loading={sliceAllProcessing && batchProgress.mode === 'all'}
+              disabled={sliceAllProcessing || uploadedFiles.some(f => f.status === 'processing')}
+            />
+          )}
+          {currentStep === 3 && (
+            <Button
+              variant="default"
+              onClick={() => setCurrentStep(4)}
+              disabled={!canProceed()}
+              className="tk-sticky-btn"
+              style={{ minHeight: '44px' }}
+            >
+              <Icon name="ShoppingCart" size={16} />
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Keyboard shortcuts help overlay */}
+      <KeyboardShortcutsHelp
+        open={shortcutsHelpOpen}
+        onClose={() => setShortcutsHelpOpen(false)}
+        onStartTour={() => {
+          setShortcutsHelpOpen(false);
+          onboarding.resetTour();
+          onboarding.startTour();
+        }}
+      />
+
+      {/* Onboarding tour */}
+      <OnboardingTour
+        active={onboarding.active}
+        currentStepIndex={onboarding.currentStepIndex}
+        currentStep={onboarding.currentStep}
+        totalSteps={onboarding.totalSteps}
+        doNotShowAgain={onboarding.doNotShowAgain}
+        onDoNotShowAgainChange={onboarding.setDoNotShowAgain}
+        onNext={onboarding.nextStep}
+        onPrev={onboarding.prevStep}
+        onSkip={onboarding.skipTour}
+        onFinish={onboarding.finishTour}
+      />
+
+      {/* Slicing progress toasts */}
+      <SlicingProgressContainer
+        toasts={slicingToasts.toasts}
+        onDismiss={slicingToasts.dismiss}
+      />
     </div>
   );
 };

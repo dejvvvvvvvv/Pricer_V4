@@ -174,6 +174,69 @@ export async function setDefaultPreset(id) {
   return apiFetch(`/api/presets/${encodeURIComponent(id)}/default`, { method: 'POST' });
 }
 
+export async function fetchPresetContent(id) {
+  if (!id) return { ok: false, errorCode: 'MP_BAD_REQUEST', message: 'Missing preset id' };
+  return apiFetch(`/api/presets/${encodeURIComponent(id)}/content`, { method: 'GET' });
+}
+
 export async function fetchWidgetPresets() {
   return apiFetch('/api/widget/presets', { method: 'GET' });
+}
+
+/**
+ * Get a single preset by ID with details (hasIniFile, isDefault).
+ * @param {string} id
+ * @returns {Promise<ApiResult>}
+ */
+export async function getPreset(id) {
+  if (!id) return { ok: false, errorCode: 'MP_BAD_REQUEST', message: 'Missing preset id' };
+  return apiFetch(`/api/presets/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+/**
+ * Full update (PUT) of a preset — replaces metadata and optionally regenerates INI.
+ * @param {string} id
+ * @param {Object} data — full preset data
+ * @returns {Promise<ApiResult>}
+ */
+export async function updatePreset(id, data) {
+  if (!id) return { ok: false, errorCode: 'MP_BAD_REQUEST', message: 'Missing preset id' };
+  return apiFetch(`/api/presets/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data || {}),
+  });
+}
+
+/**
+ * Duplicate a preset (copies metadata + INI file).
+ * @param {string} id — source preset ID
+ * @param {{ name?: string }} [options] — optional new name
+ * @returns {Promise<ApiResult>}
+ */
+export async function duplicatePreset(id, options = {}) {
+  if (!id) return { ok: false, errorCode: 'MP_BAD_REQUEST', message: 'Missing preset id' };
+  return apiFetch(`/api/presets/${encodeURIComponent(id)}/duplicate`, {
+    method: 'POST',
+    body: JSON.stringify(options),
+  });
+}
+
+/**
+ * Validate preset configuration against PrusaSlicer rules.
+ * @param {Object} config — preset config to validate
+ * @returns {Promise<ApiResult>} — { valid: boolean, errors: string[], generatedIni?: string }
+ */
+export async function validatePresetConfig(config) {
+  return apiFetch('/api/presets/validate', {
+    method: 'POST',
+    body: JSON.stringify(config || {}),
+  });
+}
+
+/**
+ * Get PrusaSlicer default preset templates.
+ * @returns {Promise<ApiResult>} — { presets: Object[] }
+ */
+export async function getDefaultPresets() {
+  return apiFetch('/api/presets/defaults', { method: 'GET' });
 }

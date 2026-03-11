@@ -7,8 +7,8 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 112
-**Dalsi ID k pouziti:** 113
+**Posledni pouzite ID:** 158
+**Dalsi ID k pouziti:** 159
 
 ---
 
@@ -136,6 +136,7 @@ S{NN}
 | UPRAVY | Technicke zmeny v souborech | _UPRAVY.md |
 | OTAZKY | Otazky a odpovedi, rozhodnuti | _OTAZKY.md |
 | FAZE | Individualni faze vicefazoveho planu/sprintu | _FAZE-{N}-{Nazev}.md |
+| PLAN | Celkovy plan s viceero fazemi, roadmapp, risk register | _PLAN.md |
 | DENNI-PREHLED | Souhrn celeho dne | DENNI-PREHLED.md |
 
 ---
@@ -253,8 +254,48 @@ S{NN}
 | 110 | GN | General | UPRAVY — Code quality sprint final (ukoly 28-38: CopyButton, clipboard refaktor, lazy loading, focus-visible, skip-to-content, ScrollToTop, breadcrumb testy, rate limiter testy, document titles, keyboard shortcuts) | 2026-03-09 |
 | 111 | GN | General | UPRAVY — Code quality sprint final batch (ukoly 39-50: network error handler, export data, request logger, useMediaQuery, ForgeConfirmDialog, apiClient testy, lazy loading, a11y, clipboard refaktor) | 2026-03-09 |
 | 112 | GN | General | UPRAVY — Code quality sprint final batch 2 (ukoly 51-57: useOnlineStatus testy, formatRelativeTime, useSortableData, print styles, ForgeConfirmDialog 5 stranek, OfflineBanner, health check) | 2026-03-09 |
+| 154 | GN | General / Test-Kalkulacka | UPRAVY — Onboarding Tour Guide (7 kroků, SVG spotlight, localStorage, restart z klávesových zkratek) | 2026-03-10 |
+| 155 | AO | Admin-Orders | UPRAVY — Admin Order Detail Page (status timeline, items, pricing, notes, activity log, akce) | 2026-03-10 |
+| 156 | AO | Admin-Orders | UPRAVY — Admin Customers Page (agregace, stat karty, sortable tabulka, expandable rows, search, i18n) | 2026-03-10 |
+| 157 | AL | Admin-Layout | UPRAVY — Admin Footer Enhancement (verze, online status, tenant ID, quick links, collapsed mode) | 2026-03-10 |
+| 158 | BK | Backend | UPRAVY — Backend API Docs + Versioning (38 endpointů, JSON/HTML docs, v1 rewrite, X-API-Version) | 2026-03-10 |
+| 116 | TK | Test-Kalkulacka | UPRAVY — Model Dimension Labels v Build Plate Vieweru | 2026-03-10 |
+| 117 | TK | Test-Kalkulacka | UPRAVY — Price Breakdown Donut Chart | 2026-03-10 |
+| 118 | TK | Test-Kalkulacka | UPRAVY — Keyboard Shortcuts v kalkulačce | 2026-03-10 |
+| 119 | AD | Admin-Dashboard | UPRAVY — Analytics Charts | 2026-03-10 |
+| 120 | AD | Admin-Dashboard | UPRAVY — Notification Center | 2026-03-10 |
+| 121 | TK | Test-Kalkulacka | UPRAVY — Responsive Design | 2026-03-10 |
+| 125 | AO | Admin-Orders | UPRAVY — Order Export + Bulk Actions (ExportDropdown, BulkActionsBar) | 2026-03-10 |
+| 126 | GN | Frontend | UPRAVY — Page Transitions + Loading Skeletons (animations.css, PageTransition, 5 skeletons) | 2026-03-10 |
+| 127 | TK | Test-Kalkulacka | UPRAVY — Print Time Visualization (SVG progress, 4 fáze, fun srovnání) | 2026-03-10 |
 
 ---
 
-**Posledni aktualizace:** 2026-03-10
-**Posledni session:** S07 (2026-03-09) — Code quality sprint final batch 2 (675+ testu, 60+ ukolu)
+| 129 | WK | Widget-Kalkulacka | UPRAVY — Widget Sync Build Plate + Mesh Repair portovány, builderMode prop, CSS vars | 2026-03-10 |
+| 130 | BK | Backend | UPRAVY — Mesh Repair API (POST /repair, /analyze), runPrusaRepair utility, rate limiting | 2026-03-10 |
+| 131 | TK | Test-Kalkulacka | UPRAVY — Breadcrumb Navigation + Clickable Stepper, highestStepReached tracking | 2026-03-10 |
+| 132 | GN | General | KONVERZACE — Batch 6 implementace (Widget Sync, Backend Mesh API, Breadcrumb UX) | 2026-03-10 |
+| 133 | TK | Test-Kalkulacka | UPRAVY — Dark/Light Theme Toggle (useThemeToggle hook, light-theme-kalkulacka.css, localStorage, prefers-color-scheme) | 2026-03-10 |
+| 134 | BK | Backend | UPRAVY — Backend Slicing Job Queue (slicingQueue.js, EventEmitter, max 2 concurrent, /api/slice/queue endpoints) | 2026-03-10 |
+| 135 | MS | Model-Storage | UPRAVY — Admin Model Storage Gallery View (list/grid toggle, sessionStorage, CSS grid, thumbnails, TypeBadge, hover actions) | 2026-03-10 |
+| 136 | TK | Test-Kalkulacka | UPRAVY — Filament Usage Visualization (SVG spool, animated fill, stats, 80%+ warning, multi-file breakdown) | 2026-03-10 |
+| 137 | TK | Test-Kalkulacka | UPRAVY — Material Cost Comparison (expandable section, price list sorted, diff bars, clickable select, i18n, useMemo cache) | 2026-03-10 |
+| 138 | AS | Admin-Settings | UPRAVY — Quick Settings Panel (5 ToggleSliders, debounced saves, "Upravit všechna", Forge design, collapsible) | 2026-03-10 |
+| 139 | AX | Admin-Presets | UPRAVY — Backend Presets CRUD API (11 endpointy, 6 defaults, validatePresetConfig, generateIniFromConfig) | 2026-03-10 |
+| 140 | TK | Test-Kalkulacka | UPRAVY — Slicing Progress Toast Notifications (useSlicingToasts hook, 3 stavy, animace, audio feedback, auto-dismiss) | 2026-03-10 |
+| 141 | GN | General | KONVERZACE — Batch 9 implementace (Admin & Backend) — 3 features 1490+ řádků | 2026-03-10 |
+| 142 | AD | Admin-Dashboard | UPRAVY — Admin System Health Page (6 status karet, auto-refresh 30s, green/yellow/red) | 2026-03-10 |
+| 143 | AX | Admin-Presets | UPRAVY — Preset Editor + Comparison + Templates (side-by-side diff, 6 defaults, ForgeSlider kontroly) | 2026-03-10 |
+| 144 | TK | Test-Kalkulacka | UPRAVY — Pricing History Tracking (usePricingHistory hook, sessionStorage, SVG sparkline chart, entry porovnění) | 2026-03-10 |
+| 145 | AL | Admin-Layout | UPRAVY — Admin Sidebar Collapse + Groups + Search (260px ↔ 64px, 4 skupiny, live filter, localStorage) | 2026-03-10 |
+| 146 | GN | General | UPRAVY — Confetti Animation + Backend Webhook Notifications (canvas konfeta, webhook HMAC-SHA256, 6 event typů) | 2026-03-10 |
+| 147 | GN | General | UPRAVY — Batch 13 Finalizace (Admin Webhooks Management, Quantity Stepper, Model Info Panel, workflow integrace) | 2026-03-10 |
+| 148 | AE | Admin-Emails | UPRAVY — Admin Email Template Editor (4 typy, contentEditable, live preview, variable chips, XSS sanitizace) | 2026-03-10 |
+| 149 | BK | Backend | UPRAVY — Backend Order Management API (7 endpointy, status flow validace, audit trail, soft delete, webhook integrace) | 2026-03-10 |
+| 150 | GN | General | PLAN — AppContext: Lean Global State (feature flags, online status, version, theme; probíhající implementace) | 2026-03-10 |
+| 151 | GN | General | KONVERZACE — Batch 14 implementace (3 features: Email Editor, Order API, AppContext; iniciace + analýza + handoff) | 2026-03-10 |
+
+---
+
+**Posledni aktualizace:** 2026-03-11 (Batch 16-17 completion — 5 nových zaznamu: Onboarding Tour + Order Detail + Customers + Admin Footer + API Docs)
+**Posledni session:** S01 (2026-03-10) — Autonomní implementační session (44 zaznamu: plán + 15 batches + 4x KONVERZACE + DENNÍ-PREHLED)

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import { CopyButton } from '../../../components/ui/forge/CopyButton';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { triggerConfetti, playSuccessSound } from '@/lib/confetti';
 
 function formatCzk(amount) {
   const n = Number.isFinite(amount) ? amount : 0;
@@ -508,6 +509,21 @@ function CardPaymentCard({ t }) {
 export default function OrderConfirmation({ order, onStartNew }) {
   const { language } = useLanguage();
   const t = (cs, en) => (language === 'en' ? en : cs);
+  const confettiFiredRef = useRef(false);
+
+  // Fire confetti celebration once when order confirmation mounts
+  useEffect(() => {
+    if (!order || confettiFiredRef.current) return;
+    confettiFiredRef.current = true;
+
+    // Brief delay so the page transition completes first
+    const timer = setTimeout(() => {
+      triggerConfetti({ particleCount: 150, spread: 70, origin: { y: 0.3 } });
+      playSuccessSound();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [order]);
 
   if (!order) return null;
 

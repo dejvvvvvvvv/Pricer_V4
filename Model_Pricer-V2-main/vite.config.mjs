@@ -2,12 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { fileURLToPath, URL } from "node:url";
+import { readFileSync } from "node:fs";
 // import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 // https://vitejs.dev/config/
 export default defineConfig({
   // This changes the out put dir from dist to build
   // comment this out if that isn't relevant for your project
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   build: {
    outDir: "build",
    chunkSizeWarningLimit: 2000,

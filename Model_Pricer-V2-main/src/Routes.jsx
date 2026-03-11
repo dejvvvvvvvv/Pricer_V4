@@ -15,7 +15,10 @@ import Register from './pages/register';
 import AdminLayout from './pages/admin/AdminLayout';
 import InviteAccept from './pages/InviteAccept';
 import ErrorBoundary from './components/ErrorBoundary';
-import { SkeletonCard } from './components/ui/forge/ForgeSkeleton';
+import PageTransition from './components/PageTransition';
+import CalculatorSkeleton from './pages/test-kalkulacka/components/CalculatorSkeleton';
+import AdminPageSkeleton from './components/skeletons/AdminPageSkeleton';
+import PublicPageSkeleton from './components/skeletons/PublicPageSkeleton';
 
 // Lazy-loaded public pages (heavy components)
 const TestKalkulacka = React.lazy(() => import('./pages/test-kalkulacka'));
@@ -44,21 +47,28 @@ const AdminMigration = React.lazy(() => import('./pages/admin/AdminMigration'));
 const AdminIntegrations = React.lazy(() => import('./pages/admin/AdminIntegrations'));
 const AdminPayments = React.lazy(() => import('./pages/admin/AdminPayments'));
 const AdminModelStorage = React.lazy(() => import('./pages/admin/AdminModelStorage'));
+const AdminActivityLog = React.lazy(() => import('./pages/admin/AdminActivityLog'));
+const AdminSystemHealth = React.lazy(() => import('./pages/admin/AdminSystemHealth'));
+const AdminWebhooks = React.lazy(() => import('./pages/admin/AdminWebhooks'));
+const AdminCustomers = React.lazy(() => import('./pages/admin/AdminCustomers'));
 
 /** Fallback for public page lazy loading */
-const PageFallback = () => (
-  <div style={{ padding: '48px 24px', maxWidth: '800px', margin: '0 auto' }}>
-    <SkeletonCard />
-  </div>
-);
+const PageFallback = () => <PublicPageSkeleton />;
 
-/** Fallback for admin panel lazy loading */
-const AdminFallback = () => (
-  <div style={{ padding: '24px', display: 'grid', gap: '16px' }}>
-    <SkeletonCard />
-    <SkeletonCard />
-  </div>
-);
+/** Fallback for calculator lazy loading */
+const CalculatorFallback = () => <CalculatorSkeleton />;
+
+/** Fallback for admin panel lazy loading — generic */
+const AdminFallback = () => <AdminPageSkeleton variant="default" />;
+
+/** Fallback for admin dashboard */
+const AdminDashboardFallback = () => <AdminPageSkeleton variant="dashboard" />;
+
+/** Fallback for admin table pages (orders, presets) */
+const AdminTableFallback = () => <AdminPageSkeleton variant="table" />;
+
+/** Fallback for admin form pages (branding, pricing, fees) */
+const AdminFormFallback = () => <AdminPageSkeleton variant="form" />;
 
 
 export default function Routes() {
@@ -111,14 +121,14 @@ export default function Routes() {
           {/* veřejné */}
           <Route path="/" element={<Home />} />
           <Route path="/model-upload" element={<Navigate to="/test-kalkulacka-white" replace />} />
-          <Route path="/test-kalkulacka" element={<Suspense fallback={<PageFallback />}><TestKalkulacka /></Suspense>} />
-          <Route path="/test-kalkulacka-white" element={<Suspense fallback={<PageFallback />}><TestKalkulackaWhite /></Suspense>} />
+          <Route path="/test-kalkulacka" element={<Suspense fallback={<CalculatorFallback />}><PageTransition><TestKalkulacka /></PageTransition></Suspense>} />
+          <Route path="/test-kalkulacka-white" element={<Suspense fallback={<CalculatorFallback />}><PageTransition><TestKalkulackaWhite /></PageTransition></Suspense>} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/support" element={<Support />} />
 
           {/* Protected routes */}
           <Route element={<PrivateRoute />}>
-            <Route path="/account" element={<Suspense fallback={<PageFallback />}><AccountPage /></Suspense>} />
+            <Route path="/account" element={<Suspense fallback={<PageFallback />}><PageTransition><AccountPage /></PageTransition></Suspense>} />
           </Route>
 
           {/* Public invite acceptance (demo) */}
@@ -127,24 +137,28 @@ export default function Routes() {
           {/* Admin Panel (protected) */}
           <Route element={<PrivateRoute />}>
             <Route path="/admin" element={<ErrorBoundary module="AdminPanel"><AdminLayout /></ErrorBoundary>}>
-              <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
-              <Route path="branding" element={<Suspense fallback={<AdminFallback />}><AdminBranding /></Suspense>} />
-              <Route path="pricing" element={<Suspense fallback={<AdminFallback />}><AdminPricing /></Suspense>} />
-              <Route path="fees" element={<Suspense fallback={<AdminFallback />}><AdminFees /></Suspense>} />
-              <Route path="parameters/*" element={<Suspense fallback={<AdminFallback />}><AdminParameters /></Suspense>} />
-              <Route path="presets/*" element={<Suspense fallback={<AdminFallback />}><AdminPresets /></Suspense>} />
-              <Route path="orders/*" element={<Suspense fallback={<AdminFallback />}><AdminOrders /></Suspense>} />
-              <Route path="payments" element={<Suspense fallback={<AdminFallback />}><AdminPayments /></Suspense>} />
-              <Route path="model-storage" element={<Suspense fallback={<AdminFallback />}><AdminModelStorage /></Suspense>} />
-              <Route path="widget" element={<Suspense fallback={<AdminFallback />}><AdminWidget /></Suspense>} />
-              <Route path="analytics" element={<Suspense fallback={<AdminFallback />}><AdminAnalytics /></Suspense>} />
-              <Route path="team" element={<Suspense fallback={<AdminFallback />}><AdminTeamAccess /></Suspense>} />
-              <Route path="express" element={<Suspense fallback={<AdminFallback />}><AdminExpress /></Suspense>} />
-              <Route path="shipping" element={<Suspense fallback={<AdminFallback />}><AdminShipping /></Suspense>} />
-              <Route path="emails" element={<Suspense fallback={<AdminFallback />}><AdminEmails /></Suspense>} />
-              <Route path="coupons" element={<Suspense fallback={<AdminFallback />}><AdminCoupons /></Suspense>} />
-              <Route path="migration" element={<Suspense fallback={<AdminFallback />}><AdminMigration /></Suspense>} />
-              <Route path="integrations" element={<Suspense fallback={<AdminFallback />}><AdminIntegrations /></Suspense>} />
+              <Route index element={<Suspense fallback={<AdminDashboardFallback />}><PageTransition><AdminDashboard /></PageTransition></Suspense>} />
+              <Route path="branding" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminBranding /></PageTransition></Suspense>} />
+              <Route path="pricing" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminPricing /></PageTransition></Suspense>} />
+              <Route path="fees" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminFees /></PageTransition></Suspense>} />
+              <Route path="parameters/*" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminParameters /></PageTransition></Suspense>} />
+              <Route path="presets/*" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminPresets /></PageTransition></Suspense>} />
+              <Route path="orders/*" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminOrders /></PageTransition></Suspense>} />
+              <Route path="payments" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminPayments /></PageTransition></Suspense>} />
+              <Route path="model-storage" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminModelStorage /></PageTransition></Suspense>} />
+              <Route path="widget" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminWidget /></PageTransition></Suspense>} />
+              <Route path="analytics" element={<Suspense fallback={<AdminDashboardFallback />}><PageTransition><AdminAnalytics /></PageTransition></Suspense>} />
+              <Route path="team" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminTeamAccess /></PageTransition></Suspense>} />
+              <Route path="express" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminExpress /></PageTransition></Suspense>} />
+              <Route path="shipping" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminShipping /></PageTransition></Suspense>} />
+              <Route path="emails" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminEmails /></PageTransition></Suspense>} />
+              <Route path="coupons" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminCoupons /></PageTransition></Suspense>} />
+              <Route path="migration" element={<Suspense fallback={<AdminFallback />}><PageTransition><AdminMigration /></PageTransition></Suspense>} />
+              <Route path="integrations" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminIntegrations /></PageTransition></Suspense>} />
+              <Route path="activity" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminActivityLog /></PageTransition></Suspense>} />
+              <Route path="system" element={<Suspense fallback={<AdminFallback />}><PageTransition><AdminSystemHealth /></PageTransition></Suspense>} />
+              <Route path="webhooks" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminWebhooks /></PageTransition></Suspense>} />
+              <Route path="customers" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminCustomers /></PageTransition></Suspense>} />
             </Route>
           </Route>
 

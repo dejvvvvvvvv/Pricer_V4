@@ -41,15 +41,15 @@ export function getStatusColor(status) {
 
 export function getStatusLabel(status) {
   const labels = {
-    NEW: 'New',
-    REVIEW: 'Review',
-    APPROVED: 'Approved',
-    PRINTING: 'Printing',
-    POSTPROCESS: 'Post-Processing',
-    READY: 'Ready',
-    SHIPPED: 'Shipped',
-    DONE: 'Done',
-    CANCELED: 'Cancelled',
+    NEW: 'Nova',
+    REVIEW: 'Kontrola',
+    APPROVED: 'Schvaleno',
+    PRINTING: 'Tisk',
+    POSTPROCESS: 'Postprocess',
+    READY: 'Pripraveno',
+    SHIPPED: 'Odeslano',
+    DONE: 'Dokonceno',
+    CANCELED: 'Zruseno',
   };
   return labels[status] || status;
 }

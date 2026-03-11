@@ -17,22 +17,24 @@ import { runPrusaInfo } from "./slicer/runPrusaInfo.js";
 import { parseModelInfo } from "./slicer/parseModelInfo.js";
 
 import {
-  createPresetFromIni,
-  deletePreset,
   getIniPathForPreset,
   listPresets,
   readPresetsState,
-  setDefaultPreset,
-  updatePresetMeta
 } from "./presetsStore.js";
 
 import storageRouter from "./storage/storageRouter.js";
 import authClaimsRouter from "./routes/authClaims.js";
+import { createPresetsRouter } from "./routes/presets.js";
+import { createMeshRouter } from "./routes/mesh.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { requireTenant } from "./middleware/tenant.js";
-import { validate, presetSchemas } from "./middleware/validate.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { slicingQueue } from "./jobs/slicingQueue.js";
+import { createWebhooksRouter } from "./routes/webhooks.js";
+import { createOrdersRouter } from "./routes/orders.js";
+import { fireWebhook } from "./services/webhookService.js";
+import { createApiDocsRouter, API_VERSION, API_VERSION_FULL } from "./routes/apiDocs.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,6 +75,24 @@ app.use(
   })
 );
 
+// ===== /api/v1/* prefix rewrite =====
+// Placed before all other /api middleware so /api/v1/health -> /api/health etc.
+// This enables all existing routes to also work under the versioned prefix.
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/api/v1/")) {
+    req.url = req.url.replace("/api/v1/", "/api/");
+  } else if (req.url === "/api/v1") {
+    req.url = "/api";
+  }
+  next();
+});
+
+// ===== API Version header on all responses =====
+app.use("/api", (_req, res, next) => {
+  res.setHeader("X-API-Version", API_VERSION);
+  next();
+});
+
 // ===== Request logging =====
 app.use(requestLogger({ skipPaths: ["/api/health"] }));
 
@@ -85,6 +105,15 @@ app.use("/api/slice", rateLimit({
   windowMs: 60_000,
   max: 10,
   message: "Too many slicing requests, please try again later",
+}));
+
+// Queue endpoints share the same rate limit bucket as /api/slice (already covered above)
+
+// Stricter: /api/mesh — CPU-heavy (PrusaSlicer repair/analyze) — 10 req/min per IP
+app.use("/api/mesh", rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  message: "Too many mesh processing requests, please try again later",
 }));
 
 // Stricter: /api/auth — 20 req/min per IP to limit brute-force
@@ -104,16 +133,30 @@ app.get("/api/health", async (_req, res) => {
   res.json({ ok: true, data: health });
 });
 
+/**
+ * GET /api/version — API version info.
+ * Returns: package version and API version.
+ */
+app.get("/api/version", (_req, res) => {
+  res.json({ ok: true, data: { version: PKG_VERSION, apiVersion: API_VERSION } });
+});
+
+// ===== API Documentation (public, no auth) =====
+const apiDocsRouter = createApiDocsRouter({ pkgVersion: PKG_VERSION });
+app.use("/api/docs", apiDocsRouter);
+
 // ===== Auth middleware for protected routes =====
 // Apply requireAuth + requireTenant to all /api/presets, /api/slice, /api/storage
 app.use("/api/presets", requireAuth, requireTenant);
 app.use("/api/slice", requireAuth, requireTenant);
 app.use("/api/storage", requireAuth, requireTenant);
+app.use("/api/webhooks", requireAuth, requireTenant);
+app.use("/api/orders", requireAuth, requireTenant);
 
 // ===== Auth claims API (Firebase-to-Supabase RLS bridge) =====
 app.use("/api/auth", requireAuth, requireTenant, authClaimsRouter);
 
-// ===== Presets API (backend-local) =====
+// ===== Helpers (used by presets router, slicing, widget, queue) =====
 
 function getTenantIdFromReq(req) {
   // If requireTenant middleware ran, use req.tenantId
@@ -142,89 +185,14 @@ function fail(res, status, errorCode, message, details) {
   return res.status(status).json({ ok: false, errorCode, message, details });
 }
 
-const presetUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const name = String(file.originalname || "").toLowerCase();
-    if (!name.endsWith(".ini")) return cb(new Error("Only .ini files are allowed"));
-    cb(null, true);
-  }
-}).single("file");
-
-app.get("/api/presets", async (req, res) => {
-  try {
-    const tenantId = getTenantIdFromReq(req);
-    const state = await listPresets(WORKSPACE_ROOT, tenantId);
-    return ok(res, state);
-  } catch (e) {
-    return fail(res, 500, "MP_PRESETS_LIST_FAILED", String(e?.message || e));
-  }
+// ===== Presets API (route module) =====
+const presetsRouter = createPresetsRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
 });
+app.use("/api/presets", presetsRouter);
 
-app.post("/api/presets", presetUpload, async (req, res) => {
-  try {
-    const tenantId = getTenantIdFromReq(req);
-    if (!req.file?.buffer) {
-      return fail(res, 400, "MP_BAD_REQUEST", "Missing multipart field 'file' (.ini)");
-    }
-
-    const meta = {
-      name: req.body?.name,
-      order: req.body?.order,
-      visibleInWidget: req.body?.visibleInWidget
-    };
-
-    const created = await createPresetFromIni(WORKSPACE_ROOT, tenantId, req.file.buffer, meta);
-    return ok(res, created.state);
-  } catch (e) {
-    return fail(res, 500, "MP_PRESET_UPLOAD_FAILED", String(e?.message || e));
-  }
-});
-
-app.patch("/api/presets/:id", validate(presetSchemas.update), async (req, res) => {
-  try {
-    const tenantId = getTenantIdFromReq(req);
-    const presetId = String(req.params.id || "").trim();
-    if (!presetId) return fail(res, 400, "MP_BAD_REQUEST", "Missing preset id");
-
-    const out = await updatePresetMeta(WORKSPACE_ROOT, tenantId, presetId, req.body || {});
-    if (!out.ok) return fail(res, 404, "MP_NOT_FOUND", out.error || "Preset not found");
-    return ok(res, out.state);
-  } catch (e) {
-    return fail(res, 500, "MP_PRESET_PATCH_FAILED", String(e?.message || e));
-  }
-});
-
-app.post("/api/presets/:id/default", validate(presetSchemas.byId), async (req, res) => {
-  try {
-    const tenantId = getTenantIdFromReq(req);
-    const presetId = String(req.params.id || "").trim();
-    if (!presetId) return fail(res, 400, "MP_BAD_REQUEST", "Missing preset id");
-
-    const out = await setDefaultPreset(WORKSPACE_ROOT, tenantId, presetId);
-    if (!out.ok) return fail(res, 404, "MP_NOT_FOUND", out.error || "Preset not found");
-    return ok(res, out.state);
-  } catch (e) {
-    return fail(res, 500, "MP_PRESET_DEFAULT_FAILED", String(e?.message || e));
-  }
-});
-
-app.delete("/api/presets/:id", validate(presetSchemas.byId), async (req, res) => {
-  try {
-    const tenantId = getTenantIdFromReq(req);
-    const presetId = String(req.params.id || "").trim();
-    if (!presetId) return fail(res, 400, "MP_BAD_REQUEST", "Missing preset id");
-
-    const out = await deletePreset(WORKSPACE_ROOT, tenantId, presetId);
-    if (!out.ok) return fail(res, 500, "MP_PRESET_DELETE_FAILED", out.error || "Delete failed");
-    if (!out.removed) return fail(res, 404, "MP_NOT_FOUND", "Preset not found");
-    return ok(res, out.state);
-  } catch (e) {
-    return fail(res, 500, "MP_PRESET_DELETE_FAILED", String(e?.message || e));
-  }
-});
-
+// ===== Widget presets (public, no auth) =====
 app.get("/api/widget/presets", async (req, res) => {
   try {
     const tenantId = getTenantIdFromReq(req);
@@ -286,6 +254,28 @@ app.get("/api/health/prusa", async (_req, res) => {
 
 // ===== Storage API =====
 app.use("/api/storage", storageRouter);
+
+// ===== Webhooks API =====
+const webhooksRouter = createWebhooksRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
+});
+app.use("/api/webhooks", webhooksRouter);
+
+// ===== Orders API =====
+const ordersRouter = createOrdersRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
+  fireWebhook: (ws, tid, event, data) => fireWebhook(ws, tid, event, data),
+});
+app.use("/api/orders", ordersRouter);
+
+// ===== Mesh API (repair & analyze) =====
+const meshRouter = createMeshRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  resolveSlicerCmd,
+});
+app.use("/api/mesh", meshRouter);
 
 // ===== Upload & slice =====
 
@@ -465,6 +455,229 @@ app.post(
   }
 );
 
+// ===== Slicing Queue API =====
+
+// Wire up the queue executor — this runs when a queued job is ready to process.
+// It reuses the same slicing logic as the synchronous /api/slice endpoint.
+slicingQueue.setExecutor(async (job, updateProgress) => {
+  const { config } = job;
+
+  const slicerCmd = await resolveSlicerCmd();
+  if (!slicerCmd) {
+    throw new Error("PrusaSlicer CLI not configured.");
+  }
+
+  // Resolve INI path (same logic as /api/slice)
+  let iniPath = config.iniPath || "";
+  let usedPreset = null;
+
+  // 1) explicit presetId
+  if (!iniPath && config.presetId) {
+    const fromPreset = await getIniPathForPreset(WORKSPACE_ROOT, config.tenantId, config.presetId);
+    if (fromPreset) {
+      iniPath = fromPreset;
+      usedPreset = config.presetId;
+    }
+  }
+
+  // 2) tenant default preset
+  if (!iniPath) {
+    const state = await readPresetsState(WORKSPACE_ROOT, config.tenantId);
+    if (state.defaultPresetId) {
+      const fromDefault = await getIniPathForPreset(WORKSPACE_ROOT, config.tenantId, state.defaultPresetId);
+      if (fromDefault) {
+        iniPath = fromDefault;
+        usedPreset = state.defaultPresetId;
+      }
+    }
+  }
+
+  // 3) env default ini
+  if (!iniPath) iniPath = DEFAULT_INI;
+
+  if (!iniPath) {
+    throw new Error("No .ini profile available. Upload an INI file, create presets, or set PRUSA_DEFAULT_INI.");
+  }
+  if (!(await fileExists(iniPath))) {
+    throw new Error(`INI not found: ${iniPath}`);
+  }
+
+  // Optional: model info
+  let modelInfo = null;
+  try {
+    const infoRun = await runPrusaInfo({
+      slicerCmd,
+      modelPath: config.modelPath,
+      timeoutMs: 20000,
+    });
+    if (infoRun.exitCode === 0) {
+      modelInfo = parseModelInfo(infoRun.stdout);
+    }
+  } catch {
+    // Non-critical — continue without model info
+  }
+
+  updateProgress(5); // Starting slicer
+
+  // Run PrusaSlicer with progress parsing from stderr
+  const run = await runPrusaSlicerWithProgress({
+    slicerCmd,
+    modelPath: config.modelPath,
+    iniPath,
+    outDir: config.jobOutputDir,
+    timeoutMs: 300000,
+    onProgress: (pct) => {
+      // Map slicer progress (0-100) to job progress (5-95 range)
+      updateProgress(5 + Math.round(pct * 0.9));
+    },
+    onChildProcess: (child) => {
+      // Store reference for cancellation support
+      job._childProcess = child;
+    },
+  });
+
+  // Persist logs
+  if (run.stderr && config.jobDir) {
+    await fs.writeFile(path.join(config.jobDir, "prusa_stderr.log"), run.stderr, "utf8").catch(() => {});
+  }
+  if (run.stdout && config.jobDir) {
+    await fs.writeFile(path.join(config.jobDir, "prusa_stdout.log"), run.stdout, "utf8").catch(() => {});
+  }
+
+  if (run.exitCode !== 0) {
+    throw new Error(`PrusaSlicer exited with code ${run.exitCode}: ${truncate(run.stderr, 500)}`);
+  }
+
+  if (!(await fileExists(run.outGcodePath))) {
+    throw new Error("PrusaSlicer did not produce out.gcode.");
+  }
+
+  updateProgress(95); // Parsing gcode
+
+  const gcodeText = await fs.readFile(run.outGcodePath, "utf8");
+  const metrics = parseGcodeMetrics(gcodeText);
+
+  return {
+    durationMs: run.durationMs,
+    usedPreset,
+    modelUsed: config.modelOriginalName,
+    modelInfo,
+    metrics,
+  };
+});
+
+// Log queue events (dev diagnostics) + fire webhooks
+slicingQueue.on("job:started", ({ jobId }) => {
+  console.log(`[slicingQueue] Job ${jobId} started processing`);
+});
+slicingQueue.on("job:completed", ({ jobId, tenantId, result }) => {
+  console.log(`[slicingQueue] Job ${jobId} completed`);
+  // Fire slice.completed webhook (fire-and-forget)
+  if (tenantId) {
+    fireWebhook(WORKSPACE_ROOT, tenantId, "slice.completed", {
+      jobId,
+      modelUsed: result?.modelUsed,
+      usedPreset: result?.usedPreset,
+      durationMs: result?.durationMs,
+      metrics: result?.metrics,
+    });
+  }
+});
+slicingQueue.on("job:failed", ({ jobId, tenantId, error }) => {
+  console.log(`[slicingQueue] Job ${jobId} failed: ${error}`);
+  // Fire slice.failed webhook (fire-and-forget)
+  if (tenantId) {
+    fireWebhook(WORKSPACE_ROOT, tenantId, "slice.failed", {
+      jobId,
+      error: String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/slice/queue — Submit a slicing job to the queue.
+ * Accepts the same multipart payload as POST /api/slice.
+ * Returns immediately with a job ID for polling.
+ */
+app.post(
+  "/api/slice/queue",
+  createJobMiddleware,
+  createUploader().fields([
+    { name: "model", maxCount: 1 },
+    { name: "ini", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const modelFile = req.files?.model?.[0];
+      if (!modelFile?.path) {
+        return fail(res, 400, "MP_BAD_REQUEST", "Missing file field 'model' (multipart).");
+      }
+
+      const tenantId = getTenantIdFromReq(req);
+      const presetId = typeof req.body?.presetId === "string" ? req.body.presetId.trim() : "";
+      const iniFile = req.files?.ini?.[0];
+
+      const result = slicingQueue.addJob({
+        tenantId,
+        modelPath: modelFile.path,
+        modelOriginalName: modelFile.originalname,
+        iniPath: iniFile?.path || "",
+        presetId,
+        jobDir: req.jobDir,
+        jobOutputDir: req.jobOutputDir,
+      });
+
+      if (!result.ok) {
+        return fail(res, 429, result.code, result.message);
+      }
+
+      return res.status(202).json({
+        ok: true,
+        data: result.job,
+      });
+    } catch (e) {
+      return fail(res, 500, "MP_QUEUE_SUBMIT_FAILED", String(e?.message || e));
+    }
+  }
+);
+
+/**
+ * GET /api/slice/queue — Get queue statistics.
+ */
+app.get("/api/slice/queue", (_req, res) => {
+  const stats = slicingQueue.getQueueStats();
+  return ok(res, stats);
+});
+
+/**
+ * GET /api/slice/queue/:jobId — Get status and progress of a specific job.
+ */
+app.get("/api/slice/queue/:jobId", (req, res) => {
+  const jobId = String(req.params.jobId || "").trim();
+  if (!jobId) return fail(res, 400, "MP_BAD_REQUEST", "Missing jobId.");
+
+  const job = slicingQueue.getJobStatus(jobId);
+  if (!job) return fail(res, 404, "MP_NOT_FOUND", `Job ${jobId} not found.`);
+
+  return ok(res, job);
+});
+
+/**
+ * DELETE /api/slice/queue/:jobId — Cancel a queued or processing job.
+ */
+app.delete("/api/slice/queue/:jobId", (req, res) => {
+  const jobId = String(req.params.jobId || "").trim();
+  if (!jobId) return fail(res, 400, "MP_BAD_REQUEST", "Missing jobId.");
+
+  const result = slicingQueue.cancelJob(jobId);
+  if (!result.ok) {
+    const status = result.code === "MP_NOT_FOUND" ? 404 : 409;
+    return fail(res, status, result.code, result.message);
+  }
+
+  return ok(res, { jobId, status: "cancelled" });
+});
+
 // ===== Error handler (CORS, multer, validation etc.) =====
 app.use((err, _req, res, _next) => {
   // Multer file size limit
@@ -502,6 +715,8 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`[backend-local] listening on http://127.0.0.1:${PORT}`);
   console.log(`[backend-local] workspace: ${WORKSPACE_ROOT}`);
+  console.log(`[backend-local] API docs: http://127.0.0.1:${PORT}/api/docs/html`);
+  console.log(`[backend-local] API version: ${API_VERSION_FULL} (${API_VERSION})`);
 });
 
 // ===== Helpers =====
@@ -586,4 +801,93 @@ function truncate(s, maxLen) {
   if (!s) return "";
   if (s.length <= maxLen) return s;
   return s.slice(0, maxLen) + `\n... (truncated ${s.length - maxLen} chars)`;
+}
+
+/**
+ * Run PrusaSlicer with real-time progress parsing from stderr.
+ * PrusaSlicer outputs lines like "Slicing... 45%" or "=> Processing... 80%"
+ * to stderr. This function parses those and calls onProgress(pct).
+ *
+ * @param {Object} opts
+ * @param {string} opts.slicerCmd
+ * @param {string} opts.modelPath
+ * @param {string} opts.iniPath
+ * @param {string} opts.outDir
+ * @param {number} [opts.timeoutMs=300000]
+ * @param {(pct: number) => void} [opts.onProgress]
+ * @param {(child: import("node:child_process").ChildProcess) => void} [opts.onChildProcess]
+ * @returns {Promise<{ exitCode: number, stdout: string, stderr: string, outGcodePath: string, durationMs: number }>}
+ */
+async function runPrusaSlicerWithProgress({ slicerCmd, modelPath, iniPath, outDir, timeoutMs = 300000, onProgress, onChildProcess }) {
+  const { spawn } = await import("node:child_process");
+  const outGcodePath = path.join(outDir, "out.gcode");
+
+  const args = [
+    "--export-gcode",
+    "-o",
+    outGcodePath,
+    modelPath,
+    "--load",
+    iniPath,
+  ];
+
+  const start = Date.now();
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(slicerCmd, args, { cwd: outDir, windowsHide: true, shell: false });
+
+    if (onChildProcess) onChildProcess(child);
+
+    let stdout = "";
+    let stderr = "";
+
+    // Regex to match progress lines from PrusaSlicer stderr.
+    // Examples: "Slicing... 45%", "=> Generating perimeters 80%", "72%"
+    const progressRe = /(\d{1,3})%/;
+
+    child.stdout?.on("data", (d) => (stdout += String(d)));
+    child.stderr?.on("data", (d) => {
+      const chunk = String(d);
+      stderr += chunk;
+
+      // Try to extract progress percentage from this chunk
+      if (onProgress) {
+        const lines = chunk.split(/\r?\n/);
+        for (const line of lines) {
+          const match = line.match(progressRe);
+          if (match) {
+            const pct = parseInt(match[1], 10);
+            if (pct >= 0 && pct <= 100) {
+              onProgress(pct);
+            }
+          }
+        }
+      }
+    });
+
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+      reject(new Error(`PrusaSlicer timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({
+        exitCode: code,
+        stdout,
+        stderr,
+        outGcodePath,
+        durationMs: Date.now() - start,
+      });
+    });
+  });
 }

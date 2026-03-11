@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
+import AnalyticsCharts from './components/AnalyticsCharts';
 import {
   clearAnalyticsAll,
   computeOverview,
@@ -130,6 +131,7 @@ export default function AdminAnalytics() {
     tabCalculations: cs ? 'Kalkulace' : 'Calculations',
     tabOrders: cs ? 'Objednavky' : 'Orders',
     tabLost: cs ? 'Ztracene' : 'Lost',
+    tabCharts: cs ? 'Grafy' : 'Charts',
     tabExports: cs ? 'Exporty' : 'Exports',
     // StatCard labels
     calculations: cs ? 'Kalkulace' : 'Calculations',
@@ -363,6 +365,7 @@ export default function AdminAnalytics() {
         <TabButton active={tab === 'calculations'} onClick={() => setTab('calculations')}>{ui.tabCalculations}</TabButton>
         <TabButton active={tab === 'orders'} onClick={() => setTab('orders')}>{ui.tabOrders}</TabButton>
         <TabButton active={tab === 'lost'} onClick={() => setTab('lost')}>{ui.tabLost}</TabButton>
+        <TabButton active={tab === 'charts'} onClick={() => setTab('charts')}>{ui.tabCharts}</TabButton>
         <TabButton active={tab === 'exports'} onClick={() => setTab('exports')}>{ui.tabExports}</TabButton>
       </div>
 
@@ -587,6 +590,12 @@ export default function AdminAnalytics() {
               </table>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {tab === 'charts' ? (
+        <div className="mp-section">
+          <AnalyticsCharts sessions={sessions} cs={cs} />
         </div>
       ) : null}
 

@@ -34,12 +34,16 @@ pres PrusaSlicer backend a odeslani objednavky.
 - **Developer view** -- prepinac Zakaznicky/Developer s detailnim fee breakdown vcetne condition evaluation
 - **Checkout flow** -- react-hook-form + zod validace, ulozeni do localStorage + backend storage
 - **Cross-tab sync** -- localStorage storage event listener pro live reload admin config zmen
+- **Breadcrumb navigace** -- kontextualni breadcrumb "Kalkulacka / {aktualni krok}" nad stepperem
+- **Klikatelny stepper** -- completed kroky jsou klikatelne (navrat zpet bez ztraty dat), future kroky disabled
+- **Checkmark ikony** -- completed kroky zobrazuji checkmark misto puvodni ikony
+- **Kontextovy Zpet button** -- "Zpet na: {nazev predchoziho kroku}" v bottom navigaci
 
 ### URL a routing
 
 - **Route:** `/test-kalkulacka`
 - **Definovano v:** `src/Routes.jsx:8` (prime import, ne lazy)
-- **Navigace:** breadcrumb Dashboard > Nahrani modelu
+- **Navigace:** breadcrumb Kalkulacka > {aktualni krok}
 
 ---
 
@@ -73,7 +77,7 @@ src/pages/test-kalkulacka/
   schemas/
     checkoutSchema.js                 -- Zod schema pro checkout formular (65 r.)
   components/
-    FileUploadZone.jsx                -- Drag&drop upload zona (330 r.)
+    FileUploadZone.jsx                -- Drag&drop upload zona s validaci a ukazkovymi modely (~500 r.)
     ModelViewer.jsx                   -- 3D STL nahled + metriky + fullscreen (659 r.)
     PrintConfiguration.jsx            -- Material, barva, kvalita, infill, fees (1010 r.)
     PricingCalculator.jsx             -- Cenovy souhrn a breakdown (626 r.)
@@ -351,38 +355,53 @@ base (material cost + time cost)
 
 ### 8.1 FileUploadZone
 
-**Soubor:** `src/pages/test-kalkulacka/components/FileUploadZone.jsx` (330 r.)
+**Soubor:** `src/pages/test-kalkulacka/components/FileUploadZone.jsx` (~500 r.)
 **Export:** default `FileUploadZone`
+**Zavislosti:** `react-dropzone`, `src/lib/sampleModels.js`
 
 **Props:**
 
 | Prop | Typ | Povinny | Popis |
 |------|-----|---------|-------|
 | onFilesUploaded | Function | ano | Callback s nahranym souborem `{ id, name, size, type, file, uploadedAt }` |
-| uploadedFiles | Array | ne | Pole jiz nahranych souboru (pro seznam) |
+| uploadedFiles | Array | ne | Pole jiz nahranych souboru (pro seznam + detekce duplikatu) |
 | onRemoveFile | Function | ne | Callback pro odstraneni souboru |
 
 **Funkcionalita:**
 - Pouziva `react-dropzone` pro drag&drop
-- Accept: `.stl`, `.obj` (MIME typy `application/octet-stream`, `model/stl`, `model/obj`)
+- Accept: `.stl`, `.obj`, `.3mf` (MIME typy vcetne `model/3mf`)
 - Max velikost: 50 MB
 - Multiple: ano
-- Simulovany upload progress (inkrementace po 10% kazdych 200ms)
+- Simulovany upload progress (inkrementace po 10% kazdych 200ms) se zobrazenim nazvu souboru
 - Po dokonceni "uploadu" vola `onFilesUploaded` pres `setTimeout(0)` (avoid React warning)
+- **Inline validace:** format, velikost, duplikaty -- chybove hlasky s auto-dismiss (6s)
+- **Success animace:** zeleny flash + checkmark overlay po uspesnem nahrani (1.2s)
+- **Drag state vizualni feedback:** pulsujici teal border, scale transform, box-shadow
+- **Ukazkove modely:** 3 programaticky generovane STL modely (krychle, valec, koule)
 
 **State:**
-- `uploadProgress` -- objekt `{ [fileId]: number }` pro zobrazeni progress baru
+- `uploadProgress` -- objekt `{ [fileId]: { progress, name } }` pro progress bar
+- `validationErrors` -- pole chybovych hlasek `{ type, message }` s auto-dismiss
+- `showSuccess` -- boolean pro success flash animaci
+- `hoveredSample` -- ID hovrovaneho ukazkoveho modelu
+- `generatingSample` -- ID prave generovaneho ukazkoveho modelu
 
 **Vizual:**
-- Centralni upload zona s dashed borderem
-- Ikona Upload v kruhu
-- Badge `.STL` a `.OBJ`
-- Progress bar s procenty
+- Centralni upload zona s dashed borderem a drag-state animaci
+- Ikona Upload/Download/CheckCircle v kruhu (meni se podle stavu)
+- SVG ikony souboru pro STL, OBJ, 3MF s barevnym kodovanim
+- Progress bar s nazvy souboru a procenty
+- Validacni chybove hlasky s ikonami podle typu (HardDrive, Copy, FileX, AlertTriangle)
+- Sekce "Nemate model?" s 3 ukazkovymi modely (SVG shape ikony)
 - Seznam nahranych souboru s ikonami a velikostmi
 - Info box "Podporovane formaty"
+- Aria labels pro pristupnost
 
-**Poznamka:** Dropzone accept objekt NEOBSAHUJE `.3mf` format, ackoliv hidden file input
-v orchestratoru (index.jsx:654) `.3mf` akceptuje. Toto je nesrovnalost.
+**Ukazkove modely (sampleModels.js):**
+- `src/lib/sampleModels.js` -- programaticka generace STL binary dat
+- Krychle 20mm (12 trojuhelniku), Valec 20x30mm (64 trojuhelniku), Koule 25mm (~160 trojuhelniku)
+- Funkce: `generateCubeSTL()`, `generateCylinderSTL()`, `generateSphereSTL()`
+- Exportuje `SAMPLE_MODELS` pole s metadaty pro UI
 
 ### 8.2 ModelViewer
 
@@ -1102,8 +1121,7 @@ Admin zmena v jine zalosec se propsne do kalkulacky automaticky.
 
 2. **Tenant ID hardcoded** -- CheckoutForm pouziva `tenant_id: 'demo-tenant'` misto `getTenantId()`.
 
-3. **3MF v dropzone chybi** -- Hidden file input akceptuje `.3mf`, ale FileUploadZone dropzone ne.
-   Uzivatel muze nahrat 3MF jen pres "Pridat model" button, ne pres drag&drop.
+3. ~~**3MF v dropzone chybi**~~ -- OPRAVENO (2026-03-11). FileUploadZone nyni akceptuje `.3mf` v dropzone.
 
 4. **Zadna file type validace na backendu** -- Frontend akceptuje soubory dle extension,
    ale nevaliduje skutecny obsah (magic bytes).

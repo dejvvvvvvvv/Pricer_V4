@@ -25,6 +25,9 @@ import {
   getWidgetDomains,
 } from '../../utils/adminBrandingWidgetStorage';
 
+import DashboardCharts from './components/DashboardCharts';
+import QuickSettings from './components/QuickSettings';
+
 function isoDaysAgo(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -947,6 +950,16 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Analytics Charts */}
+      {!editing && (
+        <DashboardCharts language={language} />
+      )}
+
+      {/* Quick Settings Panel */}
+      {!editing && (
+        <QuickSettings language={language} />
       )}
 
       {/* Add Metric Modal */}

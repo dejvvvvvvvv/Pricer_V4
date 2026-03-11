@@ -1,0 +1,178 @@
+/* ==========================================================================
+   Light Theme Overrides for Test-Kalkulacka
+   Scoped via [data-theme="light"] on the calculator container.
+   Does NOT modify forge-tokens.css — pure CSS variable overrides.
+   ========================================================================== */
+
+[data-theme="light"] {
+  /* ---- Background ---- */
+  --forge-bg-void: #F4F5F7;
+  --forge-bg-surface: #FFFFFF;
+  --forge-bg-elevated: #F8F9FA;
+  --forge-bg-overlay: #EEF0F2;
+
+  /* ---- Text ---- */
+  --forge-text-primary: #1A1A2E;
+  --forge-text-secondary: #4A5568;
+  --forge-text-muted: #6B7280;
+  --forge-text-decorative: #9CA3AF;
+  --forge-text-disabled: #CBD5E1;
+
+  /* ---- Accents — teal stays vibrant, adjust subtle/ghost for light bg ---- */
+  --forge-accent-primary: #00B894;
+  --forge-accent-primary-h: #00D4AA;
+  --forge-accent-primary-strong: #00B894;
+  --forge-accent-primary-medium: #00A88A;
+  --forge-accent-primary-subtle: rgba(0, 184, 148, 0.10);
+  --forge-accent-primary-ghost: rgba(0, 184, 148, 0.05);
+  --forge-accent-secondary: #E85D2C;
+  --forge-accent-tertiary: #5A52E0;
+
+  /* ---- Semantic ---- */
+  --forge-success: #00B894;
+  --forge-warning: #F0A030;
+  --forge-error: #E53E3E;
+  --forge-info: #3B82F6;
+
+  /* ---- Borders ---- */
+  --forge-border-default: #E2E8F0;
+  --forge-border-active: #CBD5E1;
+  --forge-border-highlight: rgba(0, 184, 148, 0.25);
+  --forge-border-grid: #E2E8F0;
+
+  /* ---- Gradients ---- */
+  --forge-gradient-brand: linear-gradient(135deg, #00B894 0%, #5A52E0 100%);
+  --forge-gradient-glow: radial-gradient(ellipse at center, rgba(0, 184, 148, 0.06) 0%, transparent 70%);
+
+  /* ---- Shadows — deeper for light theme depth ---- */
+  --forge-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --forge-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --forge-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --forge-shadow-glow: 0 0 20px rgba(0, 184, 148, 0.12);
+
+  /* ---- 3D-print specific ---- */
+  --forge-nozzle-hot: #E8890C;
+  --forge-bed-heated: #E05555;
+}
+
+/* --------------------------------------------------------------------------
+   Transition layer — smooth theme switching
+   -------------------------------------------------------------------------- */
+[data-theme="light"],
+[data-theme="light"] *,
+[data-theme="light"] *::before,
+[data-theme="light"] *::after {
+  transition:
+    background-color 300ms ease,
+    color 300ms ease,
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+/* Opt-out transition for elements that should switch instantly (canvas, 3D) */
+[data-theme="light"] canvas,
+[data-theme="light"] .no-theme-transition {
+  transition: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Component-specific light overrides
+   -------------------------------------------------------------------------- */
+
+/* Scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--forge-bg-elevated);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Input placeholder */
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: var(--forge-text-decorative) !important;
+}
+
+/* Buttons with inline rgba — override common dark-mode patterns */
+[data-theme="light"] button[style*="rgba(255"] {
+  border-color: var(--forge-border-default) !important;
+}
+
+/* Cards / panels that use bg-surface or bg-elevated */
+[data-theme="light"] .forge-card,
+[data-theme="light"] [style*="--forge-bg-surface"] {
+  box-shadow: var(--forge-shadow-sm);
+}
+
+/* --------------------------------------------------------------------------
+   Theme Toggle Button
+   -------------------------------------------------------------------------- */
+.theme-toggle-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 50;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--forge-border-default);
+  background: var(--forge-bg-elevated);
+  color: var(--forge-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, transform 200ms ease;
+  padding: 0;
+  outline: none;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--forge-bg-overlay);
+  color: var(--forge-text-primary);
+  border-color: var(--forge-border-active);
+  transform: scale(1.08);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--forge-accent-primary);
+  outline-offset: 2px;
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+/* Icon rotation animation */
+.theme-toggle-icon {
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle-btn:hover .theme-toggle-icon {
+  transform: rotate(30deg);
+}
+
+/* --------------------------------------------------------------------------
+   3D Viewer background override
+   -------------------------------------------------------------------------- */
+[data-theme="light"] .tk-model-viewer-wrap,
+[data-theme="light"] .model-viewer-canvas-wrap {
+  background: #ECEEF2 !important;
+}
+
+/* ModelViewer overlay controls */
+[data-theme="light"] .model-viewer-controls button {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: var(--forge-text-primary) !important;
+  border-color: var(--forge-border-default) !important;
+}
+
+[data-theme="light"] .model-viewer-controls button:hover {
+  background: rgba(255, 255, 255, 0.95) !important;
+}

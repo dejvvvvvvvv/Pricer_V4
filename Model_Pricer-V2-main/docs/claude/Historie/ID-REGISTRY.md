@@ -1,7 +1,8 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Globalni pocitadlo:** 091 (incrementovano po kazdem zaznamu)
-**Dalsi ID k pouziti:** 092
+**Posledni pouzite ID:** 158
+**Dalsi ID k pouziti:** 159
+**Poslední aktualizace:** 2026-03-11 (autonomní session finalizace 2026-03-10)
 
 ---
 
@@ -42,6 +43,7 @@
 | **089-WB** | 2026-02-26 | Testing | **Widget Builder + Forge Design — Browser Testing** | **0** |
 | **090-MC** | 2026-02-27 | MCP Servers | **MCP Server Installation (P0+P1: Firebase, GitHub, Stripe, Sentry, Vercel)** | **2** |
 | **091-BU** | 2026-03-05 | Bug fixes | **Orders Page Fixes — Ceny + Rozmery + Layout** | **2** |
+| **092-TK** | 2026-03-10 | Test-Kalkulacka | **Undo/Redo pro Print Config** | **3** |
 
 ---
 

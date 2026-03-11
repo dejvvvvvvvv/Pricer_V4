@@ -1,34 +1,20 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useDroppable } from '@dnd-kit/core';
 import KanbanCard from './KanbanCard';
 import { getStatusColor, getStatusLabel } from './statusTransitions';
 
-export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop, onViewOrder }) {
-  const [isDragOver, setIsDragOver] = useState(false);
+export default function KanbanColumn({ status, orders = [], wipLimit = 0, activeOrderId, onViewOrder }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status,
+  });
 
   const isOverWip = wipLimit > 0 && orders.length >= wipLimit;
   const color = getStatusColor(status);
   const label = getStatusLabel(status);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => setIsDragOver(false);
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const orderId = e.dataTransfer.getData('text/plain');
-    if (orderId && onDrop) onDrop(orderId, status);
-  };
-
   return (
     <div
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      ref={setNodeRef}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -36,9 +22,9 @@ export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop
         minWidth: '280px',
         backgroundColor: 'var(--forge-bg-surface)',
         borderRadius: 'var(--forge-radius-lg)',
-        border: `1px solid ${isDragOver ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
-        transition: 'border-color var(--forge-duration-micro) ease, background-color var(--forge-duration-micro) ease',
-        ...(isDragOver ? { boxShadow: '0 0 16px rgba(0, 212, 170, 0.1)' } : {}),
+        border: `1.5px solid ${isOver ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
+        transition: 'border-color 150ms ease, box-shadow 150ms ease',
+        boxShadow: isOver ? '0 0 20px rgba(0, 212, 170, 0.15), inset 0 0 0 1px rgba(0, 212, 170, 0.08)' : 'none',
       }}
     >
       {/* Column header */}
@@ -55,6 +41,7 @@ export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop
             height: '10px',
             borderRadius: '50%',
             backgroundColor: color,
+            boxShadow: `0 0 6px ${color}44`,
           }} />
           <span style={{
             fontFamily: 'var(--forge-font-tech)',
@@ -92,9 +79,15 @@ export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop
         overflowY: 'auto',
         overscrollBehavior: 'contain',
         maxHeight: 'calc(100vh - 280px)',
+        minHeight: '60px',
       }}>
         {orders.map(order => (
-          <KanbanCard key={order.id} order={order} onView={onViewOrder} />
+          <KanbanCard
+            key={order.id}
+            order={order}
+            onView={onViewOrder}
+            isDragging={String(order.id) === String(activeOrderId)}
+          />
         ))}
         {orders.length === 0 && (
           <div style={{
@@ -106,7 +99,7 @@ export default function KanbanColumn({ status, orders = [], wipLimit = 0, onDrop
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
           }}>
-            No orders
+            Zadne objednavky
           </div>
         )}
       </div>

@@ -11,6 +11,8 @@ export default function FileToolbar({
   selection,
   onDeleteSelected,
   onDownloadSelected,
+  viewMode = 'list',
+  onViewModeChange,
 }) {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [folderName, setFolderName] = useState('');
@@ -136,8 +138,31 @@ export default function FileToolbar({
         </div>
       )}
 
+      {/* View toggle */}
+      {onViewModeChange && (
+        <div style={{
+          display: 'inline-flex',
+          borderRadius: 'var(--forge-radius-sm)',
+          border: '1px solid var(--forge-border-default)',
+          overflow: 'hidden',
+        }}>
+          <ViewToggleBtn
+            icon="List"
+            label="Seznam"
+            active={viewMode === 'list'}
+            onClick={() => onViewModeChange('list')}
+          />
+          <ViewToggleBtn
+            icon="LayoutGrid"
+            label="Galerie"
+            active={viewMode === 'grid'}
+            onClick={() => onViewModeChange('grid')}
+          />
+        </div>
+      )}
+
       {/* Refresh */}
-      <ToolbarBtn icon="RefreshCw" label="Refresh" onClick={onRefresh} />
+      <ToolbarBtn icon="RefreshCw" label="Obnovit" onClick={onRefresh} />
     </div>
   );
 }
@@ -161,6 +186,30 @@ function ToolbarBtn({ icon, label, onClick, danger = false }) {
         fontSize: '11px',
         fontFamily: 'var(--forge-font-body)',
         fontWeight: 500,
+        transition: 'all 120ms ease',
+      }}
+    >
+      <Icon name={icon} size={14} />
+    </button>
+  );
+}
+
+function ViewToggleBtn({ icon, label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-pressed={active}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '6px 10px',
+        border: 'none',
+        background: active ? 'var(--forge-accent-primary)' : 'var(--forge-bg-surface)',
+        color: active ? '#08090C' : 'var(--forge-text-muted)',
+        cursor: 'pointer',
         transition: 'all 120ms ease',
       }}
     >

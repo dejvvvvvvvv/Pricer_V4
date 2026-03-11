@@ -21,6 +21,7 @@ export default function AdminModelStorage() {
     selection,
     searchQuery,
     isSearching,
+    viewMode,
     navigateTo,
     navigateUp,
     refresh,
@@ -28,6 +29,7 @@ export default function AdminModelStorage() {
     doSearch,
     toggleSelection,
     clearSelection,
+    setViewMode,
     doDelete,
     doRestore,
     doCreateFolder,
@@ -39,6 +41,19 @@ export default function AdminModelStorage() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showPreview, setShowPreview] = useState(true);
   const [contextMenu, setContextMenu] = useState(null);
+
+  // Restore view preference from sessionStorage
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('mp:storage:viewMode');
+      if (saved === 'grid' || saved === 'list') setViewMode(saved);
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleViewModeChange = useCallback((mode) => {
+    setViewMode(mode);
+    try { sessionStorage.setItem('mp:storage:viewMode', mode); } catch { /* ignore */ }
+  }, [setViewMode]);
 
   // Load initial folder
   useEffect(() => {
@@ -205,10 +220,12 @@ export default function AdminModelStorage() {
               selection={selection}
               onDeleteSelected={handleDeleteSelected}
               onDownloadSelected={handleDownloadSelected}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
             />
           </div>
 
-          {/* File list */}
+          {/* File list / grid */}
           <FileListPanel
             items={items}
             loading={loading}
@@ -218,7 +235,10 @@ export default function AdminModelStorage() {
             onSelect={toggleSelection}
             onSelectItem={handleSelectItem}
             onContextMenu={handleContextMenu}
+            onDownload={handleDownload}
+            onDelete={doDelete}
             isTrash={isTrash}
+            viewMode={viewMode}
           />
         </div>
 
