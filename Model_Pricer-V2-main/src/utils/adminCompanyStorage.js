@@ -26,6 +26,12 @@ export function getDefaultCompanyData() {
     city: '',
     zip: '',
     country: 'CZ',
+    contactEmail: '',
+    contactPhone: '',
+    website: '',
+    bankAccount: '',
+    bankName: '',
+    iban: '',
   };
 }
 

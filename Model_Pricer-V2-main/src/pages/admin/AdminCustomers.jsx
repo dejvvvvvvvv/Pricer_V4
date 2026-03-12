@@ -2,16 +2,23 @@
 // ---------------------------------------------
 // Scope: /admin/customers only
 // - Extracts unique customers from orders (by email)
-// - Shows: name, email, order count, total spent, last order, avg order value
-// - Sortable, searchable, expandable detail rows
+// - Shows: avatar, name, email, phone, segment, order count, total spent, last order
+// - Sortable, searchable, filterable by segment, expandable detail rows
+// - Customer segments: Novy, Pravideln (5+), VIP (10+ orders or 10k+ spent)
+// - Customer notes (tenant-scoped via storage helpers)
+// - CSV export
+// - Contact info with copy buttons
 // - Stats cards: total customers, new this month, avg LTV, repeat rate
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
+import { CopyButton } from '../../components/ui/forge/CopyButton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useSortableData } from '../../hooks/useSortableData';
+import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
+import { exportCSV } from '../../utils/exportData';
 import {
   loadOrders,
   computeOrderTotals,
@@ -19,6 +26,39 @@ import {
   getStatusLabel,
   round2,
 } from '../../utils/adminOrdersStorage';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CUSTOMER_NOTES_NS = 'customer-notes:v1';
+
+const SEGMENTS = {
+  NEW: 'NEW',
+  REGULAR: 'REGULAR',
+  VIP: 'VIP',
+};
+
+const SEGMENT_CONFIG = {
+  [SEGMENTS.NEW]: {
+    labelCs: 'Novy',
+    labelEn: 'New',
+    color: '#60A5FA',
+    icon: 'UserPlus',
+  },
+  [SEGMENTS.REGULAR]: {
+    labelCs: 'Pravideln',
+    labelEn: 'Regular',
+    color: '#F0A030',
+    icon: 'Users',
+  },
+  [SEGMENTS.VIP]: {
+    labelCs: 'VIP',
+    labelEn: 'VIP',
+    color: '#A78BFA',
+    icon: 'Crown',
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,20 +80,6 @@ function formatDate(iso, locale = 'cs-CZ') {
   }
 }
 
-function formatDateTime(iso, locale = 'cs-CZ') {
-  try {
-    return new Date(iso).toLocaleString(locale, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso || '--';
-  }
-}
-
 /** Get the first letter(s) for avatar placeholder */
 function getInitials(name) {
   if (!name) return '?';
@@ -66,6 +92,23 @@ function getInitials(name) {
 function startOfMonth() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+}
+
+/** Determine customer segment */
+function getSegment(orderCount, totalSpent) {
+  if (orderCount >= 10 || totalSpent >= 10000) return SEGMENTS.VIP;
+  if (orderCount >= 5) return SEGMENTS.REGULAR;
+  return SEGMENTS.NEW;
+}
+
+/** Load customer notes from tenant storage */
+function loadCustomerNotes() {
+  return readTenantJson(CUSTOMER_NOTES_NS, {});
+}
+
+/** Save customer notes to tenant storage */
+function saveCustomerNotes(notes) {
+  writeTenantJson(CUSTOMER_NOTES_NS, notes);
 }
 
 // ---------------------------------------------------------------------------
@@ -152,18 +195,22 @@ function aggregateCustomers(orders) {
     // Is new this month?
     const isNewThisMonth = c.firstOrderDate >= monthStart;
 
+    const totalSpent = round2(c.totalSpent);
+    const segment = getSegment(orderCount, totalSpent);
+
     return {
       email: c.email,
       name: c.name,
       phone: c.phone,
       orderCount,
-      totalSpent: round2(c.totalSpent),
+      totalSpent,
       avgOrder,
       lastOrderDate: c.lastOrderDate,
       firstOrderDate: c.firstOrderDate,
       favMaterial,
       orderFrequency,
       isNewThisMonth,
+      segment,
       orders: c.orders.sort((a, b) => (b.date || '').localeCompare(a.date || '')),
     };
   });
@@ -264,6 +311,33 @@ function Avatar({ name, size = 36 }) {
   );
 }
 
+function SegmentBadge({ segment, cs }) {
+  const cfg = SEGMENT_CONFIG[segment];
+  if (!cfg) return null;
+  const label = cs ? cfg.labelCs : cfg.labelEn;
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      fontSize: '10px',
+      fontFamily: 'var(--forge-font-tech)',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+      backgroundColor: `color-mix(in srgb, ${cfg.color} 12%, transparent)`,
+      color: cfg.color,
+      border: `1px solid color-mix(in srgb, ${cfg.color} 25%, transparent)`,
+      whiteSpace: 'nowrap',
+    }}>
+      <Icon name={cfg.icon} size={10} />
+      {label}
+    </span>
+  );
+}
+
 function SortableTh({ children, sortKey, currentSort, onSort, align = 'left' }) {
   const active = currentSort?.key === sortKey;
   const dir = active ? currentSort.direction : null;
@@ -302,25 +376,189 @@ function SortableTh({ children, sortKey, currentSort, onSort, align = 'left' }) 
   );
 }
 
-function CustomerDetailRow({ customer, cs }) {
+function CustomerNotes({ email, cs, notes, onSaveNote }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const currentNote = notes[email] || '';
+
+  const handleStartEdit = (e) => {
+    e.stopPropagation();
+    setDraft(currentNote);
+    setEditing(true);
+  };
+
+  const handleSave = (e) => {
+    e.stopPropagation();
+    onSaveNote(email, draft.trim());
+    setEditing(false);
+  };
+
+  const handleCancel = (e) => {
+    e.stopPropagation();
+    setEditing(false);
+  };
+
+  return (
+    <div style={{ marginTop: '16px' }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '8px',
+      }}>
+        <span style={{
+          fontFamily: 'var(--forge-font-tech)',
+          fontSize: '10px',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--forge-text-muted)',
+        }}>
+          <Icon name="StickyNote" size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+          {cs ? 'Poznamky' : 'Notes'}
+        </span>
+        {!editing && (
+          <button
+            onClick={handleStartEdit}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px 6px',
+              borderRadius: 'var(--forge-radius-sm)',
+              color: 'var(--forge-accent-primary)',
+              fontFamily: 'var(--forge-font-tech)',
+              fontSize: '10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <Icon name={currentNote ? 'Pencil' : 'Plus'} size={10} />
+            {currentNote
+              ? (cs ? 'Upravit' : 'Edit')
+              : (cs ? 'Pridat' : 'Add')}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div onClick={(e) => e.stopPropagation()}>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={cs ? 'Napiste poznamku o zakaznikovi...' : 'Write a note about this customer...'}
+            rows={3}
+            style={{
+              width: '100%',
+              backgroundColor: 'var(--forge-bg-surface)',
+              border: '1px solid var(--forge-border-default)',
+              borderRadius: 'var(--forge-radius-sm)',
+              padding: '8px 12px',
+              color: 'var(--forge-text-primary)',
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '13px',
+              resize: 'vertical',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--forge-accent-primary)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'var(--forge-border-default)';
+            }}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 'var(--forge-radius-sm)',
+                border: 'none',
+                backgroundColor: 'var(--forge-accent-primary)',
+                color: '#fff',
+                fontFamily: 'var(--forge-font-tech)',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {cs ? 'Ulozit' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancel}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 'var(--forge-radius-sm)',
+                border: '1px solid var(--forge-border-default)',
+                backgroundColor: 'transparent',
+                color: 'var(--forge-text-muted)',
+                fontFamily: 'var(--forge-font-tech)',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {cs ? 'Zrusit' : 'Cancel'}
+            </button>
+          </div>
+        </div>
+      ) : currentNote ? (
+        <div style={{
+          padding: '10px 12px',
+          backgroundColor: 'var(--forge-bg-surface)',
+          borderRadius: 'var(--forge-radius-sm)',
+          border: '1px solid var(--forge-border-default)',
+          fontFamily: 'var(--forge-font-body)',
+          fontSize: '13px',
+          color: 'var(--forge-text-secondary)',
+          whiteSpace: 'pre-wrap',
+          lineHeight: 1.5,
+        }}>
+          {currentNote}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
   return (
     <tr>
-      <td colSpan={6} style={{ padding: 0 }}>
+      <td colSpan={colSpan} style={{ padding: 0 }}>
         <div style={{
           backgroundColor: 'var(--forge-bg-elevated)',
           borderBottom: '1px solid var(--forge-border-default)',
           padding: '16px 20px',
         }}>
-          {/* Detail header */}
+          {/* Stats summary */}
           <div style={{
-            display: 'flex',
-            gap: '32px',
-            flexWrap: 'wrap',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: '16px',
             marginBottom: '16px',
+            padding: '12px 16px',
+            backgroundColor: 'var(--forge-bg-surface)',
+            borderRadius: 'var(--forge-radius-sm)',
+            border: '1px solid var(--forge-border-default)',
           }}>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Telefon' : 'Phone'}</span>
-              <span style={detailValueStyle}>{customer.phone || '--'}</span>
+              <span style={detailLabelStyle}>{cs ? 'Celkem objednavek' : 'Total orders'}</span>
+              <span style={detailValueStyle}>{customer.orderCount}</span>
+            </div>
+            <div>
+              <span style={detailLabelStyle}>{cs ? 'Celkem utraceno' : 'Total spent'}</span>
+              <span style={{ ...detailValueStyle, fontFamily: 'var(--forge-font-tech)', fontWeight: 700 }}>
+                {formatMoney(customer.totalSpent)}
+              </span>
+            </div>
+            <div>
+              <span style={detailLabelStyle}>{cs ? 'Prumerna objednavka' : 'Average order'}</span>
+              <span style={{ ...detailValueStyle, fontFamily: 'var(--forge-font-tech)' }}>
+                {formatMoney(customer.avgOrder)}
+              </span>
             </div>
             <div>
               <span style={detailLabelStyle}>{cs ? 'Oblibeny material' : 'Favorite material'}</span>
@@ -338,6 +576,66 @@ function CustomerDetailRow({ customer, cs }) {
               <span style={detailLabelStyle}>{cs ? 'Prvni objednavka' : 'First order'}</span>
               <span style={detailValueStyle}>{formatDate(customer.firstOrderDate)}</span>
             </div>
+          </div>
+
+          {/* Contact info with copy buttons */}
+          <div style={{
+            display: 'flex',
+            gap: '16px',
+            flexWrap: 'wrap',
+            marginBottom: '16px',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              backgroundColor: 'var(--forge-bg-surface)',
+              borderRadius: 'var(--forge-radius-sm)',
+              border: '1px solid var(--forge-border-default)',
+            }}>
+              <Icon name="Mail" size={14} style={{ color: 'var(--forge-text-muted)' }} />
+              <span style={{
+                fontFamily: 'var(--forge-font-body)',
+                fontSize: '13px',
+                color: 'var(--forge-text-primary)',
+              }}>
+                {customer.email}
+              </span>
+              <CopyButton
+                text={customer.email}
+                label={cs ? 'Kopirovat' : 'Copy'}
+                copiedLabel={cs ? 'Zkopirovano!' : 'Copied!'}
+                style={{ padding: '2px 4px', fontSize: '10px' }}
+              />
+            </div>
+
+            {customer.phone && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                backgroundColor: 'var(--forge-bg-surface)',
+                borderRadius: 'var(--forge-radius-sm)',
+                border: '1px solid var(--forge-border-default)',
+              }}>
+                <Icon name="Phone" size={14} style={{ color: 'var(--forge-text-muted)' }} />
+                <span style={{
+                  fontFamily: 'var(--forge-font-body)',
+                  fontSize: '13px',
+                  color: 'var(--forge-text-primary)',
+                }}>
+                  {customer.phone}
+                </span>
+                <CopyButton
+                  text={customer.phone}
+                  label={cs ? 'Kopirovat' : 'Copy'}
+                  copiedLabel={cs ? 'Zkopirovano!' : 'Copied!'}
+                  style={{ padding: '2px 4px', fontSize: '10px' }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Orders list */}
@@ -409,6 +707,14 @@ function CustomerDetailRow({ customer, cs }) {
               </div>
             ))}
           </div>
+
+          {/* Notes section */}
+          <CustomerNotes
+            email={customer.email}
+            cs={cs}
+            notes={notes}
+            onSaveNote={onSaveNote}
+          />
         </div>
       </td>
     </tr>
@@ -449,6 +755,60 @@ function StatusBadge({ status, cs }) {
   );
 }
 
+function SegmentFilter({ value, onChange, counts, cs }) {
+  const options = [
+    { key: 'ALL', label: cs ? 'Vsechny' : 'All', count: counts.all },
+    { key: SEGMENTS.NEW, label: cs ? 'Novy' : 'New', count: counts[SEGMENTS.NEW] || 0 },
+    { key: SEGMENTS.REGULAR, label: cs ? 'Pravideln' : 'Regular', count: counts[SEGMENTS.REGULAR] || 0 },
+    { key: SEGMENTS.VIP, label: 'VIP', count: counts[SEGMENTS.VIP] || 0 },
+  ];
+
+  return (
+    <div style={{
+      display: 'flex',
+      gap: '4px',
+      flexWrap: 'wrap',
+    }}>
+      {options.map((opt) => {
+        const isActive = value === opt.key;
+        const segCfg = SEGMENT_CONFIG[opt.key];
+        const activeColor = segCfg?.color || 'var(--forge-accent-primary)';
+        return (
+          <button
+            key={opt.key}
+            onClick={() => onChange(opt.key)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--forge-radius-sm)',
+              border: `1px solid ${isActive ? activeColor : 'var(--forge-border-default)'}`,
+              backgroundColor: isActive
+                ? `color-mix(in srgb, ${activeColor} 12%, transparent)`
+                : 'transparent',
+              color: isActive ? activeColor : 'var(--forge-text-muted)',
+              fontFamily: 'var(--forge-font-tech)',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 150ms',
+            }}
+          >
+            {opt.label}
+            <span style={{
+              fontSize: '10px',
+              opacity: 0.7,
+            }}>
+              ({opt.count})
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 const detailLabelStyle = {
   display: 'block',
   fontFamily: 'var(--forge-font-tech)',
@@ -481,12 +841,15 @@ export default function AdminCustomers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedEmail, setExpandedEmail] = useState(null);
+  const [segmentFilter, setSegmentFilter] = useState('ALL');
+  const [customerNotes, setCustomerNotes] = useState({});
 
-  // Load orders
+  // Load orders + notes
   useEffect(() => {
     try {
       const data = loadOrders();
       setOrders(data);
+      setCustomerNotes(loadCustomerNotes());
     } catch (e) {
       console.error('[AdminCustomers] Failed to load orders', e);
     } finally {
@@ -497,16 +860,37 @@ export default function AdminCustomers() {
   // Aggregate customers from orders
   const customers = useMemo(() => aggregateCustomers(orders), [orders]);
 
-  // Search filter
+  // Segment counts (before search filter)
+  const segmentCounts = useMemo(() => {
+    const counts = { all: customers.length };
+    for (const c of customers) {
+      counts[c.segment] = (counts[c.segment] || 0) + 1;
+    }
+    return counts;
+  }, [customers]);
+
+  // Search + segment filter
   const filtered = useMemo(() => {
-    if (!search.trim()) return customers;
-    const q = search.toLowerCase().trim();
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q)
-    );
-  }, [customers, search]);
+    let result = customers;
+
+    // Segment filter
+    if (segmentFilter !== 'ALL') {
+      result = result.filter((c) => c.segment === segmentFilter);
+    }
+
+    // Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          (c.phone && c.phone.includes(q))
+      );
+    }
+
+    return result;
+  }, [customers, search, segmentFilter]);
 
   // Sortable data
   const { sortedData, sortConfig, requestSort } = useSortableData(filtered, {
@@ -528,6 +912,45 @@ export default function AdminCustomers() {
   const toggleExpand = useCallback((email) => {
     setExpandedEmail((prev) => (prev === email ? null : email));
   }, []);
+
+  const handleSaveNote = useCallback((email, noteText) => {
+    setCustomerNotes((prev) => {
+      const updated = { ...prev };
+      if (noteText) {
+        updated[email] = noteText;
+      } else {
+        delete updated[email];
+      }
+      saveCustomerNotes(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleExportCSV = useCallback(() => {
+    const data = sortedData.map((c) => ({
+      name: c.name || '--',
+      email: c.email,
+      phone: c.phone || '--',
+      segment: c.segment,
+      orderCount: c.orderCount,
+      totalSpent: round2(c.totalSpent),
+    }));
+
+    const columns = [
+      { key: 'name', label: cs ? 'Jmeno' : 'Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'phone', label: cs ? 'Telefon' : 'Phone' },
+      { key: 'segment', label: 'Segment' },
+      { key: 'orderCount', label: cs ? 'Pocet objednavek' : 'Order count' },
+      { key: 'totalSpent', label: cs ? 'Celkem utraceno (Kc)' : 'Total spent (Kc)' },
+    ];
+
+    const now = new Date().toISOString().slice(0, 10);
+    exportCSV(data, `zakaznici-${now}.csv`, columns);
+  }, [sortedData, cs]);
+
+  // Table column count for colSpan
+  const COL_COUNT = 8;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -587,13 +1010,15 @@ export default function AdminCustomers() {
         />
       </div>
 
-      {/* Search bar */}
+      {/* Toolbar: Search + Segment filter + Export */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        gap: '12px',
         marginBottom: '16px',
+        flexWrap: 'wrap',
       }}>
+        {/* Search */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -602,13 +1027,13 @@ export default function AdminCustomers() {
           border: '1px solid var(--forge-border-default)',
           borderRadius: 'var(--forge-radius-sm)',
           padding: '8px 12px',
-          flex: '1 1 300px',
-          maxWidth: 400,
+          flex: '1 1 250px',
+          maxWidth: 360,
         }}>
           <Icon name="Search" size={16} style={{ color: 'var(--forge-text-muted)', flexShrink: 0 }} />
           <input
             type="text"
-            placeholder={cs ? 'Hledat podle jmena nebo emailu...' : 'Search by name or email...'}
+            placeholder={cs ? 'Hledat jmeno, email, telefon...' : 'Search name, email, phone...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label={cs ? 'Hledat zakazniky' : 'Search customers'}
@@ -640,10 +1065,50 @@ export default function AdminCustomers() {
             </button>
           )}
         </div>
+
+        {/* Segment filter */}
+        <SegmentFilter
+          value={segmentFilter}
+          onChange={setSegmentFilter}
+          counts={segmentCounts}
+          cs={cs}
+        />
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Export button */}
+        {customers.length > 0 && (
+          <button
+            onClick={handleExportCSV}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: 'var(--forge-radius-sm)',
+              border: '1px solid var(--forge-border-default)',
+              backgroundColor: 'var(--forge-bg-surface)',
+              color: 'var(--forge-text-secondary)',
+              fontFamily: 'var(--forge-font-tech)',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 150ms',
+            }}
+            title={cs ? 'Exportovat jako CSV' : 'Export as CSV'}
+          >
+            <Icon name="Download" size={14} />
+            {cs ? 'Export CSV' : 'Export CSV'}
+          </button>
+        )}
+
+        {/* Result count */}
         <span style={{
           fontFamily: 'var(--forge-font-tech)',
           fontSize: '11px',
           color: 'var(--forge-text-muted)',
+          whiteSpace: 'nowrap',
         }}>
           {sortedData.length} {cs ? 'zakazniku' : 'customers'}
         </span>
@@ -682,7 +1147,7 @@ export default function AdminCustomers() {
         </div>
       )}
 
-      {/* No search results */}
+      {/* No search/filter results */}
       {customers.length > 0 && sortedData.length === 0 && (
         <div style={{
           backgroundColor: 'var(--forge-bg-surface)',
@@ -696,7 +1161,8 @@ export default function AdminCustomers() {
             fontSize: '14px',
             color: 'var(--forge-text-muted)',
           }}>
-            {cs ? 'Zadne vysledky pro' : 'No results for'} &quot;{search}&quot;
+            {cs ? 'Zadne vysledky' : 'No results'}
+            {search && <> {cs ? 'pro' : 'for'} &quot;{search}&quot;</>}
           </div>
         </div>
       )}
@@ -724,6 +1190,32 @@ export default function AdminCustomers() {
                   <SortableTh sortKey="name" currentSort={sortConfig} onSort={requestSort}>
                     {cs ? 'Zakaznik' : 'Customer'}
                   </SortableTh>
+                  <th style={{
+                    padding: '10px 12px',
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: 'var(--forge-text-muted)',
+                    borderBottom: '1px solid var(--forge-border-default)',
+                    textAlign: 'left',
+                  }}>
+                    {cs ? 'Telefon' : 'Phone'}
+                  </th>
+                  <th style={{
+                    padding: '10px 12px',
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: 'var(--forge-text-muted)',
+                    borderBottom: '1px solid var(--forge-border-default)',
+                    textAlign: 'center',
+                  }}>
+                    Segment
+                  </th>
                   <SortableTh sortKey="orderCount" currentSort={sortConfig} onSort={requestSort} align="center">
                     {cs ? 'Objednavek' : 'Orders'}
                   </SortableTh>
@@ -734,7 +1226,7 @@ export default function AdminCustomers() {
                     {cs ? 'Prumer. obj.' : 'Avg. order'}
                   </SortableTh>
                   <SortableTh sortKey="lastOrderDate" currentSort={sortConfig} onSort={requestSort}>
-                    {cs ? 'Posledni objednavka' : 'Last order'}
+                    {cs ? 'Posledni obj.' : 'Last order'}
                   </SortableTh>
                   <th style={{
                     padding: '10px 12px',
@@ -762,7 +1254,7 @@ export default function AdminCustomers() {
                           if (!isExpanded) e.currentTarget.style.backgroundColor = 'transparent';
                         }}
                       >
-                        {/* Customer */}
+                        {/* Customer name + email */}
                         <td style={{
                           padding: '12px',
                           borderBottom: isExpanded ? 'none' : '1px solid var(--forge-border-default)',
@@ -787,6 +1279,26 @@ export default function AdminCustomers() {
                               </div>
                             </div>
                           </div>
+                        </td>
+
+                        {/* Phone */}
+                        <td style={{
+                          padding: '12px',
+                          borderBottom: isExpanded ? 'none' : '1px solid var(--forge-border-default)',
+                          color: 'var(--forge-text-secondary)',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {cust.phone || '--'}
+                        </td>
+
+                        {/* Segment badge */}
+                        <td style={{
+                          padding: '12px',
+                          borderBottom: isExpanded ? 'none' : '1px solid var(--forge-border-default)',
+                          textAlign: 'center',
+                        }}>
+                          <SegmentBadge segment={cust.segment} cs={cs} />
                         </td>
 
                         {/* Order count */}
@@ -831,6 +1343,7 @@ export default function AdminCustomers() {
                           borderBottom: isExpanded ? 'none' : '1px solid var(--forge-border-default)',
                           color: 'var(--forge-text-muted)',
                           fontSize: '12px',
+                          whiteSpace: 'nowrap',
                         }}>
                           {formatDate(cust.lastOrderDate)}
                         </td>
@@ -855,7 +1368,13 @@ export default function AdminCustomers() {
 
                       {/* Expandable detail row */}
                       {isExpanded && (
-                        <CustomerDetailRow customer={cust} cs={cs} />
+                        <CustomerDetailRow
+                          customer={cust}
+                          cs={cs}
+                          colSpan={COL_COUNT}
+                          notes={customerNotes}
+                          onSaveNote={handleSaveNote}
+                        />
                       )}
                     </React.Fragment>
                   );

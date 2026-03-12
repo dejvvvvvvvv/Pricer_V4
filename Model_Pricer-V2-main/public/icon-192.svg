@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="24" fill="#08090C"/>
+  <rect x="8" y="8" width="176" height="176" rx="20" fill="none" stroke="#2DD4BF" stroke-width="3"/>
+  <text x="96" y="108" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="72" fill="#2DD4BF">MP</text>
+  <rect x="28" y="140" width="136" height="4" rx="2" fill="#2DD4BF" opacity="0.4"/>
+</svg>

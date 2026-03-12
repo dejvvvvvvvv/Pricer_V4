@@ -1,8 +1,8 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Posledni pouzite ID:** 158
-**Dalsi ID k pouziti:** 159
-**Poslední aktualizace:** 2026-03-11 (autonomní session finalizace 2026-03-10)
+**Posledni pouzite ID:** 159
+**Dalsi ID k pouziti:** 160
+**Poslední aktualizace:** 2026-03-12
 
 ---
 

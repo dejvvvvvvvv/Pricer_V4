@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Maskable icon: safe zone is inner 80% (51.2px padding each side) -->
+  <rect width="512" height="512" fill="#08090C"/>
+  <text x="256" y="280" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="180" fill="#2DD4BF">MP</text>
+  <rect x="100" y="360" width="312" height="8" rx="4" fill="#2DD4BF" opacity="0.4"/>
+</svg>

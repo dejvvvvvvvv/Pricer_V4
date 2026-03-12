@@ -17,6 +17,7 @@
 */
 
 import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { logSecurityEvent } from './securityAuditLog';
 
 const NAMESPACE = 'pricing:v3';
 const SCHEMA_VERSION = 3;
@@ -498,5 +499,10 @@ export function savePricingConfigV3(config) {
   const normalized = normalizePricingConfigV3(config);
   const next = { ...normalized, updated_at: nowIso() };
   writeTenantJson(NAMESPACE, next);
+  logSecurityEvent({
+    event_type: 'config_change',
+    details: 'Zmena cenove konfigurace (pricing)',
+    severity: 'info',
+  });
   return next;
 }

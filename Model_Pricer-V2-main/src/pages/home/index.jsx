@@ -116,12 +116,11 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-[55%_45%] gap-12 lg:gap-16 items-center py-16 lg:py-0">
           <Reveal>
             <div className="relative z-10">
-              <ForgeStatusIndicator status="printing" className="mb-6" />
+              <ForgeStatusIndicator status="printing" className="mb-8" />
 
-              {/* Bug 6 fix: Use t() for hero title */}
               <h1
                 className="forge-h1"
-                style={{ maxWidth: 540, fontSize: 'clamp(2.2rem, 4vw, 3.2rem)', lineHeight: 1.1 }}
+                style={{ maxWidth: 580, fontSize: 'clamp(2.4rem, 4.5vw, 3.6rem)', lineHeight: 1.08, letterSpacing: '-0.02em' }}
               >
                 <span className="relative inline-block">
                   {t('home.hero.title')}
@@ -129,23 +128,28 @@ const Home = () => {
                 </span>
               </h1>
 
-              {/* Bug 6 fix: Use t() for hero subtitle */}
               <p
-                className="forge-body-lg mt-6"
-                style={{ color: 'var(--forge-text-secondary)', maxWidth: 480 }}
+                className="forge-body-lg mt-7"
+                style={{ color: 'var(--forge-text-secondary)', maxWidth: 500, fontSize: 'clamp(1.05rem, 1.5vw, 1.2rem)', lineHeight: 1.6 }}
               >
                 {t('home.hero.subtitle')}
               </p>
 
-              {/* Bug 6 fix: Use t() for CTA buttons */}
-              <div className="flex flex-wrap gap-3 mt-8">
-                <ForgeButton to="/register" variant="primary" size="lg">
+              <div className="flex flex-wrap gap-4 mt-10">
+                <ForgeButton to="/register" variant="primary" size="lg" style={{ fontSize: '1rem', padding: '0 28px', height: 50 }}>
                   {t('home.hero.cta.primary')}
                 </ForgeButton>
-                <ForgeButton to="/test-kalkulacka" variant="outline" size="lg">
+                <ForgeButton to="/test-kalkulacka" variant="outline" size="lg" style={{ fontSize: '1rem', padding: '0 28px', height: 50 }}>
                   {t('home.hero.cta.secondary')}
                 </ForgeButton>
               </div>
+
+              <p
+                className="mt-4"
+                style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}
+              >
+                {language === 'cs' ? 'Bez kreditni karty. Zacnete za par minut.' : 'No credit card required. Get started in minutes.'}
+              </p>
             </div>
           </Reveal>
 

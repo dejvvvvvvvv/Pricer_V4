@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes as RouterRoutes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes as RouterRoutes, Route } from 'react-router-dom';
 import Header from './components/ui/Header';
 import Footer from './components/ui/Footer';
 import SmoothScroll from './components/SmoothScroll';
@@ -26,6 +26,8 @@ const TestKalkulackaWhite = React.lazy(() => import('./pages/test-kalkulacka-whi
 const AccountPage = React.lazy(() => import('./pages/account'));
 const WidgetPublicPage = React.lazy(() => import('./pages/widget-public/WidgetPublicPage'));
 const SlicerPage = React.lazy(() => import('./pages/slicer'));
+const ModelUpload = React.lazy(() => import('./pages/model-upload'));
+const OrderTracking = React.lazy(() => import('./pages/order-tracking'));
 
 // Lazy-loaded admin pages
 const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard'));
@@ -51,6 +53,7 @@ const AdminActivityLog = React.lazy(() => import('./pages/admin/AdminActivityLog
 const AdminSystemHealth = React.lazy(() => import('./pages/admin/AdminSystemHealth'));
 const AdminWebhooks = React.lazy(() => import('./pages/admin/AdminWebhooks'));
 const AdminCustomers = React.lazy(() => import('./pages/admin/AdminCustomers'));
+const AdminSettings = React.lazy(() => import('./pages/admin/AdminSettings'));
 
 /** Fallback for public page lazy loading */
 const PageFallback = () => <PublicPageSkeleton />;
@@ -120,11 +123,12 @@ export default function Routes() {
 
           {/* veřejné */}
           <Route path="/" element={<Home />} />
-          <Route path="/model-upload" element={<Navigate to="/test-kalkulacka-white" replace />} />
+          <Route path="/model-upload" element={<Suspense fallback={<PageFallback />}><PageTransition><ModelUpload /></PageTransition></Suspense>} />
           <Route path="/test-kalkulacka" element={<Suspense fallback={<CalculatorFallback />}><PageTransition><TestKalkulacka /></PageTransition></Suspense>} />
           <Route path="/test-kalkulacka-white" element={<Suspense fallback={<CalculatorFallback />}><PageTransition><TestKalkulackaWhite /></PageTransition></Suspense>} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/track" element={<Suspense fallback={<PageFallback />}><PageTransition><OrderTracking /></PageTransition></Suspense>} />
 
           {/* Protected routes */}
           <Route element={<PrivateRoute />}>
@@ -159,6 +163,7 @@ export default function Routes() {
               <Route path="system" element={<Suspense fallback={<AdminFallback />}><PageTransition><AdminSystemHealth /></PageTransition></Suspense>} />
               <Route path="webhooks" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminWebhooks /></PageTransition></Suspense>} />
               <Route path="customers" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminCustomers /></PageTransition></Suspense>} />
+              <Route path="settings" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminSettings /></PageTransition></Suspense>} />
             </Route>
           </Route>
 

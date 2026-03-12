@@ -9,12 +9,14 @@ import { nanoid } from "nanoid";
 import multer from "multer";
 
 import { ensureDir, fileExists } from "./util/fsSafe.js";
-import { getHealthStatus } from "./util/health.js";
+import { getHealthStatus, getDetailedHealthStatus, parseSlicerVersion } from "./util/health.js";
 import { findPrusaSlicerConsole } from "./util/findSlicer.js";
 import { runPrusaSlicer } from "./slicer/runPrusaSlicer.js";
 import { parseGcodeMetrics } from "./slicer/parseGcode.js";
 import { runPrusaInfo } from "./slicer/runPrusaInfo.js";
 import { parseModelInfo } from "./slicer/parseModelInfo.js";
+import { classifySlicerError } from "./slicer/slicerErrorClassifier.js";
+import { slicerCache } from "./slicer/slicerCache.js";
 
 import {
   getIniPathForPreset,
@@ -35,6 +37,11 @@ import { createWebhooksRouter } from "./routes/webhooks.js";
 import { createOrdersRouter } from "./routes/orders.js";
 import { fireWebhook } from "./services/webhookService.js";
 import { createApiDocsRouter, API_VERSION, API_VERSION_FULL } from "./routes/apiDocs.js";
+import emailRouter from "./routes/emailRoutes.js";
+import { createConfigRouter } from "./routes/config.js";
+import { createInvoicesRouter } from "./routes/invoices.js";
+import { createStatsRouter } from "./routes/stats.js";
+import { createNotificationsRouter } from "./routes/notifications.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,7 +78,11 @@ app.use(
       if (corsOrigins.includes(origin)) return cb(null, true);
       return cb(new Error(`CORS blocked origin: ${origin}`));
     },
-    credentials: true
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-tenant-id", "x-api-version"],
+    exposedHeaders: ["X-API-Version", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"],
+    maxAge: 86400, // Cache preflight for 24 hours
   })
 );
 
@@ -123,14 +134,51 @@ app.use("/api/auth", rateLimit({
   message: "Too many auth requests, please try again later",
 }));
 
+// Write operations (POST/PATCH/PUT/DELETE) — 30 req/min per IP (lower than read)
+app.use("/api", rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  message: "Too many write requests, please try again later",
+  keyGenerator: (req) => {
+    // Only apply to write methods; let reads pass through
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return "__skip__";
+    return `write:${req.ip || req.connection?.remoteAddress || "unknown"}`;
+  },
+}));
+
 /**
- * GET /api/health — server health check with diagnostics.
- * Returns: status, version, uptime, timestamp, memory, node version.
+ * GET /api/health — simple server health check.
+ * Returns: { ok: true, status: "healthy" } for uptime monitors.
  * Does NOT expose: file paths, env vars, IPs, credentials.
  */
 app.get("/api/health", async (_req, res) => {
   const health = getHealthStatus({ version: PKG_VERSION });
   res.json({ ok: true, data: health });
+});
+
+/**
+ * GET /api/health/detailed — detailed health check with system diagnostics.
+ * Returns: uptime, memory usage, storage status, slicer availability, CPU info.
+ * Does NOT expose: file paths, env vars, IPs, credentials.
+ */
+app.get("/api/health/detailed", async (_req, res) => {
+  try {
+    const health = await getDetailedHealthStatus({
+      version: PKG_VERSION,
+      checkSlicer: resolveSlicerCmd,
+      getSlicerVersion: getSlicerVersionCached,
+      workspaceRoot: WORKSPACE_ROOT,
+      getCacheStats: () => slicerCache.getStats(),
+      getQueueStats: () => slicingQueue.getQueueStats(),
+    });
+    res.json({ ok: true, data: health });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      errorCode: "MP_HEALTH_CHECK_FAILED",
+      message: String(e?.message || e),
+    });
+  }
 });
 
 /**
@@ -152,6 +200,13 @@ app.use("/api/slice", requireAuth, requireTenant);
 app.use("/api/storage", requireAuth, requireTenant);
 app.use("/api/webhooks", requireAuth, requireTenant);
 app.use("/api/orders", requireAuth, requireTenant);
+
+// ===== Auth for additional protected routes =====
+app.use("/api/email", requireAuth, requireTenant);
+app.use("/api/invoices", requireAuth, requireTenant);
+app.use("/api/config", requireAuth, requireTenant);
+app.use("/api/stats", requireAuth, requireTenant);
+app.use("/api/notifications", requireAuth, requireTenant);
 
 // ===== Auth claims API (Firebase-to-Supabase RLS bridge) =====
 app.use("/api/auth", requireAuth, requireTenant, authClaimsRouter);
@@ -236,10 +291,14 @@ app.get("/api/health/prusa", async (_req, res) => {
     const stdout = truncate(final.stdout.trim(), 2000);
     const stderr = truncate(final.stderr.trim(), 2000);
 
+    // Parse version from help output
+    const version = parseSlicerVersion(final.stdout) || parseSlicerVersion(final.stderr) || null;
+
     res.json({
       ok: final.exitCode === 0,
       checkMethod,
       exitCode: final.exitCode,
+      version,
       // Only expose paths and raw output in development
       ...(!isProd && {
         slicerCmd,
@@ -277,9 +336,55 @@ const meshRouter = createMeshRouter({
 });
 app.use("/api/mesh", meshRouter);
 
-// ===== Upload & slice =====
+// ===== Email API =====
+app.use("/api/email", emailRouter);
+
+// ===== Config API (branding, company) =====
+const configRouter = createConfigRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
+});
+app.use("/api/config", configRouter);
+
+// ===== Invoices API =====
+const invoicesRouter = createInvoicesRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
+});
+app.use("/api/invoices", invoicesRouter);
+
+// ===== Stats API =====
+const statsRouter = createStatsRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
+  getCacheStats: () => slicerCache.getStats(),
+  getQueueStats: () => slicingQueue.getQueueStats(),
+});
+app.use("/api/stats", statsRouter);
+
+// ===== Notifications API =====
+const notificationsRouter = createNotificationsRouter({
+  workspaceRoot: WORKSPACE_ROOT,
+  getTenantIdFromReq,
+});
+app.use("/api/notifications", notificationsRouter);
+
+// ===== Initialize workspace and queue persistence =====
 
 await ensureDir(WORKSPACE_ROOT);
+
+// Configure queue persistence directory and restore pending jobs from previous run
+slicingQueue.persistDir = WORKSPACE_ROOT;
+try {
+  const { restored, skipped } = await slicingQueue.loadPersistedState(WORKSPACE_ROOT);
+  if (restored > 0 || skipped > 0) {
+    console.log(`[slicingQueue] Restored ${restored} jobs from persistence (${skipped} skipped)`);
+  }
+} catch (err) {
+  console.warn(`[slicingQueue] Failed to restore persisted state: ${err.message}`);
+}
+
+// ===== Upload & slice =====
 
 app.post(
   "/api/slice",
@@ -347,6 +452,25 @@ app.post(
         return res.status(400).json({ success: false, error: `INI not found: ${iniPath}` });
       }
 
+      // ===== Check slicer result cache =====
+      let cacheKey = null;
+      try {
+        cacheKey = await slicerCache.computeKey(modelFile.path, iniPath);
+        const cached = slicerCache.get(cacheKey);
+        if (cached) {
+          console.log(`[slice] Cache HIT for job ${req.jobId} (key: ${cacheKey.slice(0, 12)}...)`);
+          return res.json({
+            success: true,
+            jobId: req.jobId,
+            cached: true,
+            ...cached,
+          });
+        }
+      } catch {
+        // Cache key computation failed (file read error) — proceed without cache
+        cacheKey = null;
+      }
+
       // Optional: get model dimensions (bounding box) before slicing.
       // Useful for enforcing max X/Y/Z limits later.
       let modelInfo = null;
@@ -375,13 +499,26 @@ app.post(
         modelInfoError = `PrusaSlicer --info error: ${String(e?.message || e)}`;
       }
 
-      const run = await runPrusaSlicer({
-        slicerCmd,
-        modelPath: modelFile.path,
-        iniPath,
-        outDir: req.jobOutputDir,
-        timeoutMs: 300000
-      });
+      let run;
+      try {
+        run = await runPrusaSlicer({
+          slicerCmd,
+          modelPath: modelFile.path,
+          iniPath,
+          outDir: req.jobOutputDir,
+          timeoutMs: 300000
+        });
+      } catch (err) {
+        const classified = classifySlicerError({ error: err, context: "slice" });
+        const isProd = process.env.NODE_ENV === 'production';
+        return res.status(classified.httpStatus).json({
+          success: false,
+          errorCode: classified.errorCode,
+          error: classified.message,
+          jobId: req.jobId,
+          ...(!isProd && { hint: classified.hint, jobDir: req.jobDir }),
+        });
+      }
 
       // Persist slicer stderr for debugging
       if (run.stderr) {
@@ -394,15 +531,17 @@ app.post(
       const isProd = process.env.NODE_ENV === 'production';
 
       if (run.exitCode !== 0) {
-        return res.status(500).json({
+        const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "slice" });
+        return res.status(classified.httpStatus).json({
           success: false,
-          error: "PrusaSlicer returned non-zero exit code.",
+          errorCode: classified.errorCode,
+          error: classified.message,
           exitCode: run.exitCode,
           jobId: req.jobId,
-          // Only expose paths/stderr in development
           ...(!isProd && {
             jobDir: req.jobDir,
-            stderr: run.stderr.slice(0, 5000)
+            stderr: run.stderr.slice(0, 5000),
+            hint: classified.hint,
           })
         });
       }
@@ -410,9 +549,9 @@ app.post(
       if (!(await fileExists(run.outGcodePath))) {
         return res.status(500).json({
           success: false,
+          errorCode: "MP_SLICING_FAILED",
           error: "out.gcode was not produced.",
           jobId: req.jobId,
-          // Only expose paths/stderr in development
           ...(!isProd && {
             jobDir: req.jobDir,
             stderr: run.stderr.slice(0, 5000)
@@ -423,15 +562,25 @@ app.post(
       const gcodeText = await fs.readFile(run.outGcodePath, "utf8");
       const metrics = parseGcodeMetrics(gcodeText);
 
-      res.json({
-        success: true,
-        jobId: req.jobId,
+      const responseData = {
         durationMs: run.durationMs,
         usedPreset,
         modelUsed: modelFile.originalname,
         modelInfo,
         modelInfoError: modelInfoError || undefined,
         metrics,
+      };
+
+      // Store in cache for future identical requests
+      if (cacheKey) {
+        slicerCache.set(cacheKey, responseData);
+      }
+
+      res.json({
+        success: true,
+        jobId: req.jobId,
+        cached: false,
+        ...responseData,
         // Only expose internal paths in development
         ...(!isProd && {
           jobDir: req.jobDir,
@@ -545,11 +694,16 @@ slicingQueue.setExecutor(async (job, updateProgress) => {
   }
 
   if (run.exitCode !== 0) {
-    throw new Error(`PrusaSlicer exited with code ${run.exitCode}: ${truncate(run.stderr, 500)}`);
+    const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "slice" });
+    const err = new Error(classified.message);
+    err.errorCode = classified.errorCode;
+    throw err;
   }
 
   if (!(await fileExists(run.outGcodePath))) {
-    throw new Error("PrusaSlicer did not produce out.gcode.");
+    const err = new Error("PrusaSlicer did not produce out.gcode.");
+    err.errorCode = "MP_SLICING_FAILED";
+    throw err;
   }
 
   updateProgress(95); // Parsing gcode
@@ -567,8 +721,8 @@ slicingQueue.setExecutor(async (job, updateProgress) => {
 });
 
 // Log queue events (dev diagnostics) + fire webhooks
-slicingQueue.on("job:started", ({ jobId }) => {
-  console.log(`[slicingQueue] Job ${jobId} started processing`);
+slicingQueue.on("job:started", ({ jobId, priority }) => {
+  console.log(`[slicingQueue] Job ${jobId} started processing (priority: ${priority || "normal"})`);
 });
 slicingQueue.on("job:completed", ({ jobId, tenantId, result }) => {
   console.log(`[slicingQueue] Job ${jobId} completed`);
@@ -583,13 +737,14 @@ slicingQueue.on("job:completed", ({ jobId, tenantId, result }) => {
     });
   }
 });
-slicingQueue.on("job:failed", ({ jobId, tenantId, error }) => {
-  console.log(`[slicingQueue] Job ${jobId} failed: ${error}`);
+slicingQueue.on("job:failed", ({ jobId, tenantId, error, errorCode }) => {
+  console.log(`[slicingQueue] Job ${jobId} failed [${errorCode || "MP_SLICING_FAILED"}]: ${error}`);
   // Fire slice.failed webhook (fire-and-forget)
   if (tenantId) {
     fireWebhook(WORKSPACE_ROOT, tenantId, "slice.failed", {
       jobId,
       error: String(error),
+      errorCode: errorCode || "MP_SLICING_FAILED",
     });
   }
 });
@@ -617,12 +772,15 @@ app.post(
       const presetId = typeof req.body?.presetId === "string" ? req.body.presetId.trim() : "";
       const iniFile = req.files?.ini?.[0];
 
+      const priority = req.body?.priority === "high" ? "high" : "normal";
+
       const result = slicingQueue.addJob({
         tenantId,
         modelPath: modelFile.path,
         modelOriginalName: modelFile.originalname,
         iniPath: iniFile?.path || "",
         presetId,
+        priority,
         jobDir: req.jobDir,
         jobOutputDir: req.jobOutputDir,
       });
@@ -678,8 +836,20 @@ app.delete("/api/slice/queue/:jobId", (req, res) => {
   return ok(res, { jobId, status: "cancelled" });
 });
 
-// ===== Error handler (CORS, multer, validation etc.) =====
+// ===== 404 handler — catch unmatched routes =====
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+    errorCode: "MP_NOT_FOUND",
+    message: `Endpoint not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+// ===== Global error handler (CORS, multer, validation, typed errors, etc.) =====
+// eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
+  const isProd = process.env.NODE_ENV === "production";
+
   // Multer file size limit
   if (err.code === "LIMIT_FILE_SIZE") {
     return res.status(413).json({
@@ -688,6 +858,7 @@ app.use((err, _req, res, _next) => {
       message: "Uploaded file exceeds the size limit",
     });
   }
+
   // Multer file type or other multer errors
   if (err.name === "MulterError" || err.message?.includes("Unsupported file type") || err.message?.includes("Only .ini files")) {
     return res.status(400).json({
@@ -696,6 +867,7 @@ app.use((err, _req, res, _next) => {
       message: String(err.message),
     });
   }
+
   // CORS errors
   if (err.message?.startsWith("CORS blocked")) {
     return res.status(403).json({
@@ -704,20 +876,95 @@ app.use((err, _req, res, _next) => {
       message: String(err.message),
     });
   }
-  // Generic fallback
-  res.status(500).json({
+
+  // Validation errors (from express-validator or custom ValidationError)
+  if (err.name === "ValidationError" || err.type === "validation") {
+    return res.status(400).json({
+      ok: false,
+      errorCode: "MP_VALIDATION_ERROR",
+      message: String(err.message || "Validation failed"),
+      details: err.details || err.errors || undefined,
+    });
+  }
+
+  // Auth errors
+  if (err.name === "AuthError" || err.type === "auth" || err.status === 401) {
+    return res.status(401).json({
+      ok: false,
+      errorCode: "MP_AUTH_ERROR",
+      message: isProd ? "Authentication failed" : String(err.message || "Authentication failed"),
+    });
+  }
+
+  // Forbidden (tenant, permissions)
+  if (err.status === 403 || err.type === "forbidden") {
+    return res.status(403).json({
+      ok: false,
+      errorCode: "MP_FORBIDDEN",
+      message: isProd ? "Access denied" : String(err.message || "Access denied"),
+    });
+  }
+
+  // Not found errors
+  if (err.status === 404 || err.type === "not_found") {
+    return res.status(404).json({
+      ok: false,
+      errorCode: "MP_NOT_FOUND",
+      message: String(err.message || "Resource not found"),
+    });
+  }
+
+  // Timeout errors (PrusaSlicer or other)
+  if (err.message?.includes("timed out") || err.code === "ETIMEDOUT" || err.type === "timeout") {
+    return res.status(504).json({
+      ok: false,
+      errorCode: "MP_SLICER_TIMEOUT",
+      message: isProd ? "Operation timed out" : String(err.message || "Operation timed out"),
+    });
+  }
+
+  // JSON parse errors (malformed request body)
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({
+      ok: false,
+      errorCode: "MP_VALIDATION_ERROR",
+      message: "Invalid JSON in request body",
+    });
+  }
+
+  // Log unexpected errors
+  console.error("[API] Unhandled error:", err);
+
+  // Generic fallback — don't leak stack traces in production
+  res.status(err.status || 500).json({
     ok: false,
-    errorCode: "MP_INTERNAL_ERROR",
-    message: String(err?.message || err),
+    errorCode: err.errorCode || "MP_INTERNAL_ERROR",
+    message: isProd ? "Internal server error" : String(err?.message || err),
+    ...((!isProd && err.stack) ? { stack: err.stack } : {}),
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[backend-local] listening on http://127.0.0.1:${PORT}`);
   console.log(`[backend-local] workspace: ${WORKSPACE_ROOT}`);
   console.log(`[backend-local] API docs: http://127.0.0.1:${PORT}/api/docs/html`);
   console.log(`[backend-local] API version: ${API_VERSION_FULL} (${API_VERSION})`);
 });
+
+// Graceful shutdown — persist queue, clear caches
+function gracefulShutdown(signal) {
+  console.log(`[backend-local] Received ${signal}, shutting down gracefully...`);
+  slicingQueue.shutdown();
+  slicerCache.shutdown();
+  server.close(() => {
+    console.log(`[backend-local] Server closed.`);
+    process.exit(0);
+  });
+  // Force exit after 10 seconds if graceful shutdown hangs
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // ===== Helpers =====
 
@@ -727,6 +974,31 @@ async function resolveSlicerCmd() {
   // Try auto-detect inside project root
   const found = await findPrusaSlicerConsole(projectRoot);
   return found || "";
+}
+
+/**
+ * Get PrusaSlicer version string (cached for 5 minutes to avoid repeated spawns).
+ * Parses the version from --help output (Windows portable builds often lack --version).
+ *
+ * @returns {Promise<string|null>}
+ */
+let _cachedSlicerVersion = null;
+let _cachedSlicerVersionExpiry = 0;
+async function getSlicerVersionCached() {
+  if (_cachedSlicerVersion && Date.now() < _cachedSlicerVersionExpiry) {
+    return _cachedSlicerVersion;
+  }
+  const cmd = await resolveSlicerCmd();
+  if (!cmd) return null;
+  try {
+    const result = await runSimple(cmd, ["--help"], 15000);
+    const version = parseSlicerVersion(result.stdout) || parseSlicerVersion(result.stderr);
+    _cachedSlicerVersion = version;
+    _cachedSlicerVersionExpiry = Date.now() + 5 * 60 * 1000; // Cache 5 min
+    return version;
+  } catch {
+    return null;
+  }
 }
 
 function createJobMiddleware(req, _res, next) {

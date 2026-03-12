@@ -81,6 +81,7 @@ src/pages/test-kalkulacka/
     ModelViewer.jsx                   -- 3D STL nahled + metriky + fullscreen (659 r.)
     PrintConfiguration.jsx            -- Material, barva, kvalita, infill, fees (1010 r.)
     PricingCalculator.jsx             -- Cenovy souhrn a breakdown (626 r.)
+    PricingShareMenu.jsx              -- Dropdown menu pro sdileni/export cenove kalkulace (~320 r.)
     GenerateButton.jsx                -- Animovane CTA tlacitko pro slicing (58 r.)
     GenerateButton.module.css         -- CSS Modules styly pro GenerateButton (103 r.)
     ErrorBoundary.jsx                 -- React class error boundary (106 r.)
@@ -90,11 +91,12 @@ src/pages/test-kalkulacka/
     ExpressTierSelector.jsx           -- Vyber rychlosti doruceni (99 r.)
     CouponInput.jsx                   -- Vstup pro slevovy kupon (153 r.)
     PostProcessingSelector.jsx        -- Vyber post-processing sluzeb (99 r.)
+    QualityComparison.jsx             -- Porovnani kvalit (Basic/Middle/Pro) s cenami a casem (~340 r.)
     PromoBar.jsx                      -- Promoacni banner (55 r.)
     UpsellPanel.jsx                   -- Upsell panel pro upgrade doruceni (69 r.)
 ```
 
-### Celkovy pocet radku: ~5313 radku (16 souboru + 1 hook + 1 schema)
+### Celkovy pocet radku: ~5653 radku (17 souboru + 1 hook + 1 schema)
 
 ---
 
@@ -136,12 +138,25 @@ PrintConfiguration
   +-- components/ui/Checkbox
   +-- components/ui/forge/ForgeCheckbox
   +-- contexts/LanguageContext (useLanguage)
+  +-- ./MaterialComparison
+  +-- ./QualityComparison
+  +-- lib/pricing/pricingEngineV3 (calculateOrderQuote)
+
+QualityComparison
+  +-- components/AppIcon (Icon)
+  +-- lib/pricing/pricingEngineV3 (calculateOrderQuote)
+  +-- contexts/LanguageContext (useLanguage)
 
 PricingCalculator
   +-- components/ui/Button (named: { Button })
   +-- components/ui/Card (named: { Card, CardContent, CardHeader, CardTitle })
   +-- components/ui/Icon (default)
   +-- lib/pricing/pricingEngineV3 (calculateOrderQuote)
+  +-- ./PricingShareMenu
+
+PricingShareMenu
+  +-- components/AppIcon (Icon)
+  +-- hooks/useCopyToClipboard
 
 CheckoutForm
   +-- react-hook-form (useForm)
@@ -470,16 +485,21 @@ base (material cost + time cost)
 
 **Hlavni sekce UI:**
 
-1. **Slicer preset selector** -- dropdown s presety z backendu, error/retry banner, loading state
-2. **Rychle predvolby** -- 3 preset buttony (Basic/Middle/Pro) s ruznou kvalitou a infill
-3. **Material a barva** -- Select pro material (z AdminPricing), 4x2 grid barvy (z materialu nebo fallback paleta)
-4. **Kvalita tisku** -- Select pro kvalitu (7 urovni od 0.8mm do 0.1mm), slider pro infill (10-100%), checkbox podpery
-5. **Mnozstvi** -- number input 1-100
-6. **Dodatecne sluzby** -- selectable fees z AdminFees s targeting (All/This/Selected models)
-7. **Vysledky slicingu** -- metriky (cas, hmotnost, vrstvy, teplota), cenovy breakdown
+1. **Moje predvolby (user presets)** -- kolapsovatelna sekce s chip-style predvolbami (3 default + az 10 uzivatelskych), ulozeni do localStorage pod klicem `modelpricer:user:print-presets`, moznost pojmenovat a smazat vlastni predvolby
+2. **Slicer preset selector** -- dropdown s presety z backendu, error/retry banner, loading state
+3. **Rychle predvolby** -- 3 preset buttony (Basic/Middle/Pro) s ruznou kvalitou a infill
+4. **Material a barva** -- Select pro material (z AdminPricing), 4x2 grid barvy (z materialu nebo fallback paleta)
+5. **Kvalita tisku** -- Select pro kvalitu (7 urovni od 0.8mm do 0.1mm), slider pro infill (10-100%), checkbox podpery
+6. **Mnozstvi** -- number input 1-100
+7. **Dodatecne sluzby** -- selectable fees z AdminFees s targeting (All/This/Selected models)
+8. **Vysledky slicingu** -- metriky (cas, hmotnost, vrstvy, teplota), cenovy breakdown
 
 **State:**
 - `config` -- lokalni print config objekt
+- `userPresets` -- pole uzivatelskych predvoleb z localStorage
+- `userPresetsOpen` -- stav kolapsovatelne sekce predvoleb
+- `saveDialogOpen` -- stav inline dialogu pro ulozeni nove predvolby
+- `savePresetName` -- nazev nove predvolby (kontrolovany input)
 
 **Klicove useEffect:**
 - Sync `initialConfig` prop -> lokalni state
@@ -739,7 +759,48 @@ tenant-scoped storage z CLAUDE.md sekce 7 -- melo by pouzivat `getTenantId()`.
 
 **Poznamka:** NENI aktualne pouzivana v orchestratoru.
 
-### 8.15 useDebouncedRecalculation (hook)
+### 8.15 QualityComparison
+
+**Soubor:** `src/pages/test-kalkulacka/components/QualityComparison.jsx` (~340 r.)
+**Export:** default `QualityComparison`
+**Zavislosti:** `AppIcon`, `pricingEngineV3`, `LanguageContext`
+
+**Props:**
+
+| Prop | Typ | Povinny | Popis |
+|------|-----|---------|-------|
+| pricingConfig | Object | ano | Pricing konfigurace z admin storage |
+| feesConfig | Object | ano | Fees konfigurace |
+| feeSelections | Object | ano | Vybrane fees |
+| selectedFile | Object | ano | Aktualne vybrany soubor (musi mit status 'completed') |
+| printConfigs | Object | ano | Konfigurace tisku per-file |
+| currentConfig | Object | ano | Aktualni konfigurace (material, quality, infill, supports) |
+| onApplyPreset | Function | ano | Callback volany s `{ quality, infill, supports }` pri kliknuti na radek |
+| expressConfig | Object | ne | Express/priority konfigurace |
+| selectedExpressTierId | String | ne | ID vybraneho express tieru |
+| couponsConfig | Object | ne | Kupony konfigurace |
+| appliedCouponCode | String | ne | Aplikovany kupon |
+| shippingConfig | Object | ne | Shipping konfigurace |
+| selectedShippingMethodId | String | ne | ID vybrane metody doruceni |
+
+**Funkcionalita:**
+- Porovnava 3 predvolby kvality: Basic (nozzle_06, 15% infill, bez podper), Middle (standard, 20%, podpery), Pro (fine, 30%, podpery)
+- Prepocitava ceny pro kazdou predvolbu pres `calculateOrderQuote`
+- Odhaduje cas tisku proporcionalne z aktualniho slicing vysledku (TIME_MULTIPLIERS: nozzle_06=0.55x, standard=1.0x, fine=1.6x)
+- Razeni: defaultne podle ceny (nejlevnejsi nahore)
+- Odznaky: "Nejlevnejsi" (teal), "Nejrychlejsi" (modra), "Nejlepsi kvalita" (fialova), "Vybrany" (teal subtle)
+- Klik na radek aplikuje konfiguraci presetu do PrintConfiguration
+- Collapsible panel (stejny vzor jako MaterialComparison)
+- Zobrazuje se jen po uspesnem slicingu
+- Plna pristupnost: ARIA expanded/controls, role=button, keyboard navigace
+
+**Design:**
+- Forge Design System tokeny (--forge-bg-surface, --forge-border-default, --forge-accent-primary atd.)
+- Stejna vizualni struktura jako MaterialComparison (collapsible toggle, radky s badges a cenou)
+- Navic zobrazuje odhadovany cas tisku s ikonou hodin a popis predvolby
+
+### 8.16 useDebouncedRecalculation (hook)
+
 
 **Soubor:** `src/pages/test-kalkulacka/hooks/useDebouncedRecalculation.js` (40 r.)
 **Export:** default function `useDebouncedRecalculation`
@@ -761,7 +822,7 @@ const { trigger, triggerSlider, cancel } = useDebouncedRecalculation(onRecalc, o
 - `triggerSlider(fileId)` -- triggeruje recalc s sliderDelay
 - `cancel()` -- zrusi pending timer
 
-### 8.16 checkoutSchema (Zod)
+### 8.17 checkoutSchema (Zod)
 
 **Soubor:** `src/pages/test-kalkulacka/schemas/checkoutSchema.js` (65 r.)
 **Export:** named function `getCheckoutSchema(language)`

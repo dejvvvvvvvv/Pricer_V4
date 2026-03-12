@@ -8,6 +8,7 @@ import { ensureDir, fileExists } from "../util/fsSafe.js";
 import { runPrusaRepair } from "../slicer/runPrusaRepair.js";
 import { runPrusaInfo } from "../slicer/runPrusaInfo.js";
 import { parseModelInfo } from "../slicer/parseModelInfo.js";
+import { classifySlicerError } from "../slicer/slicerErrorClassifier.js";
 
 /**
  * Mesh API routes — repair and analyze 3D models using PrusaSlicer.
@@ -145,25 +146,21 @@ export function createMeshRouter({ workspaceRoot, resolveSlicerCmd }) {
             timeoutMs: 60_000,
           });
         } catch (err) {
-          if (err.message?.includes("timed out")) {
-            return fail(res, 504, "MP_SLICER_TIMEOUT", "Mesh repair timed out after 60 seconds. The model may be too complex.", {
-              ...(!isProd && { jobId: req.meshJobId }),
-            });
-          }
-          // ENOENT = slicer binary not found at runtime
-          if (err.code === "ENOENT") {
-            return fail(res, 503, "MP_SLICER_UNAVAILABLE", "PrusaSlicer binary not found at the configured path.");
-          }
-          throw err;
+          const classified = classifySlicerError({ error: err, context: "repair" });
+          return fail(res, classified.httpStatus, classified.errorCode, classified.message, {
+            ...(!isProd && { jobId: req.meshJobId, hint: classified.hint }),
+          });
         }
 
         // 4) Check exit code
         if (run.exitCode !== 0) {
-          return fail(res, 500, "MP_REPAIR_FAILED", "PrusaSlicer mesh repair returned a non-zero exit code.", {
+          const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "repair" });
+          return fail(res, classified.httpStatus, classified.errorCode, classified.message, {
             exitCode: run.exitCode,
             ...(!isProd && {
               jobId: req.meshJobId,
               stderr: run.stderr?.slice(0, 2000),
+              hint: classified.hint,
             }),
           });
         }
@@ -241,6 +238,7 @@ export function createMeshRouter({ workspaceRoot, resolveSlicerCmd }) {
         }
 
         // 3) Run PrusaSlicer --info
+        const analyzeStart = Date.now();
         let infoRun;
         try {
           infoRun = await runPrusaInfo({
@@ -249,45 +247,61 @@ export function createMeshRouter({ workspaceRoot, resolveSlicerCmd }) {
             timeoutMs: 30_000,
           });
         } catch (err) {
-          if (err.message?.includes("timed out")) {
-            return fail(res, 504, "MP_SLICER_TIMEOUT", "Mesh analysis timed out after 30 seconds.", {
-              ...(!isProd && { jobId: req.meshJobId }),
-            });
-          }
-          if (err.code === "ENOENT") {
-            return fail(res, 503, "MP_SLICER_UNAVAILABLE", "PrusaSlicer binary not found at the configured path.");
-          }
-          throw err;
+          const classified = classifySlicerError({ error: err, context: "analyze" });
+          return fail(res, classified.httpStatus, classified.errorCode, classified.message, {
+            ...(!isProd && { jobId: req.meshJobId, hint: classified.hint }),
+          });
         }
 
         // 4) Check exit code
         if (infoRun.exitCode !== 0) {
-          return fail(res, 500, "MP_ANALYSIS_FAILED", "PrusaSlicer --info returned a non-zero exit code.", {
+          const classified = classifySlicerError({ stderr: infoRun.stderr, exitCode: infoRun.exitCode, context: "analyze" });
+          return fail(res, classified.httpStatus, classified.errorCode, classified.message, {
             exitCode: infoRun.exitCode,
             ...(!isProd && {
               jobId: req.meshJobId,
               stderr: infoRun.stderr?.slice(0, 2000),
+              hint: classified.hint,
             }),
           });
         }
+        const analyzeDurationMs = Date.now() - analyzeStart;
 
         // 5) Parse model info
         const parsed = parseModelInfo(infoRun.stdout);
 
-        // 6) Build response in the requested format
+        // 6) Get file size for additional context
+        let fileSizeBytes = null;
+        try {
+          const stat = await fs.stat(modelFile.path);
+          fileSizeBytes = stat.size;
+        } catch {
+          // Non-critical
+        }
+
+        // 7) Determine number of shells from parts count (PrusaSlicer reports "number_of_parts")
+        const shells = parsed.parts ?? null;
+
+        // 8) Compute watertight status: manifold + single shell = watertight
+        const isWatertight = parsed.manifold === true && (shells === 1 || shells === null)
+          ? parsed.manifold
+          : (parsed.manifold === true && shells != null && shells > 1 ? false : (parsed.manifold ?? null));
+
+        // 9) Build response with enhanced metrics
         const data = {
           fileName: modelFile.originalname,
+          fileSizeBytes,
           volume: parsed.volumeMm3 ?? null,
-          surfaceArea: null, // PrusaSlicer --info does not report surface area
           isManifold: parsed.manifold ?? null,
+          isWatertight,
           triangleCount: parsed.facets ?? null,
-          vertexCount: null, // PrusaSlicer --info does not report vertex count separately
+          shells,
           parts: parsed.parts ?? null,
           boundingBox: parsed.bboxMm ?? null,
           size: parsed.sizeMm ?? null,
           repairNeeded: parsed.manifold === false,
           raw: parsed.raw,
-          durationMs: null, // --info doesn't return timing from the runner, but we can measure
+          durationMs: analyzeDurationMs,
         };
 
         return ok(res, data);

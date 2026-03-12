@@ -5,6 +5,8 @@
  * Used by admin pages (Orders, Analytics) for data export.
  */
 
+import { logSecurityEvent } from './securityAuditLog';
+
 /**
  * Convert an array of objects to a CSV string.
  *
@@ -72,6 +74,11 @@ export function downloadFile(content, filename, mimeType) {
 export function exportCSV(data, filename = 'export.csv', columns) {
   const csv = toCSV(data, columns);
   downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+  logSecurityEvent({
+    event_type: 'data_export',
+    details: `CSV export: ${filename} (${data.length} zaznamu)`,
+    severity: 'info',
+  });
 }
 
 /**
@@ -83,4 +90,9 @@ export function exportCSV(data, filename = 'export.csv', columns) {
 export function exportJSON(data, filename = 'export.json') {
   const json = JSON.stringify(data, null, 2);
   downloadFile(json, filename, 'application/json');
+  logSecurityEvent({
+    event_type: 'data_export',
+    details: `JSON export: ${filename}`,
+    severity: 'info',
+  });
 }

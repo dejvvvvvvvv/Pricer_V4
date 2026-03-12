@@ -6,16 +6,27 @@
  *
  * Each notification: { id, type, title, description, timestamp, read }
  * Types: 'order' | 'slicing' | 'config' | 'storage' | 'info' | 'error'
+ *
+ * Preferences stored under `modelpricer:${tenantId}:notification-prefs:v1`:
+ * { enabledTypes: { order, slicing, config, storage, info, error }, soundEnabled }
  */
 
 import { getTenantId } from './adminTenantStorage';
 import { debug } from '@/lib/debug';
 
 const NAMESPACE = 'notifications';
+const PREFS_NAMESPACE = 'notification-prefs:v1';
 const MAX_NOTIFICATIONS = 50;
+
+/** Custom event name dispatched after any write to notifications storage. */
+export const NOTIFICATION_UPDATED_EVENT = 'notification-storage-updated';
 
 function buildKey(tenantId) {
   return `modelpricer:${tenantId}:${NAMESPACE}`;
+}
+
+function buildPrefsKey(tenantId) {
+  return `modelpricer:${tenantId}:${PREFS_NAMESPACE}`;
 }
 
 function canUseLocalStorage() {
@@ -25,6 +36,100 @@ function canUseLocalStorage() {
     return false;
   }
 }
+
+/** Dispatch update event so NotificationCenter can react without polling. */
+function dispatchUpdate() {
+  try {
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_UPDATED_EVENT));
+  } catch { /* SSR guard */ }
+}
+
+// ---------------------------------------------------------------------------
+// Preferences
+// ---------------------------------------------------------------------------
+
+/** Default notification preferences. */
+const DEFAULT_PREFS = {
+  enabledTypes: {
+    order: true,
+    slicing: true,
+    config: true,
+    storage: true,
+    info: true,
+    error: true,
+  },
+  soundEnabled: true,
+};
+
+/**
+ * Read notification preferences (merged with defaults).
+ */
+export function getNotificationPrefs(tenantIdOverride) {
+  if (!canUseLocalStorage()) return { ...DEFAULT_PREFS };
+  const tenantId = tenantIdOverride || getTenantId();
+  try {
+    const raw = window.localStorage.getItem(buildPrefsKey(tenantId));
+    if (!raw) return { ...DEFAULT_PREFS, enabledTypes: { ...DEFAULT_PREFS.enabledTypes } };
+    const parsed = JSON.parse(raw);
+    return {
+      enabledTypes: { ...DEFAULT_PREFS.enabledTypes, ...(parsed.enabledTypes || {}) },
+      soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : DEFAULT_PREFS.soundEnabled,
+    };
+  } catch {
+    return { ...DEFAULT_PREFS, enabledTypes: { ...DEFAULT_PREFS.enabledTypes } };
+  }
+}
+
+/**
+ * Save notification preferences.
+ */
+export function saveNotificationPrefs(prefs, tenantIdOverride) {
+  if (!canUseLocalStorage()) return;
+  const tenantId = tenantIdOverride || getTenantId();
+  try {
+    window.localStorage.setItem(buildPrefsKey(tenantId), JSON.stringify(prefs));
+  } catch (e) {
+    debug('[adminNotificationStorage] Failed to write prefs:', e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sound — Web Audio API beep (no external files)
+// ---------------------------------------------------------------------------
+
+let _audioCtx = null;
+
+/**
+ * Play a short system-like notification beep via Web Audio API.
+ * Safe to call multiple times; creates AudioContext lazily.
+ */
+export function playNotificationSound() {
+  try {
+    if (!_audioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      _audioCtx = new AudioCtx();
+    }
+    const ctx = _audioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);       // A5
+    osc.frequency.setValueAtTime(1046.5, ctx.currentTime + 0.08); // C6
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+  } catch {
+    // Silently ignore — browsers may block audio before user gesture
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notifications CRUD
+// ---------------------------------------------------------------------------
 
 /**
  * Read all notifications (newest first).
@@ -44,7 +149,7 @@ export function getNotifications(tenantIdOverride) {
 }
 
 /**
- * Write notifications array to storage.
+ * Write notifications array to storage and dispatch update event.
  */
 function writeNotifications(notifications, tenantIdOverride) {
   if (!canUseLocalStorage()) return;
@@ -54,6 +159,7 @@ function writeNotifications(notifications, tenantIdOverride) {
       buildKey(tenantId),
       JSON.stringify(notifications)
     );
+    dispatchUpdate();
   } catch (e) {
     debug('[adminNotificationStorage] Failed to write:', e);
   }
@@ -61,14 +167,25 @@ function writeNotifications(notifications, tenantIdOverride) {
 
 /**
  * Add a new notification. Returns the new notification object.
+ * Respects notification preferences — if the type is disabled, returns null.
+ * Plays sound if enabled in preferences.
  *
  * @param {{ type: string, title: string, description?: string }} data
  */
 export function addNotification(data, tenantIdOverride) {
+  const prefs = getNotificationPrefs(tenantIdOverride);
+  const type = data.type || 'info';
+
+  // Check if this notification type is enabled
+  if (prefs.enabledTypes && prefs.enabledTypes[type] === false) {
+    debug('[adminNotificationStorage] Type disabled, skipping:', type);
+    return null;
+  }
+
   const notifications = getNotifications(tenantIdOverride);
   const newNotif = {
     id: crypto.randomUUID ? crypto.randomUUID() : `n-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    type: data.type || 'info',
+    type,
     title: data.title || '',
     description: data.description || '',
     timestamp: Date.now(),
@@ -79,6 +196,12 @@ export function addNotification(data, tenantIdOverride) {
   const updated = [newNotif, ...notifications].slice(0, MAX_NOTIFICATIONS);
   writeNotifications(updated, tenantIdOverride);
   debug('[adminNotificationStorage] Added notification:', newNotif.title);
+
+  // Play sound if enabled
+  if (prefs.soundEnabled) {
+    playNotificationSound();
+  }
+
   return newNotif;
 }
 

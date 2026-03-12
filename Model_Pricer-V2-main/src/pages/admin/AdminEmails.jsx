@@ -1,12 +1,12 @@
-// Admin Email Notifications Configuration Page — V2
+// Admin Email Notifications Configuration Page — V3
 // --------------------------------------------------
 // Scope: /admin/emails only
-// - Single source of truth: tenant-scoped V1 storage (namespace: email:v1 + email-templates:v1)
-// - 4 tabs: Triggers, Template Editor, Provider Config, Email Log
-// - Triggers: event triggers with enable/disable and subject line
-// - Template Editor: visual WYSIWYG-like editor with variable insertion, live preview
-// - Provider: SMTP / Resend / SendGrid configuration
-// - Log: recent sent emails from localStorage log
+// - Single source of truth: tenant-scoped V1 storage (namespace: email:v1 + email-templates:v1 + email-autosend:v1 + email-log:v1)
+// - 4 tabs: Templates, Settings, Log, Auto-send Rules
+// - Templates: left sidebar list + right editor/preview split
+// - Settings: SMTP / API provider, sender info, test email
+// - Log: recent sent emails table
+// - Auto-send: configure automatic email sending on status changes
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
@@ -16,48 +16,39 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import {
   EMAIL_TEMPLATE_TYPES,
   EMAIL_TEMPLATE_VARIABLES,
+  ORDER_STATUSES,
+  addEmailLogEntry,
+  clearEmailLog,
+  getDefaultAutoSendRules,
   getDefaultTemplateContent,
+  loadAutoSendRules,
   loadEmailConfigV1,
+  loadEmailLog,
   loadEmailTemplates,
   renderTemplatePreview,
   sanitizeTemplateHtml,
+  saveAutoSendRules,
   saveEmailConfigV1,
   saveEmailTemplates,
 } from '../../utils/adminEmailStorage';
-import { readTenantJson } from '../../utils/adminTenantStorage';
 import EmailTemplatePreview from './components/EmailTemplatePreview';
 
-function createId(prefix = 'trig') {
-  try {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
-  } catch {}
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 const PROVIDER_OPTIONS = [
-  { value: 'none', label_cs: 'Zadny (vypnuto)', label_en: 'None (disabled)' },
-  { value: 'smtp', label_cs: 'SMTP', label_en: 'SMTP' },
-  { value: 'resend', label_cs: 'Resend', label_en: 'Resend' },
-  { value: 'sendgrid', label_cs: 'SendGrid', label_en: 'SendGrid' },
+  { value: 'none', label_cs: 'Simulace (test)', label_en: 'Simulation (test)', icon: 'TestTube2' },
+  { value: 'smtp', label_cs: 'SMTP', label_en: 'SMTP', icon: 'Server' },
+  { value: 'api', label_cs: 'API (budouci)', label_en: 'API (future)', icon: 'Cloud' },
 ];
-
-const EVENT_LABELS = {
-  order_confirmed: { cs: 'Objednavka potvrzena', en: 'Order confirmed' },
-  order_printing: { cs: 'Tisk zahajen', en: 'Printing started' },
-  order_shipped: { cs: 'Objednavka odeslana', en: 'Order shipped' },
-  order_completed: { cs: 'Objednavka dokoncena', en: 'Order completed' },
-};
 
 const TABS = [
-  { id: 'templates', icon: 'Mail', label_cs: 'Triggery', label_en: 'Triggers' },
-  { id: 'editor', icon: 'Paintbrush', label_cs: 'Editor sablon', label_en: 'Template Editor' },
-  { id: 'provider', icon: 'Settings', label_cs: 'Provider', label_en: 'Provider' },
+  { id: 'templates', icon: 'Mail', label_cs: 'Sablony', label_en: 'Templates' },
+  { id: 'settings', icon: 'Settings', label_cs: 'Nastaveni', label_en: 'Settings' },
   { id: 'log', icon: 'FileText', label_cs: 'Log', label_en: 'Log' },
+  { id: 'autosend', icon: 'Zap', label_cs: 'Automaticke odesilani', label_en: 'Auto-send Rules' },
 ];
 
-// ---------------------------------------------------------------------------
-// Formatting toolbar commands
-// ---------------------------------------------------------------------------
 const TOOLBAR_ACTIONS = [
   { cmd: 'bold', icon: 'Bold', title_cs: 'Tucne', title_en: 'Bold' },
   { cmd: 'italic', icon: 'Italic', title_cs: 'Kurziva', title_en: 'Italic' },
@@ -67,13 +58,23 @@ const TOOLBAR_ACTIONS = [
   { cmd: 'formatBlock:p', icon: 'Pilcrow', title_cs: 'Odstavec', title_en: 'Paragraph' },
   { cmd: 'sep2' },
   { cmd: 'insertUnorderedList', icon: 'List', title_cs: 'Seznam', title_en: 'List' },
+  { cmd: 'insertOrderedList', icon: 'ListOrdered', title_cs: 'Cislovany seznam', title_en: 'Ordered List' },
   { cmd: 'sep3' },
   { cmd: 'createLink', icon: 'Link', title_cs: 'Odkaz', title_en: 'Link' },
   { cmd: 'removeFormat', icon: 'RemoveFormatting', title_cs: 'Smazat formatovani', title_en: 'Remove formatting' },
 ];
 
+const TEMPLATE_CATEGORIES = [
+  { id: 'order', label_cs: 'Objednavky', label_en: 'Orders' },
+  { id: 'payment', label_cs: 'Platby', label_en: 'Payments' },
+  { id: 'general', label_cs: 'Obecne', label_en: 'General' },
+];
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function AdminEmails() {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const cs = language === 'cs';
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
@@ -90,7 +91,23 @@ export default function AdminEmails() {
   const [templatesSavedSnapshot, setTemplatesSavedSnapshot] = useState('');
   const [activeTemplate, setActiveTemplate] = useState(EMAIL_TEMPLATE_TYPES[0]?.id || 'order_confirmed');
   const [tplSaving, setTplSaving] = useState(false);
+  const [editorMode, setEditorMode] = useState('edit'); // edit | preview
   const editorRef = useRef(null);
+
+  // Auto-send rules state
+  const [autoSendRules, setAutoSendRules] = useState([]);
+  const [autoSendSaved, setAutoSendSaved] = useState('');
+  const [autoSendSaving, setAutoSendSaving] = useState(false);
+
+  // Test email state
+  const [testSending, setTestSending] = useState(false);
+
+  // Banner auto-clear
+  useEffect(() => {
+    if (!banner) return;
+    const timer = setTimeout(() => setBanner(null), 4000);
+    return () => clearTimeout(timer);
+  }, [banner]);
 
   useEffect(() => {
     try {
@@ -102,8 +119,13 @@ export default function AdminEmails() {
       setTemplates(tpls);
       setTemplatesSavedSnapshot(JSON.stringify(tpls));
 
-      const log = readTenantJson('email-log:v1', []);
-      setEmailLog(Array.isArray(log) ? log : []);
+      const log = loadEmailLog();
+      setEmailLog(log);
+
+      const rules = loadAutoSendRules();
+      setAutoSendRules(rules);
+      setAutoSendSaved(JSON.stringify(rules));
+
       setLoading(false);
     } catch (e) {
       console.error('[AdminEmails] Failed to init', e);
@@ -129,53 +151,12 @@ export default function AdminEmails() {
     return templatesSavedSnapshot !== JSON.stringify(templates);
   }, [templates, templatesSavedSnapshot]);
 
-  const ui = useMemo(() => ({
-    title: cs ? 'Emailove notifikace' : 'Email Notifications',
-    subtitle: cs
-      ? 'Nastaveni emailovych triggeru, sablon, providera a historie odeslanych emailu.'
-      : 'Configure email triggers, templates, provider settings and sent email history.',
-    save: cs ? 'Ulozit' : 'Save',
-    saving: cs ? 'Ukladam...' : 'Saving...',
-    saved: cs ? 'Ulozeno' : 'Saved',
-    unsaved: cs ? 'Neulozene zmeny' : 'Unsaved changes',
-  }), [cs]);
+  const autoSendDirty = useMemo(() => {
+    return autoSendSaved !== JSON.stringify(autoSendRules);
+  }, [autoSendRules, autoSendSaved]);
 
   const updateConfig = (patch) => {
     setConfig((prev) => ({ ...prev, ...patch }));
-  };
-
-  const updateTrigger = (idx, patch) => {
-    setConfig((prev) => {
-      const triggers = [...(prev.triggers || [])];
-      triggers[idx] = { ...triggers[idx], ...patch };
-      return { ...prev, triggers };
-    });
-  };
-
-  const addTrigger = () => {
-    setConfig((prev) => ({
-      ...prev,
-      triggers: [
-        ...(prev.triggers || []),
-        { event: `custom_${createId()}`, enabled: false, template_id: '' },
-      ],
-    }));
-  };
-
-  const removeTrigger = (idx) => {
-    setConfig((prev) => {
-      const triggers = [...(prev.triggers || [])];
-      triggers.splice(idx, 1);
-      return { ...prev, triggers };
-    });
-  };
-
-  const updateTemplate = (event, patch) => {
-    setConfig((prev) => {
-      const tpls = { ...(prev.templates || {}) };
-      tpls[event] = { ...(tpls[event] || {}), ...patch };
-      return { ...prev, templates: tpls };
-    });
   };
 
   // Template editor helpers
@@ -206,7 +187,6 @@ export default function AdminEmails() {
       document.execCommand(cmdStr, false, null);
     }
     syncEditorContent();
-    // Keep focus in editor
     editorRef.current?.focus();
   }, [cs, syncEditorContent]);
 
@@ -220,7 +200,6 @@ export default function AdminEmails() {
     const node = document.createTextNode(`{{${varKey}}}`);
     range.deleteContents();
     range.insertNode(node);
-    // Move cursor after inserted text
     range.setStartAfter(node);
     range.setEndAfter(node);
     sel.removeAllRanges();
@@ -228,7 +207,8 @@ export default function AdminEmails() {
     syncEditorContent();
   }, [syncEditorContent]);
 
-  const handleSave = () => {
+  // Save handlers
+  const handleSaveConfig = () => {
     setBanner(null);
     try {
       setSaving(true);
@@ -236,7 +216,7 @@ export default function AdminEmails() {
       setConfig(saved);
       setSavedSnapshot(JSON.stringify(saved));
       setSaving(false);
-      setBanner({ type: 'success', text: ui.saved });
+      setBanner({ type: 'success', text: cs ? 'Nastaveni ulozeno.' : 'Settings saved.' });
     } catch (e) {
       console.error('[AdminEmails] Save failed', e);
       setSaving(false);
@@ -248,7 +228,6 @@ export default function AdminEmails() {
     setBanner(null);
     try {
       setTplSaving(true);
-      // Sanitize all template bodies before saving
       const sanitized = {};
       for (const [key, tpl] of Object.entries(templates)) {
         sanitized[key] = {
@@ -268,10 +247,26 @@ export default function AdminEmails() {
     }
   }, [templates, cs]);
 
+  const handleSaveAutoSend = useCallback(() => {
+    setBanner(null);
+    try {
+      setAutoSendSaving(true);
+      const saved = saveAutoSendRules(autoSendRules);
+      setAutoSendRules(saved);
+      setAutoSendSaved(JSON.stringify(saved));
+      setAutoSendSaving(false);
+      setBanner({ type: 'success', text: cs ? 'Pravidla ulozena.' : 'Rules saved.' });
+    } catch (e) {
+      console.error('[AdminEmails] AutoSend save failed', e);
+      setAutoSendSaving(false);
+      setBanner({ type: 'error', text: cs ? 'Ulozeni pravidel selhalo.' : 'Rules save failed.' });
+    }
+  }, [autoSendRules, cs]);
+
   const handleResetTemplate = useCallback(async () => {
     const ok = await confirm({
       title: cs ? 'Obnovit vychozi sablonu' : 'Reset to default template',
-      message: cs ? 'Opravdu chcete obnovit tuto sablonu na vychozi obsah? Neulozen zmeny budou ztraceny.' : 'Reset this template to default content? Unsaved changes will be lost.',
+      message: cs ? 'Opravdu chcete obnovit tuto sablonu na vychozi obsah? Neulozene zmeny budou ztraceny.' : 'Reset this template to default content? Unsaved changes will be lost.',
       confirmLabel: cs ? 'Obnovit' : 'Reset',
       destructive: true,
     });
@@ -283,293 +278,268 @@ export default function AdminEmails() {
     }
   }, [activeTemplate, confirm, cs, updateTemplateContent]);
 
-  const handleSendTest = useCallback(() => {
-    const rendered = renderTemplatePreview(
-      templates[activeTemplate]?.body || '',
-      templates[activeTemplate]?.subject || ''
-    );
-    const win = window.open('', '_blank');
-    if (!win) {
-      setBanner({ type: 'error', text: cs ? 'Prohlizec blokuje vyskakovaci okna.' : 'Browser blocked popup.' });
+  const handleTestEmail = useCallback(() => {
+    const testAddr = config?.test_email || config?.sender_email || '';
+    if (!testAddr) {
+      setBanner({ type: 'error', text: cs ? 'Zadejte testovaci email v nastaveni.' : 'Enter test email in settings.' });
       return;
     }
-    const html = `<!DOCTYPE html>
-<html lang="cs"><head><meta charset="utf-8"/><title>Test Email</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 32px; background: #f5f5f5; }
-  .wrap { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
-  .hdr { background: #1a1a2e; color: #fff; padding: 16px 24px; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .subj { padding: 16px 24px; border-bottom: 1px solid #e8e8e8; font-size: 18px; font-weight: 600; }
-  .body { padding: 24px; line-height: 1.6; }
-  .body h2 { margin-bottom: 12px; }
-  .body p { margin-bottom: 12px; }
-  .body a { color: #00d4aa; }
-  .ft { padding: 16px 24px; border-top: 1px solid #e8e8e8; font-size: 12px; color: #999; text-align: center; }
-</style></head><body>
-<div class="wrap">
-  <div class="hdr">Test Email Preview</div>
-  <div class="subj">${rendered.subject}</div>
-  <div class="body">${rendered.body}</div>
-  <div class="ft">Toto je testovaci nahled emailu.</div>
-</div></body></html>`;
-    win.document.write(html);
-    win.document.close();
-  }, [activeTemplate, templates, cs]);
+    setTestSending(true);
+    // Simulate sending
+    setTimeout(() => {
+      const rendered = renderTemplatePreview(
+        templates[activeTemplate]?.body || '',
+        templates[activeTemplate]?.subject || ''
+      );
+      const newLog = addEmailLogEntry({
+        template: activeTemplate,
+        recipient: testAddr,
+        subject: rendered.subject,
+        orderId: 'TEST-001',
+        status: 'sent',
+      });
+      setEmailLog(newLog);
+      setTestSending(false);
+      setBanner({ type: 'success', text: cs ? `Testovaci email odeslan na ${testAddr} (simulace).` : `Test email sent to ${testAddr} (simulated).` });
+    }, 1200);
+  }, [activeTemplate, config, cs, templates]);
 
-  const handleReset = async () => {
-    const ok = await confirm({ title: cs ? 'Zahodit zmeny' : 'Discard changes', message: cs ? 'Zahodit zmeny?' : 'Discard changes?', confirmLabel: cs ? 'Zahodit' : 'Discard', destructive: true });
+  const handleClearLog = useCallback(async () => {
+    const ok = await confirm({
+      title: cs ? 'Smazat log' : 'Clear log',
+      message: cs ? 'Opravdu chcete smazat celou historii emailu?' : 'Clear entire email history?',
+      confirmLabel: cs ? 'Smazat' : 'Clear',
+      destructive: true,
+    });
     if (!ok) return;
-    try {
-      const cfg = loadEmailConfigV1();
-      setConfig(cfg);
-      setSavedSnapshot(JSON.stringify(cfg));
-      setBanner({ type: 'success', text: cs ? 'Obnoveno.' : 'Reset done.' });
-    } catch (e) {
-      setBanner({ type: 'error', text: cs ? 'Reset selhal.' : 'Reset failed.' });
-    }
-  };
+    const cleared = clearEmailLog();
+    setEmailLog(cleared);
+    setBanner({ type: 'success', text: cs ? 'Log smazan.' : 'Log cleared.' });
+  }, [confirm, cs]);
 
+  const handleResetAutoSend = useCallback(async () => {
+    const ok = await confirm({
+      title: cs ? 'Obnovit vychozi pravidla' : 'Reset to default rules',
+      message: cs ? 'Opravdu chcete obnovit vychozi pravidla automatickeho odesilani?' : 'Reset auto-send rules to defaults?',
+      confirmLabel: cs ? 'Obnovit' : 'Reset',
+      destructive: true,
+    });
+    if (!ok) return;
+    const defaults = getDefaultAutoSendRules();
+    setAutoSendRules(defaults);
+  }, [confirm, cs]);
+
+  // -----------------------------------------------------------------------
+  // LOADING
+  // -----------------------------------------------------------------------
   if (loading) {
     return (
-      <div className="admin-page">
-        <div className="admin-card">
-          <div className="card-body" style={{ padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Icon name="Loader2" size={18} />
-              <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
-            </div>
+      <div className="ae-page">
+        <div className="ae-card">
+          <div style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="Loader2" size={18} className="ae-spin" />
+            <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
           </div>
         </div>
       </div>
     );
   }
 
-  const triggers = config?.triggers || [];
-  const configTemplates = config?.templates || {};
   const provider = config?.provider || 'none';
   const currentTpl = templates[activeTemplate] || { subject: '', body: '' };
+  const activeTplMeta = EMAIL_TEMPLATE_TYPES.find((t) => t.id === activeTemplate);
 
+  // -----------------------------------------------------------------------
+  // RENDER
+  // -----------------------------------------------------------------------
   return (
-    <div className="admin-page">
-      <div className="admin-header">
-        <div>
-          <h1>{ui.title}</h1>
-          <p className="subtitle">{ui.subtitle}</p>
-        </div>
-        <div className="header-actions">
-          {activeTab !== 'editor' && (
-            <>
-              <div className={`status-pill ${dirty ? 'dirty' : 'clean'}`}>
-                <Icon name={dirty ? 'AlertCircle' : 'CheckCircle2'} size={16} />
-                <span>{dirty ? ui.unsaved : ui.saved}</span>
-              </div>
-              <button className="btn-secondary" onClick={handleReset} disabled={!dirty}>
-                <Icon name="RotateCcw" size={18} />
-                {cs ? 'Reset' : 'Reset'}
-              </button>
-              <button className="btn-primary" onClick={handleSave} disabled={!dirty || saving}>
-                <Icon name="Save" size={18} />
-                {saving ? ui.saving : ui.save}
-              </button>
-            </>
-          )}
-          {activeTab === 'editor' && (
-            <>
-              <div className={`status-pill ${templatesDirty ? 'dirty' : 'clean'}`}>
-                <Icon name={templatesDirty ? 'AlertCircle' : 'CheckCircle2'} size={16} />
-                <span>{templatesDirty ? ui.unsaved : ui.saved}</span>
-              </div>
-              <button className="btn-secondary" onClick={handleResetTemplate}>
-                <Icon name="RotateCcw" size={18} />
-                {cs ? 'Vychozi' : 'Default'}
-              </button>
-              <button className="btn-primary" onClick={handleSaveTemplates} disabled={!templatesDirty || tplSaving}>
-                <Icon name="Save" size={18} />
-                {tplSaving ? ui.saving : ui.save}
-              </button>
-            </>
-          )}
+    <div className="ae-page">
+      {/* Header */}
+      <div className="ae-header">
+        <div className="ae-header-left">
+          <div className="ae-header-icon">
+            <Icon name="Mail" size={22} />
+          </div>
+          <div>
+            <h1 className="ae-title">{cs ? 'Emailove notifikace' : 'Email Notifications'}</h1>
+            <p className="ae-subtitle">
+              {cs
+                ? 'Sprava emailovych sablon, nastaveni odesilani a automatickych pravidel.'
+                : 'Manage email templates, sending settings and auto-send rules.'}
+            </p>
+          </div>
         </div>
       </div>
 
+      {/* Banner */}
       {banner && (
-        <div className={`banner ${banner.type}`}>
-          <Icon name={banner.type === 'error' ? 'XCircle' : 'CheckCircle2'} size={18} />
+        <div className={`ae-banner ae-banner--${banner.type}`}>
+          <Icon name={banner.type === 'error' ? 'XCircle' : 'CheckCircle2'} size={16} />
           <span>{banner.text}</span>
+          <button className="ae-banner-close" onClick={() => setBanner(null)}>
+            <Icon name="X" size={14} />
+          </button>
         </div>
       )}
 
-      {/* TAB NAVIGATION */}
-      <div className="tab-bar">
+      {/* Tab Navigation */}
+      <div className="ae-tabs">
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            className={`ae-tab ${activeTab === tab.id ? 'ae-tab--active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
             <Icon name={tab.icon} size={16} />
             <span>{cs ? tab.label_cs : tab.label_en}</span>
+            {tab.id === 'templates' && templatesDirty && <span className="ae-tab-dot" />}
+            {tab.id === 'settings' && dirty && <span className="ae-tab-dot" />}
+            {tab.id === 'autosend' && autoSendDirty && <span className="ae-tab-dot" />}
+            {tab.id === 'log' && emailLog.length > 0 && (
+              <span className="ae-tab-badge">{emailLog.length}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* TAB: TRIGGERS */}
+      {/* ============================================================
+          TAB: TEMPLATES
+          ============================================================ */}
       {activeTab === 'templates' && (
-        <div className="tab-content">
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <h2>{cs ? 'Emailove triggery' : 'Email triggers'}</h2>
-                <p className="card-description">
-                  {cs
-                    ? 'Kazdemu eventu muzes priradit sablonu a zapnout/vypnout odesilani.'
-                    : 'Assign a template to each event and enable/disable sending.'}
-                </p>
+        <div className="ae-templates-layout">
+          {/* Left sidebar — template list */}
+          <div className="ae-tpl-sidebar">
+            <div className="ae-card">
+              <div className="ae-card-header">
+                <h2 className="ae-card-title">{cs ? 'Sablony' : 'Templates'}</h2>
               </div>
-              <button className="btn-secondary" onClick={addTrigger}>
-                <Icon name="Plus" size={18} />
-                {cs ? 'Pridat trigger' : 'Add trigger'}
-              </button>
-            </div>
-            <div className="card-body">
-              {triggers.length === 0 ? (
-                <div className="empty-state">
-                  <Icon name="Mail" size={44} />
-                  <h3>{cs ? 'Zadne triggery' : 'No triggers'}</h3>
-                  <p>{cs ? 'Pridej emailovy trigger.' : 'Add an email trigger.'}</p>
-                </div>
-              ) : (
-                <div className="trigger-list">
-                  {triggers.map((trigger, idx) => {
-                    const eventLabel = EVENT_LABELS[trigger.event];
-                    const tpl = configTemplates[trigger.event] || {};
-                    return (
-                      <div key={`${trigger.event}_${idx}`} className="trigger-row">
-                        <div className="trigger-header">
-                          <div className="trigger-left">
-                            <ForgeCheckbox
-                              checked={trigger.enabled}
-                              onChange={(e) => updateTrigger(idx, { enabled: e.target.checked })}
-                              label={<span className="trigger-event-name">{eventLabel ? (cs ? eventLabel.cs : eventLabel.en) : trigger.event}</span>}
-                            />
-                            <span className="muted">{trigger.event}</span>
-                          </div>
-                          <button className="icon-btn" title={cs ? 'Smazat' : 'Remove'} onClick={() => removeTrigger(idx)}>
-                            <Icon name="Trash2" size={14} />
-                          </button>
-                        </div>
-                        <div className="trigger-fields">
-                          <div className="field">
-                            <label htmlFor={`tpl-id-${idx}`}>{cs ? 'Template ID' : 'Template ID'}</label>
-                            <input
-                              id={`tpl-id-${idx}`}
-                              className="input"
-                              value={trigger.template_id}
-                              onChange={(e) => updateTrigger(idx, { template_id: e.target.value })}
-                              placeholder={cs ? 'Napr. order_confirmed' : 'e.g. order_confirmed'}
-                            />
-                          </div>
-                          <div className="field">
-                            <label htmlFor={`tpl-subj-${idx}`}>{cs ? 'Predmet (Subject)' : 'Subject'}</label>
-                            <input
-                              id={`tpl-subj-${idx}`}
-                              className="input"
-                              value={tpl.subject || ''}
-                              onChange={(e) => updateTemplate(trigger.event, { subject: e.target.value })}
-                              placeholder={cs ? 'Predmet emailu...' : 'Email subject...'}
-                            />
-                          </div>
-                        </div>
+              <div className="ae-tpl-list">
+                {TEMPLATE_CATEGORIES.map((cat) => {
+                  const catTemplates = EMAIL_TEMPLATE_TYPES.filter((t) => t.category === cat.id);
+                  if (catTemplates.length === 0) return null;
+                  return (
+                    <div key={cat.id} className="ae-tpl-category">
+                      <div className="ae-tpl-category-label">
+                        {cs ? cat.label_cs : cat.label_en}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      {catTemplates.map((tType) => (
+                        <button
+                          key={tType.id}
+                          className={`ae-tpl-item ${activeTemplate === tType.id ? 'ae-tpl-item--active' : ''}`}
+                          onClick={() => { setActiveTemplate(tType.id); setEditorMode('edit'); }}
+                        >
+                          <Icon name={tType.icon} size={16} />
+                          <span className="ae-tpl-item-label">{cs ? tType.label_cs : tType.label_en}</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* TAB: TEMPLATE EDITOR */}
-      {activeTab === 'editor' && (
-        <div className="tab-content">
-          {/* Template selector */}
-          <div className="tpl-selector">
-            {EMAIL_TEMPLATE_TYPES.map((tType) => (
-              <button
-                key={tType.id}
-                className={`tpl-selector-btn ${activeTemplate === tType.id ? 'active' : ''}`}
-                onClick={() => setActiveTemplate(tType.id)}
-              >
-                <Icon name={tType.icon} size={16} />
-                <span>{cs ? tType.label_cs : tType.label_en}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="tpl-editor-layout">
-            {/* Editor panel */}
-            <div className="tpl-editor-panel">
-              <div className="admin-card">
-                <div className="card-header">
+          {/* Right panel — editor + preview */}
+          <div className="ae-tpl-main">
+            {/* Template header with save actions */}
+            <div className="ae-card ae-tpl-header-card">
+              <div className="ae-tpl-header-inner">
+                <div className="ae-tpl-header-left">
+                  <Icon name={activeTplMeta?.icon || 'Mail'} size={20} />
                   <div>
-                    <h2>{cs ? 'Uprava sablony' : 'Edit Template'}</h2>
-                    <p className="card-description">
-                      {cs
-                        ? 'Upravte predmet a telo emailu. Pouzijte promenne pro dynamicky obsah.'
-                        : 'Edit subject and body. Use variables for dynamic content.'}
-                    </p>
+                    <h2 className="ae-card-title" style={{ margin: 0 }}>
+                      {cs ? activeTplMeta?.label_cs : activeTplMeta?.label_en}
+                    </h2>
+                    <span className="ae-text-muted" style={{ fontSize: 12 }}>{activeTemplate}</span>
                   </div>
-                  <button className="btn-secondary" onClick={handleSendTest} title={cs ? 'Otevrit nahled v novem okne' : 'Open preview in new window'}>
-                    <Icon name="ExternalLink" size={16} />
-                    {cs ? 'Test nahled' : 'Test Preview'}
+                </div>
+                <div className="ae-tpl-header-actions">
+                  {/* Edit / Preview toggle */}
+                  <div className="ae-mode-toggle">
+                    <button
+                      className={`ae-mode-btn ${editorMode === 'edit' ? 'ae-mode-btn--active' : ''}`}
+                      onClick={() => setEditorMode('edit')}
+                    >
+                      <Icon name="Pencil" size={14} />
+                      {cs ? 'Uprava' : 'Edit'}
+                    </button>
+                    <button
+                      className={`ae-mode-btn ${editorMode === 'preview' ? 'ae-mode-btn--active' : ''}`}
+                      onClick={() => setEditorMode('preview')}
+                    >
+                      <Icon name="Eye" size={14} />
+                      {cs ? 'Nahled' : 'Preview'}
+                    </button>
+                  </div>
+
+                  <button className="ae-btn ae-btn--ghost" onClick={handleResetTemplate} title={cs ? 'Obnovit vychozi' : 'Reset to default'}>
+                    <Icon name="RotateCcw" size={15} />
+                  </button>
+                  <button className="ae-btn ae-btn--ghost" onClick={handleTestEmail} disabled={testSending} title={cs ? 'Odeslat testovaci email' : 'Send test email'}>
+                    <Icon name={testSending ? 'Loader2' : 'Send'} size={15} className={testSending ? 'ae-spin' : ''} />
+                  </button>
+                  <div className={`ae-status-pill ${templatesDirty ? 'ae-status--dirty' : 'ae-status--clean'}`}>
+                    <Icon name={templatesDirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
+                    <span>{templatesDirty ? (cs ? 'Neulozeno' : 'Unsaved') : (cs ? 'Ulozeno' : 'Saved')}</span>
+                  </div>
+                  <button className="ae-btn ae-btn--primary" onClick={handleSaveTemplates} disabled={!templatesDirty || tplSaving}>
+                    <Icon name="Save" size={15} />
+                    {tplSaving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit' : 'Save')}
                   </button>
                 </div>
-                <div className="card-body">
+              </div>
+            </div>
+
+            {/* Editor mode */}
+            {editorMode === 'edit' && (
+              <div className="ae-card">
+                <div className="ae-card-body">
                   {/* Subject line */}
-                  <div className="field" style={{ marginBottom: 16 }}>
-                    <label htmlFor="tpl-editor-subject">{cs ? 'Predmet emailu' : 'Email subject'}</label>
+                  <div className="ae-field" style={{ marginBottom: 16 }}>
+                    <label className="ae-label" htmlFor="tpl-editor-subject">
+                      {cs ? 'Predmet emailu' : 'Email subject'}
+                    </label>
                     <input
                       id="tpl-editor-subject"
-                      className="input"
+                      className="ae-input"
                       value={currentTpl.subject || ''}
                       onChange={(e) => updateTemplateContent(activeTemplate, { subject: e.target.value })}
                       placeholder={cs ? 'Predmet emailu...' : 'Email subject...'}
                     />
                   </div>
 
-                  {/* Variable chips */}
-                  <div className="field" style={{ marginBottom: 12 }}>
-                    <label>{cs ? 'Vlozit promennou' : 'Insert variable'}</label>
-                    <div className="var-chips">
+                  {/* Variable insertion buttons */}
+                  <div className="ae-field" style={{ marginBottom: 14 }}>
+                    <label className="ae-label">{cs ? 'Vlozit promennou' : 'Insert variable'}</label>
+                    <div className="ae-var-chips">
                       {EMAIL_TEMPLATE_VARIABLES.map((v) => (
                         <button
                           key={v.key}
                           type="button"
-                          className="var-chip"
+                          className="ae-var-chip"
                           onClick={() => insertVariable(v.key)}
-                          title={`{{${v.key}}} — ${cs ? v.label_cs : v.label_en}`}
+                          title={`${cs ? v.label_cs : v.label_en} — ${v.sample}`}
                         >
-                          <span className="var-chip-key">{`{{${v.key}}}`}</span>
+                          <span className="ae-var-chip-key">{`{{${v.key}}}`}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* Formatting toolbar */}
-                  <div className="editor-toolbar" role="toolbar" aria-label={cs ? 'Formatovani' : 'Formatting'}>
+                  <div className="ae-editor-toolbar" role="toolbar" aria-label={cs ? 'Formatovani' : 'Formatting'}>
                     {TOOLBAR_ACTIONS.map((action) => {
                       if (action.cmd.startsWith('sep')) {
-                        return <div key={action.cmd} className="toolbar-sep" />;
+                        return <div key={action.cmd} className="ae-toolbar-sep" />;
                       }
                       return (
                         <button
                           key={action.cmd}
                           type="button"
-                          className="toolbar-btn"
+                          className="ae-toolbar-btn"
                           title={cs ? action.title_cs : action.title_en}
                           onMouseDown={(e) => {
-                            e.preventDefault(); // Prevent losing focus from editor
+                            e.preventDefault();
                             execCommand(action.cmd);
                           }}
                         >
@@ -582,7 +552,7 @@ export default function AdminEmails() {
                   {/* ContentEditable editor */}
                   <div
                     ref={editorRef}
-                    className="tpl-editor-body"
+                    className="ae-editor-body"
                     contentEditable
                     role="textbox"
                     aria-label={cs ? 'Telo emailu' : 'Email body'}
@@ -593,8 +563,7 @@ export default function AdminEmails() {
                     dangerouslySetInnerHTML={{ __html: currentTpl.body || '' }}
                   />
 
-                  {/* HTML source hint */}
-                  <div className="help" style={{ marginTop: 8 }}>
+                  <div className="ae-help" style={{ marginTop: 8 }}>
                     <Icon name="Info" size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                     {cs
                       ? 'Promenne ve formatu {{nazev}} budou nahrazeny skutecnymi hodnotami pri odeslani.'
@@ -602,201 +571,304 @@ export default function AdminEmails() {
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Preview panel */}
-            <div className="tpl-preview-panel">
+            {/* Preview mode */}
+            {editorMode === 'preview' && (
               <EmailTemplatePreview
                 subject={currentTpl.subject || ''}
                 body={currentTpl.body || ''}
                 cs={cs}
               />
-            </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* TAB: PROVIDER */}
-      {activeTab === 'provider' && (
-        <div className="tab-content">
-          <div className="admin-card">
-            <div className="card-header">
+      {/* ============================================================
+          TAB: SETTINGS
+          ============================================================ */}
+      {activeTab === 'settings' && (
+        <div className="ae-settings-layout">
+          {/* Provider selection */}
+          <div className="ae-card">
+            <div className="ae-card-header">
               <div>
-                <h2>{cs ? 'Nastaveni providera' : 'Provider settings'}</h2>
-                <p className="card-description">
+                <h2 className="ae-card-title">{cs ? 'Emailovy provider' : 'Email Provider'}</h2>
+                <p className="ae-card-desc">
                   {cs
-                    ? 'Vyber emailoveho poskytovatele a nastav prihlasovaci udaje.'
-                    : 'Select email provider and configure credentials.'}
+                    ? 'Vyber zpusob odesilani emailu. V rezimu simulace se emaily nezasilaji, pouze se zaznamenavaji do logu.'
+                    : 'Select email sending method. In simulation mode, emails are logged but not actually sent.'}
                 </p>
               </div>
             </div>
-            <div className="card-body">
-              <div className="grid2">
-                <div className="field">
-                  <label htmlFor="provider-select">{cs ? 'Provider' : 'Provider'}</label>
-                  <select
-                    id="provider-select"
-                    className="input"
-                    value={provider}
-                    onChange={(e) => updateConfig({ provider: e.target.value })}
+            <div className="ae-card-body">
+              <div className="ae-provider-grid">
+                {PROVIDER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`ae-provider-card ${provider === opt.value ? 'ae-provider-card--active' : ''}`}
+                    onClick={() => updateConfig({ provider: opt.value })}
                   >
-                    {PROVIDER_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{cs ? o.label_cs : o.label_en}</option>
-                    ))}
-                  </select>
+                    <Icon name={opt.icon} size={24} />
+                    <span className="ae-provider-label">{cs ? opt.label_cs : opt.label_en}</span>
+                    {provider === opt.value && (
+                      <Icon name="CheckCircle2" size={16} className="ae-provider-check" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SMTP settings */}
+          {provider === 'smtp' && (
+            <div className="ae-card">
+              <div className="ae-card-header">
+                <div>
+                  <h2 className="ae-card-title">{cs ? 'SMTP nastaveni' : 'SMTP Settings'}</h2>
+                  <p className="ae-card-desc">
+                    {cs ? 'Nastavte pripojeni k SMTP serveru.' : 'Configure SMTP server connection.'}
+                  </p>
                 </div>
               </div>
-
-              {provider === 'smtp' && (
-                <div style={{ marginTop: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', marginBottom: 12, fontFamily: 'var(--forge-font-heading)' }}>
-                    {cs ? 'SMTP nastaveni' : 'SMTP settings'}
-                  </h3>
-                  <div className="grid2">
-                    <div className="field">
-                      <label htmlFor="smtp-host">{cs ? 'Host' : 'Host'}</label>
-                      <input
-                        id="smtp-host"
-                        className="input"
-                        value={config?.smtp_host || ''}
-                        onChange={(e) => updateConfig({ smtp_host: e.target.value })}
-                        placeholder="smtp.example.com"
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="smtp-port">{cs ? 'Port' : 'Port'}</label>
-                      <input
-                        id="smtp-port"
-                        className="input"
-                        type="number"
-                        value={config?.smtp_port || 587}
-                        onChange={(e) => updateConfig({ smtp_port: Number(e.target.value) || 587 })}
-                        placeholder="587"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid2" style={{ marginTop: 12 }}>
-                    <div className="field">
-                      <label htmlFor="smtp-user">{cs ? 'Uzivatel' : 'Username'}</label>
-                      <input
-                        id="smtp-user"
-                        className="input"
-                        value={config?.smtp_user || ''}
-                        onChange={(e) => updateConfig({ smtp_user: e.target.value })}
-                        placeholder={cs ? 'Uzivatelske jmeno' : 'Username'}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>{cs ? 'Heslo' : 'Password'}</label>
-                      <div className="security-note">
-                        <Icon name="ShieldAlert" size={16} />
-                        <span>{cs ? 'Heslo se nastavuje v .env souboru na serveru (nikdy ne v prohlizeci).' : 'Password is set in .env file on server (never in browser).'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {(provider === 'resend' || provider === 'sendgrid') && (
-                <div style={{ marginTop: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', marginBottom: 12, fontFamily: 'var(--forge-font-heading)' }}>
-                    {provider === 'resend' ? 'Resend' : 'SendGrid'} {cs ? 'nastaveni' : 'settings'}
-                  </h3>
-                  <div className="field">
-                    <label htmlFor="api-key-name">{cs ? 'API klic (nazev)' : 'API key (name)'}</label>
+              <div className="ae-card-body">
+                <div className="ae-grid-2">
+                  <div className="ae-field">
+                    <label className="ae-label" htmlFor="smtp-host">{cs ? 'Host' : 'Host'}</label>
                     <input
-                      id="api-key-name"
-                      className="input"
-                      value={config?.api_key_name || ''}
-                      onChange={(e) => updateConfig({ api_key_name: e.target.value })}
-                      placeholder={cs ? 'Napr. RESEND_API_KEY' : 'e.g. RESEND_API_KEY'}
+                      id="smtp-host"
+                      className="ae-input"
+                      value={config?.smtp_host || ''}
+                      onChange={(e) => updateConfig({ smtp_host: e.target.value })}
+                      placeholder="smtp.example.com"
                     />
-                    <div className="help">
-                      {cs
-                        ? 'Samotny API klic patri do .env souboru na serveru. Zde uloz pouze nazev env promenne.'
-                        : 'The actual API key belongs in .env on the server. Store only the env variable name here.'}
+                  </div>
+                  <div className="ae-field">
+                    <label className="ae-label" htmlFor="smtp-port">{cs ? 'Port' : 'Port'}</label>
+                    <input
+                      id="smtp-port"
+                      className="ae-input"
+                      type="number"
+                      value={config?.smtp_port || 587}
+                      onChange={(e) => updateConfig({ smtp_port: Number(e.target.value) || 587 })}
+                      placeholder="587"
+                    />
+                  </div>
+                </div>
+                <div className="ae-grid-2" style={{ marginTop: 12 }}>
+                  <div className="ae-field">
+                    <label className="ae-label" htmlFor="smtp-user">{cs ? 'Uzivatel' : 'Username'}</label>
+                    <input
+                      id="smtp-user"
+                      className="ae-input"
+                      value={config?.smtp_user || ''}
+                      onChange={(e) => updateConfig({ smtp_user: e.target.value })}
+                      placeholder={cs ? 'Uzivatelske jmeno' : 'Username'}
+                    />
+                  </div>
+                  <div className="ae-field">
+                    <label className="ae-label">{cs ? 'Heslo' : 'Password'}</label>
+                    <div className="ae-security-note">
+                      <Icon name="ShieldAlert" size={16} />
+                      <span>{cs ? 'Heslo se nastavuje v .env souboru na serveru (nikdy ne v prohlizeci).' : 'Password is set in .env file on server (never in browser).'}</span>
                     </div>
                   </div>
                 </div>
-              )}
-
-              {provider !== 'none' && (
-                <div style={{ marginTop: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', marginBottom: 12, fontFamily: 'var(--forge-font-heading)' }}>
-                    {cs ? 'Odesilatel' : 'Sender'}
-                  </h3>
-                  <div className="grid2">
-                    <div className="field">
-                      <label htmlFor="sender-name">{cs ? 'Jmeno odesilatele' : 'Sender name'}</label>
-                      <input
-                        id="sender-name"
-                        className="input"
-                        value={config?.sender_name || ''}
-                        onChange={(e) => updateConfig({ sender_name: e.target.value })}
-                        placeholder={cs ? 'Napr. ModelPricer' : 'e.g. ModelPricer'}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="sender-email">{cs ? 'Email odesilatele' : 'Sender email'}</label>
-                      <input
-                        id="sender-email"
-                        className="input"
-                        type="email"
-                        value={config?.sender_email || ''}
-                        onChange={(e) => updateConfig({ sender_email: e.target.value })}
-                        placeholder="noreply@example.com"
-                      />
-                    </div>
-                  </div>
+                <div style={{ marginTop: 12 }}>
+                  <ForgeCheckbox
+                    checked={config?.smtp_secure ?? true}
+                    onChange={(e) => updateConfig({ smtp_secure: e.target.checked })}
+                    label={cs ? 'Pouzit TLS/SSL' : 'Use TLS/SSL'}
+                  />
                 </div>
-              )}
+              </div>
             </div>
+          )}
+
+          {/* API settings */}
+          {provider === 'api' && (
+            <div className="ae-card">
+              <div className="ae-card-header">
+                <div>
+                  <h2 className="ae-card-title">{cs ? 'API nastaveni' : 'API Settings'}</h2>
+                  <p className="ae-card-desc">
+                    {cs ? 'Podpora pro API providery (Resend, SendGrid) bude pridana v budouci verzi.' : 'API provider support (Resend, SendGrid) will be added in a future version.'}
+                  </p>
+                </div>
+              </div>
+              <div className="ae-card-body">
+                <div className="ae-field">
+                  <label className="ae-label" htmlFor="api-key-name">{cs ? 'Nazev env promenne API klice' : 'API key env variable name'}</label>
+                  <input
+                    id="api-key-name"
+                    className="ae-input"
+                    value={config?.api_key_name || ''}
+                    onChange={(e) => updateConfig({ api_key_name: e.target.value })}
+                    placeholder={cs ? 'Napr. RESEND_API_KEY' : 'e.g. RESEND_API_KEY'}
+                  />
+                  <div className="ae-help">
+                    {cs
+                      ? 'Samotny API klic patri do .env souboru na serveru.'
+                      : 'The actual API key belongs in .env on the server.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sender info */}
+          <div className="ae-card">
+            <div className="ae-card-header">
+              <div>
+                <h2 className="ae-card-title">{cs ? 'Odesilatel' : 'Sender'}</h2>
+                <p className="ae-card-desc">
+                  {cs ? 'Jmeno a email odesilatele zobrazeny v emailech.' : 'Sender name and email displayed in emails.'}
+                </p>
+              </div>
+            </div>
+            <div className="ae-card-body">
+              <div className="ae-grid-2">
+                <div className="ae-field">
+                  <label className="ae-label" htmlFor="sender-name">{cs ? 'Jmeno odesilatele' : 'Sender name'}</label>
+                  <input
+                    id="sender-name"
+                    className="ae-input"
+                    value={config?.sender_name || ''}
+                    onChange={(e) => updateConfig({ sender_name: e.target.value })}
+                    placeholder={cs ? 'Napr. ModelPricer' : 'e.g. ModelPricer'}
+                  />
+                </div>
+                <div className="ae-field">
+                  <label className="ae-label" htmlFor="sender-email">{cs ? 'Email odesilatele' : 'Sender email'}</label>
+                  <input
+                    id="sender-email"
+                    className="ae-input"
+                    type="email"
+                    value={config?.sender_email || ''}
+                    onChange={(e) => updateConfig({ sender_email: e.target.value })}
+                    placeholder="noreply@example.com"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Test email */}
+          <div className="ae-card">
+            <div className="ae-card-header">
+              <div>
+                <h2 className="ae-card-title">{cs ? 'Testovaci email' : 'Test Email'}</h2>
+                <p className="ae-card-desc">
+                  {cs ? 'Odeslat testovaci email pro overeni nastaveni.' : 'Send a test email to verify settings.'}
+                </p>
+              </div>
+            </div>
+            <div className="ae-card-body">
+              <div className="ae-grid-2">
+                <div className="ae-field">
+                  <label className="ae-label" htmlFor="test-email-addr">{cs ? 'Testovaci email adresa' : 'Test email address'}</label>
+                  <input
+                    id="test-email-addr"
+                    className="ae-input"
+                    type="email"
+                    value={config?.test_email || ''}
+                    onChange={(e) => updateConfig({ test_email: e.target.value })}
+                    placeholder="test@example.com"
+                  />
+                </div>
+                <div className="ae-field" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button
+                    className="ae-btn ae-btn--secondary"
+                    onClick={handleTestEmail}
+                    disabled={testSending || !config?.test_email}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Icon name={testSending ? 'Loader2' : 'Send'} size={16} className={testSending ? 'ae-spin' : ''} />
+                    {testSending ? (cs ? 'Odesilam...' : 'Sending...') : (cs ? 'Odeslat test' : 'Send test')}
+                  </button>
+                </div>
+              </div>
+              <div className="ae-help" style={{ marginTop: 8 }}>
+                {cs
+                  ? 'V rezimu simulace se email nezasle, ale zaznamena do logu.'
+                  : 'In simulation mode, the email is not sent but logged.'}
+              </div>
+            </div>
+          </div>
+
+          {/* Save button */}
+          <div className="ae-save-bar">
+            <div className={`ae-status-pill ${dirty ? 'ae-status--dirty' : 'ae-status--clean'}`}>
+              <Icon name={dirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
+              <span>{dirty ? (cs ? 'Neulozene zmeny' : 'Unsaved changes') : (cs ? 'Ulozeno' : 'Saved')}</span>
+            </div>
+            <button className="ae-btn ae-btn--primary" onClick={handleSaveConfig} disabled={!dirty || saving}>
+              <Icon name="Save" size={16} />
+              {saving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit nastaveni' : 'Save settings')}
+            </button>
           </div>
         </div>
       )}
 
-      {/* TAB: LOG */}
+      {/* ============================================================
+          TAB: LOG
+          ============================================================ */}
       {activeTab === 'log' && (
-        <div className="tab-content">
-          <div className="admin-card">
-            <div className="card-header">
+        <div className="ae-tab-content">
+          <div className="ae-card">
+            <div className="ae-card-header">
               <div>
-                <h2>{cs ? 'Historie emailu' : 'Email log'}</h2>
-                <p className="card-description">
+                <h2 className="ae-card-title">{cs ? 'Historie odeslaných emailu' : 'Email Send History'}</h2>
+                <p className="ae-card-desc">
                   {cs
-                    ? 'Posledni odeslane emaily (ulozeno v localStorage).'
-                    : 'Recent sent emails (stored in localStorage).'}
+                    ? `Posledni odeslane emaily (${emailLog.length} zaznamu).`
+                    : `Recent sent emails (${emailLog.length} records).`}
                 </p>
               </div>
+              {emailLog.length > 0 && (
+                <button className="ae-btn ae-btn--ghost ae-btn--danger" onClick={handleClearLog}>
+                  <Icon name="Trash2" size={15} />
+                  {cs ? 'Smazat log' : 'Clear log'}
+                </button>
+              )}
             </div>
-            <div className="card-body">
+            <div className="ae-card-body" style={{ padding: 0 }}>
               {emailLog.length === 0 ? (
-                <div className="empty-state">
+                <div className="ae-empty">
                   <Icon name="Inbox" size={44} />
                   <h3>{cs ? 'Zadne zaznamy' : 'No records'}</h3>
                   <p>{cs ? 'Zatim nebyly odeslany zadne emaily.' : 'No emails have been sent yet.'}</p>
                 </div>
               ) : (
-                <div className="log-table">
-                  <div className="log-header">
+                <div className="ae-log-table">
+                  <div className="ae-log-header">
                     <span>{cs ? 'Datum' : 'Date'}</span>
+                    <span>{cs ? 'Sablona' : 'Template'}</span>
                     <span>{cs ? 'Prijemce' : 'Recipient'}</span>
-                    <span>{cs ? 'Predmet' : 'Subject'}</span>
+                    <span>{cs ? 'Objednavka' : 'Order'}</span>
                     <span>{cs ? 'Stav' : 'Status'}</span>
-                    <span>{cs ? 'Trigger' : 'Trigger'}</span>
                   </div>
-                  {emailLog.map((entry, idx) => (
-                    <div key={idx} className="log-row">
-                      <span className="log-date">{entry.date ? new Date(entry.date).toLocaleString(cs ? 'cs-CZ' : 'en-US') : '\u2014'}</span>
-                      <span className="log-recipient">{entry.recipient || '\u2014'}</span>
-                      <span className="log-subject">{entry.subject || '\u2014'}</span>
-                      <span className={`log-status ${entry.status === 'sent' ? 'sent' : 'failed'}`}>
-                        <Icon name={entry.status === 'sent' ? 'CheckCircle2' : 'XCircle'} size={14} />
-                        {entry.status || '\u2014'}
-                      </span>
-                      <span className="log-trigger">{entry.event || '\u2014'}</span>
-                    </div>
-                  ))}
+                  {emailLog.map((entry) => {
+                    const tplMeta = EMAIL_TEMPLATE_TYPES.find((t) => t.id === entry.template);
+                    return (
+                      <div key={entry.id || entry.date} className="ae-log-row">
+                        <span className="ae-log-date">
+                          {entry.date ? new Date(entry.date).toLocaleString(cs ? 'cs-CZ' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '\u2014'}
+                        </span>
+                        <span className="ae-log-template">
+                          {tplMeta && <Icon name={tplMeta.icon} size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />}
+                          {tplMeta ? (cs ? tplMeta.label_cs : tplMeta.label_en) : (entry.template || '\u2014')}
+                        </span>
+                        <span className="ae-log-recipient">{entry.recipient || '\u2014'}</span>
+                        <span className="ae-log-order">{entry.orderId || '\u2014'}</span>
+                        <span className={`ae-log-status ae-log-status--${entry.status === 'sent' ? 'sent' : 'failed'}`}>
+                          <Icon name={entry.status === 'sent' ? 'CheckCircle2' : 'XCircle'} size={14} />
+                          {entry.status === 'sent' ? (cs ? 'Odeslano' : 'Sent') : (cs ? 'Selhalo' : 'Failed')}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -804,267 +876,523 @@ export default function AdminEmails() {
         </div>
       )}
 
+      {/* ============================================================
+          TAB: AUTO-SEND RULES
+          ============================================================ */}
+      {activeTab === 'autosend' && (
+        <div className="ae-tab-content">
+          <div className="ae-card">
+            <div className="ae-card-header">
+              <div>
+                <h2 className="ae-card-title">{cs ? 'Automaticke odesilani' : 'Auto-send Rules'}</h2>
+                <p className="ae-card-desc">
+                  {cs
+                    ? 'Nastavte, ktere emaily se maji automaticky odesilat pri zmene stavu objednavky.'
+                    : 'Configure which emails are sent automatically when order status changes.'}
+                </p>
+              </div>
+              <div className="ae-card-header-actions">
+                <button className="ae-btn ae-btn--ghost" onClick={handleResetAutoSend}>
+                  <Icon name="RotateCcw" size={15} />
+                  {cs ? 'Vychozi' : 'Reset'}
+                </button>
+              </div>
+            </div>
+            <div className="ae-card-body" style={{ padding: 0 }}>
+              <div className="ae-autosend-list">
+                {autoSendRules.map((rule, idx) => {
+                  const tplMeta = EMAIL_TEMPLATE_TYPES.find((t) => t.id === rule.template_id);
+                  return (
+                    <div key={rule.template_id} className={`ae-autosend-row ${rule.enabled ? 'ae-autosend-row--enabled' : ''}`}>
+                      <div className="ae-autosend-left">
+                        <ForgeCheckbox
+                          checked={rule.enabled}
+                          onChange={(e) => {
+                            const next = [...autoSendRules];
+                            next[idx] = { ...next[idx], enabled: e.target.checked };
+                            setAutoSendRules(next);
+                          }}
+                          label=""
+                        />
+                        <div className="ae-autosend-tpl">
+                          {tplMeta && <Icon name={tplMeta.icon} size={16} />}
+                          <span className="ae-autosend-tpl-name">
+                            {tplMeta ? (cs ? tplMeta.label_cs : tplMeta.label_en) : rule.template_id}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="ae-autosend-right">
+                        <span className="ae-autosend-arrow-label">
+                          {cs ? 'Odeslat pri zmene na:' : 'Send when status becomes:'}
+                        </span>
+                        <select
+                          className="ae-input ae-autosend-select"
+                          value={rule.status_trigger}
+                          onChange={(e) => {
+                            const next = [...autoSendRules];
+                            next[idx] = { ...next[idx], status_trigger: e.target.value };
+                            setAutoSendRules(next);
+                          }}
+                        >
+                          <option value="">{cs ? '-- Nevybrano --' : '-- None --'}</option>
+                          {ORDER_STATUSES.map((s) => (
+                            <option key={s.value} value={s.value}>{cs ? s.label_cs : s.label_en}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Save button */}
+          <div className="ae-save-bar">
+            <div className={`ae-status-pill ${autoSendDirty ? 'ae-status--dirty' : 'ae-status--clean'}`}>
+              <Icon name={autoSendDirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
+              <span>{autoSendDirty ? (cs ? 'Neulozene zmeny' : 'Unsaved changes') : (cs ? 'Ulozeno' : 'Saved')}</span>
+            </div>
+            <button className="ae-btn ae-btn--primary" onClick={handleSaveAutoSend} disabled={!autoSendDirty || autoSendSaving}>
+              <Icon name="Save" size={16} />
+              {autoSendSaving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit pravidla' : 'Save rules')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          STYLES
+          ============================================================ */}
       <style>{`
-        .admin-page {
+        /* ---- Page Layout ---- */
+        .ae-page {
           padding: 24px;
-          max-width: 1320px;
+          max-width: 1360px;
           margin: 0 auto;
-          background: var(--forge-bg-void);
           min-height: 100vh;
         }
 
-        .admin-header {
+        .ae-spin { animation: ae-spin-anim 1s linear infinite; }
+        @keyframes ae-spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* ---- Header ---- */
+        .ae-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
           gap: 16px;
-          margin-bottom: 14px;
+          margin-bottom: 20px;
         }
-
-        h1 { margin: 0; font-size: 28px; font-weight: 600; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
-        .subtitle { margin: 4px 0 0 0; color: var(--forge-text-secondary); font-size: 14px; max-width: 760px; }
-
-        .header-actions {
-          display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
+        .ae-header-left { display: flex; align-items: flex-start; gap: 14px; }
+        .ae-header-icon {
+          width: 44px; height: 44px;
+          display: flex; align-items: center; justify-content: center;
+          border-radius: var(--forge-radius-lg, 12px);
+          background: rgba(0,212,170,0.1);
+          color: var(--forge-accent-primary);
+          flex-shrink: 0;
         }
-
-        .status-pill {
-          display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
-          padding: 6px 10px; font-size: 12px; border: 1px solid var(--forge-border-default);
-          background: var(--forge-bg-elevated); color: var(--forge-text-secondary);
-          font-family: var(--forge-font-tech);
-        }
-        .status-pill.clean { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
-        .status-pill.dirty { border-color: rgba(255,181,71,0.3); background: rgba(255,181,71,0.08); color: var(--forge-warning); }
-
-        .btn-primary {
-          background: var(--forge-accent-primary); color: var(--forge-bg-void); border: 1px solid var(--forge-accent-primary); border-radius: var(--forge-radius-md);
-          padding: 10px 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-          font-family: var(--forge-font-tech); letter-spacing: 0.02em;
-        }
-        .btn-primary:hover { background: var(--forge-accent-primary-h); }
-        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .btn-secondary {
-          background: var(--forge-bg-elevated); color: var(--forge-text-primary); border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md);
-          padding: 10px 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-        }
-        .btn-secondary:hover { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); }
-        .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .banner {
-          display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-          border-radius: var(--forge-radius-md); margin: 10px 0 16px 0; font-size: 14px;
-          border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary);
-        }
-        .banner.success { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
-        .banner.error { border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.08); color: var(--forge-error); }
-
-        /* Tabs */
-        .tab-bar {
-          display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--forge-border-default); padding-bottom: 0;
-        }
-        .tab-btn {
-          display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px;
-          border: none; background: none; font-size: 14px; font-weight: 600;
-          color: var(--forge-text-muted); cursor: pointer; border-bottom: 2px solid transparent;
-          margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
-          font-family: var(--forge-font-tech); letter-spacing: 0.04em;
-        }
-        .tab-btn:hover { color: var(--forge-text-primary); }
-        .tab-btn.active { color: var(--forge-accent-primary); border-bottom-color: var(--forge-accent-primary); }
-
-        .tab-content { }
-
-        .admin-card { background: var(--forge-bg-surface); border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-xl); overflow: hidden; }
-
-        .card-header {
-          display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-          padding: 14px; border-bottom: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated);
-        }
-        .card-header h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--forge-text-primary); font-family: var(--forge-font-heading); }
-        .card-description { margin: 4px 0 0 0; font-size: 13px; color: var(--forge-text-muted); max-width: 760px; }
-        .card-body { padding: 14px; }
-
-        .empty-state { padding: 18px; text-align: center; color: var(--forge-text-muted); }
-        .empty-state h3 { margin: 10px 0 4px 0; color: var(--forge-text-primary); font-size: 16px; }
-        .empty-state p { margin: 0; font-size: 13px; }
-
-        .muted { color: var(--forge-text-muted); font-size: 12px; }
-
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
-
-        .field label {
-          display: block; font-size: 11px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: 0.08em; color: var(--forge-text-secondary); margin-bottom: 6px;
-          font-family: var(--forge-font-tech);
-        }
-
-        .input {
-          width: 100%; border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md);
-          padding: 10px 12px; font-size: 14px; outline: none; background: var(--forge-bg-elevated);
+        .ae-title {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 700;
           color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading);
         }
-        .input:focus { border-color: var(--forge-accent-primary); }
-        .help { font-size: 12px; color: var(--forge-text-muted); margin-top: 6px; }
+        .ae-subtitle {
+          margin: 4px 0 0 0;
+          color: var(--forge-text-secondary);
+          font-size: 14px;
+          max-width: 600px;
+          line-height: 1.5;
+        }
 
-        .icon-btn {
-          border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); border-radius: var(--forge-radius-md);
-          padding: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        /* ---- Banner ---- */
+        .ae-banner {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 14px; border-radius: var(--forge-radius-md, 8px);
+          margin-bottom: 16px; font-size: 14px;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
           color: var(--forge-text-secondary);
         }
-        .icon-btn:hover { background: var(--forge-bg-overlay); color: var(--forge-text-primary); }
+        .ae-banner--success { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
+        .ae-banner--error { border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.08); color: var(--forge-error); }
+        .ae-banner-close {
+          margin-left: auto; border: none; background: none; cursor: pointer;
+          color: inherit; padding: 2px; display: inline-flex; opacity: 0.6;
+        }
+        .ae-banner-close:hover { opacity: 1; }
 
-        /* Security note */
-        .security-note {
+        /* ---- Tabs ---- */
+        .ae-tabs {
+          display: flex; gap: 2px; margin-bottom: 20px;
+          border-bottom: 2px solid var(--forge-border-default);
+          overflow-x: auto;
+        }
+        .ae-tab {
+          display: inline-flex; align-items: center; gap: 7px;
+          padding: 11px 18px; border: none; background: none;
+          font-size: 13px; font-weight: 600;
+          color: var(--forge-text-muted); cursor: pointer;
+          border-bottom: 2px solid transparent;
+          margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.03em;
+          white-space: nowrap;
+          position: relative;
+        }
+        .ae-tab:hover { color: var(--forge-text-primary); }
+        .ae-tab--active { color: var(--forge-accent-primary); border-bottom-color: var(--forge-accent-primary); }
+        .ae-tab-dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: var(--forge-warning, #FFB547);
+          display: inline-block;
+        }
+        .ae-tab-badge {
+          display: inline-flex; align-items: center; justify-content: center;
+          min-width: 18px; height: 18px; border-radius: 9px;
+          background: var(--forge-bg-overlay); color: var(--forge-text-muted);
+          font-size: 11px; font-weight: 700; padding: 0 5px;
+        }
+
+        /* ---- Cards ---- */
+        .ae-card {
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl, 16px);
+          overflow: hidden;
+        }
+        .ae-card + .ae-card { margin-top: 16px; }
+        .ae-card-header {
+          display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+          padding: 16px 18px; border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+        }
+        .ae-card-header-actions { display: flex; gap: 8px; align-items: center; }
+        .ae-card-title {
+          margin: 0; font-size: 15px; font-weight: 700;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading);
+        }
+        .ae-card-desc { margin: 3px 0 0; font-size: 13px; color: var(--forge-text-muted); max-width: 600px; }
+        .ae-card-body { padding: 18px; }
+
+        /* ---- Common ---- */
+        .ae-text-muted { color: var(--forge-text-muted); }
+        .ae-empty { padding: 40px 18px; text-align: center; color: var(--forge-text-muted); }
+        .ae-empty h3 { margin: 12px 0 4px; color: var(--forge-text-primary); font-size: 16px; }
+        .ae-empty p { margin: 0; font-size: 13px; }
+
+        .ae-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 640px) { .ae-grid-2 { grid-template-columns: 1fr; } }
+
+        .ae-field { margin-bottom: 0; }
+        .ae-label {
+          display: block; font-size: 11px; font-weight: 800;
+          text-transform: uppercase; letter-spacing: 0.08em;
+          color: var(--forge-text-secondary); margin-bottom: 6px;
+          font-family: var(--forge-font-tech);
+        }
+        .ae-input {
+          width: 100%; border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md, 8px);
+          padding: 10px 12px; font-size: 14px; outline: none;
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          transition: border-color 0.15s;
+        }
+        .ae-input:focus { border-color: var(--forge-accent-primary); }
+        .ae-help { font-size: 12px; color: var(--forge-text-muted); margin-top: 6px; }
+
+        .ae-security-note {
           display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px;
-          border: 1px solid rgba(255,181,71,0.3); background: rgba(255,181,71,0.08); border-radius: var(--forge-radius-md);
+          border: 1px solid rgba(255,181,71,0.3); background: rgba(255,181,71,0.08);
+          border-radius: var(--forge-radius-md, 8px);
           font-size: 13px; color: var(--forge-warning);
         }
 
-        /* Trigger list */
-        .trigger-list { display: grid; gap: 12px; }
-        .trigger-row {
-          border: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-xl); padding: 12px; background: var(--forge-bg-surface);
-        }
-        .trigger-header {
-          display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;
-        }
-        .trigger-left { display: flex; flex-direction: column; gap: 4px; }
-        .trigger-event-name { font-weight: 700; color: var(--forge-text-primary); }
-        .trigger-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        @media (max-width: 640px) { .trigger-fields { grid-template-columns: 1fr; } }
-
-        /* Log table */
-        .log-table { display: grid; gap: 0; overflow-x: auto; }
-        .log-header {
-          display: grid; grid-template-columns: 170px 180px 1fr 90px 130px; gap: 8px;
-          font-size: 11px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: 0.08em; color: var(--forge-text-muted); padding: 8px 12px;
-          background: var(--forge-bg-elevated); border-bottom: 1px solid var(--forge-border-default); border-radius: var(--forge-radius-md) var(--forge-radius-md) 0 0;
-          font-family: var(--forge-font-tech);
-        }
-        .log-row {
-          display: grid; grid-template-columns: 170px 180px 1fr 90px 130px; gap: 8px;
-          font-size: 13px; color: var(--forge-text-secondary); padding: 8px 12px;
-          border-bottom: 1px solid var(--forge-border-default); align-items: center;
-        }
-        .log-row:last-child { border-bottom: none; }
-        .log-date { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-mono); }
-        .log-recipient { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--forge-text-primary); }
-        .log-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .log-status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
-        .log-status.sent { color: var(--forge-success); }
-        .log-status.failed { color: var(--forge-error); }
-        .log-trigger { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-mono); }
-        @media (max-width: 900px) {
-          .log-header, .log-row { grid-template-columns: 1fr 1fr; }
-          .log-header span:nth-child(n+3), .log-row span:nth-child(n+3) { display: none; }
-        }
-
-        /* ================================================================
-           TEMPLATE EDITOR STYLES
-           ================================================================ */
-
-        /* Template type selector */
-        .tpl-selector {
-          display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
-        }
-        .tpl-selector-btn {
-          display: inline-flex; align-items: center; gap: 6px;
-          padding: 8px 14px; border-radius: var(--forge-radius-md);
-          border: 1px solid var(--forge-border-default);
-          background: var(--forge-bg-surface); color: var(--forge-text-secondary);
+        /* ---- Buttons ---- */
+        .ae-btn {
+          display: inline-flex; align-items: center; gap: 7px;
+          padding: 9px 14px; border-radius: var(--forge-radius-md, 8px);
           font-size: 13px; font-weight: 600; cursor: pointer;
-          transition: all 0.15s;
-          font-family: var(--forge-font-tech);
+          border: 1px solid transparent; transition: all 0.15s;
+          font-family: var(--forge-font-tech); letter-spacing: 0.02em;
+          white-space: nowrap;
         }
-        .tpl-selector-btn:hover {
-          background: var(--forge-bg-elevated); color: var(--forge-text-primary);
-          border-color: var(--forge-border-active);
-        }
-        .tpl-selector-btn.active {
-          background: rgba(0,212,170,0.1); color: var(--forge-accent-primary);
+        .ae-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ae-btn--primary {
+          background: var(--forge-accent-primary); color: var(--forge-bg-void);
           border-color: var(--forge-accent-primary);
         }
+        .ae-btn--primary:hover:not(:disabled) { background: var(--forge-accent-primary-h); }
+        .ae-btn--secondary {
+          background: var(--forge-bg-elevated); color: var(--forge-text-primary);
+          border-color: var(--forge-border-default);
+        }
+        .ae-btn--secondary:hover:not(:disabled) { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); }
+        .ae-btn--ghost {
+          background: transparent; color: var(--forge-text-secondary);
+          border: 1px solid var(--forge-border-default); padding: 7px 10px;
+        }
+        .ae-btn--ghost:hover:not(:disabled) { background: var(--forge-bg-elevated); color: var(--forge-text-primary); }
+        .ae-btn--danger { color: var(--forge-error, #FF4757); }
+        .ae-btn--danger:hover:not(:disabled) { background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.3); }
 
-        /* Editor layout */
-        .tpl-editor-layout {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+        /* ---- Status Pill ---- */
+        .ae-status-pill {
+          display: inline-flex; align-items: center; gap: 5px;
+          border-radius: 999px; padding: 5px 10px; font-size: 12px;
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-secondary);
+          font-family: var(--forge-font-tech);
         }
-        @media (max-width: 1100px) {
-          .tpl-editor-layout { grid-template-columns: 1fr; }
-        }
-        .tpl-editor-panel { min-width: 0; }
-        .tpl-preview-panel { min-width: 0; }
+        .ae-status--clean { border-color: rgba(0,212,170,0.3); background: rgba(0,212,170,0.08); color: var(--forge-success); }
+        .ae-status--dirty { border-color: rgba(255,181,71,0.3); background: rgba(255,181,71,0.08); color: var(--forge-warning); }
 
-        /* Variable chips */
-        .var-chips {
-          display: flex; flex-wrap: wrap; gap: 6px;
+        .ae-save-bar {
+          display: flex; align-items: center; justify-content: flex-end;
+          gap: 12px; margin-top: 16px;
         }
-        .var-chip {
-          display: inline-flex; align-items: center; gap: 4px;
-          padding: 4px 10px; border-radius: 999px;
-          border: 1px solid rgba(0,212,170,0.3);
+
+        /* ---- Provider Grid ---- */
+        .ae-provider-grid {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+        }
+        @media (max-width: 640px) { .ae-provider-grid { grid-template-columns: 1fr; } }
+        .ae-provider-card {
+          position: relative;
+          display: flex; flex-direction: column; align-items: center;
+          gap: 10px; padding: 20px 16px;
+          border: 2px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl, 16px);
+          background: var(--forge-bg-surface);
+          color: var(--forge-text-secondary);
+          cursor: pointer; transition: all 0.15s;
+        }
+        .ae-provider-card:hover {
+          border-color: var(--forge-border-active);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+        }
+        .ae-provider-card--active {
+          border-color: var(--forge-accent-primary);
+          background: rgba(0,212,170,0.06);
+          color: var(--forge-accent-primary);
+        }
+        .ae-provider-label {
+          font-size: 14px; font-weight: 600;
+          font-family: var(--forge-font-heading);
+        }
+        .ae-provider-check {
+          position: absolute; top: 10px; right: 10px;
+          color: var(--forge-accent-primary);
+        }
+
+        /* ============================================================
+           TEMPLATE EDITOR SECTION
+           ============================================================ */
+        .ae-templates-layout {
+          display: grid;
+          grid-template-columns: 220px 1fr;
+          gap: 16px;
+          align-items: flex-start;
+        }
+        @media (max-width: 900px) {
+          .ae-templates-layout { grid-template-columns: 1fr; }
+        }
+
+        /* Sidebar */
+        .ae-tpl-sidebar { position: sticky; top: 16px; }
+        .ae-tpl-list { padding: 8px; }
+        .ae-tpl-category { margin-bottom: 8px; }
+        .ae-tpl-category:last-child { margin-bottom: 0; }
+        .ae-tpl-category-label {
+          font-size: 10px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.1em; color: var(--forge-text-muted);
+          padding: 6px 10px 4px; font-family: var(--forge-font-tech);
+        }
+        .ae-tpl-item {
+          display: flex; align-items: center; gap: 8px;
+          width: 100%; padding: 8px 10px; border: none; background: none;
+          border-radius: var(--forge-radius-md, 8px);
+          color: var(--forge-text-secondary);
+          font-size: 13px; font-weight: 500; cursor: pointer;
+          transition: background 0.12s, color 0.12s;
+          text-align: left;
+        }
+        .ae-tpl-item:hover { background: var(--forge-bg-elevated); color: var(--forge-text-primary); }
+        .ae-tpl-item--active {
           background: rgba(0,212,170,0.1);
           color: var(--forge-accent-primary);
-          font-size: 12px; font-weight: 600; cursor: pointer;
-          transition: background 0.15s, border-color 0.15s;
+          font-weight: 600;
+        }
+        .ae-tpl-item-label {
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* Template header card */
+        .ae-tpl-header-card { margin-bottom: 16px; }
+        .ae-tpl-header-inner {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 12px; padding: 12px 18px; flex-wrap: wrap;
+        }
+        .ae-tpl-header-left { display: flex; align-items: center; gap: 10px; color: var(--forge-text-primary); }
+        .ae-tpl-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+        /* Edit/Preview toggle */
+        .ae-mode-toggle {
+          display: flex; border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md, 8px); overflow: hidden;
+        }
+        .ae-mode-btn {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 6px 12px; border: none; background: var(--forge-bg-surface);
+          color: var(--forge-text-muted); font-size: 12px; font-weight: 600;
+          cursor: pointer; transition: all 0.12s;
           font-family: var(--forge-font-tech);
         }
-        .var-chip:hover {
-          background: rgba(0,212,170,0.2);
+        .ae-mode-btn:first-child { border-right: 1px solid var(--forge-border-default); }
+        .ae-mode-btn:hover { color: var(--forge-text-primary); background: var(--forge-bg-elevated); }
+        .ae-mode-btn--active {
+          background: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
+        }
+
+        /* Variable chips */
+        .ae-var-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+        .ae-var-chip {
+          display: inline-flex; align-items: center;
+          padding: 3px 9px; border-radius: 999px;
+          border: 1px solid rgba(0,212,170,0.25);
+          background: rgba(0,212,170,0.06);
+          color: var(--forge-accent-primary);
+          font-size: 11px; font-weight: 600; cursor: pointer;
+          transition: background 0.12s, border-color 0.12s;
+          font-family: var(--forge-font-tech);
+        }
+        .ae-var-chip:hover {
+          background: rgba(0,212,170,0.15);
           border-color: var(--forge-accent-primary);
         }
-        .var-chip-key { font-family: var(--forge-font-mono, monospace); }
+        .ae-var-chip-key { font-family: var(--forge-font-mono, monospace); }
 
         /* Editor toolbar */
-        .editor-toolbar {
-          display: flex; gap: 2px; padding: 6px;
+        .ae-editor-toolbar {
+          display: flex; gap: 2px; padding: 6px 8px;
           background: var(--forge-bg-elevated);
           border: 1px solid var(--forge-border-default);
           border-bottom: none;
-          border-radius: var(--forge-radius-md) var(--forge-radius-md) 0 0;
+          border-radius: var(--forge-radius-md, 8px) var(--forge-radius-md, 8px) 0 0;
           flex-wrap: wrap;
         }
-        .toolbar-btn {
+        .ae-toolbar-btn {
           border: none; background: none; cursor: pointer;
           padding: 6px 8px; border-radius: 4px;
           color: var(--forge-text-secondary); display: inline-flex; align-items: center;
           transition: background 0.1s, color 0.1s;
         }
-        .toolbar-btn:hover {
-          background: var(--forge-bg-overlay); color: var(--forge-text-primary);
-        }
-        .toolbar-sep {
+        .ae-toolbar-btn:hover { background: var(--forge-bg-overlay); color: var(--forge-text-primary); }
+        .ae-toolbar-sep {
           width: 1px; background: var(--forge-border-default);
           margin: 4px 4px; align-self: stretch;
         }
 
         /* ContentEditable body */
-        .tpl-editor-body {
+        .ae-editor-body {
           border: 1px solid var(--forge-border-default);
           border-top: none;
-          border-radius: 0 0 var(--forge-radius-md) var(--forge-radius-md);
+          border-radius: 0 0 var(--forge-radius-md, 8px) var(--forge-radius-md, 8px);
           padding: 16px;
-          min-height: 280px;
+          min-height: 300px;
           background: #ffffff;
           color: #1a1a2e;
           font-size: 14px;
           line-height: 1.6;
           outline: none;
           overflow-y: auto;
-          max-height: 500px;
+          max-height: 520px;
         }
-        .tpl-editor-body:focus {
-          border-color: var(--forge-accent-primary);
+        .ae-editor-body:focus { border-color: var(--forge-accent-primary); }
+        .ae-editor-body h2 { font-size: 18px; margin-bottom: 8px; color: #1a1a2e; }
+        .ae-editor-body p { margin-bottom: 8px; }
+        .ae-editor-body a { color: #00d4aa; text-decoration: underline; }
+        .ae-editor-body ul, .ae-editor-body ol { margin: 0 0 8px 20px; }
+        .ae-editor-body li { margin-bottom: 4px; }
+        .ae-editor-body table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+        .ae-editor-body td { padding: 6px 8px; border-bottom: 1px solid #e8e8e8; }
+
+        /* ============================================================
+           LOG TABLE
+           ============================================================ */
+        .ae-log-table { }
+        .ae-log-header {
+          display: grid; grid-template-columns: 150px 1fr 180px 110px 100px; gap: 8px;
+          font-size: 11px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.08em; color: var(--forge-text-muted);
+          padding: 10px 18px;
+          background: var(--forge-bg-elevated);
+          border-bottom: 1px solid var(--forge-border-default);
+          font-family: var(--forge-font-tech);
         }
-        .tpl-editor-body h2 { font-size: 18px; margin-bottom: 8px; color: #1a1a2e; }
-        .tpl-editor-body p { margin-bottom: 8px; }
-        .tpl-editor-body a { color: #00d4aa; text-decoration: underline; }
-        .tpl-editor-body ul { margin: 0 0 8px 20px; }
-        .tpl-editor-body li { margin-bottom: 4px; }
+        .ae-log-row {
+          display: grid; grid-template-columns: 150px 1fr 180px 110px 100px; gap: 8px;
+          font-size: 13px; color: var(--forge-text-secondary);
+          padding: 10px 18px; align-items: center;
+          border-bottom: 1px solid var(--forge-border-default);
+          transition: background 0.1s;
+        }
+        .ae-log-row:last-child { border-bottom: none; }
+        .ae-log-row:hover { background: var(--forge-bg-elevated); }
+        .ae-log-date { font-size: 12px; color: var(--forge-text-muted); font-family: var(--forge-font-mono, monospace); }
+        .ae-log-template { display: flex; align-items: center; color: var(--forge-text-primary); font-weight: 500; }
+        .ae-log-recipient { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ae-log-order { font-size: 12px; font-family: var(--forge-font-mono, monospace); color: var(--forge-text-muted); }
+        .ae-log-status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
+        .ae-log-status--sent { color: var(--forge-success); }
+        .ae-log-status--failed { color: var(--forge-error); }
+        @media (max-width: 900px) {
+          .ae-log-header, .ae-log-row { grid-template-columns: 1fr 1fr 100px; }
+          .ae-log-header span:nth-child(4), .ae-log-row span:nth-child(4),
+          .ae-log-header span:nth-child(3), .ae-log-row span:nth-child(3) { display: none; }
+        }
+        @media (max-width: 600px) {
+          .ae-log-header, .ae-log-row { grid-template-columns: 1fr 80px; }
+          .ae-log-header span:nth-child(2), .ae-log-row span:nth-child(2) { display: none; }
+        }
+
+        /* ============================================================
+           AUTO-SEND
+           ============================================================ */
+        .ae-autosend-list { }
+        .ae-autosend-row {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 12px; padding: 14px 18px;
+          border-bottom: 1px solid var(--forge-border-default);
+          transition: background 0.1s;
+        }
+        .ae-autosend-row:last-child { border-bottom: none; }
+        .ae-autosend-row:hover { background: var(--forge-bg-elevated); }
+        .ae-autosend-row--enabled { background: rgba(0,212,170,0.03); }
+        .ae-autosend-left { display: flex; align-items: center; gap: 10px; }
+        .ae-autosend-tpl { display: flex; align-items: center; gap: 7px; color: var(--forge-text-primary); }
+        .ae-autosend-tpl-name { font-size: 14px; font-weight: 600; }
+        .ae-autosend-right { display: flex; align-items: center; gap: 10px; }
+        .ae-autosend-arrow-label {
+          font-size: 12px; color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech); white-space: nowrap;
+        }
+        .ae-autosend-select { width: 160px; padding: 8px 10px; font-size: 13px; }
+        @media (max-width: 700px) {
+          .ae-autosend-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+          .ae-autosend-right { width: 100%; }
+          .ae-autosend-select { flex: 1; }
+        }
+
+        .ae-tab-content { }
       `}</style>
       <ConfirmDialog />
     </div>

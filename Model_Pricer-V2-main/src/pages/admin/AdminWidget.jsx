@@ -31,6 +31,10 @@ import WidgetConfigTab from './components/WidgetConfigTab';
 import WidgetEmbedTab from './components/WidgetEmbedTab';
 import WidgetDomainsTab from './components/WidgetDomainsTab';
 import WidgetSettingsTab from './components/WidgetSettingsTab';
+import WidgetIntegrationTab from './components/WidgetIntegrationTab';
+import WidgetPreviewPanel from './components/WidgetPreviewPanel';
+import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
+import { getHelpText, getLearnMore } from './helpTexts';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -49,6 +53,7 @@ const toNullableHex = (val) => {
 const TABS = [
   { id: 'config', label: 'Konfigurace', icon: 'Settings' },
   { id: 'embed', label: 'Embed kod', icon: 'Code' },
+  { id: 'integration', label: 'Integrace', icon: 'Puzzle' },
   { id: 'domains', label: 'Domeny', icon: 'Globe' },
   { id: 'settings', label: 'Nastaveni', icon: 'Cog' },
 ];
@@ -259,6 +264,13 @@ const AdminWidget = () => {
       }
     }
 
+    if ((editor.heightMode || 'auto') === 'fixed') {
+      const v = Number(editor.heightPx);
+      if (!Number.isFinite(v) || v <= 0) {
+        errors.heightPx = 'Zadej vysku > 0.';
+      }
+    }
+
     return errors;
   };
 
@@ -301,6 +313,10 @@ const AdminWidget = () => {
         primaryColorOverride: toNullableHex(editor.primaryColorOverride),
         widthMode: editor.widthMode,
         widthPx: editor.widthMode === 'fixed' ? Number(editor.widthPx || 0) : null,
+        heightMode: editor.heightMode || 'auto',
+        heightPx: (editor.heightMode || 'auto') === 'fixed' ? Number(editor.heightPx || 0) : null,
+        borderRadius: typeof editor.borderRadius === 'number' ? editor.borderRadius : 8,
+        showSections: editor.showSections || { upload: true, materials: true, pricingBreakdown: true },
         localeDefault: editor.localeDefault || 'cs',
         configProfileId: editor.configProfileId ?? null,
       };
@@ -726,25 +742,48 @@ const AdminWidget = () => {
               {/* Tab content */}
               <div className="aw-tab-content" role="tabpanel" id={`aw-tabpanel-${activeTab}`} aria-labelledby={`aw-tab-${activeTab}`}>
                 {activeTab === 'config' ? (
-                  <WidgetConfigTab
-                    editor={editor}
-                    errors={errors}
-                    onEditorChange={onEditorChange}
-                  />
+                  <div className="aw-config-with-preview">
+                    <div className="aw-config-form-col">
+                      <WidgetConfigTab
+                        editor={editor}
+                        errors={errors}
+                        onEditorChange={onEditorChange}
+                      />
+                    </div>
+                    <div className="aw-config-preview-col">
+                      <WidgetPreviewPanel editor={editor} />
+                    </div>
+                  </div>
                 ) : null}
 
                 {activeTab === 'embed' ? (
-                  <WidgetEmbedTab widget={selectedWidget} />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <ForgeHelpIcon text={getHelpText('widget_embed_code', 'cs')} position="right" size={16} />
+                      <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>Napoveda k embed kodu</span>
+                    </div>
+                    <WidgetEmbedTab widget={selectedWidget} />
+                  </div>
+                ) : null}
+
+                {activeTab === 'integration' ? (
+                  <WidgetIntegrationTab widget={selectedWidget} />
                 ) : null}
 
                 {activeTab === 'domains' ? (
-                  <WidgetDomainsTab
-                    domains={domains}
-                    canUseWhitelist={canUseWhitelist}
-                    onAddDomain={onAddDomain}
-                    onToggleDomain={onToggleDomain}
-                    onDeleteDomain={onDeleteDomain}
-                  />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <ForgeHelpIcon text={getHelpText('widget_domain_whitelist', 'cs')} learnMore={getLearnMore('widget_domain_whitelist')} position="right" size={16} />
+                      <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>Napoveda k domain whitelistu</span>
+                    </div>
+                    <WidgetDomainsTab
+                      domains={domains}
+                      canUseWhitelist={canUseWhitelist}
+                      onAddDomain={onAddDomain}
+                      onToggleDomain={onToggleDomain}
+                      onDeleteDomain={onDeleteDomain}
+                    />
+                  </div>
                 ) : null}
 
                 {activeTab === 'settings' ? (
@@ -1363,9 +1402,278 @@ const AdminWidget = () => {
           font-size: 12px;
         }
 
-        /* ---- Config tab ---- */
+        /* ---- Config tab with preview ---- */
+        .aw-config-with-preview {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 20px;
+          align-items: start;
+        }
+
+        @media (max-width: 1200px) {
+          .aw-config-with-preview {
+            grid-template-columns: 1fr;
+          }
+          .aw-config-preview-col {
+            order: -1;
+          }
+        }
+
+        .aw-config-form-col {
+          min-width: 0;
+        }
+
+        .aw-config-preview-col {
+          position: sticky;
+          top: 16px;
+        }
+
         .aw-config-tab {
           max-width: 520px;
+        }
+
+        .aw-config-section {
+          margin-bottom: 20px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid var(--forge-border-default);
+        }
+        .aw-config-section:last-child {
+          border-bottom: none;
+          margin-bottom: 0;
+        }
+
+        .aw-config-section-title {
+          font-size: 14px;
+          font-weight: 800;
+          color: var(--forge-text-primary);
+          margin-bottom: 12px;
+          font-family: var(--forge-font-heading);
+        }
+
+        /* Theme switcher */
+        .aw-theme-switcher {
+          display: flex;
+          gap: 4px;
+          background: var(--forge-bg-tertiary, #1A1D23);
+          border-radius: 8px;
+          padding: 4px;
+        }
+
+        .aw-theme-option {
+          flex: 1;
+          padding: 7px 12px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 13px;
+          font-family: var(--forge-font-body);
+          font-weight: 400;
+          background: transparent;
+          color: var(--forge-text-secondary, #94A3B8);
+          transition: all 150ms ease;
+        }
+        .aw-theme-option-active {
+          font-weight: 600;
+          background: var(--forge-accent-primary, #00D4AA);
+          color: #000;
+        }
+
+        /* Border radius preview */
+        .aw-border-radius-preview {
+          width: 60px;
+          height: 40px;
+          margin-top: 6px;
+          border: 2px solid var(--forge-accent-primary);
+          background: rgba(0,212,170,0.08);
+          transition: border-radius 0.2s ease;
+        }
+
+        /* Section toggles */
+        .aw-section-toggles {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .aw-section-toggle-row {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+          padding: 10px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
+          background: var(--forge-bg-elevated);
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .aw-section-toggle-row:hover {
+          border-color: var(--forge-text-muted);
+        }
+
+        .aw-section-toggle-label {
+          font-weight: 600;
+          font-size: 13px;
+          color: var(--forge-text-primary);
+          margin-bottom: 2px;
+        }
+
+        /* ---- Preview panel ---- */
+        .aw-preview-panel {
+          background: var(--forge-bg-elevated);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
+          overflow: hidden;
+        }
+
+        .aw-preview-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 14px;
+          border-bottom: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
+        }
+
+        .aw-preview-title {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 700;
+          font-size: 13px;
+          color: var(--forge-text-primary);
+        }
+
+        .aw-preview-devices {
+          display: flex;
+          gap: 4px;
+        }
+
+        .aw-device-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border-radius: 6px;
+          border: 1px solid var(--forge-border-default);
+          background: transparent;
+          color: var(--forge-text-muted);
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .aw-device-btn:hover {
+          color: var(--forge-text-primary);
+          border-color: var(--forge-text-muted);
+        }
+        .aw-device-btn-active {
+          background: var(--forge-accent-primary);
+          color: #0a0f1a;
+          border-color: var(--forge-accent-primary);
+        }
+
+        .aw-preview-viewport {
+          padding: 16px;
+          background: repeating-conic-gradient(
+            rgba(255,255,255,0.03) 0% 25%,
+            transparent 0% 50%
+          ) 50% / 20px 20px;
+          min-height: 300px;
+        }
+
+        .aw-preview-frame {
+          /* dynamic width via style prop */
+        }
+
+        .aw-preview-widget {
+          overflow: hidden;
+        }
+
+        .aw-preview-widget-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+        }
+
+        .aw-preview-section {
+          padding: 10px 14px;
+          border-bottom: 1px solid;
+        }
+
+        .aw-preview-upload {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 16px;
+          border: 2px dashed;
+          border-radius: 6px;
+        }
+
+        .aw-preview-device-label {
+          text-align: center;
+          margin-top: 8px;
+          font-size: 11px;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
+        }
+
+        /* ---- Integration tab ---- */
+        .aw-integration-tab {}
+
+        .aw-platform-tabs {
+          display: flex;
+          gap: 4px;
+          margin-bottom: 16px;
+          background: var(--forge-bg-tertiary, #1A1D23);
+          border-radius: 8px;
+          padding: 4px;
+          overflow-x: auto;
+        }
+
+        .aw-platform-tab {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          flex: 1 1 0%;
+          justify-content: center;
+          padding: 8px 12px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 13px;
+          font-family: var(--forge-font-body);
+          font-weight: 400;
+          background: transparent;
+          color: var(--forge-text-secondary, #94A3B8);
+          transition: all 150ms ease;
+          white-space: nowrap;
+        }
+        .aw-platform-tab-active {
+          font-weight: 600;
+          background: var(--forge-accent-primary, #00D4AA);
+          color: #000;
+        }
+
+        .aw-platform-content {
+          /* wrapper */
+        }
+
+        .aw-platform-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        .aw-platform-title {
+          font-weight: 700;
+          font-size: 14px;
+          color: var(--forge-text-primary);
+          margin-bottom: 2px;
+          font-family: var(--forge-font-tech);
         }
 
         /* ---- Embed tab ---- */

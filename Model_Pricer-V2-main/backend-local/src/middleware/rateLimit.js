@@ -58,10 +58,15 @@ export function rateLimit({
     res.set("X-RateLimit-Reset", String(Math.ceil(entry.resetAt / 1000)));
 
     if (entry.count > max) {
+      // Retry-After header: seconds until the rate limit window resets
+      const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+      res.set("Retry-After", String(retryAfterSec));
+
       return res.status(429).json({
         ok: false,
         errorCode: "MP_RATE_LIMITED",
         message,
+        retryAfter: retryAfterSec,
       });
     }
 

@@ -6,7 +6,7 @@
 // - Single source of truth: tenant-scoped V3 storage (namespace: pricing:v3)
 // - No backend sync here (handled elsewhere). This page reads/writes only via loadPricingConfigV3/savePricingConfigV3.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
@@ -14,6 +14,9 @@ import { SkeletonCard, SkeletonTable } from '../../components/ui/forge/ForgeSkel
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadPricingConfigV3, savePricingConfigV3 } from '../../utils/adminPricingStorage';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import { addNotification } from '../../utils/adminNotificationStorage';
+import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
+import { getHelpText, getLearnMore } from './helpTexts';
 
 const DEFAULT_RULES = {
   // time
@@ -57,6 +60,59 @@ const PRICING_TABS = [
   { id: 'discounts', icon: 'Percent', label_cs: 'Slevy', label_en: 'Discounts' },
   { id: 'preview', icon: 'Eye', label_cs: 'Nahled', label_en: 'Preview' },
 ];
+
+// --- Collapsible section state (non-tenant, UI-only) ---
+const COLLAPSED_KEY = 'mp_pricing_ui_collapsed';
+function loadCollapsedState() {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+function saveCollapsedState(state) {
+  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(state)); } catch {}
+}
+
+// --- Number Stepper component ---
+function NumberStepper({ value, onChange, min = 0, step = 1, className = '', error = false, style }) {
+  const handleStep = (dir) => {
+    const next = safeNum(value, 0) + dir * step;
+    if (next < min) return;
+    onChange(next);
+  };
+  const stepBtnStyle = {
+    width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid var(--forge-border-default, #1a1a2e)', borderRadius: 6,
+    background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-secondary, #a0a0a0)',
+    cursor: 'pointer', fontSize: 16, fontWeight: 700, padding: 0, lineHeight: 1,
+    transition: 'background 120ms, color 120ms, border-color 120ms',
+  };
+  return (
+    <div className="number-stepper-wrap" style={{ display: 'flex', alignItems: 'center', gap: 4, ...style }}>
+      <button
+        type="button" style={stepBtnStyle} tabIndex={-1}
+        onClick={() => handleStep(-1)}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary, #00D4AA)'; e.currentTarget.style.color = 'var(--forge-text-primary, #e0e0e0)'; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--forge-border-default, #1a1a2e)'; e.currentTarget.style.color = 'var(--forge-text-secondary, #a0a0a0)'; }}
+        aria-label="Decrease"
+      >−</button>
+      <input
+        type="number" min={min} step={step}
+        className={`input ${error ? 'input-error' : ''} ${className}`}
+        value={value}
+        onChange={(e) => onChange(safeNum(e.target.value, 0))}
+        style={{ textAlign: 'center', MozAppearance: 'textfield', width: '100%' }}
+      />
+      <button
+        type="button" style={stepBtnStyle} tabIndex={-1}
+        onClick={() => handleStep(1)}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary, #00D4AA)'; e.currentTarget.style.color = 'var(--forge-text-primary, #e0e0e0)'; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--forge-border-default, #1a1a2e)'; e.currentTarget.style.color = 'var(--forge-text-secondary, #a0a0a0)'; }}
+        aria-label="Increase"
+      >+</button>
+    </div>
+  );
+}
 
 function safeNum(v, fallback = 0) {
   const n = Number(v);
@@ -123,6 +179,25 @@ function normalizeHex(hex) {
 
 function isValidHex(hex) {
   return /^#[0-9A-F]{6}$/.test(String(hex || '').trim().toUpperCase());
+}
+
+// ─── Material type definitions with sensible defaults ───
+const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC', 'PA', 'HIPS', 'PVA', 'Jiný'];
+
+const MATERIAL_TYPE_DEFAULTS = {
+  PLA:  { density: 1.24, temp_nozzle_min: 190, temp_nozzle_max: 220, temp_bed_min: 50, temp_bed_max: 65, cooling_fan: 100, speed_min: 40, speed_max: 80 },
+  PETG: { density: 1.27, temp_nozzle_min: 225, temp_nozzle_max: 250, temp_bed_min: 70, temp_bed_max: 90, cooling_fan: 50, speed_min: 30, speed_max: 60 },
+  ABS:  { density: 1.04, temp_nozzle_min: 230, temp_nozzle_max: 260, temp_bed_min: 90, temp_bed_max: 110, cooling_fan: 0, speed_min: 30, speed_max: 60 },
+  ASA:  { density: 1.07, temp_nozzle_min: 240, temp_nozzle_max: 270, temp_bed_min: 95, temp_bed_max: 110, cooling_fan: 0, speed_min: 30, speed_max: 50 },
+  TPU:  { density: 1.21, temp_nozzle_min: 210, temp_nozzle_max: 240, temp_bed_min: 40, temp_bed_max: 60, cooling_fan: 50, speed_min: 15, speed_max: 35 },
+  PC:   { density: 1.20, temp_nozzle_min: 260, temp_nozzle_max: 310, temp_bed_min: 100, temp_bed_max: 120, cooling_fan: 0, speed_min: 20, speed_max: 50 },
+  PA:   { density: 1.14, temp_nozzle_min: 240, temp_nozzle_max: 270, temp_bed_min: 70, temp_bed_max: 90, cooling_fan: 30, speed_min: 25, speed_max: 50 },
+  HIPS: { density: 1.05, temp_nozzle_min: 220, temp_nozzle_max: 250, temp_bed_min: 90, temp_bed_max: 110, cooling_fan: 50, speed_min: 30, speed_max: 60 },
+  PVA:  { density: 1.23, temp_nozzle_min: 185, temp_nozzle_max: 210, temp_bed_min: 45, temp_bed_max: 60, cooling_fan: 100, speed_min: 20, speed_max: 40 },
+};
+
+function getMaterialDefaults(type) {
+  return MATERIAL_TYPE_DEFAULTS[type] || { density: 1.0, temp_nozzle_min: 200, temp_nozzle_max: 250, temp_bed_min: 50, temp_bed_max: 80, cooling_fan: 50, speed_min: 30, speed_max: 60 };
 }
 
 const DEFAULT_WHITE_COLOR = { name: 'White', hex: '#FFFFFF' };
@@ -314,6 +389,25 @@ const AdminPricing = () => {
   const [touched, setTouched] = useState(false);
   const [editingMaterialIndex, setEditingMaterialIndex] = useState(null); // null = closed, number = index
   const [dialogDraft, setDialogDraft] = useState(null); // deep copy of material being edited
+  // Material enhancements
+  const [materialSort, setMaterialSort] = useState('name'); // 'name' | 'type' | 'price' | 'status'
+  const [materialSortDir, setMaterialSortDir] = useState('asc'); // 'asc' | 'desc'
+  const [compareIds, setCompareIds] = useState([]); // max 3 material ids for comparison
+  const [showPropsFor, setShowPropsFor] = useState({}); // { [materialId]: boolean } — expanded cards
+  const [costCalc, setCostCalc] = useState({ spool_weight_kg: 1, spool_price: 600 });
+
+  // Collapsible card sections (UI-only, non-tenant localStorage)
+  const [collapsedSections, setCollapsedSections] = useState(() => loadCollapsedState());
+  const toggleSection = useCallback((sectionId) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [sectionId]: !prev[sectionId] };
+      saveCollapsedState(next);
+      return next;
+    });
+  }, []);
+
+  // Quick test floating panel
+  const [quickTestOpen, setQuickTestOpen] = useState(false);
 
   const ui = useMemo(() => {
     const cs = language === 'cs';
@@ -334,13 +428,59 @@ const AdminPricing = () => {
       saveOk: cs ? 'Uloženo.' : 'Saved.',
       saveError: cs ? 'Uložení se nepodařilo.' : 'Save failed.',
       exportOk: cs ? 'JSON zkopírován do schránky.' : 'JSON copied to clipboard.',
-      importOk: cs ? 'Konfigurace importována (nezapomeň uložit).' : 'Configuration imported (don’t forget to save).',
-      resetOk: cs ? 'Resetováno na default (nezapomeň uložit).' : 'Reset to defaults (don’t forget to save).',
+      importOk: cs ? 'Konfigurace importována (nezapomeň uložit).' : "Configuration imported (don't forget to save).",
+      resetOk: cs ? 'Resetováno na default (nezapomeň uložit).' : "Reset to defaults (don't forget to save).",
       invalid: cs ? 'Oprav chyby ve formuláři (hodnoty musí být ≥ 0).' : 'Fix validation errors (values must be ≥ 0).',
       preview: cs ? 'Testovací kalkulace' : 'Pricing sandbox',
       previewToggle: cs ? 'Testovat na příkladu' : 'Test with example',
     };
   }, [language]);
+
+  // Pricing summary bar data
+  const pricingSummary = useMemo(() => {
+    const baseRate = clampMin0(rules.rate_per_hour);
+    let avgMarkup = '---';
+    if (rules.markup_enabled) {
+      if (rules.markup_mode === 'percent') avgMarkup = `${clampMin0(rules.markup_value)}%`;
+      else if (rules.markup_mode === 'flat') avgMarkup = `+${clampMin0(rules.markup_value)} Kč`;
+      else if (rules.markup_mode === 'min_flat') avgMarkup = `min ${clampMin0(rules.markup_value)} Kč`;
+    }
+    const minOrder = rules.min_order_total_enabled ? `${clampMin0(rules.min_order_total_value)} Kč` : '---';
+    let rounding = '---';
+    if (rules.rounding_enabled) {
+      const dir = rules.rounding_mode === 'up' ? (language === 'cs' ? 'nahoru' : 'up') : (language === 'cs' ? 'nejblizsi' : 'nearest');
+      rounding = `${rules.rounding_step} (${dir})`;
+    }
+    const matCount = materials.filter(m => m?.enabled).length;
+    return { baseRate, avgMarkup, minOrder, rounding, matCount };
+  }, [rules, materials, language]);
+
+  // CollapsibleCard helper component
+  const CollapsibleCard = useCallback(({ id, title, description, headerRight, children, className = '' }) => {
+    const isCollapsed = !!collapsedSections[id];
+    return (
+      <div className={`admin-card ${className}`}>
+        <div
+          className="card-header card-header--collapsible"
+          onClick={() => toggleSection(id)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection(id); } }}
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+            <Icon name="ChevronRight" size={16} className={`collapse-chevron ${isCollapsed ? '' : 'expanded'}`} />
+            <div>
+              <h2>{title}</h2>
+              {description && <p className="card-description">{description}</p>}
+            </div>
+          </div>
+          {headerRight && <div onClick={e => e.stopPropagation()}>{headerRight}</div>}
+        </div>
+        {!isCollapsed && children}
+      </div>
+    );
+  }, [collapsedSections, toggleSection]);
 
   const setRule = (key, value) => {
     setRules((prev) => ({ ...prev, [key]: value }));
@@ -355,8 +495,17 @@ const AdminPricing = () => {
     id: 'mat-pla',
     key: 'pla',
     name: 'PLA',
+    type: 'PLA',
     enabled: true,
     price_per_gram: 0.6,
+    density: 1.24,
+    temp_nozzle_min: 190,
+    temp_nozzle_max: 220,
+    temp_bed_min: 50,
+    temp_bed_max: 65,
+    cooling_fan: 100,
+    speed_min: 40,
+    speed_max: 80,
     colors: [createDefaultWhiteColor()],
   });
 
@@ -368,13 +517,29 @@ const AdminPricing = () => {
   const [colorDrafts, setColorDrafts] = useState({}); // { [materialId]: { name, hex } }
   const colorHexRafRef = useRef(new Map()); // key => { raf, hex }
 
-  const addMaterial = () => {
-    const newMat = {
+  const addMaterial = (baseMat = null) => {
+    const defaults = getMaterialDefaults('PLA');
+    const newMat = baseMat ? {
+      ...deepClone(baseMat),
+      id: createStableId('mat'),
+      key: baseMat.key ? ensureUniqueMaterialKey(baseMat.key, materials) : '',
+      name: baseMat.name ? `${baseMat.name} (kopie)` : '',
+      colors: (Array.isArray(baseMat.colors) ? baseMat.colors : [createDefaultWhiteColor()]).map(c => ({ ...c, id: createStableId('clr') })),
+    } : {
       id: createStableId('mat'),
       key: '',
       name: '',
+      type: 'PLA',
       enabled: true,
       price_per_gram: 0,
+      density: defaults.density,
+      temp_nozzle_min: defaults.temp_nozzle_min,
+      temp_nozzle_max: defaults.temp_nozzle_max,
+      temp_bed_min: defaults.temp_bed_min,
+      temp_bed_max: defaults.temp_bed_max,
+      cooling_fan: defaults.cooling_fan,
+      speed_min: defaults.speed_min,
+      speed_max: defaults.speed_max,
       colors: [createDefaultWhiteColor()],
     };
     setMaterials((prev) => {
@@ -627,6 +792,21 @@ const AdminPricing = () => {
       }
       if (field === 'key') next.key = slugifyMaterialKey(value);
       if (field === 'price_per_gram') next.price_per_gram = safeNum(value, 0);
+      if (field === 'density') next.density = safeNum(value, 1.0);
+      // When type changes, auto-fill properties if they haven't been customized
+      if (field === 'type') {
+        const defaults = getMaterialDefaults(value);
+        const prevDefaults = getMaterialDefaults(prev.type);
+        // Only auto-fill if current value matches previous type's default (not customized)
+        if (safeNum(prev.density, 0) === safeNum(prevDefaults.density, 0) || !prev.density) next.density = defaults.density;
+        if (safeNum(prev.temp_nozzle_min, 0) === safeNum(prevDefaults.temp_nozzle_min, 0) || !prev.temp_nozzle_min) next.temp_nozzle_min = defaults.temp_nozzle_min;
+        if (safeNum(prev.temp_nozzle_max, 0) === safeNum(prevDefaults.temp_nozzle_max, 0) || !prev.temp_nozzle_max) next.temp_nozzle_max = defaults.temp_nozzle_max;
+        if (safeNum(prev.temp_bed_min, 0) === safeNum(prevDefaults.temp_bed_min, 0) || !prev.temp_bed_min) next.temp_bed_min = defaults.temp_bed_min;
+        if (safeNum(prev.temp_bed_max, 0) === safeNum(prevDefaults.temp_bed_max, 0) || !prev.temp_bed_max) next.temp_bed_max = defaults.temp_bed_max;
+        if (safeNum(prev.cooling_fan, -1) === safeNum(prevDefaults.cooling_fan, -1) || prev.cooling_fan == null) next.cooling_fan = defaults.cooling_fan;
+        if (safeNum(prev.speed_min, 0) === safeNum(prevDefaults.speed_min, 0) || !prev.speed_min) next.speed_min = defaults.speed_min;
+        if (safeNum(prev.speed_max, 0) === safeNum(prevDefaults.speed_max, 0) || !prev.speed_max) next.speed_max = defaults.speed_max;
+      }
       return next;
     });
   };
@@ -870,12 +1050,22 @@ const AdminPricing = () => {
       nextMaterials = ensureAtLeastOneMaterial(nextMaterials).map((m) => {
         const id = m?.id || createStableId('mat');
         const key = slugifyMaterialKey(m?.key || m?.name || '');
+        const typeDefaults = getMaterialDefaults(m?.type || '');
         return {
           id,
           key: key,
           name: String(m?.name || '').trim(),
+          type: m?.type || '',
           enabled: m?.enabled !== false,
           price_per_gram: clampMin0(m?.price_per_gram ?? m?.price ?? 0),
+          density: safeNum(m?.density, typeDefaults.density),
+          temp_nozzle_min: safeNum(m?.temp_nozzle_min, typeDefaults.temp_nozzle_min),
+          temp_nozzle_max: safeNum(m?.temp_nozzle_max, typeDefaults.temp_nozzle_max),
+          temp_bed_min: safeNum(m?.temp_bed_min, typeDefaults.temp_bed_min),
+          temp_bed_max: safeNum(m?.temp_bed_max, typeDefaults.temp_bed_max),
+          cooling_fan: m?.cooling_fan != null ? safeNum(m.cooling_fan, typeDefaults.cooling_fan) : typeDefaults.cooling_fan,
+          speed_min: safeNum(m?.speed_min, typeDefaults.speed_min),
+          speed_max: safeNum(m?.speed_max, typeDefaults.speed_max),
           colors: Array.isArray(m?.colors) && m.colors.length > 0
             ? m.colors.map((c) => ({
                 id: c?.id || createStableId('clr'),
@@ -939,6 +1129,12 @@ const AdminPricing = () => {
       setTouched(false);
 
       setBanner({ type: 'success', text: ui.saveOk });
+
+      addNotification({
+        type: 'config',
+        title: 'Cenova konfigurace ulozena',
+        description: `Pricing V3 konfiguraci aktualizoval admin`,
+      });
     } catch {
       setBanner({ type: 'error', text: ui.saveError });
     } finally {
@@ -964,12 +1160,22 @@ const AdminPricing = () => {
       mats = ensureAtLeastOneMaterial(mats).map((m) => {
         const id = m?.id || createStableId('mat');
         const key = slugifyMaterialKey(m?.key || m?.name || '');
+        const typeDefaults = getMaterialDefaults(m?.type || '');
         return {
           id,
           key,
           name: String(m?.name || '').trim(),
+          type: m?.type || '',
           enabled: m?.enabled !== false,
           price_per_gram: clampMin0(m?.price_per_gram ?? m?.price ?? 0),
+          density: safeNum(m?.density, typeDefaults.density),
+          temp_nozzle_min: safeNum(m?.temp_nozzle_min, typeDefaults.temp_nozzle_min),
+          temp_nozzle_max: safeNum(m?.temp_nozzle_max, typeDefaults.temp_nozzle_max),
+          temp_bed_min: safeNum(m?.temp_bed_min, typeDefaults.temp_bed_min),
+          temp_bed_max: safeNum(m?.temp_bed_max, typeDefaults.temp_bed_max),
+          cooling_fan: m?.cooling_fan != null ? safeNum(m.cooling_fan, typeDefaults.cooling_fan) : typeDefaults.cooling_fan,
+          speed_min: safeNum(m?.speed_min, typeDefaults.speed_min),
+          speed_max: safeNum(m?.speed_max, typeDefaults.speed_max),
           colors: Array.isArray(m?.colors) && m.colors.length > 0
             ? m.colors.map((c) => ({
                 id: c?.id || createStableId('clr'),
@@ -1067,6 +1273,48 @@ const AdminPricing = () => {
   const enabledMaterials = useMemo(() => {
     return materials.filter((m) => m?.enabled && m?.name?.trim());
   }, [materials]);
+
+  // Sorted materials for grid display (preserves original indices)
+  const sortedMaterialEntries = useMemo(() => {
+    const entries = materials.map((m, i) => ({ mat: m, origIndex: i }));
+    const dir = materialSortDir === 'asc' ? 1 : -1;
+    entries.sort((a, b) => {
+      switch (materialSort) {
+        case 'type': {
+          const ta = String(a.mat.type || '').toLowerCase();
+          const tb = String(b.mat.type || '').toLowerCase();
+          return ta < tb ? -dir : ta > tb ? dir : 0;
+        }
+        case 'price':
+          return (safeNum(a.mat.price_per_gram, 0) - safeNum(b.mat.price_per_gram, 0)) * dir;
+        case 'status': {
+          const sa = a.mat.enabled ? 0 : 1;
+          const sb = b.mat.enabled ? 0 : 1;
+          return (sa - sb) * dir || (String(a.mat.name || '').localeCompare(String(b.mat.name || '')) * dir);
+        }
+        default: // name
+          return String(a.mat.name || '').localeCompare(String(b.mat.name || '')) * dir;
+      }
+    });
+    return entries;
+  }, [materials, materialSort, materialSortDir]);
+
+  const toggleMaterialSort = (field) => {
+    if (materialSort === field) {
+      setMaterialSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setMaterialSort(field);
+      setMaterialSortDir('asc');
+    }
+  };
+
+  const toggleCompare = (matId) => {
+    setCompareIds(prev => {
+      if (prev.includes(matId)) return prev.filter(id => id !== matId);
+      if (prev.length >= 3) return prev; // max 3
+      return [...prev, matId];
+    });
+  };
 
   const setPreviewFromMaterial = (materialIndex) => {
     const mat = enabledMaterials[materialIndex];
@@ -1188,6 +1436,34 @@ const AdminPricing = () => {
         </div>
       ) : null}
 
+      {/* PRICING SUMMARY BAR */}
+      <div className="pricing-summary-bar">
+        <div className="psb-item">
+          <span className="psb-label">{cs ? 'Sazba' : 'Rate'} <ForgeHelpIcon text={getHelpText('pricing_rate_per_hour', language)} position="bottom" size={14} /></span>
+          <span className="psb-value">{pricingSummary.baseRate} Kč/h</span>
+        </div>
+        <div className="psb-sep" />
+        <div className="psb-item">
+          <span className="psb-label">{cs ? 'Markup' : 'Markup'} <ForgeHelpIcon text={getHelpText('pricing_markup', language)} position="bottom" size={14} /></span>
+          <span className="psb-value">{pricingSummary.avgMarkup}</span>
+        </div>
+        <div className="psb-sep" />
+        <div className="psb-item">
+          <span className="psb-label">{cs ? 'Min. obj.' : 'Min order'} <ForgeHelpIcon text={getHelpText('pricing_min_order_total', language)} position="bottom" size={14} /></span>
+          <span className="psb-value">{pricingSummary.minOrder}</span>
+        </div>
+        <div className="psb-sep" />
+        <div className="psb-item">
+          <span className="psb-label">{cs ? 'Zaokr.' : 'Round'} <ForgeHelpIcon text={getHelpText('pricing_rounding', language)} position="bottom" size={14} /></span>
+          <span className="psb-value">{pricingSummary.rounding}</span>
+        </div>
+        <div className="psb-sep" />
+        <div className="psb-item">
+          <span className="psb-label">{cs ? 'Materialy' : 'Materials'}</span>
+          <span className="psb-value">{pricingSummary.matCount}</span>
+        </div>
+      </div>
+
       {/* TAB NAVIGATION */}
       <div className="tab-bar">
         {PRICING_TABS.map((tab) => (
@@ -1211,71 +1487,175 @@ const AdminPricing = () => {
               <div>
                 <h2>{t('admin.pricing.materials')}</h2>
                 <p className="card-description">
-                  {language === 'cs'
-                    ? 'Nastav materiály, cenu za gram a barvy. Klikni na materiál pro úpravu.'
-                    : 'Configure materials, price per gram and colors. Click a material to edit.'}
+                  {cs
+                    ? 'Nastav materialy, typ, hustotu, cenu a barvy. Klikni na material pro upravu.'
+                    : 'Configure materials, type, density, price and colors. Click a material to edit.'}
                 </p>
               </div>
-              <button className="btn-secondary" onClick={addMaterial}>
-                <Icon name="Plus" size={18} />
-                {t('admin.pricing.addMaterial')}
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {compareIds.length >= 2 && (
+                  <button className="btn-secondary" onClick={() => { /* scroll to comparison */ const el = document.getElementById('mat-comparison'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}>
+                    <Icon name="GitCompare" size={16} />
+                    {cs ? `Porovnat (${compareIds.length})` : `Compare (${compareIds.length})`}
+                  </button>
+                )}
+                <button className="btn-secondary" onClick={() => addMaterial()}>
+                  <Icon name="Plus" size={18} />
+                  {t('admin.pricing.addMaterial')}
+                </button>
+              </div>
             </div>
+
+            {/* Sort controls */}
+            {materials.length > 1 && (
+              <div className="mat-sort-bar">
+                <span className="mat-sort-label">{cs ? 'Radit:' : 'Sort:'}</span>
+                {[
+                  { id: 'name', label: cs ? 'Nazev' : 'Name' },
+                  { id: 'type', label: cs ? 'Typ' : 'Type' },
+                  { id: 'price', label: cs ? 'Cena' : 'Price' },
+                  { id: 'status', label: cs ? 'Stav' : 'Status' },
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    className={`mat-sort-btn ${materialSort === s.id ? 'active' : ''}`}
+                    onClick={() => toggleMaterialSort(s.id)}
+                  >
+                    {s.label}
+                    {materialSort === s.id && (
+                      <Icon name={materialSortDir === 'asc' ? 'ArrowUp' : 'ArrowDown'} size={12} />
+                    )}
+                  </button>
+                ))}
+                {compareIds.length > 0 && (
+                  <button className="mat-sort-btn" onClick={() => setCompareIds([])} style={{ marginLeft: 'auto' }}>
+                    <Icon name="X" size={12} />
+                    {cs ? 'Zrusit vyber' : 'Clear selection'}
+                  </button>
+                )}
+              </div>
+            )}
 
             {materials.length === 0 ? (
               <div className="empty-state">
                 <Icon name="Package" size={48} />
-                <h3>{language === 'cs' ? 'Žádné materiály nenakonfigurovány' : 'No materials configured'}</h3>
-                <p>{language === 'cs' ? 'Klikni na "Přidat materiál" a vytvoř první materiál.' : 'Click "Add Material" to create your first material.'}</p>
+                <h3>{cs ? 'Zadne materialy nenakonfigurovany' : 'No materials configured'}</h3>
+                <p>{cs ? 'Klikni na "Pridat material" a vytvor prvni material.' : 'Click "Add Material" to create your first material.'}</p>
               </div>
             ) : (
               <div className="materials-compact-grid">
-                {materials.map((material, index) => {
+                {sortedMaterialEntries.map(({ mat: material, origIndex: index }) => {
                   const matKeyLower = String(material.key || '').toLowerCase();
                   const isDefault = !!matKeyLower && matKeyLower === String(defaultMaterialKey || '').toLowerCase();
                   const issues = materialIssues.byMaterialId?.[material.id] || {};
                   const hasIssue = issues.nameMissing || issues.keyMissing || issues.keyInvalid || issues.keyDuplicate || issues.priceInvalid;
                   const colors = Array.isArray(material.colors) ? material.colors : [];
+                  const pricePerKg = (clampMin0(material.price_per_gram) * 1000).toFixed(0);
+                  const isComparing = compareIds.includes(material.id);
+                  const isExpanded = !!showPropsFor[material.id];
+                  const firstColorHex = colors.length > 0 && isValidHex(colors[0].hex) ? colors[0].hex : null;
 
                   return (
                     <div
                       key={material.id}
-                      className={`material-compact-card ${hasIssue ? 'has-issue' : ''}`}
-                      onClick={() => openMaterialDialog(index)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openMaterialDialog(index); }}
+                      className={`material-compact-card ${hasIssue ? 'has-issue' : ''} ${isComparing ? 'comparing' : ''}`}
                     >
-                      <div className="mcc-header">
-                        <div className="mcc-name">{material.name || (language === 'cs' ? '(bez názvu)' : '(unnamed)')}</div>
-                        <Icon name="Pencil" size={14} className="mcc-edit-icon" />
+                      {/* Compare checkbox */}
+                      <div className="mcc-compare-check" onClick={(e) => { e.stopPropagation(); toggleCompare(material.id); }}>
+                        <input type="checkbox" checked={isComparing} readOnly tabIndex={-1} />
                       </div>
-                      <div className="mcc-key">{material.key || '\u2014'}</div>
-                      <div className="mcc-badges">
-                        {isDefault && <span className="mcc-badge default">{language === 'cs' ? 'Výchozí' : 'Default'}</span>}
-                        <span className={`mcc-badge ${material.enabled ? 'active' : 'inactive'}`}>
-                          {material.enabled ? (language === 'cs' ? 'Aktivní' : 'Active') : (language === 'cs' ? 'Neaktivní' : 'Inactive')}
-                        </span>
-                        {hasIssue && <span className="mcc-badge error">{language === 'cs' ? 'Chyba' : 'Error'}</span>}
-                      </div>
-                      <div className="mcc-price">
-                        <span className="mcc-price-value">{clampMin0(material.price_per_gram)}</span>
-                        <span className="mcc-price-unit">Kč/g</span>
-                      </div>
-                      <div className="mcc-colors">
-                        {colors.slice(0, 6).map(c => (
-                          <div key={c.id} className="mcc-color-chip">
-                            <span className="mcc-color-dot" style={{ backgroundColor: isValidHex(c.hex) ? c.hex : '#888' }} />
-                            <span className="mcc-color-name">{c.name || '?'}</span>
-                            {c.price_per_gram != null && (
-                              <span className="mcc-color-price">{c.price_per_gram} Kč</span>
-                            )}
+
+                      {/* Main clickable area */}
+                      <div
+                        className="mcc-body"
+                        onClick={() => openMaterialDialog(index)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openMaterialDialog(index); }}
+                      >
+                        <div className="mcc-header">
+                          <div className="mcc-name-row">
+                            {firstColorHex && <span className="mcc-swatch" style={{ backgroundColor: firstColorHex }} />}
+                            <div className="mcc-name">{material.name || (cs ? '(bez nazvu)' : '(unnamed)')}</div>
                           </div>
-                        ))}
-                        {colors.length > 6 && (
-                          <span className="mcc-color-more">+{colors.length - 6}</span>
+                          <div className="mcc-card-actions">
+                            <button
+                              className="icon-btn-sm"
+                              title={cs ? 'Duplikovat' : 'Duplicate'}
+                              onClick={(e) => { e.stopPropagation(); addMaterial(material); }}
+                            >
+                              <Icon name="Copy" size={13} />
+                            </button>
+                            <button
+                              className="icon-btn-sm"
+                              title={cs ? 'Smazat' : 'Delete'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (materials.length <= 1) return;
+                                if (!window.confirm(cs ? `Opravdu smazat material "${material.name}"?` : `Really delete material "${material.name}"?`)) return;
+                                deleteMaterial(index);
+                              }}
+                              disabled={materials.length <= 1}
+                            >
+                              <Icon name="Trash2" size={13} />
+                            </button>
+                            <Icon name="Pencil" size={13} className="mcc-edit-icon" />
+                          </div>
+                        </div>
+                        <div className="mcc-key">{material.key || '\u2014'}</div>
+                        <div className="mcc-badges">
+                          {material.type && <span className="mcc-badge type">{material.type}</span>}
+                          {isDefault && <span className="mcc-badge default">{cs ? 'Vychozi' : 'Default'}</span>}
+                          <span className={`mcc-badge ${material.enabled ? 'active' : 'inactive'}`}>
+                            {material.enabled ? (cs ? 'Aktivni' : 'Active') : (cs ? 'Neaktivni' : 'Inactive')}
+                          </span>
+                          {hasIssue && <span className="mcc-badge error">{cs ? 'Chyba' : 'Error'}</span>}
+                        </div>
+                        <div className="mcc-price-row">
+                          <div className="mcc-price">
+                            <span className="mcc-price-value">{clampMin0(material.price_per_gram)}</span>
+                            <span className="mcc-price-unit">Kc/g</span>
+                          </div>
+                          <div className="mcc-price-secondary">
+                            <span className="mcc-price-value-sm">{pricePerKg}</span>
+                            <span className="mcc-price-unit">Kc/kg</span>
+                          </div>
+                        </div>
+                        {material.density > 0 && (
+                          <div className="mcc-density">
+                            <Icon name="Droplets" size={11} />
+                            <span>{cs ? 'Hustota' : 'Density'}: {material.density} g/cm³</span>
+                          </div>
                         )}
+                        <div className="mcc-colors">
+                          {colors.slice(0, 6).map(c => (
+                            <div key={c.id} className="mcc-color-chip">
+                              <span className="mcc-color-dot" style={{ backgroundColor: isValidHex(c.hex) ? c.hex : '#888' }} />
+                              <span className="mcc-color-name">{c.name || '?'}</span>
+                            </div>
+                          ))}
+                          {colors.length > 6 && (
+                            <span className="mcc-color-more">+{colors.length - 6}</span>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Expandable properties */}
+                      <button
+                        className="mcc-expand-btn"
+                        onClick={(e) => { e.stopPropagation(); setShowPropsFor(prev => ({ ...prev, [material.id]: !prev[material.id] })); }}
+                      >
+                        <Icon name={isExpanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
+                        <span>{cs ? 'Vlastnosti' : 'Properties'}</span>
+                      </button>
+                      {isExpanded && (
+                        <div className="mcc-props-grid">
+                          <div className="mcc-prop"><span>{cs ? 'Tryska' : 'Nozzle'}</span><strong>{material.temp_nozzle_min || '?'}-{material.temp_nozzle_max || '?'} °C</strong></div>
+                          <div className="mcc-prop"><span>{cs ? 'Podlozka' : 'Bed'}</span><strong>{material.temp_bed_min || '?'}-{material.temp_bed_max || '?'} °C</strong></div>
+                          <div className="mcc-prop"><span>{cs ? 'Chlazeni' : 'Fan'}</span><strong>{material.cooling_fan != null ? `${material.cooling_fan}%` : '?'}</strong></div>
+                          <div className="mcc-prop"><span>{cs ? 'Rychlost' : 'Speed'}</span><strong>{material.speed_min || '?'}-{material.speed_max || '?'} mm/s</strong></div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1283,20 +1663,113 @@ const AdminPricing = () => {
             )}
           </div>
 
+          {/* Material Cost Calculator */}
+          <CollapsibleCard
+            id="mat_cost_calc"
+            title={cs ? 'Kalkulacka ceny materialu' : 'Material cost calculator'}
+            description={cs ? 'Spocitej cenu za gram z ceny civky.' : 'Calculate price per gram from spool price.'}
+          >
+            <div className="cost-calc-row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>{cs ? 'Hmotnost civky' : 'Spool weight'}</label>
+                <div className="input-with-unit">
+                  <NumberStepper value={costCalc.spool_weight_kg} onChange={v => setCostCalc(p => ({ ...p, spool_weight_kg: v }))} min={0.1} step={0.25} />
+                  <span className="unit">kg</span>
+                </div>
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>{cs ? 'Cena civky' : 'Spool price'}</label>
+                <div className="input-with-unit">
+                  <NumberStepper value={costCalc.spool_price} onChange={v => setCostCalc(p => ({ ...p, spool_price: v }))} min={0} step={50} />
+                  <span className="unit">Kc</span>
+                </div>
+              </div>
+              <div className="cost-calc-result">
+                <div className="cost-calc-result-label">{cs ? 'Cena za gram' : 'Price per gram'}</div>
+                <div className="cost-calc-result-value">
+                  {costCalc.spool_weight_kg > 0
+                    ? `${(costCalc.spool_price / (costCalc.spool_weight_kg * 1000)).toFixed(3)} Kc/g`
+                    : '---'}
+                </div>
+                <div className="cost-calc-result-secondary">
+                  {costCalc.spool_weight_kg > 0
+                    ? `${(costCalc.spool_price / costCalc.spool_weight_kg).toFixed(0)} Kc/kg`
+                    : ''}
+                </div>
+              </div>
+            </div>
+          </CollapsibleCard>
+
+          {/* Material Comparison */}
+          {compareIds.length >= 2 && (() => {
+            const compareMats = compareIds.map(id => materials.find(m => m.id === id)).filter(Boolean);
+            if (compareMats.length < 2) return null;
+            return (
+              <div id="mat-comparison" className="admin-card">
+                <div className="card-header">
+                  <div>
+                    <h2>{cs ? 'Porovnani materialu' : 'Material comparison'}</h2>
+                    <p className="card-description">{cs ? 'Porovnej vybrané materialy vedle sebe.' : 'Compare selected materials side by side.'}</p>
+                  </div>
+                  <button className="btn-secondary" onClick={() => setCompareIds([])}>
+                    <Icon name="X" size={16} />
+                    {cs ? 'Zavrit' : 'Close'}
+                  </button>
+                </div>
+                <div className="mat-compare-table-wrap">
+                  <table className="mat-compare-table">
+                    <thead>
+                      <tr>
+                        <th>{cs ? 'Vlastnost' : 'Property'}</th>
+                        {compareMats.map(m => (
+                          <th key={m.id}>
+                            <span className="mcc-swatch" style={{ backgroundColor: (m.colors?.[0]?.hex && isValidHex(m.colors[0].hex)) ? m.colors[0].hex : '#888', display: 'inline-block', verticalAlign: 'middle', marginRight: 6 }} />
+                            {m.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key: 'type', label: cs ? 'Typ' : 'Type', fn: m => m.type || '---' },
+                        { key: 'price', label: cs ? 'Cena/g' : 'Price/g', fn: m => `${clampMin0(m.price_per_gram)} Kc` },
+                        { key: 'pricekg', label: cs ? 'Cena/kg' : 'Price/kg', fn: m => `${(clampMin0(m.price_per_gram) * 1000).toFixed(0)} Kc` },
+                        { key: 'density', label: cs ? 'Hustota' : 'Density', fn: m => m.density ? `${m.density} g/cm³` : '---' },
+                        { key: 'nozzle', label: cs ? 'Teplota trysky' : 'Nozzle temp', fn: m => (m.temp_nozzle_min && m.temp_nozzle_max) ? `${m.temp_nozzle_min}-${m.temp_nozzle_max} °C` : '---' },
+                        { key: 'bed', label: cs ? 'Teplota podlozky' : 'Bed temp', fn: m => (m.temp_bed_min && m.temp_bed_max) ? `${m.temp_bed_min}-${m.temp_bed_max} °C` : '---' },
+                        { key: 'fan', label: cs ? 'Chlazeni' : 'Cooling fan', fn: m => m.cooling_fan != null ? `${m.cooling_fan}%` : '---' },
+                        { key: 'speed', label: cs ? 'Rychlost' : 'Speed', fn: m => (m.speed_min && m.speed_max) ? `${m.speed_min}-${m.speed_max} mm/s` : '---' },
+                        { key: 'colors', label: cs ? 'Barvy' : 'Colors', fn: m => `${(m.colors || []).length}` },
+                        { key: 'status', label: cs ? 'Stav' : 'Status', fn: m => m.enabled ? (cs ? 'Aktivni' : 'Active') : (cs ? 'Neaktivni' : 'Inactive') },
+                      ].map(row => (
+                        <tr key={row.key}>
+                          <td className="mat-compare-label">{row.label}</td>
+                          {compareMats.map(m => (
+                            <td key={m.id}>{row.fn(m)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Material Edit Dialog */}
           <ForgeDialog
             open={editingMaterialIndex != null && dialogDraft != null}
             onClose={closeMaterialDialog}
-            title={dialogDraft?.name || (language === 'cs' ? 'Nový materiál' : 'New material')}
-            maxWidth="50vw"
+            title={dialogDraft?.name || (cs ? 'Novy material' : 'New material')}
+            maxWidth="56vw"
             footer={
               <>
                 <button className="btn-secondary" onClick={closeMaterialDialog}>
-                  {language === 'cs' ? 'Zrušit' : 'Cancel'}
+                  {cs ? 'Zrusit' : 'Cancel'}
                 </button>
                 <button className="btn-primary" onClick={saveMaterialDialog}>
                   <Icon name="Save" size={16} />
-                  {language === 'cs' ? 'Uložit změny' : 'Save changes'}
+                  {cs ? 'Ulozit zmeny' : 'Save changes'}
                 </button>
               </>
             }
@@ -1311,61 +1784,135 @@ const AdminPricing = () => {
 
               return (
                 <div className="dialog-material-form">
-                  <div className="field">
-                    <label>{language === 'cs' ? 'Název materiálu' : 'Material name'}</label>
-                    <input
-                      className={`input ${nameError ? 'input-error' : ''}`}
-                      placeholder={language === 'cs' ? 'Název materiálu (např. PLA, ABS)' : 'Material name (e.g. PLA, ABS)'}
-                      value={mat.name || ''}
-                      onChange={(e) => updateDialogDraft('name', e.target.value)}
-                    />
-                    {nameError && <div className="field-error">{language === 'cs' ? 'Název je povinný' : 'Name is required'}</div>}
-                  </div>
-
-                  <div className="field">
-                    <label>{language === 'cs' ? 'Klíč (slug)' : 'Key (slug)'}</label>
-                    <input
-                      className={`input ${keyError ? 'input-error' : ''}`}
-                      placeholder={language === 'cs' ? 'např. pla, petg_carbon' : 'e.g. pla, petg_carbon'}
-                      value={mat.key || ''}
-                      onChange={(e) => updateDialogDraft('key', e.target.value)}
-                    />
-                    {draftIssues.keyMissing && <div className="field-error">{language === 'cs' ? 'Klíč je povinný' : 'Key is required'}</div>}
-                    {draftIssues.keyInvalid && <div className="field-error">{language === 'cs' ? 'Klíč musí obsahovat jen a-z, 0-9 a podtržítka.' : 'Key may contain only a-z, 0-9 and underscores.'}</div>}
-                    {draftIssues.keyDuplicate && <div className="field-error">{language === 'cs' ? 'Klíč musí být unikátní' : 'Key must be unique'}</div>}
-                  </div>
-
+                  {/* Row 1: Name + Type */}
                   <div className="dialog-row-2">
-                    <ForgeCheckbox
-                      checked={mat.enabled}
-                      onChange={(e) => updateDialogDraft('enabled', e.target.checked)}
-                      label={language === 'cs' ? 'Aktivní' : 'Active'}
-                    />
-
+                    <div className="field" style={{ flex: 2 }}>
+                      <label>{cs ? 'Nazev materialu' : 'Material name'}</label>
+                      <input
+                        className={`input ${nameError ? 'input-error' : ''}`}
+                        placeholder={cs ? 'Nazev materialu (napr. PLA, ABS)' : 'Material name (e.g. PLA, ABS)'}
+                        value={mat.name || ''}
+                        onChange={(e) => updateDialogDraft('name', e.target.value)}
+                      />
+                      {nameError && <div className="field-error">{cs ? 'Nazev je povinny' : 'Name is required'}</div>}
+                    </div>
                     <div className="field" style={{ flex: 1 }}>
-                      <label>{language === 'cs' ? 'Výchozí cena za gram' : 'Default price per gram'}</label>
+                      <label>{cs ? 'Typ materialu' : 'Material type'}</label>
+                      <select
+                        className="select"
+                        value={mat.type || ''}
+                        onChange={(e) => updateDialogDraft('type', e.target.value)}
+                      >
+                        <option value="">{cs ? '-- vyber typ --' : '-- select type --'}</option>
+                        {MATERIAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Key + Active + Price + Density */}
+                  <div className="dialog-row-2">
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>{cs ? 'Klic (slug)' : 'Key (slug)'}</label>
+                      <input
+                        className={`input ${keyError ? 'input-error' : ''}`}
+                        placeholder={cs ? 'napr. pla, petg_carbon' : 'e.g. pla, petg_carbon'}
+                        value={mat.key || ''}
+                        onChange={(e) => updateDialogDraft('key', e.target.value)}
+                      />
+                      {draftIssues.keyMissing && <div className="field-error">{cs ? 'Klic je povinny' : 'Key is required'}</div>}
+                      {draftIssues.keyInvalid && <div className="field-error">{cs ? 'Klic musi obsahovat jen a-z, 0-9 a podtrzitka.' : 'Key may contain only a-z, 0-9 and underscores.'}</div>}
+                      {draftIssues.keyDuplicate && <div className="field-error">{cs ? 'Klic musi byt unikatni' : 'Key must be unique'}</div>}
+                    </div>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>{cs ? 'Cena za gram' : 'Price per gram'} <ForgeHelpIcon text={getHelpText('pricing_material_price_per_gram', language)} size={14} /></label>
                       <div className="input-with-unit">
                         <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="number" min="0" step="0.01"
                           className={`input ${priceError ? 'input-error' : ''}`}
                           value={mat.price_per_gram}
                           onChange={(e) => updateDialogDraft('price_per_gram', safeNum(e.target.value, 0))}
                         />
-                        <span className="unit">Kč/g</span>
+                        <span className="unit">Kc/g</span>
                       </div>
-                      <p className="help-text">{language === 'cs' ? 'Tato cena se použije pro všechny barvy, pokud nemají vlastní cenu.' : 'This price is used for all colors unless they have a custom override.'}</p>
+                    </div>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>{cs ? 'Hustota' : 'Density'} <ForgeHelpIcon text={getHelpText('pricing_material_density', language)} size={14} /></label>
+                      <div className="input-with-unit">
+                        <input
+                          type="number" min="0" step="0.01"
+                          className="input"
+                          value={mat.density || ''}
+                          onChange={(e) => updateDialogDraft('density', safeNum(e.target.value, 0))}
+                        />
+                        <span className="unit">g/cm³</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="dialog-row-2" style={{ marginTop: 8 }}>
+                    <ForgeCheckbox
+                      checked={mat.enabled}
+                      onChange={(e) => updateDialogDraft('enabled', e.target.checked)}
+                      label={cs ? 'Aktivni' : 'Active'}
+                    />
+                    <p className="help-text" style={{ margin: 0, flex: 1 }}>
+                      {cs ? 'Cena se pouzije pro vsechny barvy bez vlastni ceny.' : 'Price used for all colors without custom override.'}
+                    </p>
+                  </div>
+
+                  <div className="divider" />
+
+                  {/* Print properties section */}
+                  <div className="dialog-props-section">
+                    <div className="colors-title">{cs ? 'Tiskove vlastnosti' : 'Print properties'}</div>
+                    <p className="help-text" style={{ marginTop: 0, marginBottom: 12 }}>
+                      {cs ? 'Informativni parametry pro tisk. Neovlivnuji kalkulaci ceny.' : 'Informational print parameters. Do not affect pricing.'}
+                    </p>
+                    <div className="dialog-props-grid">
+                      <div className="field">
+                        <label>{cs ? 'Teplota trysky (min-max)' : 'Nozzle temp (min-max)'}</label>
+                        <div className="input-with-unit">
+                          <input type="number" min="0" step="5" className="input" value={mat.temp_nozzle_min || ''} onChange={(e) => updateDialogDraft('temp_nozzle_min', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span style={{ color: 'var(--forge-text-muted)', margin: '0 2px' }}>-</span>
+                          <input type="number" min="0" step="5" className="input" value={mat.temp_nozzle_max || ''} onChange={(e) => updateDialogDraft('temp_nozzle_max', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span className="unit">°C</span>
+                        </div>
+                      </div>
+                      <div className="field">
+                        <label>{cs ? 'Teplota podlozky (min-max)' : 'Bed temp (min-max)'}</label>
+                        <div className="input-with-unit">
+                          <input type="number" min="0" step="5" className="input" value={mat.temp_bed_min || ''} onChange={(e) => updateDialogDraft('temp_bed_min', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span style={{ color: 'var(--forge-text-muted)', margin: '0 2px' }}>-</span>
+                          <input type="number" min="0" step="5" className="input" value={mat.temp_bed_max || ''} onChange={(e) => updateDialogDraft('temp_bed_max', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span className="unit">°C</span>
+                        </div>
+                      </div>
+                      <div className="field">
+                        <label>{cs ? 'Chlazeni (ventilator)' : 'Cooling fan'}</label>
+                        <div className="input-with-unit">
+                          <input type="number" min="0" max="100" step="10" className="input" value={mat.cooling_fan != null ? mat.cooling_fan : ''} onChange={(e) => updateDialogDraft('cooling_fan', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span className="unit">%</span>
+                        </div>
+                      </div>
+                      <div className="field">
+                        <label>{cs ? 'Rychlost tisku (min-max)' : 'Print speed (min-max)'}</label>
+                        <div className="input-with-unit">
+                          <input type="number" min="0" step="5" className="input" value={mat.speed_min || ''} onChange={(e) => updateDialogDraft('speed_min', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span style={{ color: 'var(--forge-text-muted)', margin: '0 2px' }}>-</span>
+                          <input type="number" min="0" step="5" className="input" value={mat.speed_max || ''} onChange={(e) => updateDialogDraft('speed_max', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <span className="unit">mm/s</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="divider" />
 
                   <div className="dialog-colors-section">
-                    <div className="colors-title">{language === 'cs' ? 'Barvy materiálu' : 'Material colors'}</div>
+                    <div className="colors-title">{cs ? 'Barvy materialu' : 'Material colors'}</div>
                     <p className="help-text" style={{ marginTop: 0, marginBottom: 12 }}>
-                      {language === 'cs'
-                        ? 'Můžeš nastavit specifickou cenu pro každou barvu. Pokud cenu nezadáš, použije se výchozí cena materiálu.'
+                      {cs
+                        ? 'Muzes nastavit specificou cenu pro kazdou barvu. Pokud cenu nezadas, pouzije se vychozi cena materialu.'
                         : 'You can set a specific price for each color. If not set, the default material price is used.'}
                     </p>
 
@@ -1378,7 +1925,7 @@ const AdminPricing = () => {
                         <div key={c.id} className="dialog-color-row">
                           <input
                             className={`input ${cIssues.nameMissing ? 'input-error' : ''}`}
-                            placeholder={language === 'cs' ? 'Název barvy' : 'Color name'}
+                            placeholder={cs ? 'Nazev barvy' : 'Color name'}
                             value={c.name || ''}
                             onChange={(e) => updateDialogColor(c.id, 'name', e.target.value)}
                           />
@@ -1397,9 +1944,7 @@ const AdminPricing = () => {
                           />
                           <div className="dialog-color-price-field">
                             <input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                              type="number" min="0" step="0.01"
                               className="input"
                               placeholder={`${clampMin0(mat.price_per_gram)}`}
                               value={c.price_per_gram != null ? c.price_per_gram : ''}
@@ -1407,23 +1952,23 @@ const AdminPricing = () => {
                                 const val = e.target.value === '' ? null : safeNum(e.target.value, 0);
                                 updateDialogColor(c.id, 'price_per_gram', val);
                               }}
-                              title={language === 'cs' ? 'Vlastní cena za gram (prázdné = výchozí)' : 'Custom price per gram (empty = default)'}
+                              title={cs ? 'Vlastni cena za gram (prazdne = vychozi)' : 'Custom price per gram (empty = default)'}
                             />
-                            <span className="unit">Kč/g</span>
+                            <span className="unit">Kc/g</span>
                           </div>
                           <button
                             className="icon-btn"
                             onClick={() => deleteDialogColor(c.id)}
                             disabled={!canDeleteColor}
-                            title={!canDeleteColor ? (language === 'cs' ? 'Nelze smazat poslední barvu' : 'Cannot delete the last color') : (language === 'cs' ? 'Smazat barvu' : 'Delete color')}
+                            title={!canDeleteColor ? (cs ? 'Nelze smazat posledni barvu' : 'Cannot delete the last color') : (cs ? 'Smazat barvu' : 'Delete color')}
                           >
                             <Icon name="Trash2" size={16} />
                           </button>
 
                           {(cIssues.nameMissing || cIssues.hexInvalid) && (
                             <div className="color-row-errors">
-                              {cIssues.nameMissing && <span>{language === 'cs' ? 'Název povinný' : 'Name required'}</span>}
-                              {cIssues.hexInvalid && <span>{language === 'cs' ? 'Hex neplatný' : 'Invalid hex'}</span>}
+                              {cIssues.nameMissing && <span>{cs ? 'Nazev povinny' : 'Name required'}</span>}
+                              {cIssues.hexInvalid && <span>{cs ? 'Hex neplatny' : 'Invalid hex'}</span>}
                             </div>
                           )}
                         </div>
@@ -1443,16 +1988,11 @@ const AdminPricing = () => {
 
           {/* TAB: TIME */}
           {activeTab === 'time' && (<>
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <h2>{language === 'cs' ? 'Cena času tisku' : 'Print time rate'}</h2>
-                <p className="card-description">
-                  {language === 'cs' ? 'Používá se čas z PrusaSliceru.' : 'Uses time reported by PrusaSlicer.'}
-                </p>
-              </div>
-            </div>
-
+          <CollapsibleCard
+            id="time_rate"
+            title={language === 'cs' ? 'Cena času tisku' : 'Print time rate'}
+            description={language === 'cs' ? 'Používá se čas z PrusaSliceru.' : 'Uses time reported by PrusaSlicer.'}
+          >
             {/* Hour / Minute toggle */}
             <div className="time-unit-toggle">
               <button className={`toggle-unit-btn ${timeUnit === 'hour' ? 'active' : ''}`} onClick={() => setTimeUnit('hour')}>
@@ -1464,17 +2004,14 @@ const AdminPricing = () => {
             </div>
 
             <div className="field">
-              <label>{timeUnit === 'hour' ? (language === 'cs' ? 'Cena za hodinu tisku' : 'Hourly rate') : (language === 'cs' ? 'Cena za minutu tisku' : 'Per-minute rate')}</label>
+              <label>{timeUnit === 'hour' ? (language === 'cs' ? 'Cena za hodinu tisku' : 'Hourly rate') : (language === 'cs' ? 'Cena za minutu tisku' : 'Per-minute rate')} <ForgeHelpIcon text={getHelpText('pricing_rate_per_hour', language)} size={14} /></label>
               <div className="input-with-unit">
-                <input
-                  type="number"
-                  min="0"
-                  className={`input ${rules.rate_per_hour < 0 ? 'input-error' : ''}`}
+                <NumberStepper
                   value={timeUnit === 'hour' ? rules.rate_per_hour : +(rules.rate_per_hour / 60).toFixed(4)}
-                  onChange={(e) => {
-                    const raw = safeNum(e.target.value, 0);
-                    setRule('rate_per_hour', timeUnit === 'hour' ? raw : raw * 60);
-                  }}
+                  onChange={(v) => setRule('rate_per_hour', timeUnit === 'hour' ? v : v * 60)}
+                  min={0}
+                  step={timeUnit === 'hour' ? 10 : 1}
+                  error={rules.rate_per_hour < 0}
                 />
                 <span className="unit">{timeUnit === 'hour' ? 'Kč/h' : 'Kč/min'}</span>
               </div>
@@ -1497,36 +2034,30 @@ const AdminPricing = () => {
               <div className="field nested">
                 <label>{language === 'cs' ? 'Minimálně účtovat (min)' : 'Minimum billed (min)'}</label>
                 <div className="input-with-unit">
-                  <input
-                    type="number"
-                    min="0"
-                    className={`input ${rules.min_billed_minutes_value < 0 ? 'input-error' : ''}`}
+                  <NumberStepper
                     value={rules.min_billed_minutes_value}
-                    onChange={(e) => setRule('min_billed_minutes_value', safeNum(e.target.value, 0))}
+                    onChange={(v) => setRule('min_billed_minutes_value', v)}
+                    min={0} step={5}
+                    error={rules.min_billed_minutes_value < 0}
                   />
                   <span className="unit">min</span>
                 </div>
                 <FieldError show={rules.min_billed_minutes_value < 0} />
               </div>
             ) : null}
-          </div>
+          </CollapsibleCard>
           </>)}
 
           {/* TAB: RULES */}
           {activeTab === 'rules' && (<>
           {/* Card 2: Minimum prices */}
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <h2>{language === 'cs' ? 'Minimální ceny' : 'Minimum prices'}</h2>
-                <p className="card-description">
-                  {language === 'cs'
-                    ? 'Nastav minima, aby se vyplatily malé zakázky.'
-                    : 'Set minimums to keep small jobs profitable.'}
-                </p>
-              </div>
-
-              {/* Mini preview box */}
+          <CollapsibleCard
+            id="rules_minimums"
+            title={language === 'cs' ? 'Minimální ceny' : 'Minimum prices'}
+            description={language === 'cs'
+              ? 'Nastav minima, aby se vyplatily malé zakázky.'
+              : 'Set minimums to keep small jobs profitable.'}
+            headerRight={
               <div className="mini-preview">
                 <div className="mini-preview-title">{language === 'cs' ? 'Ukázka' : 'Example'}</div>
                 <div className="mini-preview-row">
@@ -1538,8 +2069,8 @@ const AdminPricing = () => {
                   <strong>99 Kč</strong>
                 </div>
               </div>
-            </div>
-
+            }
+          >
             <ToggleRow
               checked={rules.min_price_per_model_enabled}
               onChange={(v) => setRule('min_price_per_model_enabled', v)}
@@ -1553,12 +2084,11 @@ const AdminPricing = () => {
               <div className="field nested">
                 <label>{language === 'cs' ? 'Minimálně účtovat za 1 model (Kč)' : 'Minimum per model (CZK)'}</label>
                 <div className="input-with-unit">
-                  <input
-                    type="number"
-                    min="0"
-                    className={`input ${rules.min_price_per_model_value < 0 ? 'input-error' : ''}`}
+                  <NumberStepper
                     value={rules.min_price_per_model_value}
-                    onChange={(e) => setRule('min_price_per_model_value', safeNum(e.target.value, 0))}
+                    onChange={(v) => setRule('min_price_per_model_value', v)}
+                    min={0} step={10}
+                    error={rules.min_price_per_model_value < 0}
                   />
                   <span className="unit">Kč</span>
                 </div>
@@ -1581,32 +2111,27 @@ const AdminPricing = () => {
               <div className="field nested">
                 <label>{language === 'cs' ? 'Minimálně účtovat za objednávku (Kč)' : 'Minimum order total (CZK)'}</label>
                 <div className="input-with-unit">
-                  <input
-                    type="number"
-                    min="0"
-                    className={`input ${rules.min_order_total_value < 0 ? 'input-error' : ''}`}
+                  <NumberStepper
                     value={rules.min_order_total_value}
-                    onChange={(e) => setRule('min_order_total_value', safeNum(e.target.value, 0))}
+                    onChange={(v) => setRule('min_order_total_value', v)}
+                    min={0} step={10}
+                    error={rules.min_order_total_value < 0}
                   />
                   <span className="unit">Kč</span>
                 </div>
                 <FieldError show={rules.min_order_total_value < 0} />
               </div>
             ) : null}
-          </div>
+          </CollapsibleCard>
 
           {/* Card 3: Rounding */}
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <h2>{language === 'cs' ? 'Zaokrouhlování' : 'Rounding'}</h2>
-                <p className="card-description">
-                  {language === 'cs'
-                    ? 'Aby výsledná cena byla „hezčí“ (např. 483,27 → 485).'
-                    : 'Make the final price look nicer (e.g., 483.27 → 485).'}
-                </p>
-              </div>
-
+          <CollapsibleCard
+            id="rules_rounding"
+            title={language === 'cs' ? 'Zaokrouhlování' : 'Rounding'}
+            description={language === 'cs'
+              ? 'Aby výsledná cena byla „hezčí" (např. 483,27 → 485).'
+              : 'Make the final price look nicer (e.g., 483.27 → 485).'}
+            headerRight={
               <div className="mini-preview">
                 <div className="mini-preview-title">{language === 'cs' ? 'Ukázka' : 'Example'}</div>
                 <div className="mini-preview-row">
@@ -1618,8 +2143,8 @@ const AdminPricing = () => {
                   {language === 'cs' ? 'krok 5, nejbližší' : 'step 5, nearest'}
                 </div>
               </div>
-            </div>
-
+            }
+          >
             <ToggleRow
               checked={rules.rounding_enabled}
               onChange={(v) => setRule('rounding_enabled', v)}
@@ -1670,20 +2195,16 @@ const AdminPricing = () => {
                 </div>
               </div>
             ) : null}
-          </div>
+          </CollapsibleCard>
 
           {/* Card 4: Markup */}
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <h2>{language === 'cs' ? 'Automatická přirážka (markup)' : 'Automatic markup'}</h2>
-                <p className="card-description">
-                  {language === 'cs'
-                    ? 'Pricing-level přirážka (není to Fee). Aplikuje se: base → fees → markup → minima → rounding.'
-                    : 'Pricing-level markup (not a Fee). Applied: base → fees → markup → minima → rounding.'}
-                </p>
-              </div>
-
+          <CollapsibleCard
+            id="rules_markup"
+            title={language === 'cs' ? 'Automatická přirážka (markup)' : 'Automatic markup'}
+            description={language === 'cs'
+              ? 'Pricing-level přirážka (není to Fee). Aplikuje se: base → fees → markup → minima → rounding.'
+              : 'Pricing-level markup (not a Fee). Applied: base → fees → markup → minima → rounding.'}
+            headerRight={
               <div className="mini-preview">
                 <div className="mini-preview-title">{language === 'cs' ? 'Ukázka' : 'Example'}</div>
                 <div className="mini-preview-row">
@@ -1694,8 +2215,8 @@ const AdminPricing = () => {
                   <strong>140</strong>
                 </div>
               </div>
-            </div>
-
+            }
+          >
             <ToggleRow
               checked={rules.markup_enabled}
               onChange={(v) => setRule('markup_enabled', v)}
@@ -1708,7 +2229,7 @@ const AdminPricing = () => {
             {rules.markup_enabled ? (
               <div className="grid-2 nested">
                 <div className="field">
-                  <label>{language === 'cs' ? 'Režim' : 'Mode'}</label>
+                  <label>{language === 'cs' ? 'Režim' : 'Mode'} <ForgeHelpIcon text={getHelpText('pricing_markup', language)} size={14} /></label>
                   <div className="radio-group">
                     <label className="radio">
                       <input
@@ -1718,6 +2239,7 @@ const AdminPricing = () => {
                         onChange={() => setRule('markup_mode', 'flat')}
                       />
                       <span>{language === 'cs' ? 'Fixní (Kč)' : 'Flat (CZK)'}</span>
+                      <ForgeHelpIcon text={getHelpText('pricing_markup_flat', language)} size={14} />
                     </label>
                     <label className="radio">
                       <input
@@ -1727,6 +2249,7 @@ const AdminPricing = () => {
                         onChange={() => setRule('markup_mode', 'percent')}
                       />
                       <span>{language === 'cs' ? 'Procentní (%)' : 'Percent (%)'}</span>
+                      <ForgeHelpIcon text={getHelpText('pricing_markup_percent', language)} size={14} />
                     </label>
                     <label className="radio">
                       <input
@@ -1736,6 +2259,7 @@ const AdminPricing = () => {
                         onChange={() => setRule('markup_mode', 'min_flat')}
                       />
                       <span>{language === 'cs' ? 'Minimální cena (Kč)' : 'Minimum price (CZK)'}</span>
+                      <ForgeHelpIcon text={getHelpText('pricing_markup_min_flat', language)} size={14} />
                     </label>
                   </div>
                 </div>
@@ -1743,12 +2267,12 @@ const AdminPricing = () => {
                 <div className="field">
                   <label>{language === 'cs' ? 'Hodnota' : 'Value'}</label>
                   <div className="input-with-unit">
-                    <input
-                      type="number"
-                      min="0"
-                      className={`input ${rules.markup_value < 0 ? 'input-error' : ''}`}
+                    <NumberStepper
                       value={rules.markup_value}
-                      onChange={(e) => setRule('markup_value', safeNum(e.target.value, 0))}
+                      onChange={(v) => setRule('markup_value', v)}
+                      min={0}
+                      step={rules.markup_mode === 'percent' ? 1 : 10}
+                      error={rules.markup_value < 0}
                     />
                     <span className="unit">{rules.markup_mode === 'percent' ? '%' : 'Kč'}</span>
                   </div>
@@ -1756,22 +2280,19 @@ const AdminPricing = () => {
                 </div>
               </div>
             ) : null}
-          </div>
+          </CollapsibleCard>
           </>)}
 
           {/* TAB: DISCOUNTS */}
           {activeTab === 'discounts' && (<>
           {/* Volume Discounts card */}
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <h2>{language === 'cs' ? 'Množstevní slevy' : 'Volume Discounts'}</h2>
-                <p className="card-description">
-                  {language === 'cs'
-                    ? 'Nastavte slevy na základě objednaného množství.'
-                    : 'Configure discounts based on ordered quantity.'}
-                </p>
-              </div>
+          <CollapsibleCard
+            id="discounts_volume"
+            title={<>{language === 'cs' ? 'Množstevní slevy' : 'Volume Discounts'} <ForgeHelpIcon text={getHelpText('pricing_volume_discount', language)} size={14} /></>}
+            description={language === 'cs'
+              ? 'Nastavte slevy na základě objednaného množství.'
+              : 'Configure discounts based on ordered quantity.'}
+            headerRight={
               <ForgeCheckbox
                 checked={volumeDiscounts.enabled}
                 onChange={(e) => {
@@ -1782,7 +2303,8 @@ const AdminPricing = () => {
                   ? (language === 'cs' ? 'Zapnuto' : 'Enabled')
                   : (language === 'cs' ? 'Vypnuto' : 'Disabled')}
               />
-            </div>
+            }
+          >
 
             {volumeDiscounts.enabled && (
               <div style={{ padding: '16px 0' }}>
@@ -1934,7 +2456,7 @@ const AdminPricing = () => {
                 )}
               </div>
             )}
-          </div>
+          </CollapsibleCard>
 
           {/* Future pricing profiles stub */}
           <div className="admin-card future" style={{ marginTop: 16 }}>
@@ -2015,12 +2537,10 @@ const AdminPricing = () => {
                   <div className="field">
                     <label>{language === 'cs' ? 'Cena materiálu (Kč/g)' : 'Material price (CZK/g)'}</label>
                     <div className="input-with-unit">
-                      <input
-                        type="number"
-                        min="0"
-                        className="input"
+                      <NumberStepper
                         value={preview.material_price_per_g}
-                        onChange={(e) => setPreviewField('material_price_per_g', safeNum(e.target.value, 0))}
+                        onChange={(v) => setPreviewField('material_price_per_g', v)}
+                        min={0} step={0.1}
                       />
                       <span className="unit">Kč/g</span>
                     </div>
@@ -2029,12 +2549,10 @@ const AdminPricing = () => {
                   <div className="field">
                     <label>{language === 'cs' ? 'Hmotnost (g)' : 'Weight (g)'}</label>
                     <div className="input-with-unit">
-                      <input
-                        type="number"
-                        min="0"
-                        className="input"
+                      <NumberStepper
                         value={preview.weight_g}
-                        onChange={(e) => setPreviewField('weight_g', safeNum(e.target.value, 0))}
+                        onChange={(v) => setPreviewField('weight_g', v)}
+                        min={0} step={10}
                       />
                       <span className="unit">g</span>
                     </div>
@@ -2043,12 +2561,10 @@ const AdminPricing = () => {
                   <div className="field">
                     <label>{language === 'cs' ? 'Čas (min)' : 'Time (min)'}</label>
                     <div className="input-with-unit">
-                      <input
-                        type="number"
-                        min="0"
-                        className="input"
+                      <NumberStepper
                         value={preview.time_min}
-                        onChange={(e) => setPreviewField('time_min', safeNum(e.target.value, 0))}
+                        onChange={(v) => setPreviewField('time_min', v)}
+                        min={0} step={5}
                       />
                       <span className="unit">min</span>
                     </div>
@@ -2057,13 +2573,10 @@ const AdminPricing = () => {
                   <div className="field">
                     <label>{language === 'cs' ? 'Množství (ks)' : 'Quantity'}</label>
                     <div className="input-with-unit">
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        className="input"
+                      <NumberStepper
                         value={preview.quantity}
-                        onChange={(e) => setPreviewField('quantity', safeNum(e.target.value, 1))}
+                        onChange={(v) => setPreviewField('quantity', v)}
+                        min={1} step={1}
                       />
                       <span className="unit">ks</span>
                     </div>
@@ -2072,12 +2585,10 @@ const AdminPricing = () => {
                   <div className="field full">
                     <label>{language === 'cs' ? 'Poplatky (Fees) – simulace / model (Kč)' : 'Fees (simulated) / model (CZK)'}</label>
                     <div className="input-with-unit">
-                      <input
-                        type="number"
-                        min="0"
-                        className="input"
+                      <NumberStepper
                         value={preview.fees_total}
-                        onChange={(e) => setPreviewField('fees_total', safeNum(e.target.value, 0))}
+                        onChange={(v) => setPreviewField('fees_total', v)}
+                        min={0} step={10}
                       />
                       <span className="unit">Kč</span>
                     </div>
@@ -2171,6 +2682,104 @@ const AdminPricing = () => {
           ) : null}
           </>)}
       </div>
+
+      {/* QUICK TEST FAB + FLOATING PANEL */}
+      {activeTab !== 'preview' && (
+        <>
+          <button
+            className="quick-test-fab"
+            onClick={() => setQuickTestOpen(prev => !prev)}
+            title={cs ? 'Rychlý test ceny' : 'Quick price test'}
+            aria-label={cs ? 'Rychlý test ceny' : 'Quick price test'}
+          >
+            <Icon name="Calculator" size={20} />
+          </button>
+
+          {quickTestOpen && (
+            <div className="quick-test-overlay" onClick={() => setQuickTestOpen(false)}>
+              <div className="quick-test-panel" onClick={e => e.stopPropagation()}>
+                <div className="qt-header">
+                  <h4>{cs ? 'Rychlý test' : 'Quick Test'}</h4>
+                  <button className="icon-btn" onClick={() => setQuickTestOpen(false)} aria-label="Close">
+                    <Icon name="X" size={16} />
+                  </button>
+                </div>
+
+                <div className="qt-fields">
+                  <div className="qt-field">
+                    <label>{cs ? 'Material' : 'Material'}</label>
+                    <select
+                      className="select"
+                      onChange={(e) => {
+                        const idx = safeNum(e.target.value, -1);
+                        const mat = enabledMaterials[idx];
+                        if (mat) setPreviewField('material_price_per_g', clampMin0(mat.price_per_gram));
+                      }}
+                      defaultValue={-1}
+                    >
+                      <option value={-1}>{cs ? '-- vyber --' : '-- select --'}</option>
+                      {enabledMaterials.map((m, idx) => (
+                        <option key={m.id} value={idx}>{m.name} ({clampMin0(m.price_per_gram)} Kč/g)</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="qt-row">
+                    <div className="qt-field">
+                      <label>{cs ? 'Hmotnost' : 'Weight'}</label>
+                      <NumberStepper value={preview.weight_g} onChange={v => setPreviewField('weight_g', v)} min={0} step={10} />
+                      <span className="qt-unit">g</span>
+                    </div>
+                    <div className="qt-field">
+                      <label>{cs ? 'Cas' : 'Time'}</label>
+                      <NumberStepper value={preview.time_min} onChange={v => setPreviewField('time_min', v)} min={0} step={5} />
+                      <span className="qt-unit">min</span>
+                    </div>
+                  </div>
+                  <div className="qt-row">
+                    <div className="qt-field">
+                      <label>{cs ? 'Mnozstvi' : 'Qty'}</label>
+                      <NumberStepper value={preview.quantity} onChange={v => setPreviewField('quantity', v)} min={1} step={1} />
+                      <span className="qt-unit">ks</span>
+                    </div>
+                    <div className="qt-field">
+                      <label>{cs ? 'Kc/g' : 'CZK/g'}</label>
+                      <NumberStepper value={preview.material_price_per_g} onChange={v => setPreviewField('material_price_per_g', v)} min={0} step={0.1} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="qt-result">
+                  <div className="qt-result-row">
+                    <span>{cs ? 'Material' : 'Material'}</span>
+                    <strong>{formatCzk(previewResult.material)}</strong>
+                  </div>
+                  <div className="qt-result-row">
+                    <span>{cs ? 'Cas' : 'Time'}</span>
+                    <strong>{formatCzk(previewResult.time)}</strong>
+                  </div>
+                  {previewResult.markup > 0 && (
+                    <div className="qt-result-row">
+                      <span>Markup</span>
+                      <strong>{formatCzk(previewResult.markup)}</strong>
+                    </div>
+                  )}
+                  <div className="qt-divider" />
+                  <div className="qt-result-row qt-total">
+                    <span>{cs ? 'Celkem' : 'Total'}</span>
+                    <strong>{formatCzk(previewResult.total)}</strong>
+                  </div>
+                  {previewResult.flags.min_price_per_model_applied && (
+                    <span className="flag warn" style={{ fontSize: 10, marginTop: 4 }}>{cs ? 'min/model' : 'min/model'}</span>
+                  )}
+                  {previewResult.flags.rounding_final_applied && (
+                    <span className="flag info" style={{ fontSize: 10, marginTop: 4 }}>{cs ? 'zaokrouhleno' : 'rounded'}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       <style>{`
         .admin-page {
@@ -3167,6 +3776,466 @@ const AdminPricing = () => {
           padding: 40px;
           color: var(--forge-text-muted, #666680);
           font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+        }
+
+        /* === PRICING SUMMARY BAR === */
+        .pricing-summary-bar {
+          display: flex;
+          align-items: center;
+          gap: 0;
+          padding: 8px 14px;
+          background: var(--forge-bg-surface, #12121a);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: var(--forge-radius-md, 8px);
+          margin-bottom: 12px;
+          overflow-x: auto;
+        }
+        .psb-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 0 12px;
+          white-space: nowrap;
+        }
+        .psb-label {
+          font-size: 10px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted, #666680);
+          font-weight: 600;
+        }
+        .psb-value {
+          font-size: 13px;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-primary, #e0e0e0);
+          font-weight: 700;
+        }
+        .psb-sep {
+          width: 1px;
+          height: 20px;
+          background: var(--forge-border-default, #1a1a2e);
+          flex-shrink: 0;
+        }
+
+        /* === COLLAPSIBLE CARD === */
+        .card-header--collapsible {
+          cursor: pointer;
+          user-select: none;
+          transition: background-color 120ms;
+          border-radius: var(--forge-radius-md, 8px);
+          margin: -4px -4px 12px -4px;
+          padding: 4px;
+        }
+        .card-header--collapsible:hover {
+          background: rgba(255, 255, 255, 0.02);
+        }
+        .collapse-chevron {
+          color: var(--forge-text-muted, #666680);
+          transition: transform 200ms ease;
+          flex-shrink: 0;
+        }
+        .collapse-chevron.expanded {
+          transform: rotate(90deg);
+        }
+
+        /* === NUMBER STEPPER === */
+        .number-stepper-wrap input[type="number"]::-webkit-inner-spin-button,
+        .number-stepper-wrap input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+
+        /* === QUICK TEST FAB === */
+        .quick-test-fab {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: var(--forge-accent-primary, #00D4AA);
+          color: #0a0a0f;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
+          transition: transform 120ms, box-shadow 120ms;
+          z-index: 900;
+        }
+        .quick-test-fab:hover {
+          transform: scale(1.08);
+          box-shadow: 0 6px 24px rgba(0, 212, 170, 0.45);
+        }
+
+        /* === QUICK TEST PANEL === */
+        .quick-test-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 950;
+          display: flex;
+          align-items: flex-end;
+          justify-content: flex-end;
+          padding: 24px;
+          background: rgba(0,0,0,0.3);
+        }
+        .quick-test-panel {
+          background: var(--forge-bg-surface, #12121a);
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          width: 320px;
+          max-height: 80vh;
+          overflow-y: auto;
+          padding: 16px;
+        }
+        .qt-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        .qt-header h4 {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+        }
+        .qt-fields {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .qt-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          flex: 1;
+        }
+        .qt-field label {
+          font-size: 10px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted, #666680);
+          font-weight: 600;
+        }
+        .qt-field .select {
+          padding: 6px 8px;
+          font-size: 13px;
+        }
+        .qt-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+        .qt-unit {
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          color: var(--forge-text-muted, #666680);
+          margin-top: -2px;
+          text-align: right;
+        }
+        .qt-result {
+          border-top: 1px solid var(--forge-border-default, #1a1a2e);
+          padding-top: 10px;
+        }
+        .qt-result-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          font-size: 12px;
+          color: var(--forge-text-secondary, #a0a0a0);
+          padding: 3px 0;
+        }
+        .qt-result-row strong {
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          font-weight: 700;
+          color: var(--forge-text-primary, #e0e0e0);
+        }
+        .qt-result-row.qt-total {
+          font-size: 14px;
+          font-weight: 600;
+        }
+        .qt-result-row.qt-total strong {
+          color: var(--forge-accent-primary, #00D4AA);
+          font-size: 16px;
+        }
+        .qt-divider {
+          height: 1px;
+          background: var(--forge-border-default, #1a1a2e);
+          margin: 6px 0;
+        }
+
+        /* === MATERIAL SORT BAR === */
+        .mat-sort-bar {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+        .mat-sort-label {
+          font-size: 11px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: var(--forge-text-muted, #666680);
+          margin-right: 4px;
+        }
+        .mat-sort-btn {
+          font-size: 11px;
+          padding: 4px 10px;
+          border-radius: 999px;
+          border: 1px solid var(--forge-border-default, #1a1a2e);
+          background: var(--forge-bg-surface, #12121a);
+          color: var(--forge-text-secondary, #a0a0a0);
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: all 120ms;
+        }
+        .mat-sort-btn:hover {
+          border-color: var(--forge-accent-primary, #00D4AA);
+          color: var(--forge-text-primary, #e0e0e0);
+        }
+        .mat-sort-btn.active {
+          background: rgba(0, 212, 170, 0.08);
+          border-color: rgba(0, 212, 170, 0.3);
+          color: var(--forge-accent-primary, #00D4AA);
+        }
+
+        /* === ENHANCED MATERIAL CARD === */
+        .material-compact-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+        }
+        .material-compact-card.comparing {
+          border-color: rgba(0, 212, 170, 0.5);
+          box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.2);
+        }
+        .mcc-compare-check {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          z-index: 2;
+          cursor: pointer;
+        }
+        .mcc-compare-check input[type="checkbox"] {
+          width: 15px;
+          height: 15px;
+          accent-color: var(--forge-accent-primary, #00D4AA);
+          cursor: pointer;
+        }
+        .mcc-body {
+          cursor: pointer;
+          flex: 1;
+        }
+        .mcc-name-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+        }
+        .mcc-swatch {
+          width: 14px;
+          height: 14px;
+          border-radius: 3px;
+          flex-shrink: 0;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .mcc-card-actions {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          opacity: 0;
+          transition: opacity 120ms;
+        }
+        .material-compact-card:hover .mcc-card-actions {
+          opacity: 1;
+        }
+        .icon-btn-sm {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          color: var(--forge-text-muted, #666680);
+          transition: all 120ms;
+        }
+        .icon-btn-sm:hover {
+          background: rgba(255, 255, 255, 0.06);
+          color: var(--forge-text-primary, #e0e0e0);
+        }
+        .icon-btn-sm:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+        .mcc-badge.type {
+          background: rgba(100, 120, 255, 0.08);
+          color: #8090ff;
+          border-color: rgba(100, 120, 255, 0.2);
+        }
+        .mcc-price-row {
+          display: flex;
+          align-items: baseline;
+          gap: 12px;
+          margin-bottom: 4px;
+        }
+        .mcc-price-secondary {
+          display: flex;
+          align-items: baseline;
+          gap: 3px;
+        }
+        .mcc-price-value-sm {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--forge-text-secondary, #a0a0a0);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+        }
+        .mcc-density {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 11px;
+          color: var(--forge-text-muted, #666680);
+          margin-bottom: 6px;
+        }
+        .mcc-expand-btn {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: none;
+          border: none;
+          border-top: 1px solid var(--forge-border-default, #1a1a2e);
+          cursor: pointer;
+          padding: 6px 0 2px;
+          margin-top: 6px;
+          font-size: 11px;
+          color: var(--forge-text-muted, #666680);
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          transition: color 120ms;
+        }
+        .mcc-expand-btn:hover {
+          color: var(--forge-text-secondary, #a0a0a0);
+        }
+        .mcc-props-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 4px 12px;
+          padding: 6px 0 2px;
+        }
+        .mcc-prop {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          font-size: 11px;
+          color: var(--forge-text-muted, #666680);
+          padding: 2px 0;
+        }
+        .mcc-prop strong {
+          font-weight: 600;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-text-secondary, #a0a0a0);
+          font-size: 11px;
+        }
+
+        /* === COST CALCULATOR === */
+        .cost-calc-row {
+          display: flex;
+          gap: 16px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+        }
+        .cost-calc-result {
+          padding: 10px 16px;
+          border: 1px solid rgba(0, 212, 170, 0.2);
+          border-radius: var(--forge-radius-md, 8px);
+          background: rgba(0, 212, 170, 0.04);
+          min-width: 140px;
+          text-align: center;
+        }
+        .cost-calc-result-label {
+          font-size: 10px;
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--forge-text-muted, #666680);
+          margin-bottom: 4px;
+        }
+        .cost-calc-result-value {
+          font-size: 20px;
+          font-weight: 800;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          color: var(--forge-accent-primary, #00D4AA);
+        }
+        .cost-calc-result-secondary {
+          font-size: 12px;
+          color: var(--forge-text-muted, #666680);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          margin-top: 2px;
+        }
+
+        /* === MATERIAL COMPARISON TABLE === */
+        .mat-compare-table-wrap {
+          overflow-x: auto;
+        }
+        .mat-compare-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .mat-compare-table th,
+        .mat-compare-table td {
+          padding: 8px 12px;
+          text-align: left;
+          border-bottom: 1px solid var(--forge-border-default, #1a1a2e);
+        }
+        .mat-compare-table th {
+          font-size: 13px;
+          font-weight: 700;
+          color: var(--forge-text-primary, #e0e0e0);
+          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+          background: var(--forge-bg-surface, #12121a);
+          white-space: nowrap;
+        }
+        .mat-compare-table td {
+          color: var(--forge-text-secondary, #a0a0a0);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+        }
+        .mat-compare-label {
+          font-family: var(--forge-font-tech, 'Share Tech Mono', monospace) !important;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          font-size: 11px !important;
+          color: var(--forge-text-muted, #666680) !important;
+          white-space: nowrap;
+        }
+        .mat-compare-table tr:hover td {
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* === DIALOG PROPS GRID === */
+        .dialog-props-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px 16px;
+        }
+        @media (max-width: 680px) {
+          .dialog-props-grid {
+            grid-template-columns: 1fr;
+          }
+          .cost-calc-row {
+            flex-direction: column;
+          }
         }
       `}</style>
     </div>

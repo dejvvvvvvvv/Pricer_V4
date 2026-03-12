@@ -124,19 +124,19 @@ const Pricing = () => {
 
         <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10 text-center">
           <Reveal>
-            <h1 className="forge-h1 mb-4">
+            <h1 className="forge-h1 mb-5" style={{ letterSpacing: '-0.02em' }}>
               {t('pricing.hero.title')}
             </h1>
             <p
-              className="forge-body-lg mx-auto mb-10"
-              style={{ color: 'var(--forge-text-secondary)', maxWidth: 560 }}
+              className="forge-body-lg mx-auto mb-12"
+              style={{ color: 'var(--forge-text-secondary)', maxWidth: 560, lineHeight: 1.6 }}
             >
               {t('pricing.hero.subtitle')}
             </p>
           </Reveal>
 
           <Reveal delay={0.05}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-3xl mx-auto">
               {kpis.map((kpi, i) => (
                 <div
                   key={i}
@@ -145,6 +145,7 @@ const Pricing = () => {
                     background: 'var(--forge-bg-surface)',
                     border: '1px solid var(--forge-border-default)',
                     borderRadius: 'var(--forge-radius-md)',
+                    borderTop: '2px solid var(--forge-accent-primary)',
                   }}
                 >
                   <span

@@ -1,7 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLanguage } from '../../contexts/LanguageContext';
-import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+// AdminTeamAccess — Team management page
+// ----------------------------------------
+// Scope: /admin/team
+// - Card-based team member display (avatar, name, email, role, status, last login)
+// - Invite new member form (name, email, role selector)
+// - Role management: Owner, Admin, Manager, Viewer
+// - Role permissions matrix
+// - Recent team activity log
+// - Remove member with confirmation
+// - Data via adminTeamAccessStorage (tenant-scoped localStorage)
+
+import React, { useCallback, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
   acceptInviteToken,
   changeUserRole,
@@ -10,824 +22,1197 @@ import {
   deleteUser,
   disableUser,
   enableUser,
-  getSeatLimit,
   getTeamInvites,
   getTeamSummary,
   getTeamUsers,
-  resendInvite,
 } from '../../utils/adminTeamAccessStorage';
 import {
   getAuditEntries,
-  searchAuditEntries,
 } from '../../utils/adminAuditLogStorage';
 
-const TABS = {
-  users: 'users',
-  roles: 'roles',
-  audit: 'audit',
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const TABS = { members: 'members', roles: 'roles', activity: 'activity' };
+
+const ROLE_ORDER = ['owner', 'admin', 'manager', 'viewer', 'operator'];
+
+const ROLE_META = {
+  owner: {
+    label: 'Vlastnik',
+    color: '#F0A030',
+    description: 'Plny pristup vcetne fakturace a spravcu tymu',
+  },
+  admin: {
+    label: 'Admin',
+    color: 'var(--forge-accent-primary)',
+    description: 'Plny pristup krome fakturace',
+  },
+  manager: {
+    label: 'Manazer',
+    color: '#6C9AFF',
+    description: 'Sprava objednavek, cenotvorba, presety',
+  },
+  viewer: {
+    label: 'Prohlizec',
+    color: '#A78BFA',
+    description: 'Pouze cteni — zadne zmeny',
+  },
+  operator: {
+    label: 'Operator',
+    color: '#60A5FA',
+    description: 'Prace s objednavkami + cteni konfigurace',
+  },
 };
 
-function badgeClass(status) {
-  switch (status) {
-    case 'active':
-      return 'bg-green-600/20 text-green-200 border border-green-500/30';
-    case 'disabled':
-      return 'bg-gray-600/20 text-gray-200 border border-gray-500/30';
-    case 'invited':
-    case 'pending':
-      return 'bg-yellow-600/20 text-yellow-200 border border-yellow-500/30';
-    case 'revoked':
-      return 'bg-red-600/20 text-red-200 border border-red-500/30';
-    default:
-      return 'bg-gray-600/20 text-gray-200 border border-gray-500/30';
+const PERMISSION_CATEGORIES = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'pricing', label: 'Cenotvorba' },
+  { key: 'fees', label: 'Poplatky' },
+  { key: 'parameters', label: 'Parametry' },
+  { key: 'presets', label: 'Presety' },
+  { key: 'orders', label: 'Objednavky' },
+  { key: 'branding', label: 'Branding' },
+  { key: 'widget', label: 'Widget' },
+  { key: 'team', label: 'Tym' },
+  { key: 'billing', label: 'Fakturace' },
+  { key: 'audit', label: 'Audit log' },
+];
+
+const ROLE_PERMISSIONS = {
+  owner: {
+    dashboard: 'full', pricing: 'full', fees: 'full', parameters: 'full',
+    presets: 'full', orders: 'full', branding: 'full', widget: 'full',
+    team: 'full', billing: 'full', audit: 'full',
+  },
+  admin: {
+    dashboard: 'full', pricing: 'full', fees: 'full', parameters: 'full',
+    presets: 'full', orders: 'full', branding: 'full', widget: 'full',
+    team: 'full', billing: 'none', audit: 'full',
+  },
+  manager: {
+    dashboard: 'read', pricing: 'full', fees: 'full', parameters: 'read',
+    presets: 'full', orders: 'full', branding: 'read', widget: 'read',
+    team: 'none', billing: 'none', audit: 'none',
+  },
+  viewer: {
+    dashboard: 'read', pricing: 'read', fees: 'read', parameters: 'read',
+    presets: 'read', orders: 'read', branding: 'read', widget: 'read',
+    team: 'none', billing: 'none', audit: 'none',
+  },
+  operator: {
+    dashboard: 'read', pricing: 'read', fees: 'read', parameters: 'read',
+    presets: 'read', orders: 'full', branding: 'read', widget: 'read',
+    team: 'none', billing: 'none', audit: 'none',
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatDate(ts) {
+  if (!ts) return '--';
+  try {
+    return new Date(ts).toLocaleString('cs-CZ', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return ts || '--';
   }
 }
 
-function formatDate(ts) {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString();
+function formatDateShort(ts) {
+  if (!ts) return '--';
+  try {
+    return new Date(ts).toLocaleString('cs-CZ', {
+      month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return ts || '--';
+  }
 }
 
-// Inline copyToClipboard replaced by useCopyToClipboard hook inside the component.
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name[0].toUpperCase();
+}
+
+function getRoleMeta(role) {
+  return ROLE_META[role] || ROLE_META.viewer;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function Avatar({ name, size = 40 }) {
+  const initials = getInitials(name);
+  let hash = 0;
+  const str = name || '?';
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  const bg = `hsl(${hue}, 40%, 25%)`;
+  const fg = `hsl(${hue}, 50%, 75%)`;
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        backgroundColor: bg,
+        color: fg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'var(--forge-font-heading)',
+        fontWeight: 700,
+        fontSize: `${Math.round(size * 0.38)}px`,
+        flexShrink: 0,
+        userSelect: 'none',
+      }}
+      aria-hidden="true"
+    >
+      {initials}
+    </div>
+  );
+}
+
+function RoleBadge({ role }) {
+  const meta = getRoleMeta(role);
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '2px 10px',
+      borderRadius: '999px',
+      fontSize: '10px',
+      fontFamily: 'var(--forge-font-tech)',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+      backgroundColor: `color-mix(in srgb, ${meta.color} 12%, transparent)`,
+      color: meta.color,
+      border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`,
+      whiteSpace: 'nowrap',
+    }}>
+      {meta.label}
+    </span>
+  );
+}
+
+function StatusDot({ status }) {
+  const colorMap = {
+    active: 'var(--forge-success)',
+    disabled: 'var(--forge-text-muted)',
+    pending: 'var(--forge-warning)',
+    invited: 'var(--forge-warning)',
+    revoked: 'var(--forge-error)',
+    expired: 'var(--forge-error)',
+  };
+  const labelMap = {
+    active: 'Aktivni',
+    disabled: 'Neaktivni',
+    pending: 'Ceka na prijem',
+    invited: 'Pozvan',
+    revoked: 'Zrusen',
+    expired: 'Vyprsel',
+  };
+  const color = colorMap[status] || 'var(--forge-text-muted)';
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '12px',
+      fontFamily: 'var(--forge-font-body)',
+      color: 'var(--forge-text-secondary)',
+    }}>
+      <span style={{
+        width: 8, height: 8, borderRadius: '50%', backgroundColor: color,
+        flexShrink: 0,
+      }} />
+      {labelMap[status] || status}
+    </span>
+  );
+}
+
+function StatCard({ icon, label, value, color = 'var(--forge-accent-primary)' }) {
+  return (
+    <div style={{
+      flex: '1 1 180px',
+      minWidth: 160,
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      padding: '18px',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '12px',
+    }}>
+      <div style={{
+        width: 36, height: 36,
+        borderRadius: 'var(--forge-radius-sm)',
+        backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, color,
+      }}>
+        <Icon name={icon} size={18} />
+      </div>
+      <div>
+        <div style={{
+          fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+          color: 'var(--forge-text-muted)', marginBottom: '4px',
+        }}>{label}</div>
+        <div style={{
+          fontFamily: 'var(--forge-font-heading)', fontSize: '22px',
+          fontWeight: 700, color: 'var(--forge-text-primary)', lineHeight: 1.1,
+        }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmButton({ label, onConfirm, confirmText, variant = 'default', icon }) {
+  const [confirming, setConfirming] = useState(false);
+
+  const styles = {
+    default: {
+      background: 'rgba(0,212,170,0.08)',
+      border: '1px solid rgba(0,212,170,0.25)',
+      color: 'var(--forge-accent-primary)',
+    },
+    danger: {
+      background: 'rgba(255,71,87,0.08)',
+      border: '1px solid rgba(255,71,87,0.25)',
+      color: 'var(--forge-error)',
+    },
+    success: {
+      background: 'rgba(0,212,170,0.08)',
+      border: '1px solid rgba(0,212,170,0.25)',
+      color: 'var(--forge-success)',
+    },
+  };
+
+  const style = styles[variant] || styles.default;
+
+  if (confirming) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+        <button
+          onClick={() => { onConfirm(); setConfirming(false); }}
+          style={{
+            ...style, padding: '4px 10px', borderRadius: 'var(--forge-radius-sm)',
+            cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--forge-font-body)',
+            fontWeight: 600,
+          }}
+        >
+          {confirmText || 'Potvrdit'}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          style={{
+            background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)',
+            color: 'var(--forge-text-muted)', padding: '4px 8px',
+            borderRadius: 'var(--forge-radius-sm)', cursor: 'pointer',
+            fontSize: '11px', fontFamily: 'var(--forge-font-body)',
+          }}
+        >
+          Zrusit
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      style={{
+        ...style, padding: '4px 10px', borderRadius: 'var(--forge-radius-sm)',
+        cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--forge-font-body)',
+        fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px',
+      }}
+    >
+      {icon && <Icon name={icon} size={13} />}
+      {label}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Member Card
+// ---------------------------------------------------------------------------
+
+function MemberCard({ user, onRoleChange, onToggleStatus, onRemove, isInvite }) {
+  const name = user.name || user.email?.split('@')[0] || '--';
+  const email = user.email || '--';
+  const role = user.role || 'viewer';
+  const status = user.status || 'active';
+  const lastLogin = user.lastLoginAt || user.last_login_at;
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      padding: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px',
+    }}>
+      {/* Top row: avatar + info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <Avatar name={name} size={44} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: 'var(--forge-font-heading)', fontWeight: 600,
+            fontSize: '14px', color: 'var(--forge-text-primary)',
+            lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {isInvite ? email : name}
+          </div>
+          {!isInvite && (
+            <div style={{
+              fontSize: '12px', color: 'var(--forge-text-muted)',
+              lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {email}
+            </div>
+          )}
+        </div>
+        <RoleBadge role={role} />
+      </div>
+
+      {/* Status + Last login */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: '8px',
+        padding: '10px 14px',
+        backgroundColor: 'var(--forge-bg-elevated)',
+        borderRadius: 'var(--forge-radius-sm)',
+      }}>
+        <StatusDot status={status} />
+        <span style={{
+          fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
+          color: 'var(--forge-text-muted)',
+        }}>
+          {isInvite
+            ? `Vyprsi: ${formatDate(user.expiresAt || user.expires_at)}`
+            : `Posledni prihlaseni: ${formatDate(lastLogin)}`}
+        </span>
+      </div>
+
+      {/* Actions */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
+        borderTop: '1px solid var(--forge-border-default)',
+        paddingTop: '12px',
+      }}>
+        {!isInvite && (
+          <>
+            {/* Role change */}
+            <select
+              value={role}
+              onChange={(e) => onRoleChange?.(user.id, e.target.value)}
+              aria-label="Zmena role"
+              style={{
+                background: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                color: 'var(--forge-text-primary)',
+                borderRadius: 'var(--forge-radius-sm)',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontFamily: 'var(--forge-font-body)',
+                cursor: 'pointer',
+              }}
+            >
+              {ROLE_ORDER.map((r) => (
+                <option key={r} value={r}>{getRoleMeta(r).label}</option>
+              ))}
+            </select>
+
+            {/* Toggle status */}
+            {status === 'active' ? (
+              <ConfirmButton
+                label="Deaktivovat"
+                icon="UserMinus"
+                confirmText="Ano, deaktivovat"
+                onConfirm={() => onToggleStatus?.(user.id, false)}
+              />
+            ) : (
+              <ConfirmButton
+                label="Aktivovat"
+                icon="UserCheck"
+                variant="success"
+                confirmText="Ano, aktivovat"
+                onConfirm={() => onToggleStatus?.(user.id, true)}
+              />
+            )}
+
+            {/* Remove */}
+            <ConfirmButton
+              label="Odebrat"
+              icon="Trash2"
+              variant="danger"
+              confirmText="Opravdu odebrat?"
+              onConfirm={() => onRemove?.(user.id)}
+            />
+          </>
+        )}
+
+        {isInvite && status === 'pending' && (
+          <>
+            <ConfirmButton
+              label="Simulovat prijem"
+              icon="UserCheck"
+              variant="success"
+              confirmText="Potvrdit prijem"
+              onConfirm={() => {
+                acceptInviteToken(user.token, { name: user.email.split('@')[0] });
+              }}
+            />
+            <ConfirmButton
+              label="Zrusit pozvanku"
+              icon="X"
+              variant="danger"
+              confirmText="Ano, zrusit"
+              onConfirm={() => deleteInvite(user.id)}
+            />
+          </>
+        )}
+
+        {isInvite && status !== 'pending' && (
+          <span style={{
+            fontSize: '11px', color: 'var(--forge-text-muted)',
+            fontFamily: 'var(--forge-font-body)', fontStyle: 'italic',
+          }}>
+            Zadne dostupne akce
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Permissions Matrix
+// ---------------------------------------------------------------------------
+
+function PermissionsMatrix() {
+  const cellStyle = (level) => {
+    const colors = {
+      full: { bg: 'rgba(0,212,170,0.12)', color: 'var(--forge-success)', icon: 'Check' },
+      read: { bg: 'rgba(96,165,250,0.12)', color: '#60A5FA', icon: 'Eye' },
+      none: { bg: 'rgba(255,71,87,0.06)', color: 'var(--forge-text-disabled)', icon: 'Minus' },
+    };
+    return colors[level] || colors.none;
+  };
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table role="table" style={{
+          width: '100%', borderCollapse: 'collapse',
+          fontFamily: 'var(--forge-font-body)', fontSize: '13px',
+        }}>
+          <thead>
+            <tr>
+              <th style={{
+                padding: '12px 16px', textAlign: 'left',
+                fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+                fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+                color: 'var(--forge-text-muted)',
+                borderBottom: '1px solid var(--forge-border-default)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                position: 'sticky', left: 0, zIndex: 1,
+              }}>
+                Opravneni
+              </th>
+              {ROLE_ORDER.map((role) => (
+                <th key={role} style={{
+                  padding: '12px 14px', textAlign: 'center',
+                  fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+                  fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+                  color: getRoleMeta(role).color,
+                  borderBottom: '1px solid var(--forge-border-default)',
+                  backgroundColor: 'var(--forge-bg-elevated)',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {getRoleMeta(role).label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PERMISSION_CATEGORIES.map((cat, idx) => (
+              <tr key={cat.key} style={{
+                backgroundColor: idx % 2 === 0 ? 'var(--forge-bg-surface)' : 'var(--forge-bg-void)',
+              }}>
+                <td style={{
+                  padding: '10px 16px',
+                  borderBottom: '1px solid var(--forge-border-default)',
+                  color: 'var(--forge-text-primary)',
+                  fontWeight: 500,
+                  fontSize: '13px',
+                  position: 'sticky', left: 0, zIndex: 1,
+                  backgroundColor: idx % 2 === 0 ? 'var(--forge-bg-surface)' : 'var(--forge-bg-void)',
+                }}>
+                  {cat.label}
+                </td>
+                {ROLE_ORDER.map((role) => {
+                  const level = ROLE_PERMISSIONS[role]?.[cat.key] || 'none';
+                  const cell = cellStyle(level);
+                  return (
+                    <td key={role} style={{
+                      padding: '10px 14px',
+                      borderBottom: '1px solid var(--forge-border-default)',
+                      textAlign: 'center',
+                    }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: 'var(--forge-radius-sm)',
+                        backgroundColor: cell.bg, color: cell.color,
+                      }}>
+                        <Icon name={cell.icon} size={14} />
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div style={{
+        padding: '12px 16px',
+        borderTop: '1px solid var(--forge-border-default)',
+        display: 'flex', gap: '20px', flexWrap: 'wrap',
+        backgroundColor: 'var(--forge-bg-elevated)',
+      }}>
+        {[
+          { icon: 'Check', label: 'Plny pristup', color: 'var(--forge-success)' },
+          { icon: 'Eye', label: 'Pouze cteni', color: '#60A5FA' },
+          { icon: 'Minus', label: 'Bez pristupu', color: 'var(--forge-text-disabled)' },
+        ].map((item) => (
+          <span key={item.label} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            fontSize: '11px', fontFamily: 'var(--forge-font-body)',
+            color: 'var(--forge-text-muted)',
+          }}>
+            <Icon name={item.icon} size={13} style={{ color: item.color }} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Activity Log
+// ---------------------------------------------------------------------------
+
+function ActivityLog({ entries }) {
+  if (entries.length === 0) {
+    return (
+      <div style={{
+        backgroundColor: 'var(--forge-bg-surface)',
+        border: '1px solid var(--forge-border-default)',
+        borderRadius: 'var(--forge-radius-md)',
+        padding: '40px 24px',
+        textAlign: 'center',
+      }}>
+        <Icon name="Clock" size={32} style={{ color: 'var(--forge-text-muted)', marginBottom: '10px' }} />
+        <div style={{
+          fontFamily: 'var(--forge-font-body)', fontSize: '14px',
+          color: 'var(--forge-text-muted)',
+        }}>
+          Zatim zadna tymova aktivita.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      overflow: 'hidden',
+    }}>
+      {entries.map((entry, idx) => (
+        <div
+          key={entry.id || idx}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            padding: '12px 16px',
+            borderBottom: idx < entries.length - 1 ? '1px solid var(--forge-border-default)' : 'none',
+            backgroundColor: idx % 2 === 0 ? 'var(--forge-bg-surface)' : 'var(--forge-bg-void)',
+          }}
+        >
+          {/* Timeline dot */}
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            backgroundColor: 'var(--forge-accent-primary)',
+            flexShrink: 0, marginTop: '6px',
+            opacity: 0.6,
+          }} />
+
+          {/* Content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap',
+            }}>
+              <span style={{
+                fontFamily: 'var(--forge-font-body)', fontSize: '13px',
+                fontWeight: 600, color: 'var(--forge-text-primary)',
+              }}>
+                {entry.actor_email || 'System'}
+              </span>
+              <span style={{
+                fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+                padding: '1px 6px', borderRadius: 'var(--forge-radius-sm)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                color: 'var(--forge-text-muted)',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>
+                {entry.action}
+              </span>
+            </div>
+            {entry.summary && (
+              <div style={{
+                fontFamily: 'var(--forge-font-body)', fontSize: '12px',
+                color: 'var(--forge-text-secondary)', marginTop: '2px',
+              }}>
+                {entry.summary}
+              </div>
+            )}
+          </div>
+
+          {/* Timestamp */}
+          <span style={{
+            fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+            color: 'var(--forge-text-muted)', whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            {formatDateShort(entry.timestamp)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Invite Form (inline, not modal)
+// ---------------------------------------------------------------------------
+
+function InviteForm({ onInviteSent }) {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('operator');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!email.trim()) {
+      setError('Vyplnte email.');
+      return;
+    }
+
+    try {
+      const result = createInvite({ email: email.trim(), role, message: name.trim() });
+      if (result?.ok === false) {
+        const errorMap = {
+          INVALID_EMAIL: 'Neplatny format emailu.',
+          ALREADY_MEMBER: 'Uzivatel je jiz clenem tymu.',
+          ALREADY_INVITED: 'Pozvanku na tento email jiz existuje.',
+          SEAT_LIMIT_REACHED: 'Dosazeno limitu mist v tymu.',
+          INVALID_ROLE: 'Neplatna role.',
+        };
+        setError(errorMap[result.error] || result.error || 'Chyba pri odesilani pozvanky.');
+        return;
+      }
+      setSuccess(`Pozvanka odeslana na ${email.trim()}`);
+      setEmail('');
+      setName('');
+      setRole('operator');
+      onInviteSent?.();
+    } catch (err) {
+      setError(err?.message || 'Chyba pri odesilani pozvanky.');
+    }
+  };
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-md)',
+      padding: '20px',
+    }}>
+      <div style={{
+        fontFamily: 'var(--forge-font-heading)', fontSize: '15px',
+        fontWeight: 600, color: 'var(--forge-text-primary)', marginBottom: '16px',
+        display: 'flex', alignItems: 'center', gap: '8px',
+      }}>
+        <Icon name="UserPlus" size={18} style={{ color: 'var(--forge-accent-primary)' }} />
+        Pozvat noveho clena
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {/* Name */}
+          <div style={{ flex: '1 1 160px', minWidth: 140 }}>
+            <label style={labelStyle}>Jmeno</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Jan Novak"
+              style={inputStyle}
+              aria-label="Jmeno noveho clena"
+            />
+          </div>
+
+          {/* Email */}
+          <div style={{ flex: '2 1 220px', minWidth: 200 }}>
+            <label style={labelStyle}>Email *</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="jan@firma.cz"
+              required
+              style={inputStyle}
+              aria-label="Email noveho clena"
+            />
+          </div>
+
+          {/* Role */}
+          <div style={{ flex: '1 1 130px', minWidth: 120 }}>
+            <label style={labelStyle}>Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              style={inputStyle}
+              aria-label="Role noveho clena"
+            >
+              {ROLE_ORDER.filter((r) => r !== 'owner').map((r) => (
+                <option key={r} value={r}>{getRoleMeta(r).label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            style={{
+              backgroundColor: 'var(--forge-accent-primary)',
+              color: '#0A0E17',
+              border: '1px solid var(--forge-accent-primary)',
+              borderRadius: 'var(--forge-radius-sm)',
+              padding: '8px 18px',
+              fontFamily: 'var(--forge-font-body)',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              height: '36px',
+            }}
+          >
+            <Icon name="Send" size={14} />
+            Pozvat
+          </button>
+        </div>
+
+        {/* Error / Success messages */}
+        {error && (
+          <div style={{
+            marginTop: '10px', padding: '8px 12px',
+            borderRadius: 'var(--forge-radius-sm)',
+            backgroundColor: 'rgba(255,71,87,0.08)',
+            border: '1px solid rgba(255,71,87,0.25)',
+            color: 'var(--forge-error)',
+            fontSize: '12px', fontFamily: 'var(--forge-font-body)',
+          }}>
+            {error}
+          </div>
+        )}
+        {success && (
+          <div style={{
+            marginTop: '10px', padding: '8px 12px',
+            borderRadius: 'var(--forge-radius-sm)',
+            backgroundColor: 'rgba(0,212,170,0.08)',
+            border: '1px solid rgba(0,212,170,0.25)',
+            color: 'var(--forge-success)',
+            fontSize: '12px', fontFamily: 'var(--forge-font-body)',
+          }}>
+            {success}
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
+const labelStyle = {
+  display: 'block',
+  fontFamily: 'var(--forge-font-tech)',
+  fontSize: '10px',
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  color: 'var(--forge-text-muted)',
+  marginBottom: '4px',
+};
+
+const inputStyle = {
+  width: '100%',
+  background: 'var(--forge-bg-elevated)',
+  border: '1px solid var(--forge-border-default)',
+  color: 'var(--forge-text-primary)',
+  borderRadius: 'var(--forge-radius-sm)',
+  padding: '8px 12px',
+  fontSize: '13px',
+  fontFamily: 'var(--forge-font-body)',
+  outline: 'none',
+  boxSizing: 'border-box',
+  height: '36px',
+};
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export default function AdminTeamAccess() {
-  const { t } = useLanguage();
-  const { copyToClipboard } = useCopyToClipboard();
-  const [tab, setTab] = useState(TABS.users);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { language } = useLanguage();
+  const cs = language === 'cs';
+  useDocumentTitle(cs ? 'Tym — Admin' : 'Team — Admin');
 
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('operator');
-  const [inviteMessage, setInviteMessage] = useState('');
-  const [inviteError, setInviteError] = useState('');
-  const [lastInviteLink, setLastInviteLink] = useState('');
+  const [tab, setTab] = useState(TABS.members);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const users = useMemo(() => getTeamUsers(), [refreshKey]);
   const invites = useMemo(() => getTeamInvites(), [refreshKey]);
   const summary = useMemo(() => getTeamSummary(), [refreshKey]);
-  const seatLimit = useMemo(() => getSeatLimit(), [refreshKey]);
 
-  // AUDIT
-  const [auditQ, setAuditQ] = useState('');
-  const [auditActor, setAuditActor] = useState('');
-  const [auditEntity, setAuditEntity] = useState('');
-  const [auditAction, setAuditAction] = useState('');
-  const [auditDateFrom, setAuditDateFrom] = useState('');
-  const [auditDateTo, setAuditDateTo] = useState('');
-  const [auditDetail, setAuditDetail] = useState(null);
-
-  const inviteOverlayRef = useRef(null);
-  const auditDetailOverlayRef = useRef(null);
-
-  // Scroll containment for invite modal — always block, no scrollable content
-  useEffect(() => {
-    if (!inviteOpen) return;
-    document.body.style.overflow = 'hidden';
-    const el = inviteOverlayRef.current;
-    if (!el) return;
-    const handleWheel = (e) => { e.preventDefault(); e.stopPropagation(); };
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-      document.body.style.overflow = '';
-    };
-  }, [inviteOpen]);
-
-  // Scroll containment for audit detail modal — smooth easing
-  useEffect(() => {
-    if (!auditDetail) return;
-    document.body.style.overflow = 'hidden';
-    const overlayEl = auditDetailOverlayRef.current;
-    if (!overlayEl) return;
-
-    let targetY = 0;
-    let rafId = null;
-
-    const animate = () => {
-      const inner = overlayEl.querySelector('.w-full');
-      if (!inner) { rafId = null; return; }
-      const diff = targetY - inner.scrollTop;
-      if (Math.abs(diff) < 0.5) { inner.scrollTop = targetY; rafId = null; return; }
-      inner.scrollTop += diff * 0.18;
-      rafId = requestAnimationFrame(animate);
-    };
-
-    const handleWheel = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const inner = overlayEl.querySelector('.w-full');
-      if (!inner) return;
-      let delta = e.deltaY;
-      if (e.deltaMode === 1) delta *= 40;
-      if (e.deltaMode === 2) delta *= inner.clientHeight;
-      if (rafId === null) targetY = inner.scrollTop;
-      const maxScroll = inner.scrollHeight - inner.clientHeight;
-      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
-      if (!rafId) rafId = requestAnimationFrame(animate);
-    };
-
-    overlayEl.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      overlayEl.removeEventListener('wheel', handleWheel);
-      if (rafId) cancelAnimationFrame(rafId);
-      document.body.style.overflow = '';
-    };
-  }, [auditDetail]);
-
-  const actors = useMemo(() => {
-    const set = new Set(getAuditEntries().map((e) => e.actor_email).filter(Boolean));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  // Audit entries filtered to team-related actions
+  const teamActivity = useMemo(() => {
+    const all = getAuditEntries();
+    return all
+      .filter((e) => e.entity_type?.startsWith('team') || e.action?.startsWith('TEAM_'))
+      .slice(0, 50);
   }, [refreshKey]);
 
-  const auditEntries = useMemo(() => {
-    return searchAuditEntries({
-      q: auditQ,
-      actor_email: auditActor || undefined,
-      entity_type: auditEntity || undefined,
-      action: auditAction || undefined,
-      date_from: auditDateFrom || undefined,
-      date_to: auditDateTo || undefined,
-    });
-  }, [auditQ, auditActor, auditEntity, auditAction, auditDateFrom, auditDateTo, refreshKey]);
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  const seatUsed = summary.activeUsers + summary.pendingInvites;
+  const handleRoleChange = useCallback((userId, newRole) => {
+    changeUserRole(userId, newRole);
+    refresh();
+  }, [refresh]);
 
-  const roleDefinition = useMemo(
-    () => [
-      {
-        name: 'Admin',
-        description: 'Plný přístup + správa týmu + audit log',
-        permissions: [
-          'dashboard.read',
-          'pricing.read',
-          'pricing.write',
-          'fees.read',
-          'fees.write',
-          'parameters.read',
-          'parameters.write',
-          'presets.read',
-          'presets.write',
-          'orders.read',
-          'orders.write_status',
-          'orders.export',
-          'branding.read',
-          'branding.write',
-          'widget.read',
-          'widget.write',
-          'team.read',
-          'team.write',
-          'audit.read',
-        ],
-      },
-      {
-        name: 'Operator',
-        description: 'Práce s objednávkami + read-only konfigurace',
-        permissions: [
-          'dashboard.read',
-          'orders.read',
-          'orders.write_status',
-          'orders.export',
-          'pricing.read',
-          'fees.read',
-          'parameters.read',
-          'presets.read',
-          'branding.read',
-          'widget.read',
-        ],
-      },
-    ],
-    []
+  const handleToggleStatus = useCallback((userId, enable) => {
+    if (enable) {
+      enableUser(userId);
+    } else {
+      disableUser(userId);
+    }
+    refresh();
+  }, [refresh]);
+
+  const handleRemove = useCallback((userId) => {
+    deleteUser(userId);
+    refresh();
+  }, [refresh]);
+
+  const pendingInvites = useMemo(
+    () => invites.filter((i) => i.status === 'pending'),
+    [invites]
+  );
+  const otherInvites = useMemo(
+    () => invites.filter((i) => i.status !== 'pending'),
+    [invites]
   );
 
-  const handleInviteSend = () => {
-    setInviteError('');
-    try {
-      const invite = createInvite({ email: inviteEmail, role: inviteRole, message: inviteMessage });
-      const link = `${window.location.origin}/invite/accept?token=${encodeURIComponent(invite.token)}`;
-      setLastInviteLink(link);
-      setInviteEmail('');
-      setInviteMessage('');
-      setInviteRole('operator');
-      setInviteOpen(true); // keep open to show link
-      setRefreshKey((k) => k + 1);
-    } catch (e) {
-      setInviteError(e?.message || 'Invite failed');
-    }
-  };
-
-  const confirmAnd = (message, fn) => {
-    // eslint-disable-next-line no-alert
-    const ok = window.confirm(message);
-    if (!ok) return;
-    fn();
-    setRefreshKey((k) => k + 1);
+  // Tab button helper
+  const tabBtn = (key, label, icon) => {
+    const active = tab === key;
+    return (
+      <button
+        key={key}
+        onClick={() => setTab(key)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          padding: '8px 16px',
+          borderRadius: 'var(--forge-radius-sm)',
+          border: `1px solid ${active ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
+          backgroundColor: active ? 'var(--forge-bg-elevated)' : 'var(--forge-bg-surface)',
+          color: active ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
+          fontFamily: 'var(--forge-font-body)',
+          fontSize: '13px',
+          fontWeight: active ? 600 : 400,
+          cursor: 'pointer',
+          transition: 'all 150ms',
+        }}
+      >
+        <Icon name={icon} size={15} />
+        {label}
+      </button>
+    );
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--forge-bg-void)', color: 'var(--forge-text-primary)' }}>
-      <div className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--forge-text-primary)' }}>{t('admin.teamAccess')}</h1>
-            <p className="mt-1" style={{ color: 'var(--forge-text-secondary)' }}>
-              Správa uživatelů v tenantovi, role/opr... (Varianta A demo)
-            </p>
-          </div>
+    <div style={{ maxWidth: 1200 }}>
+      <ForgePageHeader
+        title="Sprava tymu"
+        breadcrumb="ADMIN / TYM"
+        actions={
+          <span style={{
+            fontFamily: 'var(--forge-font-tech)', fontSize: '11px',
+            color: 'var(--forge-text-muted)', padding: '6px 12px',
+            backgroundColor: 'var(--forge-bg-surface)',
+            border: '1px solid var(--forge-border-default)',
+            borderRadius: 'var(--forge-radius-sm)',
+          }}>
+            Mista: {summary.activeUsers + summary.pendingInvites} / {summary.seatLimit}
+          </span>
+        }
+      />
 
-          <div className="flex items-center gap-3">
-            <div className="px-3 py-2 rounded-xl" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-              <div className="text-xs" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Seat limit</div>
-              <div className="text-sm font-semibold" style={{ color: 'var(--forge-text-primary)' }}>{seatUsed}/{seatLimit}</div>
-            </div>
-              <button
-                onClick={() => setInviteOpen(true)}
-                className="px-4 py-2 rounded-xl transition text-sm font-semibold flex items-center gap-2 shadow-sm"
-                style={{ background: 'var(--forge-accent-primary)', color: '#0A0E17', border: '1px solid var(--forge-accent-primary)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.04em' }}
-              >
-              <Icon name="userPlus" size={18} />
-              Invite user
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="mt-6 flex gap-2">
-          <button
-            onClick={() => setTab(TABS.users)}
-            className="px-4 py-2 rounded-xl text-sm border transition"
-            style={{
-              background: tab === TABS.users ? 'var(--forge-bg-elevated)' : 'var(--forge-bg-surface)',
-              borderColor: tab === TABS.users ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)',
-              color: tab === TABS.users ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
-            }}
-          >
-            Users
-          </button>
-          <button
-            onClick={() => setTab(TABS.roles)}
-            className="px-4 py-2 rounded-xl text-sm border transition"
-            style={{
-              background: tab === TABS.roles ? 'var(--forge-bg-elevated)' : 'var(--forge-bg-surface)',
-              borderColor: tab === TABS.roles ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)',
-              color: tab === TABS.roles ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
-            }}
-          >
-            Roles & Permissions
-          </button>
-          <button
-            onClick={() => setTab(TABS.audit)}
-            className="px-4 py-2 rounded-xl text-sm border transition"
-            style={{
-              background: tab === TABS.audit ? 'var(--forge-bg-elevated)' : 'var(--forge-bg-surface)',
-              borderColor: tab === TABS.audit ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)',
-              color: tab === TABS.audit ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)',
-            }}
-          >
-            Audit Log
-          </button>
-        </div>
-
-        {/* Users tab */}
-        {tab === TABS.users && (
-          <div className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-2xl p-4" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-                <div className="text-sm" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '11px' }}>Active users</div>
-                <div className="text-2xl font-bold mt-1" style={{ color: 'var(--forge-accent-primary)' }}>{summary.activeUsers}</div>
-              </div>
-              <div className="rounded-2xl p-4" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-                <div className="text-sm" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '11px' }}>Pending invites</div>
-                <div className="text-2xl font-bold mt-1" style={{ color: 'var(--forge-text-primary)' }}>{summary.pendingInvites}</div>
-              </div>
-              <div className="rounded-2xl p-4" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-                <div className="text-sm" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '11px' }}>Disabled users</div>
-                <div className="text-2xl font-bold mt-1" style={{ color: 'var(--forge-text-primary)' }}>{summary.disabledUsers}</div>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl overflow-hidden" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-              <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--forge-border-default)', background: 'var(--forge-bg-elevated)' }}>
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: 'var(--forge-text-primary)' }}>Users & Invites</div>
-                  <div className="text-xs" style={{ color: 'var(--forge-text-muted)' }}>Invite = demo: copy link & accept</div>
-                </div>
-                <button
-            onClick={() => setInviteOpen(true)}
-            className="px-3 py-2 rounded-xl text-sm font-semibold shadow-sm"
-            style={{ background: 'var(--forge-accent-primary)', color: '#0A0E17', border: '1px solid var(--forge-accent-primary)' }}
-          >
-            Invite user
-          </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left" style={{ background: 'var(--forge-bg-elevated)' }}>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>User</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Role</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Status</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Last login</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u, idx) => (
-                      <tr key={u.id} style={{ borderTop: '1px solid var(--forge-border-default)', background: idx % 2 === 0 ? 'var(--forge-bg-surface)' : 'var(--forge-bg-void)' }}>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold" style={{ color: 'var(--forge-text-primary)' }}>{u.name || '—'}</div>
-                          <div className="text-xs" style={{ color: 'var(--forge-text-muted)' }}>{u.email}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={u.role}
-                            onChange={(e) =>
-                              confirmAnd('Change role?', () => changeUserRole(u.id, e.target.value))
-                            }
-                            className="rounded-lg px-2 py-1"
-                            style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                          >
-                            <option value="admin">Admin</option>
-                            <option value="operator">Operator</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 rounded-lg text-xs ${badgeClass(u.status)}`}>
-                            {u.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3" style={{ color: 'var(--forge-text-secondary)' }}>{formatDate(u.last_login_at)}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            {u.status === 'active' ? (
-              <button
-                onClick={() => confirmAnd('Disable user?', () => disableUser(u.id))}
-                className="px-3 py-1.5 rounded-lg font-medium"
-                style={{ background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.25)', color: 'var(--forge-accent-primary)' }}
-              >
-                Disable
-              </button>
-            ) : (
-              <button
-                onClick={() => confirmAnd('Enable user?', () => enableUser(u.id))}
-                className="px-3 py-1.5 rounded-lg font-medium"
-                style={{ background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.25)', color: 'var(--forge-success)' }}
-              >
-                Enable
-              </button>
-            )}
-                            <button
-              onClick={() =>
-                confirmAnd('Remove user from tenant?', () => deleteUser(u.id))
-              }
-              className="px-3 py-1.5 rounded-lg font-medium"
-              style={{ background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.25)', color: 'var(--forge-error)' }}
-            >
-              Remove
-            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {invites.map((inv, idx) => (
-                      <tr key={inv.id} style={{ borderTop: '1px solid var(--forge-border-default)', background: (users.length + idx) % 2 === 0 ? 'var(--forge-bg-surface)' : 'var(--forge-bg-void)' }}>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold" style={{ color: 'var(--forge-text-primary)' }}>{inv.email}</div>
-                          <div className="text-xs" style={{ color: 'var(--forge-text-muted)' }}>Invite expires: {formatDate(inv.expires_at)}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span style={{ color: 'var(--forge-text-secondary)' }}>{inv.role}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 rounded-lg text-xs ${badgeClass(inv.status)}`}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3" style={{ color: 'var(--forge-text-secondary)' }}>—</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            {inv.status === 'pending' && (
-                              <>
-                                <button
-                  onClick={() => {
-                    const link = `${window.location.origin}/invite/accept?token=${encodeURIComponent(
-                      inv.token
-                    )}`;
-                    copyToClipboard(link);
-                  }}
-                  className="px-3 py-1.5 rounded-lg font-medium"
-                  style={{ background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.25)', color: 'var(--forge-accent-primary)' }}
-                >
-                  Copy link
-                </button>
-                                <button
-                  onClick={() => {
-                    confirmAnd('Resend invite (new token)?', () => resendInvite(inv.id));
-                  }}
-                  className="px-3 py-1.5 rounded-lg font-medium"
-                  style={{ background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.25)', color: 'var(--forge-accent-primary)' }}
-                >
-                  Resend
-                </button>
-                                <button
-                  onClick={() =>
-                    confirmAnd('Revoke invite?', () => deleteInvite(inv.id))
-                  }
-                  className="px-3 py-1.5 rounded-lg font-medium"
-                  style={{ background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.25)', color: 'var(--forge-error)' }}
-                >
-                  Revoke
-                </button>
-                                <button
-                  onClick={() => {
-                    // DEMO: accept without leaving admin
-                    confirmAnd('Simulate accept invite?', () =>
-                      acceptInviteToken(inv.token, { name: inv.email.split('@')[0] })
-                    );
-                  }}
-                  className="px-3 py-1.5 rounded-lg font-medium"
-                  style={{ background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.25)', color: 'var(--forge-success)' }}
-                >
-                  Simulate accept
-                </button>
-                              </>
-                            )}
-                            {inv.status !== 'pending' && (
-                              <span style={{ color: 'var(--forge-text-muted)' }}>No actions</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {users.length === 0 && invites.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-6 text-center" style={{ color: 'var(--forge-text-muted)' }}>
-                          No users.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Roles tab */}
-        {tab === TABS.roles && (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {roleDefinition.map((role) => (
-              <div key={role.name} className="rounded-2xl p-5" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-lg font-bold" style={{ color: 'var(--forge-text-primary)' }}>{role.name}</div>
-                    <div className="text-sm mt-1" style={{ color: 'var(--forge-text-secondary)' }}>{role.description}</div>
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded-lg" style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>MVP</span>
-                </div>
-                <div className="mt-4">
-                  <div className="text-xs mb-2" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Permissions</div>
-                  <div className="flex flex-wrap gap-2">
-                    {role.permissions.map((p) => (
-                      <span
-                        key={p}
-                        className="text-xs px-2 py-1 rounded-lg"
-                        style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-tech)' }}
-                      >
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Audit tab */}
-        {tab === TABS.audit && (
-          <div className="mt-6">
-            <div className="rounded-2xl p-4" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                <div className="md:col-span-2">
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Search</div>
-                  <input
-                    value={auditQ}
-                    onChange={(e) => setAuditQ(e.target.value)}
-                    placeholder="email, action, entity..."
-                    className="w-full rounded-xl px-3 py-2 text-sm"
-                    style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Actor</div>
-                  <select
-                    value={auditActor}
-                    onChange={(e) => setAuditActor(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 text-sm"
-                    style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                  >
-                    <option value="">All</option>
-                    {actors.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Entity</div>
-                  <select
-                    value={auditEntity}
-                    onChange={(e) => setAuditEntity(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 text-sm"
-                    style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                  >
-                    <option value="">All</option>
-                    <option value="team">team</option>
-                    <option value="orders">orders</option>
-                    <option value="pricing">pricing</option>
-                    <option value="fees">fees</option>
-                    <option value="parameters">parameters</option>
-                    <option value="presets">presets</option>
-                    <option value="branding">branding</option>
-                    <option value="widget">widget</option>
-                  </select>
-                </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Action</div>
-                  <input
-                    value={auditAction}
-                    onChange={(e) => setAuditAction(e.target.value)}
-                    placeholder="e.g. TEAM_INVITE_SENT"
-                    className="w-full rounded-xl px-3 py-2 text-sm"
-                    style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Date from</div>
-                  <input
-                    type="date"
-                    value={auditDateFrom}
-                    onChange={(e) => setAuditDateFrom(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 text-sm"
-                    style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Date to</div>
-                  <input
-                    type="date"
-                    value={auditDateTo}
-                    onChange={(e) => setAuditDateTo(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 text-sm"
-                    style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-              <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--forge-border-default)', background: 'var(--forge-bg-elevated)' }}>
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: 'var(--forge-text-primary)' }}>Audit log</div>
-                  <div className="text-xs" style={{ color: 'var(--forge-text-muted)' }}>Entries: {auditEntries.length}</div>
-                </div>
-                <button
-                  onClick={() => {
-                    setAuditQ('');
-                    setAuditActor('');
-                    setAuditEntity('');
-                    setAuditAction('');
-                    setAuditDateFrom('');
-                    setAuditDateTo('');
-                  }}
-                  className="px-3 py-2 rounded-xl text-sm"
-                  style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}
-                >
-                  Reset filters
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left" style={{ background: 'var(--forge-bg-elevated)' }}>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Time</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Actor</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Action</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Entity</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Summary</th>
-                      <th className="px-4 py-3" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>...</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditEntries.map((e, idx) => (
-                      <tr key={e.id} style={{ borderTop: '1px solid var(--forge-border-default)', background: idx % 2 === 0 ? 'var(--forge-bg-surface)' : 'var(--forge-bg-void)' }}>
-                        <td className="px-4 py-3" style={{ color: 'var(--forge-text-secondary)' }}>{formatDate(e.timestamp)}</td>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold" style={{ color: 'var(--forge-text-primary)' }}>{e.actor_email || 'System'}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs px-2 py-1 rounded-lg" style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-tech)' }}>
-                            {e.action}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3" style={{ color: 'var(--forge-text-secondary)' }}>
-                          {e.entity_type}
-                          {e.entity_id ? `:${e.entity_id}` : ''}
-                        </td>
-                        <td className="px-4 py-3" style={{ color: 'var(--forge-text-primary)' }}>{e.summary || '—'}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => setAuditDetail(e)}
-                            className="px-3 py-1.5 rounded-lg"
-                            style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}
-                          >
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {auditEntries.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center" style={{ color: 'var(--forge-text-muted)' }}>
-                          No audit entries yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Stats */}
+      <div style={{
+        display: 'flex', gap: '14px', flexWrap: 'wrap',
+        marginTop: '24px', marginBottom: '24px',
+      }}>
+        <StatCard icon="Users" label="Aktivni clenove" value={summary.activeUsers} />
+        <StatCard
+          icon="Mail"
+          label="Cekajici pozvanky"
+          value={summary.pendingInvites}
+          color="#F0A030"
+        />
+        <StatCard
+          icon="UserX"
+          label="Neaktivni"
+          value={summary.disabledUsers}
+          color="var(--forge-text-muted)"
+        />
+        <StatCard
+          icon="Shield"
+          label="Pocet roli"
+          value={ROLE_ORDER.length}
+          color="#A78BFA"
+        />
       </div>
 
-      {/* Invite modal */}
-      {inviteOpen && (
-        <div ref={inviteOverlayRef} className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(0,0,0,0.65)' }}>
-          <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-bold" style={{ color: 'var(--forge-text-primary)' }}>Invite user</div>
-                <div className="text-sm mt-1" style={{ color: 'var(--forge-text-muted)' }}>
-                  Seats used: {seatUsed}/{seatLimit}
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setInviteOpen(false);
-                  setLastInviteLink('');
-                  setInviteError('');
-                }}
-                className="p-2 rounded-xl"
-                style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}
-              >
-                <Icon name="x" size={18} />
-              </button>
-            </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {tabBtn(TABS.members, 'Clenove tymu', 'Users')}
+        {tabBtn(TABS.roles, 'Role a opravneni', 'Shield')}
+        {tabBtn(TABS.activity, `Aktivita (${teamActivity.length})`, 'Clock')}
+      </div>
 
-            {inviteError && (
-              <div className="mt-4 p-3 rounded-xl text-sm" style={{ background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.25)', color: 'var(--forge-error)' }}>
-                {inviteError}
-              </div>
-            )}
+      {/* ============================================================ */}
+      {/* TAB: Members */}
+      {/* ============================================================ */}
+      {tab === TABS.members && (
+        <div>
+          {/* Invite form */}
+          <InviteForm onInviteSent={refresh} />
 
-            <div className="mt-4 grid grid-cols-1 gap-3">
-              <div>
-                <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Email</div>
-                <input
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full rounded-xl px-3 py-2 text-sm"
-                  style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                />
-              </div>
-              <div>
-                <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Role</div>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full rounded-xl px-3 py-2 text-sm"
-                  style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                >
-                  <option value="operator">Operator</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Message (optional)</div>
-                <textarea
-                  value={inviteMessage}
-                  onChange={(e) => setInviteMessage(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-xl px-3 py-2 text-sm"
-                  style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)' }}
-                />
-              </div>
-
-              {lastInviteLink && (
-                <div className="p-3 rounded-xl" style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)' }}>
-                  <div className="text-xs mb-1" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Invite link (demo)</div>
-                  <div className="text-sm break-all" style={{ color: 'var(--forge-accent-primary)' }}>{lastInviteLink}</div>
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={() => copyToClipboard(lastInviteLink)}
-                      className="px-3 py-2 rounded-xl text-sm"
-                      style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}
-                    >
-                      Copy link
-                    </button>
-                    <a
-                      href={lastInviteLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-2 rounded-xl text-sm"
-                      style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)', textDecoration: 'none' }}
-                    >
-                      Open accept page
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setInviteOpen(false);
-                  setLastInviteLink('');
-                  setInviteError('');
-                }}
-                className="px-4 py-2 rounded-xl text-sm"
-                style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}
-              >
-                Close
-              </button>
-              <button
-                onClick={handleInviteSend}
-                className="px-4 py-2 rounded-xl text-sm font-semibold"
-                style={{ background: 'var(--forge-accent-primary)', color: '#0A0E17', border: '1px solid var(--forge-accent-primary)' }}
-              >
-                Send invite
-              </button>
-            </div>
+          {/* Active members */}
+          <div style={{
+            fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+            color: 'var(--forge-text-muted)',
+            marginTop: '24px', marginBottom: '12px',
+          }}>
+            Clenove ({users.length})
           </div>
+
+          {users.length === 0 ? (
+            <div style={{
+              backgroundColor: 'var(--forge-bg-surface)',
+              border: '1px solid var(--forge-border-default)',
+              borderRadius: 'var(--forge-radius-md)',
+              padding: '32px', textAlign: 'center',
+              color: 'var(--forge-text-muted)',
+              fontFamily: 'var(--forge-font-body)', fontSize: '14px',
+            }}>
+              Zatim zadni clenove. Pozvete prvniho clena pomoci formulare vyse.
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: '14px',
+            }}>
+              {users.map((u) => (
+                <MemberCard
+                  key={u.id}
+                  user={u}
+                  onRoleChange={handleRoleChange}
+                  onToggleStatus={handleToggleStatus}
+                  onRemove={handleRemove}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Pending invites */}
+          {pendingInvites.length > 0 && (
+            <>
+              <div style={{
+                fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+                textTransform: 'uppercase', letterSpacing: '0.06em',
+                color: 'var(--forge-text-muted)',
+                marginTop: '24px', marginBottom: '12px',
+              }}>
+                Cekajici pozvanky ({pendingInvites.length})
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                gap: '14px',
+              }}>
+                {pendingInvites.map((inv) => (
+                  <MemberCard
+                    key={inv.id}
+                    user={inv}
+                    isInvite
+                    onRemove={() => { deleteInvite(inv.id); refresh(); }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Past invites (accepted/revoked/expired) */}
+          {otherInvites.length > 0 && (
+            <>
+              <div style={{
+                fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+                textTransform: 'uppercase', letterSpacing: '0.06em',
+                color: 'var(--forge-text-muted)',
+                marginTop: '24px', marginBottom: '12px',
+              }}>
+                Historie pozvanek ({otherInvites.length})
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                gap: '14px',
+              }}>
+                {otherInvites.map((inv) => (
+                  <MemberCard key={inv.id} user={inv} isInvite />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* Audit detail modal */}
-      {auditDetail && (
-        <div ref={auditDetailOverlayRef} className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(0,0,0,0.65)' }}>
-          <div className="w-full max-w-3xl rounded-2xl p-5" style={{ background: 'var(--forge-bg-surface)', border: '1px solid var(--forge-border-default)' }}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-bold" style={{ color: 'var(--forge-text-primary)' }}>Audit details</div>
-                <div className="text-sm mt-1" style={{ color: 'var(--forge-text-secondary)' }}>{auditDetail.summary}</div>
-              </div>
-              <button
-                onClick={() => setAuditDetail(null)}
-                className="p-2 rounded-xl"
-                style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}
-              >
-                <Icon name="x" size={18} />
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-2xl p-4" style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)' }}>
-                <div className="text-xs" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Meta</div>
-                <div className="mt-2 space-y-1 text-sm" style={{ color: 'var(--forge-text-primary)' }}>
-                  <div><span style={{ color: 'var(--forge-text-muted)' }}>Time:</span> {formatDate(auditDetail.timestamp)}</div>
-                  <div><span style={{ color: 'var(--forge-text-muted)' }}>Actor:</span> {auditDetail.actor_email || 'System'}</div>
-                  <div><span style={{ color: 'var(--forge-text-muted)' }}>Action:</span> {auditDetail.action}</div>
-                  <div><span style={{ color: 'var(--forge-text-muted)' }}>Entity:</span> {auditDetail.entity_type}{auditDetail.entity_id ? `:${auditDetail.entity_id}` : ''}</div>
-                  <div><span style={{ color: 'var(--forge-text-muted)' }}>IP:</span> {auditDetail.ip_address || '—'}</div>
-                  <div><span style={{ color: 'var(--forge-text-muted)' }}>User agent:</span> {auditDetail.user_agent || '—'}</div>
+      {/* ============================================================ */}
+      {/* TAB: Roles & Permissions */}
+      {/* ============================================================ */}
+      {tab === TABS.roles && (
+        <div>
+          {/* Role cards */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '14px',
+            marginBottom: '24px',
+          }}>
+            {ROLE_ORDER.map((role) => {
+              const meta = getRoleMeta(role);
+              return (
+                <div key={role} style={{
+                  backgroundColor: 'var(--forge-bg-surface)',
+                  border: '1px solid var(--forge-border-default)',
+                  borderRadius: 'var(--forge-radius-md)',
+                  padding: '18px',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    marginBottom: '8px',
+                  }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      backgroundColor: meta.color, flexShrink: 0,
+                    }} />
+                    <span style={{
+                      fontFamily: 'var(--forge-font-heading)',
+                      fontSize: '15px', fontWeight: 600,
+                      color: 'var(--forge-text-primary)',
+                    }}>
+                      {meta.label}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--forge-font-body)',
+                    fontSize: '12px', color: 'var(--forge-text-muted)',
+                    lineHeight: 1.4,
+                  }}>
+                    {meta.description}
+                  </div>
                 </div>
-              </div>
-              <div className="rounded-2xl p-4" style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)' }}>
-                <div className="text-xs" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Metadata</div>
-                <pre className="mt-2 text-xs rounded-xl p-3 overflow-auto max-h-64" style={{ background: 'var(--forge-bg-void)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}>
-{JSON.stringify(auditDetail.metadata || {}, null, 2)}
-                </pre>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl p-4" style={{ background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)' }}>
-              <div className="text-xs" style={{ color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Diff</div>
-              <pre className="mt-2 text-xs rounded-xl p-3 overflow-auto max-h-72" style={{ background: 'var(--forge-bg-void)', border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)' }}>
-{JSON.stringify(auditDetail.diff || {}, null, 2)}
-              </pre>
-            </div>
+              );
+            })}
           </div>
+
+          {/* Permissions matrix */}
+          <div style={{
+            fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+            color: 'var(--forge-text-muted)',
+            marginBottom: '12px',
+          }}>
+            Matice opravneni
+          </div>
+          <PermissionsMatrix />
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB: Activity */}
+      {/* ============================================================ */}
+      {tab === TABS.activity && (
+        <div>
+          <div style={{
+            fontFamily: 'var(--forge-font-tech)', fontSize: '10px',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+            color: 'var(--forge-text-muted)',
+            marginBottom: '12px',
+          }}>
+            Posledni tymova aktivita ({teamActivity.length})
+          </div>
+          <ActivityLog entries={teamActivity} />
         </div>
       )}
     </div>

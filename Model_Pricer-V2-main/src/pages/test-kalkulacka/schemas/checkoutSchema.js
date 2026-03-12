@@ -47,6 +47,56 @@ export function getCheckoutSchema(language = 'cs') {
       .min(1, t('Stat je povinny', 'Country is required'))
       .max(100, t('Stat je prilis dlouhy', 'Country is too long')),
 
+    // Billing address toggle
+    billingAddressSameAsShipping: z.boolean().default(true),
+
+    // Billing address fields (optional — only validated when billingAddressSameAsShipping is false)
+    billingStreet: z
+      .string()
+      .max(200, t('Ulice je prilis dlouha', 'Street is too long'))
+      .optional()
+      .or(z.literal('')),
+
+    billingCity: z
+      .string()
+      .max(100, t('Mesto je prilis dlouhe', 'City is too long'))
+      .optional()
+      .or(z.literal('')),
+
+    billingZip: z
+      .string()
+      .max(10, t('PSC je prilis dlouhe', 'ZIP code is too long'))
+      .optional()
+      .or(z.literal('')),
+
+    billingCountry: z
+      .string()
+      .max(100, t('Stat je prilis dlouhy', 'Country is too long'))
+      .optional()
+      .or(z.literal('')),
+
+    // Company purchase toggle
+    isCompanyPurchase: z.boolean().default(false),
+
+    // Company fields (optional — only validated when isCompanyPurchase is true)
+    companyName: z
+      .string()
+      .max(200, t('Nazev firmy je prilis dlouhy', 'Company name is too long'))
+      .optional()
+      .or(z.literal('')),
+
+    ico: z
+      .string()
+      .max(20, t('ICO je prilis dlouhe', 'Company ID is too long'))
+      .optional()
+      .or(z.literal('')),
+
+    dic: z
+      .string()
+      .max(20, t('DIC je prilis dlouhe', 'VAT ID is too long'))
+      .optional()
+      .or(z.literal('')),
+
     note: z
       .string()
       .max(1000, t('Poznamka je prilis dlouha', 'Note is too long'))
@@ -63,5 +113,63 @@ export function getCheckoutSchema(language = 'cs') {
       }),
 
     payment_method: z.enum(['bank_transfer', 'card']).default('bank_transfer'),
+  }).superRefine((data, ctx) => {
+    // Validate billing address fields when not same as shipping
+    if (!data.billingAddressSameAsShipping) {
+      if (!data.billingStreet || data.billingStreet.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('Fakturacni ulice je povinna', 'Billing street is required'),
+          path: ['billingStreet'],
+        });
+      }
+      if (!data.billingCity || data.billingCity.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('Fakturacni mesto je povinne', 'Billing city is required'),
+          path: ['billingCity'],
+        });
+      }
+      if (!data.billingZip || data.billingZip.length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('Fakturacni PSC je povinne', 'Billing ZIP is required'),
+          path: ['billingZip'],
+        });
+      }
+      if (!data.billingCountry || data.billingCountry.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('Fakturacni stat je povinny', 'Billing country is required'),
+          path: ['billingCountry'],
+        });
+      }
+    }
+
+    // Validate company fields when company purchase is checked
+    if (data.isCompanyPurchase) {
+      if (!data.companyName || data.companyName.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('Nazev firmy je povinny', 'Company name is required'),
+          path: ['companyName'],
+        });
+      }
+      if (!data.ico || data.ico.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('ICO je povinne', 'Company ID is required'),
+          path: ['ico'],
+        });
+      }
+      // Czech ICO validation: must be exactly 8 digits
+      if (data.ico && data.ico.length > 0 && !/^\d{8}$/.test(data.ico)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('ICO musi mit presne 8 cislic', 'Company ID must be exactly 8 digits'),
+          path: ['ico'],
+        });
+      }
+    }
   });
 }

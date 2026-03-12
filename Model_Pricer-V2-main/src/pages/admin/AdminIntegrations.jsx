@@ -1,14 +1,17 @@
-// Admin Integrations Page — Shopify Storefront API Configuration
+// Admin Integrations Page — Integration marketplace + Shopify configuration
 // Route: /admin/integrations
 //
-// Sections:
-// A) Main toggle + status
-// B) Setup guide (step-by-step)
-// C) Configuration form
-// D) Variant mappings table
-// E) Test connection
+// Views:
+// 1) Marketplace grid — all integration cards with status
+// 2) Detail view — Shopify config (existing), placeholders for others
+//
+// Integrations:
+// - Shopify (active, full config)
+// - WooCommerce, Stripe, PayPal, Zasilkovna, PPL/DPD, Google Analytics (placeholder)
+// - Custom API Webhook (link to /admin/webhooks)
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { debug } from '@/lib/debug';
@@ -33,7 +36,7 @@ import {
   buildCartPermalinkUrl,
 } from '../../lib/shopify/shopifyCartClient';
 
-// ─── Styles ──────────────────────────────────────────────────
+// ─── Shared Styles ──────────────────────────────────────────
 
 const cardStyle = {
   backgroundColor: 'var(--forge-bg-surface)',
@@ -97,11 +100,99 @@ const btnOutline = {
   color: 'var(--forge-text-secondary)',
 };
 
-const btnDanger = {
-  ...btnPrimary,
-  backgroundColor: 'var(--forge-error, #DC2626)',
-  padding: '6px 12px',
-  fontSize: '12px',
+// ─── Integration Registry ───────────────────────────────────
+
+const INTEGRATIONS = [
+  {
+    id: 'shopify',
+    name: 'Shopify',
+    icon: 'ShoppingBag',
+    iconColor: '#96BF48',
+    category: 'ecommerce',
+    available: true,
+    description_cs: 'Propojte kalkulacku s vasim Shopify obchodem. Zakaznici budou presmerovani na Shopify checkout.',
+    description_en: 'Connect your calculator with your Shopify store. Customers will be redirected to Shopify checkout.',
+  },
+  {
+    id: 'woocommerce',
+    name: 'WooCommerce',
+    icon: 'Store',
+    iconColor: '#9B5C8F',
+    category: 'ecommerce',
+    available: false,
+    description_cs: 'Integrace s WooCommerce obchodem na WordPressu. Automaticke vytvareni produktu a objednavek.',
+    description_en: 'Integration with WooCommerce store on WordPress. Automatic product and order creation.',
+  },
+  {
+    id: 'stripe',
+    name: 'Stripe',
+    icon: 'CreditCard',
+    iconColor: '#635BFF',
+    category: 'payments',
+    available: false,
+    description_cs: 'Prijimejte platby kartou primo v kalkulacce. Bezpecne zpracovani pres Stripe.',
+    description_en: 'Accept card payments directly in the calculator. Secure processing via Stripe.',
+  },
+  {
+    id: 'paypal',
+    name: 'PayPal',
+    icon: 'Wallet',
+    iconColor: '#003087',
+    category: 'payments',
+    available: false,
+    description_cs: 'Prijimejte platby pres PayPal. Snadna integrace s PayPal Checkout.',
+    description_en: 'Accept payments via PayPal. Easy integration with PayPal Checkout.',
+  },
+  {
+    id: 'zasilkovna',
+    name: 'Zasilkovna',
+    icon: 'Package',
+    iconColor: '#BA1B02',
+    category: 'shipping',
+    available: false,
+    description_cs: 'Zasilkovna (Packeta) — mapa vydejnich mist, sledovani zasilek, automaticke stitky.',
+    description_en: 'Zasilkovna (Packeta) — pickup point map, shipment tracking, automatic labels.',
+  },
+  {
+    id: 'ppl_dpd',
+    name: 'PPL / DPD',
+    icon: 'Truck',
+    iconColor: '#1A6FB5',
+    category: 'shipping',
+    available: false,
+    description_cs: 'Prepravni sluzby PPL a DPD. Automaticke vytvareni zasilek a tisk stitku.',
+    description_en: 'PPL and DPD shipping services. Automatic shipment creation and label printing.',
+  },
+  {
+    id: 'google_analytics',
+    name: 'Google Analytics',
+    icon: 'BarChart3',
+    iconColor: '#F9AB00',
+    category: 'analytics',
+    available: false,
+    description_cs: 'Sledujte chovani uzivatelu v kalkulacce. Konverze, udalosti, e-commerce tracking.',
+    description_en: 'Track user behavior in the calculator. Conversions, events, e-commerce tracking.',
+  },
+  {
+    id: 'webhook',
+    name: 'Custom API Webhook',
+    icon: 'Webhook',
+    iconColor: 'var(--forge-accent-primary)',
+    category: 'developer',
+    available: true,
+    isLink: true,
+    linkTo: '/admin/webhooks',
+    description_cs: 'Vlastni webhooky pro napojeni na libovolny externi system. Plna kontrola nad udalostmi.',
+    description_en: 'Custom webhooks for connecting to any external system. Full control over events.',
+  },
+];
+
+const CATEGORY_LABELS = {
+  ecommerce: { cs: 'E-commerce', en: 'E-commerce' },
+  payments: { cs: 'Platby', en: 'Payments' },
+  shipping: { cs: 'Doprava', en: 'Shipping' },
+  analytics: { cs: 'Analytika', en: 'Analytics' },
+  developer: { cs: 'Vyvojar', en: 'Developer' },
 };
 
 // ─── Toggle Component ────────────────────────────────────────
@@ -222,21 +313,375 @@ function SetupStep({ number, title, done, open, onToggle, children }) {
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────
+// ─── Status Badge ────────────────────────────────────────────
 
-export default function AdminIntegrations() {
-  const { language } = useLanguage();
-  const cs = language === 'cs';
+function StatusBadge({ status, cs }) {
+  const styles = {
+    connected: {
+      bg: 'rgba(0, 212, 170, 0.1)',
+      border: 'rgba(0, 212, 170, 0.25)',
+      color: 'var(--forge-success)',
+      label: cs ? 'Pripojeno' : 'Connected',
+      icon: 'CheckCircle',
+    },
+    configuring: {
+      bg: 'rgba(255, 181, 71, 0.1)',
+      border: 'rgba(255, 181, 71, 0.25)',
+      color: 'var(--forge-warning)',
+      label: cs ? 'Konfigurace' : 'Configuring',
+      icon: 'Settings',
+    },
+    disconnected: {
+      bg: 'var(--forge-bg-elevated)',
+      border: 'var(--forge-border-default)',
+      color: 'var(--forge-text-muted)',
+      label: cs ? 'Odpojeno' : 'Disconnected',
+      icon: 'MinusCircle',
+    },
+    coming_soon: {
+      bg: 'rgba(108, 99, 255, 0.08)',
+      border: 'rgba(108, 99, 255, 0.2)',
+      color: 'var(--forge-accent-tertiary)',
+      label: cs ? 'Pripravujeme' : 'Coming soon',
+      icon: 'Clock',
+    },
+    error: {
+      bg: 'rgba(255, 71, 87, 0.08)',
+      border: 'rgba(255, 71, 87, 0.2)',
+      color: 'var(--forge-error)',
+      label: cs ? 'Chyba' : 'Error',
+      icon: 'AlertTriangle',
+    },
+  };
 
-  const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState(null);
+  const s = styles[status] || styles.disconnected;
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '5px',
+      padding: '3px 10px',
+      borderRadius: '20px',
+      backgroundColor: s.bg,
+      border: `1px solid ${s.border}`,
+      fontSize: '11px',
+      fontWeight: 600,
+      fontFamily: 'var(--forge-font-tech)',
+      color: s.color,
+      textTransform: 'uppercase',
+      letterSpacing: '0.03em',
+      whiteSpace: 'nowrap',
+    }}>
+      <Icon name={s.icon} size={11} />
+      {s.label}
+    </span>
+  );
+}
+
+// ─── Integration Card (marketplace grid) ────────────────────
+
+function IntegrationCard({ integration, status, lastSync, onOpen, cs }) {
+  const desc = cs ? integration.description_cs : integration.description_en;
+  const isComingSoon = !integration.available;
+  const category = CATEGORY_LABELS[integration.category];
+  const catLabel = cs ? category?.cs : category?.en;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        textAlign: 'left',
+        backgroundColor: 'var(--forge-bg-surface)',
+        border: `1px solid ${status === 'connected' ? 'rgba(0, 212, 170, 0.25)' : 'var(--forge-border-default)'}`,
+        borderRadius: 'var(--forge-radius-md, 12px)',
+        padding: '20px',
+        cursor: 'pointer',
+        transition: 'border-color 150ms, box-shadow 150ms',
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: '180px',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = isComingSoon
+          ? 'rgba(108, 99, 255, 0.3)'
+          : 'var(--forge-accent-primary)';
+        e.currentTarget.style.boxShadow = isComingSoon
+          ? '0 0 0 1px rgba(108, 99, 255, 0.1)'
+          : '0 0 0 1px rgba(0, 212, 170, 0.1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = status === 'connected'
+          ? 'rgba(0, 212, 170, 0.25)'
+          : 'var(--forge-border-default)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div style={{
+          width: '44px',
+          height: '44px',
+          borderRadius: '10px',
+          backgroundColor: 'var(--forge-bg-elevated)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Icon name={integration.icon} size={22} style={{ color: integration.iconColor }} />
+        </div>
+        <StatusBadge status={status} cs={cs} />
+      </div>
+
+      {/* Name + category */}
+      <h3 style={{
+        fontFamily: 'var(--forge-font-heading)',
+        fontSize: '16px',
+        fontWeight: 600,
+        color: 'var(--forge-text-primary)',
+        margin: '0 0 2px 0',
+      }}>
+        {integration.name}
+      </h3>
+      <span style={{
+        fontSize: '11px',
+        fontFamily: 'var(--forge-font-tech)',
+        color: 'var(--forge-text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        marginBottom: '10px',
+      }}>
+        {catLabel}
+      </span>
+
+      {/* Description */}
+      <p style={{
+        fontSize: '13px',
+        color: 'var(--forge-text-secondary)',
+        fontFamily: 'var(--forge-font-body)',
+        lineHeight: '1.5',
+        margin: '0 0 auto 0',
+      }}>
+        {desc}
+      </p>
+
+      {/* Last sync info */}
+      {lastSync && (
+        <div style={{
+          marginTop: '12px',
+          paddingTop: '10px',
+          borderTop: '1px solid var(--forge-border-default)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '11px',
+          fontFamily: 'var(--forge-font-tech)',
+          color: 'var(--forge-text-muted)',
+        }}>
+          <Icon name="RefreshCw" size={11} />
+          {cs ? 'Posledni sync' : 'Last sync'}: {lastSync}
+        </div>
+      )}
+
+      {/* Link arrow for webhook */}
+      {integration.isLink && (
+        <div style={{
+          marginTop: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          fontSize: '12px',
+          fontWeight: 600,
+          color: 'var(--forge-accent-primary)',
+        }}>
+          {cs ? 'Otevrit nastaveni' : 'Open settings'}
+          <Icon name="ArrowRight" size={14} />
+        </div>
+      )}
+    </button>
+  );
+}
+
+// ─── Coming Soon Detail ──────────────────────────────────────
+
+function ComingSoonDetail({ integration, cs, onClose }) {
+  const [email, setEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = () => {
+    if (!email || !email.includes('@')) return;
+    // Store notification request in localStorage via tenant storage
+    const tid = getTenantId();
+    const key = `modelpricer:${tid}:integration_notify:${integration.id}`;
+    try {
+      window.localStorage.setItem(key, JSON.stringify({ email, date: new Date().toISOString() }));
+    } catch { /* ignore */ }
+    setSubscribed(true);
+  };
+
+  const desc = cs ? integration.description_cs : integration.description_en;
+
+  return (
+    <div>
+      {/* Back button */}
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--forge-text-muted)',
+          fontSize: '13px',
+          fontFamily: 'var(--forge-font-body)',
+          padding: '0',
+          marginBottom: '20px',
+        }}
+      >
+        <Icon name="ArrowLeft" size={16} />
+        {cs ? 'Zpet na integrace' : 'Back to integrations'}
+      </button>
+
+      {/* Header */}
+      <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '14px',
+          backgroundColor: 'var(--forge-bg-elevated)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Icon name={integration.icon} size={28} style={{ color: integration.iconColor }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <h2 style={{
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '20px',
+            fontWeight: 700,
+            color: 'var(--forge-text-primary)',
+            margin: 0,
+          }}>
+            {integration.name}
+          </h2>
+          <p style={{
+            fontSize: '13px',
+            color: 'var(--forge-text-secondary)',
+            fontFamily: 'var(--forge-font-body)',
+            margin: '4px 0 0 0',
+          }}>
+            {desc}
+          </p>
+        </div>
+        <StatusBadge status="coming_soon" cs={cs} />
+      </div>
+
+      {/* Coming soon content */}
+      <div style={cardStyle}>
+        <div style={{
+          textAlign: 'center',
+          padding: '32px 20px',
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(108, 99, 255, 0.08)',
+            border: '1px solid rgba(108, 99, 255, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <Icon name="Clock" size={28} style={{ color: 'var(--forge-accent-tertiary)' }} />
+          </div>
+
+          <h3 style={{
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '18px',
+            fontWeight: 600,
+            color: 'var(--forge-text-primary)',
+            marginBottom: '8px',
+          }}>
+            {cs ? 'Integrace se pripravuje' : 'Integration coming soon'}
+          </h3>
+
+          <p style={{
+            fontSize: '14px',
+            color: 'var(--forge-text-secondary)',
+            fontFamily: 'var(--forge-font-body)',
+            maxWidth: '400px',
+            margin: '0 auto 24px',
+            lineHeight: '1.6',
+          }}>
+            {cs
+              ? 'Pracujeme na teto integraci. Zadejte svuj e-mail a budeme vas informovat, jakmile bude k dispozici.'
+              : 'We are working on this integration. Enter your email and we will notify you when it becomes available.'}
+          </p>
+
+          {subscribed ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: 'var(--forge-radius-sm, 8px)',
+              backgroundColor: 'rgba(0, 212, 170, 0.08)',
+              border: '1px solid rgba(0, 212, 170, 0.2)',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: 'var(--forge-success)',
+            }}>
+              <Icon name="CheckCircle" size={16} />
+              {cs ? 'Odber nastaven! Budeme vas informovat.' : 'Subscribed! We will notify you.'}
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              maxWidth: '400px',
+              margin: '0 auto',
+            }}>
+              <input
+                type="email"
+                placeholder={cs ? 'vas@email.cz' : 'your@email.com'}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ ...inputStyle, flex: 1 }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubscribe()}
+              />
+              <button
+                onClick={handleSubscribe}
+                style={btnPrimary}
+              >
+                <Icon name="Bell" size={16} />
+                {cs ? 'Upozornit' : 'Notify me'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shopify Detail View ─────────────────────────────────────
+
+function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
   const [banner, setBanner] = useState(null);
   const [saving, setSaving] = useState(false);
   const [openStep, setOpenStep] = useState(null);
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
-
-  // Mapping form
   const [showMappingForm, setShowMappingForm] = useState(false);
   const [mappingForm, setMappingForm] = useState({
     material_key: '',
@@ -244,33 +689,8 @@ export default function AdminIntegrations() {
     shopify_variant_id: '',
     shopify_product_title: '',
   });
-
-  // Password visibility
   const [showToken, setShowToken] = useState(false);
 
-  // Materials from pricing config
-  const materials = useMemo(() => {
-    try {
-      const pc = loadPricingConfigV3();
-      return Array.isArray(pc?.materials) ? pc.materials : [];
-    } catch {
-      return [];
-    }
-  }, []);
-
-  // Load config
-  useEffect(() => {
-    try {
-      const cfg = getEcommerceConfig();
-      setConfig(cfg);
-      setLoading(false);
-    } catch (e) {
-      debug('[AdminIntegrations] Load error:', e);
-      setLoading(false);
-    }
-  }, []);
-
-  // Save helper
   const handleSave = useCallback((newConfig) => {
     setSaving(true);
     try {
@@ -282,9 +702,8 @@ export default function AdminIntegrations() {
       setBanner({ type: 'error', msg: e.message });
     }
     setSaving(false);
-  }, [cs]);
+  }, [cs, setConfig]);
 
-  // Update a field in shopify config
   const updateField = useCallback((field, value) => {
     setConfig(prev => {
       const next = {
@@ -294,9 +713,8 @@ export default function AdminIntegrations() {
       handleSave(next);
       return next;
     });
-  }, [handleSave]);
+  }, [handleSave, setConfig]);
 
-  // Test connection
   const handleTestConnection = useCallback(async () => {
     setTesting(true);
     setTestResult(null);
@@ -316,7 +734,6 @@ export default function AdminIntegrations() {
     setTesting(false);
   }, [config]);
 
-  // Test cart
   const handleTestCart = useCallback(() => {
     if (!config?.shopify?.shop_domain) return;
     const testLine = config.shopify.fallback_variant_id || (config.shopify.variant_mappings?.[0]?.shopify_variant_id);
@@ -335,71 +752,57 @@ export default function AdminIntegrations() {
     }
   }, [config, cs]);
 
-  // Add mapping
   const handleAddMapping = useCallback(() => {
     if (!mappingForm.shopify_variant_id) return;
     addVariantMapping(mappingForm);
     setConfig(getEcommerceConfig());
     setMappingForm({ material_key: '', quality_key: 'standard', shopify_variant_id: '', shopify_product_title: '' });
     setShowMappingForm(false);
-  }, [mappingForm]);
+  }, [mappingForm, setConfig]);
 
-  // Delete mapping
   const handleDeleteMapping = useCallback((id) => {
     deleteVariantMapping(id);
     setConfig(getEcommerceConfig());
-  }, []);
+  }, [setConfig]);
 
-  // Toggle mapping active
   const handleToggleMapping = useCallback((id, active) => {
     updateVariantMapping(id, { active });
     setConfig(getEcommerceConfig());
-  }, []);
-
-  if (loading || !config) {
-    return (
-      <div style={{ padding: '32px', display: 'grid', gap: '16px' }}>
-        <SkeletonCard textLines={2} />
-        <SkeletonCard textLines={3} />
-        <SkeletonCard textLines={2} />
-      </div>
-    );
-  }
+  }, [setConfig]);
 
   const shopify = config.shopify || {};
   const mappings = Array.isArray(shopify.variant_mappings) ? shopify.variant_mappings : [];
   const isEnabled = !!shopify.enabled;
   const hasDomain = !!shopify.shop_domain;
   const hasToken = !!shopify.storefront_access_token;
-
-  // Setup step completion
   const step1Done = hasDomain && hasToken;
   const step2Done = mappings.length > 0 || !!shopify.fallback_variant_id;
-  const step3Done = step1Done;
-  const step4Done = step2Done;
   const step5Done = testResult?.success === true;
+  const meta = config.integrations_meta || {};
 
   return (
     <div>
-      {/* Page Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{
-          fontFamily: 'var(--forge-font-heading)',
-          fontSize: '24px',
-          fontWeight: 700,
-          color: 'var(--forge-text-primary)',
-          marginBottom: '4px',
-        }}>
-          {cs ? 'Integrace' : 'Integrations'}
-        </h1>
-        <p style={{
-          fontSize: '14px',
+      {/* Back button */}
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
           color: 'var(--forge-text-muted)',
+          fontSize: '13px',
           fontFamily: 'var(--forge-font-body)',
-        }}>
-          {cs ? 'Propojte kalkulacku s vasim e-shopem' : 'Connect your calculator to your e-shop'}
-        </p>
-      </div>
+          padding: '0',
+          marginBottom: '20px',
+        }}
+      >
+        <Icon name="ArrowLeft" size={16} />
+        {cs ? 'Zpet na integrace' : 'Back to integrations'}
+      </button>
 
       {/* Banner */}
       {banner && (
@@ -421,47 +824,86 @@ export default function AdminIntegrations() {
         </div>
       )}
 
-      {/* ─── A) Main Toggle ─────────────────────────────────── */}
+      {/* Header card with toggle + health */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
+              width: '48px', height: '48px', borderRadius: '12px',
               backgroundColor: 'var(--forge-bg-elevated)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Icon name="ShoppingBag" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
+              <Icon name="ShoppingBag" size={24} style={{ color: '#96BF48' }} />
             </div>
             <div>
               <h2 style={{
                 fontFamily: 'var(--forge-font-heading)',
-                fontSize: '18px', fontWeight: 600,
+                fontSize: '20px', fontWeight: 700,
                 color: 'var(--forge-text-primary)',
+                margin: 0,
               }}>
                 Shopify
               </h2>
-              <span style={{
-                fontSize: '12px',
-                fontFamily: 'var(--forge-font-tech)',
-                color: isEnabled && step1Done
-                  ? 'var(--forge-success)'
-                  : isEnabled
-                    ? 'var(--forge-warning, #F59E0B)'
-                    : 'var(--forge-text-muted)',
-                textTransform: 'uppercase',
-              }}>
-                {isEnabled && step1Done ? (cs ? 'PRIPOJENO' : 'CONNECTED')
-                  : isEnabled ? (cs ? 'KONFIGURACE' : 'CONFIGURING')
-                  : (cs ? 'ODPOJENO' : 'DISCONNECTED')}
-              </span>
+              <StatusBadge
+                status={isEnabled && step1Done ? 'connected' : isEnabled ? 'configuring' : 'disconnected'}
+                cs={cs}
+              />
             </div>
           </div>
           <Toggle
             checked={isEnabled}
             onChange={(v) => updateField('enabled', v)}
-            label={cs ? 'Shopify integrace' : 'Shopify integration'}
           />
         </div>
+
+        {/* Health summary for connected integrations */}
+        {isEnabled && step1Done && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '12px',
+            padding: '14px',
+            backgroundColor: 'var(--forge-bg-elevated)',
+            borderRadius: 'var(--forge-radius-sm, 8px)',
+          }}>
+            <div>
+              <div style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                {cs ? 'Posledni test' : 'Last test'}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
+                {meta.last_test_at
+                  ? new Date(meta.last_test_at).toLocaleString(cs ? 'cs-CZ' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })
+                  : (cs ? 'Zatim netestovano' : 'Not tested yet')}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                {cs ? 'Stav' : 'Status'}
+              </div>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: 600,
+                color: meta.test_result === 'ok' ? 'var(--forge-success)' : meta.test_result === 'error' ? 'var(--forge-error)' : 'var(--forge-text-secondary)',
+                fontFamily: 'var(--forge-font-body)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}>
+                {meta.test_result === 'ok' && <Icon name="CheckCircle" size={13} />}
+                {meta.test_result === 'error' && <Icon name="AlertTriangle" size={13} />}
+                {meta.test_result === 'ok' ? 'OK' : meta.test_result === 'error' ? (cs ? 'Chyba' : 'Error') : '—'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                {cs ? 'Odeslane objednavky' : 'Orders sent'}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
+                {meta.orders_sent_count || 0}
+              </div>
+            </div>
+          </div>
+        )}
 
         {!isEnabled && (
           <div style={{
@@ -480,7 +922,7 @@ export default function AdminIntegrations() {
           </div>
         )}
 
-        {isEnabled && (
+        {isEnabled && !step1Done && (
           <div style={{
             padding: '16px',
             backgroundColor: 'rgba(0, 212, 170, 0.05)',
@@ -503,7 +945,7 @@ export default function AdminIntegrations() {
         )}
       </div>
 
-      {/* ─── B) Setup Guide ─────────────────────────────────── */}
+      {/* Setup Guide */}
       {isEnabled && (
         <div style={cardStyle}>
           <h3 style={{
@@ -552,7 +994,7 @@ export default function AdminIntegrations() {
           <SetupStep
             number={3}
             title={cs ? 'Zadejte pripojovaci udaje' : 'Enter connection details'}
-            done={step3Done}
+            done={step1Done}
             open={openStep === 3}
             onToggle={() => setOpenStep(openStep === 3 ? null : 3)}
           >
@@ -562,7 +1004,7 @@ export default function AdminIntegrations() {
           <SetupStep
             number={4}
             title={cs ? 'Namapujte materialy na varianty' : 'Map materials to variants'}
-            done={step4Done}
+            done={step2Done}
             open={openStep === 4}
             onToggle={() => setOpenStep(openStep === 4 ? null : 4)}
           >
@@ -581,7 +1023,7 @@ export default function AdminIntegrations() {
         </div>
       )}
 
-      {/* ─── C) Configuration ───────────────────────────────── */}
+      {/* Configuration */}
       {isEnabled && (
         <div style={cardStyle}>
           <h3 style={{
@@ -590,7 +1032,7 @@ export default function AdminIntegrations() {
             color: 'var(--forge-text-primary)',
             marginBottom: '20px',
           }}>
-            {cs ? 'Konfigurace' : 'Configuration'}
+            {cs ? 'Pripojovaci udaje' : 'Connection Details'}
           </h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -606,7 +1048,7 @@ export default function AdminIntegrations() {
               />
             </div>
 
-            {/* Storefront Token */}
+            {/* Storefront Token — masked */}
             <div>
               <label style={labelStyle}>Storefront Access Token</label>
               <div style={{ position: 'relative' }}>
@@ -700,7 +1142,7 @@ export default function AdminIntegrations() {
               </p>
             </div>
 
-            {/* Fee Variant ID (only when separate_variant) */}
+            {/* Fee Variant ID */}
             {shopify.fee_handling === 'separate_variant' && (
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={labelStyle}>{cs ? 'Variant ID pro poplatky' : 'Fee Variant ID'}</label>
@@ -717,7 +1159,7 @@ export default function AdminIntegrations() {
         </div>
       )}
 
-      {/* ─── D) Variant Mappings ────────────────────────────── */}
+      {/* Variant Mappings */}
       {isEnabled && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -728,8 +1170,6 @@ export default function AdminIntegrations() {
             }}>
               {cs ? 'Mapovani materialu' : 'Material Mapping'}
             </h3>
-
-            {/* Mapping Mode Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '12px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)' }}>
                 {cs ? 'Rezim' : 'Mode'}:
@@ -767,7 +1207,6 @@ export default function AdminIntegrations() {
           {/* Per-Variant Mode */}
           {shopify.mapping_mode !== 'universal' && (
             <>
-              {/* Fallback */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={labelStyle}>{cs ? 'Fallback Variant ID' : 'Fallback Variant ID'}</label>
                 <input
@@ -779,7 +1218,6 @@ export default function AdminIntegrations() {
                 />
               </div>
 
-              {/* Mappings Table */}
               {mappings.length > 0 && (
                 <div style={{
                   overflowX: 'auto',
@@ -818,7 +1256,7 @@ export default function AdminIntegrations() {
                           <td style={{ padding: '10px 12px', color: 'var(--forge-text-primary)' }}>{m.material_key}</td>
                           <td style={{ padding: '10px 12px', color: 'var(--forge-text-secondary)' }}>{m.quality_key}</td>
                           <td style={{ padding: '10px 12px', fontFamily: 'var(--forge-font-tech)', fontSize: '12px', color: 'var(--forge-accent-primary)' }}>{m.shopify_variant_id}</td>
-                          <td style={{ padding: '10px 12px', color: 'var(--forge-text-secondary)' }}>{m.shopify_product_title || '—'}</td>
+                          <td style={{ padding: '10px 12px', color: 'var(--forge-text-secondary)' }}>{m.shopify_product_title || '\u2014'}</td>
                           <td style={{ padding: '10px 12px' }}>
                             <button
                               type="button"
@@ -849,7 +1287,6 @@ export default function AdminIntegrations() {
                 </div>
               )}
 
-              {/* Add Mapping Form */}
               {showMappingForm ? (
                 <div style={{
                   padding: '16px',
@@ -865,7 +1302,7 @@ export default function AdminIntegrations() {
                         onChange={(e) => setMappingForm(f => ({ ...f, material_key: e.target.value }))}
                         style={{ ...selectStyle, fontSize: '13px', padding: '8px 30px 8px 10px' }}
                       >
-                        <option value="">{cs ? '— Vyberte —' : '— Select —'}</option>
+                        <option value="">{cs ? '\u2014 Vyberte \u2014' : '\u2014 Select \u2014'}</option>
                         {materials.map((mat) => (
                           <option key={mat.key || mat.id} value={mat.key || mat.id}>
                             {mat.label || mat.name || mat.key || mat.id}
@@ -927,7 +1364,7 @@ export default function AdminIntegrations() {
         </div>
       )}
 
-      {/* ─── E) Test Connection ─────────────────────────────── */}
+      {/* Test Connection */}
       {isEnabled && step1Done && (
         <div style={cardStyle}>
           <h3 style={{
@@ -1005,6 +1442,209 @@ export default function AdminIntegrations() {
           <style>{`@keyframes mp-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────
+
+export default function AdminIntegrations() {
+  const { language } = useLanguage();
+  const cs = language === 'cs';
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState(null);
+  const [activeDetail, setActiveDetail] = useState(null); // integration id or null
+
+  // Materials from pricing config
+  const materials = useMemo(() => {
+    try {
+      const pc = loadPricingConfigV3();
+      return Array.isArray(pc?.materials) ? pc.materials : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Load config
+  useEffect(() => {
+    try {
+      const cfg = getEcommerceConfig();
+      setConfig(cfg);
+      setLoading(false);
+    } catch (e) {
+      debug('[AdminIntegrations] Load error:', e);
+      setLoading(false);
+    }
+  }, []);
+
+  // Determine Shopify status
+  const getShopifyStatus = useCallback(() => {
+    if (!config) return 'disconnected';
+    const shopify = config.shopify || {};
+    const meta = config.integrations_meta || {};
+    if (!shopify.enabled) return 'disconnected';
+    if (!shopify.shop_domain || !shopify.storefront_access_token) return 'configuring';
+    if (meta.test_result === 'error') return 'error';
+    return 'connected';
+  }, [config]);
+
+  // Get last sync time for Shopify
+  const getLastSync = useCallback(() => {
+    if (!config?.integrations_meta?.last_test_at) return null;
+    try {
+      const d = new Date(config.integrations_meta.last_test_at);
+      return d.toLocaleString(cs ? 'cs-CZ' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+    } catch {
+      return null;
+    }
+  }, [config, cs]);
+
+  // Get status for any integration
+  const getStatus = useCallback((integrationId) => {
+    if (integrationId === 'shopify') return getShopifyStatus();
+    if (integrationId === 'webhook') return 'connected'; // always available
+    return 'coming_soon';
+  }, [getShopifyStatus]);
+
+  // Handle card click
+  const handleOpenIntegration = useCallback((integration) => {
+    if (integration.isLink) {
+      navigate(integration.linkTo);
+      return;
+    }
+    setActiveDetail(integration.id);
+  }, [navigate]);
+
+  if (loading || !config) {
+    return (
+      <div style={{ padding: '32px', display: 'grid', gap: '16px' }}>
+        <SkeletonCard textLines={2} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <SkeletonCard textLines={3} />
+          <SkeletonCard textLines={3} />
+          <SkeletonCard textLines={3} />
+        </div>
+      </div>
+    );
+  }
+
+  // Detail view
+  if (activeDetail) {
+    const integration = INTEGRATIONS.find(i => i.id === activeDetail);
+    if (!integration) {
+      setActiveDetail(null);
+      return null;
+    }
+
+    if (integration.id === 'shopify') {
+      return (
+        <ShopifyDetail
+          config={config}
+          setConfig={setConfig}
+          cs={cs}
+          onClose={() => setActiveDetail(null)}
+          materials={materials}
+        />
+      );
+    }
+
+    return (
+      <ComingSoonDetail
+        integration={integration}
+        cs={cs}
+        onClose={() => setActiveDetail(null)}
+      />
+    );
+  }
+
+  // Group integrations by category
+  const categories = {};
+  INTEGRATIONS.forEach(i => {
+    if (!categories[i.category]) categories[i.category] = [];
+    categories[i.category].push(i);
+  });
+
+  const connectedCount = INTEGRATIONS.filter(i => {
+    const s = getStatus(i.id);
+    return s === 'connected' || s === 'configuring';
+  }).length;
+
+  return (
+    <div>
+      {/* Page Header */}
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{
+          fontFamily: 'var(--forge-font-heading)',
+          fontSize: '24px',
+          fontWeight: 700,
+          color: 'var(--forge-text-primary)',
+          marginBottom: '4px',
+        }}>
+          {cs ? 'Integrace' : 'Integrations'}
+        </h1>
+        <p style={{
+          fontSize: '14px',
+          color: 'var(--forge-text-muted)',
+          fontFamily: 'var(--forge-font-body)',
+        }}>
+          {cs
+            ? `Propojte kalkulacku s vasimi sluzbami. ${connectedCount} aktivni${connectedCount === 1 ? '' : connectedCount > 1 && connectedCount < 5 ? 'ch' : 'ch'} z ${INTEGRATIONS.length} dostupnych.`
+            : `Connect your calculator with your services. ${connectedCount} active out of ${INTEGRATIONS.length} available.`}
+        </p>
+      </div>
+
+      {/* Integration grid by category */}
+      {Object.entries(categories).map(([catKey, integrations]) => {
+        const catLabel = CATEGORY_LABELS[catKey];
+        return (
+          <div key={catKey} style={{ marginBottom: '28px' }}>
+            {/* Category label */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '14px',
+            }}>
+              <h2 style={{
+                fontFamily: 'var(--forge-font-heading)',
+                fontSize: '15px',
+                fontWeight: 600,
+                color: 'var(--forge-text-secondary)',
+                margin: 0,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}>
+                {cs ? catLabel.cs : catLabel.en}
+              </h2>
+              <div style={{
+                flex: 1,
+                height: '1px',
+                backgroundColor: 'var(--forge-border-default)',
+              }} />
+            </div>
+
+            {/* Cards grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: integrations.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '14px',
+            }}>
+              {integrations.map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  status={getStatus(integration.id)}
+                  lastSync={integration.id === 'shopify' ? getLastSync() : null}
+                  onOpen={() => handleOpenIntegration(integration)}
+                  cs={cs}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

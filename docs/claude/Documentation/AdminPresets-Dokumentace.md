@@ -338,8 +338,8 @@ Print override fields maji vlastni dvojjazycne labely definovane primo v `PRINT_
 - **Print overrides jen v dialogu** — overrides se editujui pouze v ForgeDialog, ne v inline tabulce
 - **Bez validace .ini formatu** — frontend nevaliduje obsah .ini souboru (ponechano na backendu)
 - **Max 5 MB** — omezeni velikosti je jen ve frontendu (hintMax5mb), backend muze mit jiny limit
-- **Bez drag & drop** — presety nelze prerazovat pretazenim, poradi se nastavuje ciselne
-- **Bez hromadnych operaci** — neni mozne smazat/editovat vice presetu najednou
+- ~~**Bez drag & drop**~~ — **IMPLEMENTOVANO** (2026-03-12): HTML5 DnD pro prerazovani presetu pretazenim
+- ~~**Bez hromadnych operaci**~~ — **IMPLEMENTOVANO** (2026-03-12): multi-select checkboxy + bulk toolbar (delete, export, duplicate, enable/disable)
 - **Material list zavisly na pricing config** — dostupne materialy pro linking se nacitaji z `loadPricingConfigV3()`, pokud pricing config neni inicializovany, material select bude prazdny
 - **Toast casovac** — toast zpravy zmizi po 2.6 sekundach bez moznosti prodlouzeni
 
@@ -535,7 +535,26 @@ Tabulka ma horizontalni scroll (`overflow: auto` na `.tableWrap`).
 |-------|-----|-------|
 | `deleteModal` | object | `{ open: boolean, presetId: string/null }` |
 
-### 17.6 useEffect hooks
+### 17.6 Bulk selection state (2026-03-12)
+
+| State | Typ | Popis |
+|-------|-----|-------|
+| `selectedPresetIds` | Set | Mnozina ID vybranych presetu pro bulk operace |
+
+### 17.7 Drag-and-drop state (2026-03-12)
+
+| State | Typ | Popis |
+|-------|-----|-------|
+| `dragId` | string/null | ID presetu ktery se prave taha |
+| `dragOverId` | string/null | ID presetu nad kterym se hoveri behem DnD |
+
+### 17.8 Quick inline edit state (2026-03-12)
+
+| State | Typ | Popis |
+|-------|-----|-------|
+| `quickEditField` | object/null | `{ id, field, value }` — aktualni inline edit pole (double-click na nazev) |
+
+### 17.9 useEffect hooks
 
 | useEffect | Zavislosti | Ucel |
 |-----------|-----------|------|

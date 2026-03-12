@@ -10,6 +10,13 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { ForgeBreadcrumb } from '../../components/ui/forge/ForgeBreadcrumb';
 import NotificationCenter from './components/NotificationCenter';
 import CommandPalette from './components/CommandPalette';
+import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
+import { useAdminShortcuts } from '../../hooks/useAdminShortcuts';
+import { useAuth } from '../../context/AuthContext';
+import { readCompanyData } from '../../utils/adminCompanyStorage';
+import { loadOrders } from '../../utils/adminOrdersStorage';
+import { useAdminTheme } from '../../hooks/useAdminTheme';
+import '../../styles/light-theme-admin.css';
 
 // Storage key for sidebar preferences
 const SIDEBAR_STORAGE_KEY = 'modelpricer:admin:sidebar';
@@ -30,67 +37,157 @@ function saveSidebarState(state) {
   } catch { /* ignore */ }
 }
 
+// ---------------------------------------------------------------------------
+// Nav groups — reorganized per spec
+// ---------------------------------------------------------------------------
 const ADMIN_NAV = [
   {
-    group: 'Hlavni',
+    group: 'Dashboard',
+    groupKey: 'admin.nav.dashboard',
     groupIcon: 'Home',
     items: [
-      { path: '/admin', label: 'Dashboard', icon: 'LayoutDashboard', exact: true },
-      { path: '/admin/orders', label: 'Orders', icon: 'ShoppingCart' },
-      { path: '/admin/payments', label: 'Payments', icon: 'CreditCard' },
-      { path: '/admin/customers', label: 'Customers', icon: 'Users' },
+      { path: '/admin', label: 'Dashboard', labelKey: 'admin.dashboard', icon: 'LayoutDashboard', exact: true },
     ],
   },
   {
-    group: 'Produkty',
-    groupIcon: 'Package',
+    group: 'Business',
+    groupKey: 'admin.nav.business',
+    groupIcon: 'Briefcase',
     items: [
-      { path: '/admin/pricing', label: 'Pricing', icon: 'Calculator' },
-      { path: '/admin/fees', label: 'Fees', icon: 'Receipt' },
-      { path: '/admin/parameters', label: 'Parameters', icon: 'Settings2' },
-      { path: '/admin/presets', label: 'Presets', icon: 'Sliders' },
-      { path: '/admin/express', label: 'Express', icon: 'Zap' },
-      { path: '/admin/shipping', label: 'Shipping', icon: 'Truck' },
-      { path: '/admin/coupons', label: 'Coupons', icon: 'Tag' },
+      { path: '/admin/orders', label: 'Orders', labelKey: 'admin.orders', icon: 'ShoppingCart', badge: 'orders' },
+      { path: '/admin/payments', label: 'Payments', labelKey: 'admin.payments', icon: 'CreditCard' },
+      { path: '/admin/customers', label: 'Customers', labelKey: 'admin.customers', icon: 'Users' },
+      { path: '/admin/analytics', label: 'Analytics', labelKey: 'admin.analytics', icon: 'BarChart3' },
     ],
   },
   {
-    group: 'Design',
-    groupIcon: 'Paintbrush',
+    group: 'Configuration',
+    groupKey: 'admin.nav.configuration',
+    groupIcon: 'Sliders',
     items: [
-      { path: '/admin/branding', label: 'Branding', icon: 'Palette' },
-      { path: '/admin/widget', label: 'Widget', icon: 'Code2' },
-      { path: '/admin/emails', label: 'Emails', icon: 'Mail' },
+      { path: '/admin/pricing', label: 'Pricing', labelKey: 'admin.pricing', icon: 'Calculator' },
+      { path: '/admin/parameters', label: 'Materials & Params', labelKey: 'admin.parameters', icon: 'Settings2' },
+      { path: '/admin/fees', label: 'Fees', labelKey: 'admin.fees', icon: 'Receipt' },
+      { path: '/admin/presets', label: 'Presets', labelKey: 'admin.presets', icon: 'Sliders' },
+      { path: '/admin/express', label: 'Express', labelKey: 'admin.express', icon: 'Zap' },
+      { path: '/admin/shipping', label: 'Shipping', labelKey: 'admin.shipping', icon: 'Truck' },
+      { path: '/admin/coupons', label: 'Coupons', labelKey: 'admin.coupons', icon: 'Tag' },
+    ],
+  },
+  {
+    group: 'Communication',
+    groupKey: 'admin.nav.communication',
+    groupIcon: 'MessageSquare',
+    items: [
+      { path: '/admin/emails', label: 'Emails', labelKey: 'admin.emails', icon: 'Mail' },
+      { path: '/admin/webhooks', label: 'Webhooks', labelKey: 'admin.webhooks', icon: 'Webhook' },
     ],
   },
   {
     group: 'System',
+    groupKey: 'admin.nav.system',
     groupIcon: 'Settings',
     items: [
-      { path: '/admin/team', label: 'Team', icon: 'Users' },
-      { path: '/admin/analytics', label: 'Analytics', icon: 'BarChart3' },
-      { path: '/admin/activity', label: 'Activity Log', icon: 'ClipboardList' },
-      { path: '/admin/model-storage', label: 'Model Storage', icon: 'HardDrive' },
-      { path: '/admin/system', label: 'System Health', icon: 'HeartPulse' },
-      { path: '/admin/migration', label: 'Migration', icon: 'Database' },
-      { path: '/admin/integrations', label: 'Integrations', icon: 'Plug' },
-      { path: '/admin/webhooks', label: 'Webhooks', icon: 'Webhook' },
+      { path: '/admin/branding', label: 'Branding', labelKey: 'admin.branding', icon: 'Palette' },
+      { path: '/admin/widget', label: 'Widget', labelKey: 'admin.widget', icon: 'Code2' },
+      { path: '/admin/team', label: 'Team', labelKey: 'admin.teamAccess', icon: 'Users' },
+      { path: '/admin/model-storage', label: 'Model Storage', labelKey: 'admin.modelStorage', icon: 'HardDrive' },
+      { path: '/admin/system', label: 'System Health', labelKey: 'admin.system', icon: 'HeartPulse', badge: 'health' },
+      { path: '/admin/activity', label: 'Activity Log', labelKey: 'admin.activity', icon: 'ClipboardList' },
+      { path: '/admin/migration', label: 'Migration', labelKey: 'admin.migration', icon: 'Database' },
+      { path: '/admin/integrations', label: 'Integrations', labelKey: 'admin.integrations', icon: 'Plug' },
+      { path: '/admin/settings', label: 'Settings', labelKey: 'admin.settings', icon: 'Settings' },
     ],
   },
 ];
 
+// Page label key lookup for breadcrumb (stores labelKey for translation)
+const PAGE_LABEL_KEYS = {};
+ADMIN_NAV.forEach((g) => {
+  g.items.forEach((item) => {
+    PAGE_LABEL_KEYS[item.path] = item.labelKey || item.label;
+  });
+});
+
+// Shortcut hints for nav items (path -> key combo displayed)
+const NAV_SHORTCUT_HINTS = {
+  '/admin': 'G D',
+  '/admin/orders': 'G O',
+  '/admin/pricing': 'G P',
+  '/admin/analytics': 'G A',
+  '/admin/branding': 'G B',
+  '/admin/widget': 'G W',
+  '/admin/model-storage': 'G S',
+};
+
+/** Get user initials from displayName or email */
+function getUserInitials(user) {
+  if (!user) return '?';
+  if (user.displayName) {
+    const parts = user.displayName.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0][0]?.toUpperCase() || '?';
+  }
+  if (user.email) return user.email[0].toUpperCase();
+  return '?';
+}
+
+/** Count pending (NEW/REVIEW) orders */
+function getPendingOrderCount() {
+  try {
+    const orders = loadOrders();
+    return orders.filter((o) => o.status === 'NEW' || o.status === 'REVIEW').length;
+  } catch {
+    return 0;
+  }
+}
+
 const AdminLayout = () => {
   useDocumentTitle('Admin');
   const location = useLocation();
-  const { t } = useLanguage();
+  const { t, language, toggleLanguage } = useLanguage();
   const { appVersion, isOnline } = useApp();
   const { copyToClipboard, copied: tenantCopied } = useCopyToClipboard();
+
+  // Keyboard shortcuts (G+X navigation, ? help overlay)
+  const { showHelp, setShowHelp, pendingG } = useAdminShortcuts();
+
+  // Theme toggle (dark/light) — scoped to admin panel only
+  const adminRootRef = useRef(null);
+  const commandPaletteRef = useRef(null);
+  const { theme: adminTheme, toggleTheme: toggleAdminTheme, isDark: isAdminDark } = useAdminTheme(adminRootRef);
+
+  // Auth — wrapped in try/catch for resilience
+  let authUser = null;
+  let authLogout = null;
+  try {
+    const auth = useAuth();
+    authUser = auth.currentUser;
+    authLogout = auth.logout;
+  } catch {
+    // AuthProvider not available — graceful fallback
+  }
 
   const tenantId = useMemo(() => {
     try { return getTenantId(); } catch { return ''; }
   }, []);
   const truncatedTenantId = tenantId ? (tenantId.length > 12 ? tenantId.slice(0, 12) + '...' : tenantId) : '';
   const isDev = import.meta.env.DEV;
+
+  // Company name from branding storage
+  const companyName = useMemo(() => {
+    try {
+      const data = readCompanyData();
+      return data.companyName || '';
+    } catch { return ''; }
+  }, []);
+
+  // Badge counts
+  const [badgeCounts, setBadgeCounts] = useState({ orders: 0, health: 0 });
+  useEffect(() => {
+    const count = getPendingOrderCount();
+    setBadgeCounts((prev) => ({ ...prev, orders: count }));
+  }, [location.pathname]); // refresh on navigation
 
   // --- Persisted sidebar state ---
   const savedState = useRef(loadSidebarState());
@@ -127,20 +224,28 @@ const AdminLayout = () => {
     setOpenGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
   }, []);
 
-  // Filter nav items by search
+  // Filter nav items by search (searches both original and translated labels)
   const filteredNav = useMemo(() => {
     if (!searchQuery.trim()) return ADMIN_NAV;
     const q = searchQuery.toLowerCase();
-    return ADMIN_NAV.map((group) => ({
-      ...group,
-      items: group.items.filter(
-        (item) =>
-          item.label.toLowerCase().includes(q) ||
-          item.path.toLowerCase().includes(q) ||
-          group.group.toLowerCase().includes(q)
-      ),
-    })).filter((group) => group.items.length > 0);
-  }, [searchQuery]);
+    return ADMIN_NAV.map((group) => {
+      const groupName = group.groupKey ? t(group.groupKey) : group.group;
+      return {
+        ...group,
+        items: group.items.filter(
+          (item) => {
+            const translatedLabel = item.labelKey ? t(item.labelKey) : item.label;
+            return (
+              item.label.toLowerCase().includes(q) ||
+              translatedLabel.toLowerCase().includes(q) ||
+              item.path.toLowerCase().includes(q) ||
+              groupName.toLowerCase().includes(q)
+            );
+          }
+        ),
+      };
+    }).filter((group) => group.items.length > 0);
+  }, [searchQuery, language]);
 
   // Robust scroll containment for fixed sidebar with smooth easing.
   useEffect(() => {
@@ -244,16 +349,65 @@ const AdminLayout = () => {
     setSidebarCollapsed((c) => !c);
   }, []);
 
+  // Current page name for top bar breadcrumb (translated)
+  const currentPageName = useMemo(() => {
+    const resolveLabel = (key) => {
+      // If key looks like a translation key (contains dots), translate it
+      if (key && key.includes('.')) return t(key);
+      return key;
+    };
+    // Try exact match first
+    if (PAGE_LABEL_KEYS[location.pathname]) return resolveLabel(PAGE_LABEL_KEYS[location.pathname]);
+    // Try prefix match for sub-routes
+    const match = Object.entries(PAGE_LABEL_KEYS)
+      .filter(([p]) => p !== '/admin' && location.pathname.startsWith(p))
+      .sort((a, b) => b[0].length - a[0].length)[0];
+    if (match) return resolveLabel(match[1]);
+    if (location.pathname === '/admin') return t('admin.dashboard');
+    return '';
+  }, [location.pathname, language]);
+
   const isMobile = windowWidth < 768;
   const sidebarWidth = sidebarCollapsed ? 64 : 260;
 
+  // ---------------------------------------------------------------------------
+  // Badge renderer
+  // ---------------------------------------------------------------------------
+  const renderBadge = (count) => {
+    if (!count || count <= 0) return null;
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 18,
+        height: 18,
+        padding: '0 5px',
+        borderRadius: 9,
+        backgroundColor: 'var(--forge-accent-primary, #00D4AA)',
+        color: 'var(--forge-bg-surface, #13151A)',
+        fontSize: '10px',
+        fontWeight: 700,
+        fontFamily: 'var(--forge-font-tech)',
+        lineHeight: 1,
+        marginLeft: 'auto',
+        flexShrink: 0,
+      }}>
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
+
   const renderNavItem = (item, collapsed) => {
     const active = isActive(item.path, item.exact);
+    const badgeCount = item.badge ? badgeCounts[item.badge] : 0;
+    const displayLabel = item.labelKey ? t(item.labelKey) : item.label;
+
     return (
       <Link
         key={item.path}
         to={item.path}
-        title={collapsed ? item.label : undefined}
+        title={collapsed ? displayLabel : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -288,10 +442,40 @@ const AdminLayout = () => {
           }
         }}
       >
-        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', position: 'relative' }}>
           <Icon name={item.icon} size={18} />
+          {/* Badge dot in collapsed mode */}
+          {collapsed && badgeCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: -3,
+              right: -5,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: 'var(--forge-accent-primary, #00D4AA)',
+              border: '2px solid var(--forge-bg-surface)',
+            }} />
+          )}
         </span>
-        {!collapsed && <span>{item.label}</span>}
+        {!collapsed && <span style={{ flex: 1 }}>{displayLabel}</span>}
+        {/* Shortcut hint in expanded mode */}
+        {!collapsed && NAV_SHORTCUT_HINTS[item.path] && !badgeCount && (
+          <span style={{
+            fontFamily: 'var(--forge-font-tech)',
+            fontSize: '9px',
+            color: 'var(--forge-text-muted)',
+            opacity: 0.5,
+            letterSpacing: '0.04em',
+            flexShrink: 0,
+            marginLeft: 'auto',
+            transition: 'opacity 150ms',
+          }}>
+            {NAV_SHORTCUT_HINTS[item.path]}
+          </span>
+        )}
+        {/* Badge count in expanded mode */}
+        {!collapsed && renderBadge(badgeCount)}
         {/* Active indicator dot for collapsed mode */}
         {collapsed && active && (
           <span style={{
@@ -311,11 +495,12 @@ const AdminLayout = () => {
 
   /** Render a collapsible group header */
   const renderGroupHeader = (group, collapsed, isOpen) => {
+    const groupDisplayName = group.groupKey ? t(group.groupKey) : group.group;
     if (collapsed) {
       return (
         <div
           key={group.group + '-sep'}
-          title={group.group}
+          title={groupDisplayName}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -357,7 +542,7 @@ const AdminLayout = () => {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Icon name={group.groupIcon} size={12} />
-          {group.group}
+          {groupDisplayName}
         </span>
         <Icon
           name="ChevronDown"
@@ -368,6 +553,159 @@ const AdminLayout = () => {
           }}
         />
       </button>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // User section (bottom of sidebar)
+  // ---------------------------------------------------------------------------
+  const renderUserSection = (collapsed) => {
+    const initials = getUserInitials(authUser);
+    const displayName = authUser?.displayName || '';
+    const displayEmail = authUser?.email || '';
+
+    if (!authUser) return null;
+
+    if (collapsed) {
+      return (
+        <div style={{
+          padding: '8px',
+          borderTop: '1px solid var(--forge-border-default)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '6px',
+          flexShrink: 0,
+        }}>
+          {/* Avatar */}
+          <div
+            title={displayName || displayEmail}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              backgroundColor: 'var(--forge-accent-primary, #00D4AA)',
+              color: 'var(--forge-bg-surface, #13151A)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              fontWeight: 700,
+              fontFamily: 'var(--forge-font-tech)',
+              flexShrink: 0,
+            }}
+          >
+            {initials}
+          </div>
+          {/* Logout */}
+          {authLogout && (
+            <button
+              onClick={authLogout}
+              title={t('nav.logout')}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--forge-text-muted)',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'color 150ms',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--forge-error, #ef4444)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
+              aria-label="Logout"
+            >
+              <Icon name="LogOut" size={14} />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{
+        padding: '12px 16px',
+        borderTop: '1px solid var(--forge-border-default)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        flexShrink: 0,
+      }}>
+        {/* Avatar */}
+        <div style={{
+          width: 34,
+          height: 34,
+          borderRadius: '50%',
+          backgroundColor: 'var(--forge-accent-primary, #00D4AA)',
+          color: 'var(--forge-bg-surface, #13151A)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          fontWeight: 700,
+          fontFamily: 'var(--forge-font-tech)',
+          flexShrink: 0,
+        }}>
+          {initials}
+        </div>
+        {/* Name & email */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {displayName && (
+            <div style={{
+              fontSize: '13px',
+              fontWeight: 600,
+              color: 'var(--forge-text-primary)',
+              fontFamily: 'var(--forge-font-body)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {displayName}
+            </div>
+          )}
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--forge-text-muted)',
+            fontFamily: 'var(--forge-font-tech)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {displayEmail}
+          </div>
+        </div>
+        {/* Logout button */}
+        {authLogout && (
+          <button
+            onClick={authLogout}
+            title={t('nav.logout')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--forge-text-muted)',
+              padding: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: 'var(--forge-radius-sm)',
+              transition: 'all 150ms',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--forge-error, #ef4444)';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--forge-text-muted)';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            aria-label="Logout"
+          >
+            <Icon name="LogOut" size={16} />
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -443,7 +781,7 @@ const AdminLayout = () => {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Hledat..."
+              placeholder={t('admin.sidebar.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -505,12 +843,12 @@ const AdminLayout = () => {
             fontFamily: 'var(--forge-font-body)',
             textAlign: 'center',
           }}>
-            Nic nenalezeno
+            {t('admin.sidebar.noResults')}
           </div>
         )}
       </nav>
 
-      {/* Footer */}
+      {/* Sidebar Footer */}
       <div style={{
         padding: collapsed ? '10px 8px' : '10px 16px',
         borderTop: '1px solid var(--forge-border-default)',
@@ -519,6 +857,22 @@ const AdminLayout = () => {
         fontSize: '11px',
         color: 'var(--forge-text-muted)',
       }}>
+        {/* Company name (expanded only) */}
+        {!collapsed && companyName && (
+          <div style={{
+            fontSize: '12px',
+            fontWeight: 600,
+            color: 'var(--forge-text-secondary)',
+            fontFamily: 'var(--forge-font-body)',
+            marginBottom: '6px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {companyName}
+          </div>
+        )}
+
         {/* Row 1: Version + Status + Env badge */}
         <div style={{
           display: 'flex',
@@ -679,7 +1033,7 @@ const AdminLayout = () => {
           {!isMobile && (
             <button
               onClick={handleToggleCollapse}
-              title={sidebarCollapsed ? 'Rozbalit sidebar (Ctrl+B)' : 'Sbalit sidebar (Ctrl+B)'}
+              title={sidebarCollapsed ? `${t('admin.sidebar.expand')} (Ctrl+B)` : `${t('admin.sidebar.collapse')} (Ctrl+B)`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -699,25 +1053,15 @@ const AdminLayout = () => {
             </button>
           )}
         </div>
-
-        {/* Tagline (expanded only) */}
-        {!collapsed && (
-          <div style={{
-            textAlign: 'center',
-            fontSize: '9px',
-            opacity: 0.4,
-            marginTop: '4px',
-            letterSpacing: '0.04em',
-          }}>
-            Made with &#9829; by ModelPricer
-          </div>
-        )}
       </div>
+
+      {/* User section */}
+      {renderUserSection(collapsed)}
     </>
   );
 
   return (
-    <div style={{
+    <div ref={adminRootRef} style={{
       display: 'flex',
       minHeight: '100vh',
       backgroundColor: 'var(--forge-bg-void)',
@@ -816,15 +1160,91 @@ const AdminLayout = () => {
             >
               <Icon name="Menu" size={22} />
             </button>
-            <span style={{
-              fontFamily: 'var(--forge-font-heading)',
-              fontWeight: 600,
-              fontSize: '14px',
-              color: 'var(--forge-text-primary)',
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
             }}>
-              Admin Console
-            </span>
+              <span style={{
+                fontFamily: 'var(--forge-font-tech)',
+                fontSize: '11px',
+                color: 'var(--forge-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}>
+                Admin
+              </span>
+              {currentPageName && (
+                <>
+                  <span style={{ color: 'var(--forge-text-muted)', opacity: 0.4, fontSize: '11px' }}>/</span>
+                  <span style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    color: 'var(--forge-text-primary)',
+                  }}>
+                    {currentPageName}
+                  </span>
+                </>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {/* Global search trigger (mobile) */}
+              <button
+                onClick={() => commandPaletteRef.current?.open()}
+                title="Hledat (Ctrl+K)"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--forge-text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                aria-label="Globalni vyhledavani"
+              >
+                <Icon name="Search" size={18} />
+              </button>
+              {/* Theme toggle (mobile) */}
+              <button
+                onClick={toggleAdminTheme}
+                title={isAdminDark ? 'Light mode' : 'Dark mode'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--forge-text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                aria-label={isAdminDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                <Icon name={isAdminDark ? 'Sun' : 'Moon'} size={18} />
+              </button>
+              <button
+                onClick={toggleLanguage}
+                title={t('lang.switch')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 6px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'var(--forge-text-secondary)',
+                  letterSpacing: '0.04em',
+                }}
+                aria-label={t('lang.switch')}
+              >
+                <Icon name="Globe" size={14} />
+                <span>{language === 'cs' ? 'CS' : 'EN'}</span>
+              </button>
               <NotificationCenter />
               <Link to="/" style={{ color: 'var(--forge-text-muted)', padding: '4px' }}>
                 <Icon name="Home" size={18} />
@@ -833,15 +1253,143 @@ const AdminLayout = () => {
           </div>
         )}
 
-        {/* Desktop notification bar */}
+        {/* Desktop top bar with breadcrumb */}
         {!isMobile && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
-            padding: '8px 32px 0',
+            justifyContent: 'space-between',
+            padding: '10px 32px 0',
           }}>
-            <NotificationCenter />
+            {/* Breadcrumb */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '13px',
+            }}>
+              <span style={{
+                color: 'var(--forge-text-muted)',
+                fontFamily: 'var(--forge-font-tech)',
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}>
+                Admin
+              </span>
+              {currentPageName && (
+                <>
+                  <span style={{ color: 'var(--forge-text-muted)', opacity: 0.4 }}>/</span>
+                  <span style={{
+                    color: 'var(--forge-text-primary)',
+                    fontWeight: 600,
+                  }}>
+                    {currentPageName}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Right side: search + theme toggle + language switcher + notifications */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Global search trigger */}
+              <button
+                onClick={() => commandPaletteRef.current?.open()}
+                title="Hledat (Ctrl+K)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'none',
+                  border: '1px solid var(--forge-border-default)',
+                  borderRadius: 'var(--forge-radius-sm, 6px)',
+                  cursor: 'pointer',
+                  padding: '4px 12px',
+                  fontFamily: 'var(--forge-font-body)',
+                  fontSize: '12px',
+                  color: 'var(--forge-text-muted)',
+                  transition: 'all 150ms ease-out',
+                  height: '30px',
+                  minWidth: '160px',
+                  justifyContent: 'space-between',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--forge-accent-primary, #00D4AA)';
+                  e.currentTarget.style.color = 'var(--forge-text-secondary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                  e.currentTarget.style.color = 'var(--forge-text-muted)';
+                }}
+                aria-label="Globalni vyhledavani (Ctrl+K)"
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Icon name="Search" size={14} />
+                  <span>Hledat...</span>
+                </span>
+                <kbd style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '1px 5px',
+                  fontSize: '10px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  color: 'var(--forge-text-muted, #7A8291)',
+                  backgroundColor: 'var(--forge-bg-elevated, #22232d)',
+                  border: '1px solid var(--forge-border-default, #2a2b35)',
+                  borderRadius: '3px',
+                  lineHeight: '14px',
+                }}>
+                  Ctrl+K
+                </kbd>
+              </button>
+              {/* Theme toggle */}
+              <button
+                onClick={toggleAdminTheme}
+                title={isAdminDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="admin-theme-toggle"
+                aria-label={isAdminDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                <span className="admin-theme-toggle-icon">
+                  <Icon name={isAdminDark ? 'Sun' : 'Moon'} size={14} />
+                </span>
+              </button>
+              {/* Language switcher */}
+              <button
+                onClick={toggleLanguage}
+                title={t('lang.switch')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  background: 'none',
+                  border: '1px solid var(--forge-border-default)',
+                  borderRadius: 'var(--forge-radius-sm, 6px)',
+                  cursor: 'pointer',
+                  padding: '4px 10px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--forge-text-secondary)',
+                  letterSpacing: '0.04em',
+                  transition: 'all 150ms ease-out',
+                  height: '30px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--forge-accent-primary, #00D4AA)';
+                  e.currentTarget.style.color = 'var(--forge-accent-primary, #00D4AA)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                  e.currentTarget.style.color = 'var(--forge-text-secondary)';
+                }}
+                aria-label={t('lang.switch')}
+              >
+                <Icon name="Globe" size={14} />
+                <span>{language === 'cs' ? 'CS' : 'EN'}</span>
+              </button>
+              <NotificationCenter />
+            </div>
           </div>
         )}
 
@@ -853,12 +1401,61 @@ const AdminLayout = () => {
         </div>
       </main>
 
-      <CommandPalette />
+      <CommandPalette ref={commandPaletteRef} />
+
+      <KeyboardShortcutsHelp
+        open={showHelp}
+        onClose={() => setShowHelp(false)}
+      />
+
+      {/* Pending "G" indicator — shown briefly when user presses G */}
+      {pendingG && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9990,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          backgroundColor: 'var(--forge-bg-surface, #1a1b23)',
+          border: '1px solid var(--forge-border-default, #2a2b35)',
+          borderRadius: 'var(--forge-radius-md, 8px)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          fontFamily: 'var(--forge-font-tech)',
+          fontSize: '12px',
+          color: 'var(--forge-text-secondary, #a0a4b0)',
+          animation: 'forge-pending-g 150ms ease-out',
+          pointerEvents: 'none',
+        }}>
+          <kbd style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: '22px',
+            height: '22px',
+            padding: '0 6px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--forge-accent-primary, #00D4AA)',
+            backgroundColor: 'rgba(0, 212, 170, 0.12)',
+            border: '1px solid rgba(0, 212, 170, 0.25)',
+            borderRadius: '4px',
+          }}>G</kbd>
+          <span>{t('admin.sidebar.pendingKey')}</span>
+        </div>
+      )}
 
       <style>{`
         @keyframes forge-slide-in-left {
           from { transform: translateX(-100%); }
           to { transform: translateX(0); }
+        }
+        @keyframes forge-pending-g {
+          from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
     </div>

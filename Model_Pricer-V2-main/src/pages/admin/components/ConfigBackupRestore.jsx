@@ -2,15 +2,18 @@
  * ConfigBackupRestore — Full configuration backup & restore for tenant settings.
  *
  * Features:
- * - Export all tenant config as JSON (selective via checkboxes)
+ * - Export ALL tenant config as JSON (selective via checkboxes)
  * - Import config from JSON file with validation, preview, and selective restore
  * - Auto-backup to IndexedDB every 24h (opt-in, keeps last 5)
+ * - Manual backup history stored in IndexedDB with quick restore
+ * - Pre-change auto-backup option
+ * - Two-column layout: Backup left, Restore/History right
  *
  * Uses storage helpers for reading/writing — never touches localStorage directly
  * except for collecting raw data during export (read-only scan).
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Icon from '../../../components/AppIcon';
 import ForgeDialog from '../../../components/ui/forge/ForgeDialog';
 import { ForgeConfirmDialog } from '../../../components/ui/forge/ForgeConfirmDialog';
@@ -23,32 +26,43 @@ import { downloadFile } from '../../../utils/exportData';
 
 const CONFIG_NAMESPACES = [
   // Standard tenant-scoped (modelpricer:${tenantId}:${namespace})
-  { key: 'pricing:v3',          label: 'Cenova konfigurace',    icon: 'Calculator',      color: '#8B5CF6', type: 'tenant' },
-  { key: 'fees:v3',             label: 'Poplatky',              icon: 'Receipt',         color: '#F59E0B', type: 'tenant' },
-  { key: 'shipping:v1',         label: 'Doprava',               icon: 'Truck',           color: '#14B8A6', type: 'tenant' },
-  { key: 'express:v1',          label: 'Expresni doruceni',     icon: 'Zap',             color: '#F97316', type: 'tenant' },
-  { key: 'coupons:v1',          label: 'Kupony a akce',         icon: 'Tag',             color: '#A855F7', type: 'tenant' },
-  { key: 'email:v1',            label: 'Email konfigurace',     icon: 'Mail',            color: '#0EA5E9', type: 'tenant' },
-  { key: 'email-templates:v1',  label: 'Email sablony',         icon: 'FileText',        color: '#0EA5E9', type: 'tenant' },
-  { key: 'form:v1',             label: 'Formular objednavky',   icon: 'ClipboardList',   color: '#6366F1', type: 'tenant' },
-  { key: 'kanban:v1',           label: 'Kanban nastaveni',      icon: 'Columns',         color: '#78716C', type: 'tenant' },
-  { key: 'payment:v1',          label: 'Platby',                icon: 'CreditCard',      color: '#22C55E', type: 'tenant' },
-  { key: 'dashboard:v2',        label: 'Dashboard layout',      icon: 'LayoutDashboard', color: '#22C55E', type: 'tenant' },
-  { key: 'company:v1',          label: 'Firemni udaje',         icon: 'Building2',       color: '#3B82F6', type: 'tenant' },
-  { key: 'notifications',       label: 'Notifikace',            icon: 'Bell',            color: '#EF4444', type: 'tenant' },
+  { key: 'pricing:v3',          label: 'Cenova konfigurace',    icon: 'Calculator',      color: '#8B5CF6', type: 'tenant',  group: 'pricing' },
+  { key: 'fees:v3',             label: 'Poplatky',              icon: 'Receipt',         color: '#F59E0B', type: 'tenant',  group: 'pricing' },
+  { key: 'shipping:v1',         label: 'Doprava',               icon: 'Truck',           color: '#14B8A6', type: 'tenant',  group: 'pricing' },
+  { key: 'express:v1',          label: 'Expresni doruceni',     icon: 'Zap',             color: '#F97316', type: 'tenant',  group: 'pricing' },
+  { key: 'coupons:v1',          label: 'Kupony a akce',         icon: 'Tag',             color: '#A855F7', type: 'tenant',  group: 'pricing' },
+  { key: 'email:v1',            label: 'Email konfigurace',     icon: 'Mail',            color: '#0EA5E9', type: 'tenant',  group: 'communication' },
+  { key: 'email-templates:v1',  label: 'Email sablony',         icon: 'FileText',        color: '#0EA5E9', type: 'tenant',  group: 'communication' },
+  { key: 'form:v1',             label: 'Formular objednavky',   icon: 'ClipboardList',   color: '#6366F1', type: 'tenant',  group: 'orders' },
+  { key: 'kanban:v1',           label: 'Kanban nastaveni',      icon: 'Columns',         color: '#78716C', type: 'tenant',  group: 'orders' },
+  { key: 'payment:v1',          label: 'Platby',                icon: 'CreditCard',      color: '#22C55E', type: 'tenant',  group: 'pricing' },
+  { key: 'dashboard:v2',        label: 'Dashboard layout',      icon: 'LayoutDashboard', color: '#22C55E', type: 'tenant',  group: 'ui' },
+  { key: 'company:v1',          label: 'Firemni udaje',         icon: 'Building2',       color: '#3B82F6', type: 'tenant',  group: 'branding' },
+  { key: 'notifications',       label: 'Notifikace',            icon: 'Bell',            color: '#EF4444', type: 'tenant',  group: 'communication' },
+  { key: 'webhooks:v1',         label: 'Webhooky',              icon: 'Webhook',         color: '#8B5CF6', type: 'tenant',  group: 'communication' },
+  { key: 'team:v1',             label: 'Tym a pristupy',        icon: 'Users',           color: '#0EA5E9', type: 'tenant',  group: 'branding' },
 
   // Legacy-keyed (modelpricer_branding__${tenantId}, etc.)
-  { key: 'branding',            label: 'Branding',              icon: 'Palette',         color: '#EC4899', type: 'legacy', legacyKey: (tid) => `modelpricer_branding__${tid}` },
-  { key: 'widgets',             label: 'Widget instance',       icon: 'Code2',           color: '#06B6D4', type: 'legacy', legacyKey: (tid) => `modelpricer_widgets__${tid}` },
-  { key: 'plan_features',       label: 'Plan / funkce',         icon: 'Crown',           color: '#D946EF', type: 'legacy', legacyKey: (tid) => `modelpricer_plan_features__${tid}` },
-  { key: 'ecommerce',           label: 'E-commerce',            icon: 'Plug',            color: '#6366F1', type: 'legacy', legacyKey: (tid) => `modelpricer_ecommerce__${tid}` },
+  { key: 'branding',            label: 'Branding',              icon: 'Palette',         color: '#EC4899', type: 'legacy',  group: 'branding', legacyKey: (tid) => `modelpricer_branding__${tid}` },
+  { key: 'widgets',             label: 'Widget instance',       icon: 'Code2',           color: '#06B6D4', type: 'legacy',  group: 'branding', legacyKey: (tid) => `modelpricer_widgets__${tid}` },
+  { key: 'plan_features',       label: 'Plan / funkce',         icon: 'Crown',           color: '#D946EF', type: 'legacy',  group: 'branding', legacyKey: (tid) => `modelpricer_plan_features__${tid}` },
+  { key: 'ecommerce',           label: 'E-commerce',            icon: 'Plug',            color: '#6366F1', type: 'legacy',  group: 'orders',   legacyKey: (tid) => `modelpricer_ecommerce__${tid}` },
 ];
 
-const BACKUP_FORMAT_VERSION = 1;
+const NAMESPACE_GROUPS = {
+  pricing: { label: 'Ceny a poplatky', icon: 'Calculator' },
+  branding: { label: 'Branding a nastaveni', icon: 'Palette' },
+  orders: { label: 'Objednavky a e-commerce', icon: 'ShoppingCart' },
+  communication: { label: 'Komunikace', icon: 'Mail' },
+  ui: { label: 'Rozhrani', icon: 'LayoutDashboard' },
+};
+
+const BACKUP_FORMAT_VERSION = 2;
 const IDB_DB_NAME = 'modelpricer_autobackup';
 const IDB_STORE_NAME = 'backups';
 const IDB_VERSION = 1;
 const MAX_AUTO_BACKUPS = 5;
+const MAX_MANUAL_BACKUPS = 10;
 const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const AUTO_BACKUP_LS_KEY = 'modelpricer:autobackup:settings';
 
@@ -193,13 +207,15 @@ function validateBackupFile(parsed) {
 function getItemCount(data) {
   if (Array.isArray(data)) return data.length;
   if (data && typeof data === 'object') {
-    // For config objects with known array fields
     if (Array.isArray(data.fees)) return data.fees.length;
     if (Array.isArray(data.materials)) return data.materials.length;
     if (Array.isArray(data.methods)) return data.methods.length;
     if (Array.isArray(data.tiers)) return data.tiers.length;
     if (Array.isArray(data.coupons)) return data.coupons.length;
     if (Array.isArray(data.columns)) return data.columns.length;
+    if (Array.isArray(data.members)) return data.members.length;
+    if (Array.isArray(data.templates)) return data.templates.length;
+    if (Array.isArray(data.hooks)) return data.hooks.length;
     return Object.keys(data).length;
   }
   return 0;
@@ -223,6 +239,23 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function formatRelativeTime(isoDate) {
+  try {
+    const now = Date.now();
+    const then = new Date(isoDate).getTime();
+    const diffMs = now - then;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Prave ted';
+    if (diffMin < 60) return `Pred ${diffMin} min`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `Pred ${diffHr} h`;
+    const diffDay = Math.floor(diffHr / 24);
+    return `Pred ${diffDay} dny`;
+  } catch {
+    return '';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -234,7 +267,7 @@ function CheckboxRow({ checked, onChange, label, icon, color, detail, disabled }
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        padding: '8px 12px',
+        padding: '6px 10px',
         borderRadius: 'var(--forge-radius-sm, 6px)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
@@ -251,10 +284,10 @@ function CheckboxRow({ checked, onChange, label, icon, color, detail, disabled }
         disabled={disabled}
         style={{ accentColor: 'var(--forge-accent-primary)', width: 16, height: 16, cursor: disabled ? 'not-allowed' : 'pointer' }}
       />
-      <Icon name={icon} size={15} style={{ color: color || 'var(--forge-text-muted)', flexShrink: 0 }} />
+      <Icon name={icon} size={14} style={{ color: color || 'var(--forge-text-muted)', flexShrink: 0 }} />
       <span style={{
         fontFamily: 'var(--forge-font-body)',
-        fontSize: '13px',
+        fontSize: '12.5px',
         color: 'var(--forge-text-primary)',
         flex: 1,
       }}>
@@ -263,7 +296,7 @@ function CheckboxRow({ checked, onChange, label, icon, color, detail, disabled }
       {detail && (
         <span style={{
           fontFamily: 'var(--forge-font-tech)',
-          fontSize: '11px',
+          fontSize: '10px',
           color: 'var(--forge-text-muted)',
         }}>
           {detail}
@@ -275,20 +308,20 @@ function CheckboxRow({ checked, onChange, label, icon, color, detail, disabled }
 
 function ProgressBar({ progress, label }) {
   return (
-    <div style={{ marginTop: '12px' }}>
+    <div style={{ marginTop: '8px' }}>
       {label && (
         <div style={{
           fontFamily: 'var(--forge-font-body)',
-          fontSize: '12px',
+          fontSize: '11px',
           color: 'var(--forge-text-secondary)',
-          marginBottom: '6px',
+          marginBottom: '4px',
         }}>
           {label}
         </div>
       )}
       <div style={{
         width: '100%',
-        height: '6px',
+        height: '5px',
         backgroundColor: 'var(--forge-bg-elevated)',
         borderRadius: '3px',
         overflow: 'hidden',
@@ -316,7 +349,7 @@ function StatusBanner({ type, children }) {
 
   return (
     <div style={{
-      padding: '10px 14px',
+      padding: '8px 12px',
       borderRadius: 'var(--forge-radius-sm, 6px)',
       backgroundColor: s.bg,
       border: `1px solid ${s.border}`,
@@ -324,21 +357,22 @@ function StatusBanner({ type, children }) {
       alignItems: 'flex-start',
       gap: '8px',
       fontFamily: 'var(--forge-font-body)',
-      fontSize: '13px',
+      fontSize: '12px',
       color: s.color,
       lineHeight: 1.5,
     }}>
-      <Icon name={s.icon} size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
-      <div>{children}</div>
+      <Icon name={s.icon} size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>{children}</div>
     </div>
   );
 }
 
-function ActionButton({ onClick, icon, label, color, disabled, variant = 'default' }) {
+function ActionButton({ onClick, icon, label, color, disabled, variant = 'default', size = 'default', style: extraStyle }) {
   const isGreen = variant === 'green';
   const isBlue = variant === 'blue';
   const isRed = variant === 'red';
   const isOutline = variant === 'outline';
+  const isSmall = size === 'small';
 
   let bg = 'var(--forge-bg-elevated)';
   let fg = 'var(--forge-text-primary)';
@@ -356,26 +390,255 @@ function ActionButton({ onClick, icon, label, color, disabled, variant = 'defaul
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '10px 18px',
+        gap: isSmall ? '6px' : '8px',
+        padding: isSmall ? '6px 12px' : '9px 16px',
         borderRadius: 'var(--forge-radius-md, 8px)',
         border: `1px solid ${borderColor}`,
         backgroundColor: bg,
         color: fg,
         cursor: disabled ? 'not-allowed' : 'pointer',
         fontFamily: 'var(--forge-font-heading)',
-        fontSize: '13px',
+        fontSize: isSmall ? '11px' : '12.5px',
         fontWeight: 600,
         opacity: disabled ? 0.5 : 1,
         transition: 'all 150ms ease-out',
+        ...extraStyle,
       }}
       onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.opacity = '0.85'; }}
       onMouseLeave={(e) => { if (!disabled) e.currentTarget.style.opacity = disabled ? '0.5' : '1'; }}
     >
-      <Icon name={icon} size={16} />
+      <Icon name={icon} size={isSmall ? 13 : 15} />
       {label}
     </button>
   );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <div style={{
+      fontFamily: 'var(--forge-font-tech)',
+      fontSize: '10px',
+      color: 'var(--forge-text-muted)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      marginBottom: '6px',
+      marginTop: '4px',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function BackupHistoryItem({ backup, onRestore, onDelete, onDownload }) {
+  const isAuto = backup.type === 'auto';
+  const sizeBytes = backup.data ? JSON.stringify(backup.data).length : 0;
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '8px 10px',
+      borderRadius: 'var(--forge-radius-sm, 6px)',
+      backgroundColor: 'var(--forge-bg-elevated)',
+      border: '1px solid var(--forge-border-default)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+        <Icon
+          name={isAuto ? 'Clock' : 'Save'}
+          size={13}
+          style={{ color: isAuto ? 'var(--forge-text-muted)' : 'var(--forge-accent-primary)', flexShrink: 0 }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '12px',
+              color: 'var(--forge-text-primary)',
+              whiteSpace: 'nowrap',
+            }}>
+              {formatDate(backup.created_at)}
+            </span>
+            <span style={{
+              fontFamily: 'var(--forge-font-tech)',
+              fontSize: '9px',
+              fontWeight: 600,
+              padding: '1px 5px',
+              borderRadius: '3px',
+              backgroundColor: isAuto ? 'rgba(122, 130, 145, 0.12)' : 'rgba(0, 212, 170, 0.12)',
+              color: isAuto ? 'var(--forge-text-muted)' : 'var(--forge-accent-primary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+              flexShrink: 0,
+            }}>
+              {isAuto ? 'AUTO' : 'MANUALNI'}
+            </span>
+          </div>
+          <span style={{
+            fontFamily: 'var(--forge-font-tech)',
+            fontSize: '10px',
+            color: 'var(--forge-text-muted)',
+          }}>
+            {backup.configCount || '?'} sekci
+            {sizeBytes > 0 ? ` | ${formatFileSize(sizeBytes)}` : ''}
+            {backup.created_at ? ` | ${formatRelativeTime(backup.created_at)}` : ''}
+          </span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+        {onDownload && (
+          <IconButton
+            icon="Download"
+            title="Stahnout jako soubor"
+            color="#10B981"
+            hoverBg="rgba(16, 185, 129, 0.1)"
+            onClick={() => onDownload(backup)}
+          />
+        )}
+        <IconButton
+          icon="RotateCcw"
+          title="Obnovit z teto zalohy"
+          color="#3B82F6"
+          hoverBg="rgba(59, 130, 246, 0.1)"
+          onClick={() => onRestore(backup)}
+        />
+        <IconButton
+          icon="Trash2"
+          title="Smazat zalohu"
+          color="var(--forge-text-muted)"
+          hoverBg="rgba(239, 68, 68, 0.1)"
+          hoverColor="#EF4444"
+          onClick={() => onDelete(backup.id)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function IconButton({ icon, title, color, hoverBg, hoverColor, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '26px',
+        height: '26px',
+        borderRadius: 'var(--forge-radius-sm, 6px)',
+        border: '1px solid var(--forge-border-default)',
+        backgroundColor: 'transparent',
+        color: color,
+        cursor: 'pointer',
+        transition: 'all 100ms',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = hoverBg || 'var(--forge-bg-elevated)';
+        if (hoverColor) e.currentTarget.style.color = hoverColor;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+        e.currentTarget.style.color = color;
+      }}
+    >
+      <Icon name={icon} size={13} />
+    </button>
+  );
+}
+
+function CardWrapper({ children, style: extraStyle }) {
+  return (
+    <div style={{
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-lg, 12px)',
+      padding: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px',
+      ...extraStyle,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ icon, label, iconColor, badge }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Icon name={icon} size={17} style={{ color: iconColor || 'var(--forge-accent-primary)' }} />
+        <span style={{
+          fontFamily: 'var(--forge-font-heading)',
+          fontWeight: 600,
+          fontSize: '15px',
+          color: 'var(--forge-text-primary)',
+        }}>
+          {label}
+        </span>
+      </div>
+      {badge}
+    </div>
+  );
+}
+
+function CardDesc({ children }) {
+  return (
+    <div style={{
+      fontFamily: 'var(--forge-font-body)',
+      fontSize: '12px',
+      color: 'var(--forge-text-secondary)',
+      lineHeight: 1.5,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Exported helper: trigger auto-backup before major changes (import from other pages)
+// ---------------------------------------------------------------------------
+
+export async function triggerPreChangeBackup() {
+  try {
+    const raw = window.localStorage.getItem(AUTO_BACKUP_LS_KEY);
+    if (!raw) return false;
+    const settings = JSON.parse(raw);
+    if (!settings.preChangeBackup) return false;
+
+    const allKeys = CONFIG_NAMESPACES.map(n => n.key);
+    const { data, count } = collectConfigData(allKeys);
+    if (count === 0) return false;
+
+    const backup = {
+      id: `prechange_${Date.now()}`,
+      format: 'modelpricer-config-backup',
+      version: BACKUP_FORMAT_VERSION,
+      tenantId: getTenantId(),
+      created_at: new Date().toISOString(),
+      type: 'auto',
+      trigger: 'pre-change',
+      configCount: count,
+      data,
+    };
+
+    await idbPut(backup);
+
+    // Prune old auto-backups
+    const all = await idbGetAll();
+    const autoBackups = all
+      .filter(b => b.tenantId === getTenantId() && b.type === 'auto')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    for (let i = MAX_AUTO_BACKUPS; i < autoBackups.length; i++) {
+      await idbDelete(autoBackups[i].id);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -389,12 +652,12 @@ export default function ConfigBackupRestore() {
   const [exportSelected, setExportSelected] = useState(() => CONFIG_NAMESPACES.map(n => n.key));
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
-  const [exportResult, setExportResult] = useState(null); // { success, message }
+  const [exportResult, setExportResult] = useState(null);
 
   // Import state
-  const [importFile, setImportFile] = useState(null); // parsed JSON
+  const [importFile, setImportFile] = useState(null);
   const [importFileName, setImportFileName] = useState('');
-  const [importValidation, setImportValidation] = useState(null); // { valid, issues }
+  const [importValidation, setImportValidation] = useState(null);
   const [importSelected, setImportSelected] = useState([]);
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -402,25 +665,31 @@ export default function ConfigBackupRestore() {
   const [dryRun, setDryRun] = useState(false);
   const [confirmImportOpen, setConfirmImportOpen] = useState(false);
 
+  // Backup history state (IndexedDB — both auto and manual)
+  const [allBackups, setAllBackups] = useState([]);
+  const [historyTab, setHistoryTab] = useState('all'); // 'all' | 'manual' | 'auto'
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
   // Auto-backup state
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
-  const [autoBackups, setAutoBackups] = useState([]);
+  const [preChangeBackup, setPreChangeBackup] = useState(false);
   const [autoBackupLoading, setAutoBackupLoading] = useState(false);
   const autoBackupTimerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Load auto-backup settings
+  // Load settings + history on mount
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(AUTO_BACKUP_LS_KEY);
       if (raw) {
         const settings = JSON.parse(raw);
         setAutoBackupEnabled(settings.enabled === true);
+        setPreChangeBackup(settings.preChangeBackup === true);
       }
     } catch {
       // ignore
     }
-    loadAutoBackups();
+    loadAllBackups();
   }, []);
 
   // Auto-backup timer
@@ -431,7 +700,6 @@ export default function ConfigBackupRestore() {
     }
 
     if (autoBackupEnabled) {
-      // Run immediately on enable, then every 24h
       runAutoBackup();
       autoBackupTimerRef.current = setInterval(runAutoBackup, AUTO_BACKUP_INTERVAL_MS);
     }
@@ -441,15 +709,15 @@ export default function ConfigBackupRestore() {
     };
   }, [autoBackupEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadAutoBackups = useCallback(async () => {
+  const loadAllBackups = useCallback(async () => {
     try {
       const all = await idbGetAll();
       const sorted = all
         .filter(b => b.tenantId === getTenantId())
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setAutoBackups(sorted);
+      setAllBackups(sorted);
     } catch {
-      setAutoBackups([]);
+      setAllBackups([]);
     }
   }, []);
 
@@ -472,7 +740,7 @@ export default function ConfigBackupRestore() {
 
       await idbPut(backup);
 
-      // Prune old backups (keep MAX_AUTO_BACKUPS)
+      // Prune old auto-backups (keep MAX_AUTO_BACKUPS)
       const all = await idbGetAll();
       const mine = all
         .filter(b => b.tenantId === getTenantId() && b.type === 'auto')
@@ -482,11 +750,11 @@ export default function ConfigBackupRestore() {
         await idbDelete(mine[i].id);
       }
 
-      await loadAutoBackups();
+      await loadAllBackups();
     } catch (err) {
       console.warn('[ConfigBackupRestore] Auto-backup failed:', err.message);
     }
-  }, [loadAutoBackups]);
+  }, [loadAllBackups]);
 
   // ---- EXPORT ----
 
@@ -496,12 +764,11 @@ export default function ConfigBackupRestore() {
     setExportResult(null);
 
     try {
-      // Simulate progress for UX
-      setExportProgress(20);
-      await new Promise(r => setTimeout(r, 100));
+      setExportProgress(15);
+      await new Promise(r => setTimeout(r, 80));
 
       const { data, count, tenantId: tid } = collectConfigData(exportSelected);
-      setExportProgress(70);
+      setExportProgress(60);
 
       if (count === 0) {
         setExportResult({ success: false, message: 'Zadna data k exportu. Zkontrolujte vybrane konfigurace.' });
@@ -523,6 +790,27 @@ export default function ConfigBackupRestore() {
       const dateStr = new Date().toISOString().slice(0, 10);
       const filename = `modelpricer-backup-${tid}-${dateStr}.json`;
 
+      setExportProgress(80);
+
+      // Save manual backup to history in IndexedDB
+      const historyRecord = {
+        ...backup,
+        id: `manual_${Date.now()}`,
+        type: 'manual',
+      };
+      await idbPut(historyRecord);
+
+      // Prune old manual backups
+      const all = await idbGetAll();
+      const manuals = all
+        .filter(b => b.tenantId === getTenantId() && b.type === 'manual')
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      for (let i = MAX_MANUAL_BACKUPS; i < manuals.length; i++) {
+        await idbDelete(manuals[i].id);
+      }
+
+      await loadAllBackups();
+
       setExportProgress(90);
       downloadFile(json, filename, 'application/json');
 
@@ -536,7 +824,7 @@ export default function ConfigBackupRestore() {
     } finally {
       setExporting(false);
     }
-  }, [exportSelected]);
+  }, [exportSelected, loadAllBackups]);
 
   const toggleExportAll = useCallback((checked) => {
     setExportSelected(checked ? CONFIG_NAMESPACES.map(n => n.key) : []);
@@ -566,7 +854,6 @@ export default function ConfigBackupRestore() {
         setImportValidation(validation);
 
         if (validation.valid && parsed.data) {
-          // Pre-select all available configs
           const available = CONFIG_NAMESPACES
             .filter(ns => parsed.data[ns.key] != null)
             .map(ns => ns.key);
@@ -583,12 +870,10 @@ export default function ConfigBackupRestore() {
       }
     };
     reader.readAsText(file);
-
-    // Reset file input so same file can be re-selected
     e.target.value = '';
   }, []);
 
-  const handleImportConfirm = useCallback(() => {
+  const handleImportConfirm = useCallback(async () => {
     if (dryRun) {
       setImportResult({
         success: true,
@@ -598,11 +883,20 @@ export default function ConfigBackupRestore() {
       setConfirmImportOpen(false);
       return;
     }
+
     setConfirmImportOpen(false);
     setImporting(true);
 
-    // Small delay for UI
-    setTimeout(() => {
+    // Auto-backup before restore if enabled
+    if (preChangeBackup) {
+      try {
+        await triggerPreChangeBackup();
+      } catch {
+        // continue even if pre-change backup fails
+      }
+    }
+
+    setTimeout(async () => {
       try {
         const { restored, errors } = restoreConfigData(importFile.data, importSelected);
 
@@ -622,9 +916,10 @@ export default function ConfigBackupRestore() {
       } finally {
         setImporting(false);
         setImportPreviewOpen(false);
+        await loadAllBackups();
       }
-    }, 200);
-  }, [importFile, importSelected, dryRun]);
+    }, 150);
+  }, [importFile, importSelected, dryRun, preChangeBackup, loadAllBackups]);
 
   const toggleImportKey = useCallback((key, checked) => {
     setImportSelected(prev =>
@@ -632,20 +927,34 @@ export default function ConfigBackupRestore() {
     );
   }, []);
 
-  // ---- AUTO-BACKUP ----
+  // ---- AUTO-BACKUP SETTINGS ----
 
-  const toggleAutoBackup = useCallback((enabled) => {
-    setAutoBackupEnabled(enabled);
+  const saveAutoBackupSettings = useCallback((settings) => {
     try {
-      window.localStorage.setItem(AUTO_BACKUP_LS_KEY, JSON.stringify({ enabled }));
+      window.localStorage.setItem(AUTO_BACKUP_LS_KEY, JSON.stringify(settings));
     } catch {
       // ignore
     }
   }, []);
 
-  const handleRestoreAutoBackup = useCallback((backup) => {
+  const toggleAutoBackup = useCallback((enabled) => {
+    setAutoBackupEnabled(enabled);
+    saveAutoBackupSettings({ enabled, preChangeBackup });
+  }, [preChangeBackup, saveAutoBackupSettings]);
+
+  const togglePreChangeBackup = useCallback((enabled) => {
+    setPreChangeBackup(enabled);
+    saveAutoBackupSettings({ enabled: autoBackupEnabled, preChangeBackup: enabled });
+  }, [autoBackupEnabled, saveAutoBackupSettings]);
+
+  // ---- BACKUP HISTORY ----
+
+  const handleRestoreFromHistory = useCallback((backup) => {
     setImportFile(backup);
-    setImportFileName(`Auto-zaloha z ${formatDate(backup.created_at)}`);
+    setImportFileName(backup.type === 'auto'
+      ? `Auto-zaloha z ${formatDate(backup.created_at)}`
+      : `Manualni zaloha z ${formatDate(backup.created_at)}`
+    );
     setImportValidation({ valid: true, issues: [] });
 
     const available = CONFIG_NAMESPACES
@@ -655,14 +964,31 @@ export default function ConfigBackupRestore() {
     setImportPreviewOpen(true);
   }, []);
 
-  const handleDeleteAutoBackup = useCallback(async (id) => {
+  const handleDeleteBackup = useCallback(async (id) => {
     try {
       await idbDelete(id);
-      await loadAutoBackups();
+      await loadAllBackups();
+      setDeleteConfirmId(null);
     } catch {
       // ignore
     }
-  }, [loadAutoBackups]);
+  }, [loadAllBackups]);
+
+  const handleDownloadFromHistory = useCallback((backup) => {
+    const exportData = {
+      format: backup.format || 'modelpricer-config-backup',
+      version: backup.version || BACKUP_FORMAT_VERSION,
+      tenantId: backup.tenantId,
+      created_at: backup.created_at,
+      configCount: backup.configCount,
+      configs: Object.keys(backup.data || {}),
+      data: backup.data,
+    };
+    const json = JSON.stringify(exportData, null, 2);
+    const dateStr = new Date(backup.created_at).toISOString().slice(0, 10);
+    const filename = `modelpricer-backup-${backup.tenantId}-${dateStr}.json`;
+    downloadFile(json, filename, 'application/json');
+  }, []);
 
   const handleRunAutoBackupNow = useCallback(async () => {
     setAutoBackupLoading(true);
@@ -670,10 +996,30 @@ export default function ConfigBackupRestore() {
     setAutoBackupLoading(false);
   }, [runAutoBackup]);
 
-  // ---- RENDER ----
+  // Filtered backup list
+  const filteredBackups = useMemo(() => {
+    if (historyTab === 'manual') return allBackups.filter(b => b.type === 'manual');
+    if (historyTab === 'auto') return allBackups.filter(b => b.type === 'auto');
+    return allBackups;
+  }, [allBackups, historyTab]);
+
+  const autoCount = useMemo(() => allBackups.filter(b => b.type === 'auto').length, [allBackups]);
+  const manualCount = useMemo(() => allBackups.filter(b => b.type === 'manual').length, [allBackups]);
+
+  // ---- Grouped namespaces for export ----
+  const groupedNamespaces = useMemo(() => {
+    const groups = {};
+    for (const ns of CONFIG_NAMESPACES) {
+      const g = ns.group || 'other';
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(ns);
+    }
+    return groups;
+  }, []);
 
   const allExportSelected = exportSelected.length === CONFIG_NAMESPACES.length;
-  const someExportSelected = exportSelected.length > 0 && exportSelected.length < CONFIG_NAMESPACES.length;
+
+  // ---- RENDER ----
 
   return (
     <div style={{ marginTop: '32px' }}>
@@ -682,7 +1028,7 @@ export default function ConfigBackupRestore() {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        marginBottom: '20px',
+        marginBottom: '16px',
       }}>
         <Icon name="DatabaseBackup" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
         <h2 style={{
@@ -696,339 +1042,297 @@ export default function ConfigBackupRestore() {
         </h2>
       </div>
 
-      {/* Info banner */}
-      <StatusBanner type="info">
-        Exportujte a importujte veskerou konfiguraci tenanta jako JSON soubor.
-        Presety nejsou soucasti zalohy (ulozeny na serveru).
-      </StatusBanner>
-
-      {/* Main grid: Export | Import | Auto-backup */}
+      {/* Two-column layout */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: '20px',
-        marginTop: '20px',
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+        gap: '16px',
+        alignItems: 'start',
       }}>
+        {/* ===== LEFT COLUMN: Backup options ===== */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-        {/* ===== EXPORT CARD ===== */}
-        <div style={{
-          backgroundColor: 'var(--forge-bg-surface)',
-          border: '1px solid var(--forge-border-default)',
-          borderRadius: 'var(--forge-radius-lg, 12px)',
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Icon name="Download" size={18} style={{ color: '#10B981' }} />
-            <span style={{
-              fontFamily: 'var(--forge-font-heading)',
-              fontWeight: 600,
-              fontSize: '16px',
-              color: 'var(--forge-text-primary)',
-            }}>
-              Exportovat
-            </span>
-          </div>
+          {/* EXPORT CARD */}
+          <CardWrapper>
+            <CardHeader icon="Download" label="Exportovat" iconColor="#10B981" />
+            <CardDesc>
+              Stahnete vsechna nastaveni jako jeden JSON soubor. Zvolte ktere konfigurace zahrnout.
+            </CardDesc>
 
-          <div style={{
-            fontFamily: 'var(--forge-font-body)',
-            fontSize: '13px',
-            color: 'var(--forge-text-secondary)',
-            lineHeight: 1.5,
-          }}>
-            Stahnete vsechna nastaveni jako jeden JSON soubor. Zvolte ktere konfigurace zahrnout.
-          </div>
-
-          {/* Select all */}
-          <div style={{ borderBottom: '1px solid var(--forge-border-default)', paddingBottom: '4px' }}>
-            <CheckboxRow
-              checked={allExportSelected}
-              onChange={toggleExportAll}
-              label={allExportSelected ? 'Odznacit vse' : 'Vybrat vse'}
-              icon="CheckSquare"
-              color="var(--forge-accent-primary)"
-              detail={`${exportSelected.length}/${CONFIG_NAMESPACES.length}`}
-            />
-          </div>
-
-          {/* Namespace checkboxes */}
-          <div style={{
-            maxHeight: '280px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '2px',
-          }}>
-            {CONFIG_NAMESPACES.map(ns => (
+            {/* Select all */}
+            <div style={{ borderBottom: '1px solid var(--forge-border-default)', paddingBottom: '2px' }}>
               <CheckboxRow
-                key={ns.key}
-                checked={exportSelected.includes(ns.key)}
-                onChange={(checked) => toggleExportKey(ns.key, checked)}
-                label={ns.label}
-                icon={ns.icon}
-                color={ns.color}
+                checked={allExportSelected}
+                onChange={toggleExportAll}
+                label={allExportSelected ? 'Odznacit vse' : 'Vybrat vse'}
+                icon="CheckSquare"
+                color="var(--forge-accent-primary)"
+                detail={`${exportSelected.length}/${CONFIG_NAMESPACES.length}`}
               />
-            ))}
-          </div>
-
-          {/* Export button */}
-          <ActionButton
-            onClick={handleExport}
-            icon="Download"
-            label={exporting ? 'Exportuji...' : 'Exportovat konfiguraci'}
-            variant="green"
-            disabled={exporting || exportSelected.length === 0}
-          />
-
-          {exporting && <ProgressBar progress={exportProgress} label="Pripravuji export..." />}
-
-          {exportResult && (
-            <StatusBanner type={exportResult.success ? 'success' : 'error'}>
-              {exportResult.message}
-            </StatusBanner>
-          )}
-        </div>
-
-        {/* ===== IMPORT CARD ===== */}
-        <div style={{
-          backgroundColor: 'var(--forge-bg-surface)',
-          border: '1px solid var(--forge-border-default)',
-          borderRadius: 'var(--forge-radius-lg, 12px)',
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Icon name="Upload" size={18} style={{ color: '#3B82F6' }} />
-            <span style={{
-              fontFamily: 'var(--forge-font-heading)',
-              fontWeight: 600,
-              fontSize: '16px',
-              color: 'var(--forge-text-primary)',
-            }}>
-              Importovat
-            </span>
-          </div>
-
-          <div style={{
-            fontFamily: 'var(--forge-font-body)',
-            fontSize: '13px',
-            color: 'var(--forge-text-secondary)',
-            lineHeight: 1.5,
-          }}>
-            Nahrajte JSON soubor ze zalohy. Pred aplikovanim muzete zkontrolovat obsah a vybrat ktere sekce obnovit.
-          </div>
-
-          <StatusBanner type="warning">
-            Import prepise stavajici konfiguraci. Doporucujeme nejprve vytvorit zalohu aktualnich dat.
-          </StatusBanner>
-
-          {/* File input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
-
-          <ActionButton
-            onClick={() => fileInputRef.current?.click()}
-            icon="Upload"
-            label="Vybrat soubor zalohy"
-            variant="blue"
-          />
-
-          {importResult && (
-            <StatusBanner type={importResult.success ? (importResult.dryRun ? 'info' : 'success') : 'error'}>
-              {importResult.message}
-            </StatusBanner>
-          )}
-        </div>
-
-        {/* ===== AUTO-BACKUP CARD ===== */}
-        <div style={{
-          backgroundColor: 'var(--forge-bg-surface)',
-          border: '1px solid var(--forge-border-default)',
-          borderRadius: 'var(--forge-radius-lg, 12px)',
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Icon name="Clock" size={18} style={{ color: 'var(--forge-accent-primary)' }} />
-              <span style={{
-                fontFamily: 'var(--forge-font-heading)',
-                fontWeight: 600,
-                fontSize: '16px',
-                color: 'var(--forge-text-primary)',
-              }}>
-                Auto-zaloha
-              </span>
             </div>
-            <span style={{
-              fontFamily: 'var(--forge-font-tech)',
-              fontSize: '10px',
-              fontWeight: 600,
-              padding: '2px 8px',
-              borderRadius: '4px',
-              backgroundColor: autoBackupEnabled ? 'rgba(0, 212, 170, 0.12)' : 'rgba(122, 130, 145, 0.12)',
-              color: autoBackupEnabled ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
+
+            {/* Grouped namespace checkboxes */}
+            <div style={{
+              maxHeight: '320px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
             }}>
-              {autoBackupEnabled ? 'AKTIVNI' : 'NEAKTIVNI'}
-            </span>
-          </div>
-
-          <div style={{
-            fontFamily: 'var(--forge-font-body)',
-            fontSize: '13px',
-            color: 'var(--forge-text-secondary)',
-            lineHeight: 1.5,
-          }}>
-            Automaticky uklada zalohu do IndexedDB kazdych 24 hodin. Uchovava poslednich {MAX_AUTO_BACKUPS} zaloh.
-          </div>
-
-          {/* Toggle */}
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            cursor: 'pointer',
-          }}>
-            <input
-              type="checkbox"
-              checked={autoBackupEnabled}
-              onChange={(e) => toggleAutoBackup(e.target.checked)}
-              style={{ accentColor: 'var(--forge-accent-primary)', width: 16, height: 16, cursor: 'pointer' }}
-            />
-            <span style={{
-              fontFamily: 'var(--forge-font-body)',
-              fontSize: '13px',
-              color: 'var(--forge-text-primary)',
-            }}>
-              Povolit automatickou zalohu
-            </span>
-          </label>
-
-          {/* Manual backup button */}
-          <ActionButton
-            onClick={handleRunAutoBackupNow}
-            icon="Save"
-            label={autoBackupLoading ? 'Ukladam...' : 'Zalohovat nyni'}
-            variant="outline"
-            disabled={autoBackupLoading}
-          />
-
-          {/* Auto-backup list */}
-          {autoBackups.length > 0 ? (
-            <div>
-              <div style={{
-                fontFamily: 'var(--forge-font-tech)',
-                fontSize: '10px',
-                color: 'var(--forge-text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: '8px',
-              }}>
-                DOSTUPNE ZALOHY ({autoBackups.length})
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {autoBackups.map(backup => (
-                  <div
-                    key={backup.id}
-                    style={{
+              {Object.entries(groupedNamespaces).map(([groupKey, namespaces]) => {
+                const groupMeta = NAMESPACE_GROUPS[groupKey] || { label: groupKey, icon: 'Folder' };
+                return (
+                  <div key={groupKey}>
+                    <div style={{
+                      fontFamily: 'var(--forge-font-tech)',
+                      fontSize: '9px',
+                      fontWeight: 600,
+                      color: 'var(--forge-text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      padding: '6px 10px 2px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: 'var(--forge-radius-sm, 6px)',
-                      backgroundColor: 'var(--forge-bg-elevated)',
-                      border: '1px solid var(--forge-border-default)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{
-                        fontFamily: 'var(--forge-font-body)',
-                        fontSize: '12px',
-                        color: 'var(--forge-text-primary)',
-                      }}>
-                        {formatDate(backup.created_at)}
-                      </span>
-                      <span style={{
-                        fontFamily: 'var(--forge-font-tech)',
-                        fontSize: '10px',
-                        color: 'var(--forge-text-muted)',
-                      }}>
-                        {backup.configCount || '?'} sekci
-                        {backup.data ? ` | ${formatFileSize(JSON.stringify(backup.data).length)}` : ''}
-                      </span>
+                      gap: '5px',
+                    }}>
+                      <Icon name={groupMeta.icon} size={10} style={{ color: 'var(--forge-text-muted)' }} />
+                      {groupMeta.label}
                     </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        onClick={() => handleRestoreAutoBackup(backup)}
-                        title="Obnovit z teto zalohy"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: 'var(--forge-radius-sm, 6px)',
-                          border: '1px solid var(--forge-border-default)',
-                          backgroundColor: 'transparent',
-                          color: '#3B82F6',
-                          cursor: 'pointer',
-                          transition: 'all 100ms',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                      >
-                        <Icon name="RotateCcw" size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAutoBackup(backup.id)}
-                        title="Smazat zalohu"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: 'var(--forge-radius-sm, 6px)',
-                          border: '1px solid var(--forge-border-default)',
-                          backgroundColor: 'transparent',
-                          color: 'var(--forge-text-muted)',
-                          cursor: 'pointer',
-                          transition: 'all 100ms',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.color = '#EF4444'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--forge-text-muted)'; }}
-                      >
-                        <Icon name="Trash2" size={14} />
-                      </button>
-                    </div>
+                    {namespaces.map(ns => (
+                      <CheckboxRow
+                        key={ns.key}
+                        checked={exportSelected.includes(ns.key)}
+                        onChange={(checked) => toggleExportKey(ns.key, checked)}
+                        label={ns.label}
+                        icon={ns.icon}
+                        color={ns.color}
+                      />
+                    ))}
                   </div>
+                );
+              })}
+            </div>
+
+            {/* Export button */}
+            <ActionButton
+              onClick={handleExport}
+              icon="Download"
+              label={exporting ? 'Exportuji...' : 'Exportovat konfiguraci'}
+              variant="green"
+              disabled={exporting || exportSelected.length === 0}
+            />
+
+            {exporting && <ProgressBar progress={exportProgress} label="Pripravuji export..." />}
+
+            {exportResult && (
+              <StatusBanner type={exportResult.success ? 'success' : 'error'}>
+                {exportResult.message}
+              </StatusBanner>
+            )}
+          </CardWrapper>
+
+          {/* AUTO-BACKUP SETTINGS CARD */}
+          <CardWrapper>
+            <CardHeader
+              icon="Clock"
+              label="Automaticka zaloha"
+              iconColor="var(--forge-accent-primary)"
+              badge={
+                <span style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '9px',
+                  fontWeight: 600,
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  backgroundColor: autoBackupEnabled ? 'rgba(0, 212, 170, 0.12)' : 'rgba(122, 130, 145, 0.12)',
+                  color: autoBackupEnabled ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}>
+                  {autoBackupEnabled ? 'AKTIVNI' : 'NEAKTIVNI'}
+                </span>
+              }
+            />
+            <CardDesc>
+              Automaticky uklada zalohu do IndexedDB kazdych 24 hodin. Uchovava poslednich {MAX_AUTO_BACKUPS} zaloh.
+            </CardDesc>
+
+            {/* Toggle auto-backup */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={autoBackupEnabled}
+                onChange={(e) => toggleAutoBackup(e.target.checked)}
+                style={{ accentColor: 'var(--forge-accent-primary)', width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span style={{
+                fontFamily: 'var(--forge-font-body)',
+                fontSize: '12.5px',
+                color: 'var(--forge-text-primary)',
+              }}>
+                Povolit automatickou zalohu (24h)
+              </span>
+            </label>
+
+            {/* Toggle pre-change backup */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={preChangeBackup}
+                onChange={(e) => togglePreChangeBackup(e.target.checked)}
+                style={{ accentColor: 'var(--forge-accent-primary)', width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span style={{
+                fontFamily: 'var(--forge-font-body)',
+                fontSize: '12.5px',
+                color: 'var(--forge-text-primary)',
+              }}>
+                Zalohovat pred importem (ochrana proti prepisu)
+              </span>
+            </label>
+
+            {/* Manual backup button */}
+            <ActionButton
+              onClick={handleRunAutoBackupNow}
+              icon="Save"
+              label={autoBackupLoading ? 'Ukladam...' : 'Zalohovat nyni'}
+              variant="outline"
+              disabled={autoBackupLoading}
+              size="small"
+            />
+          </CardWrapper>
+        </div>
+
+        {/* ===== RIGHT COLUMN: Restore & History ===== */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* IMPORT CARD */}
+          <CardWrapper>
+            <CardHeader icon="Upload" label="Importovat" iconColor="#3B82F6" />
+            <CardDesc>
+              Nahrajte JSON soubor ze zalohy. Pred aplikovanim muzete zkontrolovat obsah a vybrat ktere sekce obnovit.
+            </CardDesc>
+
+            <StatusBanner type="warning">
+              Import prepise stavajici konfiguraci. Doporucujeme nejprve vytvorit zalohu.
+            </StatusBanner>
+
+            {/* File input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+              aria-label="Vybrat soubor zalohy pro import"
+            />
+
+            <ActionButton
+              onClick={() => fileInputRef.current?.click()}
+              icon="Upload"
+              label="Vybrat soubor zalohy"
+              variant="blue"
+            />
+
+            {importResult && (
+              <StatusBanner type={importResult.success ? (importResult.dryRun ? 'info' : 'success') : 'error'}>
+                {importResult.message}
+              </StatusBanner>
+            )}
+          </CardWrapper>
+
+          {/* BACKUP HISTORY CARD */}
+          <CardWrapper>
+            <CardHeader
+              icon="History"
+              label="Historie zaloh"
+              iconColor="var(--forge-accent-primary)"
+              badge={
+                allBackups.length > 0 && (
+                  <span style={{
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontSize: '10px',
+                    color: 'var(--forge-text-muted)',
+                  }}>
+                    {allBackups.length} celkem
+                  </span>
+                )
+              }
+            />
+
+            {/* Tab filters */}
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[
+                { key: 'all', label: `Vse (${allBackups.length})` },
+                { key: 'manual', label: `Manualni (${manualCount})` },
+                { key: 'auto', label: `Auto (${autoCount})` },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setHistoryTab(tab.key)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 'var(--forge-radius-sm, 6px)',
+                    border: '1px solid',
+                    borderColor: historyTab === tab.key ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)',
+                    backgroundColor: historyTab === tab.key ? 'rgba(0, 212, 170, 0.08)' : 'transparent',
+                    color: historyTab === tab.key ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 100ms',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Backup list */}
+            {filteredBackups.length > 0 ? (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+                maxHeight: '340px',
+                overflowY: 'auto',
+              }}>
+                {filteredBackups.map(backup => (
+                  <BackupHistoryItem
+                    key={backup.id}
+                    backup={backup}
+                    onRestore={handleRestoreFromHistory}
+                    onDelete={(id) => setDeleteConfirmId(id)}
+                    onDownload={handleDownloadFromHistory}
+                  />
                 ))}
               </div>
-            </div>
-          ) : (
-            <div style={{
-              fontFamily: 'var(--forge-font-body)',
-              fontSize: '13px',
-              color: 'var(--forge-text-muted)',
-              textAlign: 'center',
-              padding: '12px 0',
-            }}>
-              Zadne automaticke zalohy
-            </div>
-          )}
+            ) : (
+              <div style={{
+                fontFamily: 'var(--forge-font-body)',
+                fontSize: '12.5px',
+                color: 'var(--forge-text-muted)',
+                textAlign: 'center',
+                padding: '20px 0',
+              }}>
+                {historyTab === 'manual' ? 'Zadne manualni zalohy' :
+                 historyTab === 'auto' ? 'Zadne automaticke zalohy' :
+                 'Zadne zalohy v historii'}
+              </div>
+            )}
+          </CardWrapper>
         </div>
       </div>
 
@@ -1047,7 +1351,7 @@ export default function ConfigBackupRestore() {
                 gap: '8px',
                 cursor: 'pointer',
                 fontFamily: 'var(--forge-font-body)',
-                fontSize: '13px',
+                fontSize: '12.5px',
                 color: 'var(--forge-text-secondary)',
               }}>
                 <input
@@ -1068,7 +1372,7 @@ export default function ConfigBackupRestore() {
                     backgroundColor: 'transparent',
                     color: 'var(--forge-text-secondary)',
                     fontFamily: 'var(--forge-font-heading)',
-                    fontSize: '13px',
+                    fontSize: '12.5px',
                     fontWeight: 500,
                     cursor: 'pointer',
                   }}
@@ -1085,7 +1389,7 @@ export default function ConfigBackupRestore() {
                     backgroundColor: dryRun ? '#3B82F6' : 'var(--forge-accent-primary)',
                     color: dryRun ? '#fff' : '#08090C',
                     fontFamily: 'var(--forge-font-heading)',
-                    fontSize: '13px',
+                    fontSize: '12.5px',
                     fontWeight: 600,
                     cursor: importSelected.length === 0 ? 'not-allowed' : 'pointer',
                     opacity: importSelected.length === 0 ? 0.5 : 1,
@@ -1106,7 +1410,7 @@ export default function ConfigBackupRestore() {
                 backgroundColor: 'transparent',
                 color: 'var(--forge-text-secondary)',
                 fontFamily: 'var(--forge-font-heading)',
-                fontSize: '13px',
+                fontSize: '12.5px',
                 fontWeight: 500,
                 cursor: 'pointer',
               }}
@@ -1125,7 +1429,7 @@ export default function ConfigBackupRestore() {
             {importValidation.issues.map((issue, i) => (
               <div key={i} style={{
                 fontFamily: 'var(--forge-font-body)',
-                fontSize: '13px',
+                fontSize: '12.5px',
                 color: 'var(--forge-text-secondary)',
                 padding: '4px 0',
                 paddingLeft: '24px',
@@ -1138,40 +1442,32 @@ export default function ConfigBackupRestore() {
 
         {/* Valid file preview */}
         {importValidation?.valid && importFile && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* File meta */}
             <div style={{
-              padding: '12px 16px',
+              padding: '10px 14px',
               borderRadius: 'var(--forge-radius-sm, 6px)',
               backgroundColor: 'var(--forge-bg-elevated)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '6px',
+              gap: '5px',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'var(--forge-font-body)', fontSize: '12px', color: 'var(--forge-text-muted)' }}>
-                  Soubor
-                </span>
-                <span style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px', color: 'var(--forge-text-primary)' }}>
-                  {importFileName}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'var(--forge-font-body)', fontSize: '12px', color: 'var(--forge-text-muted)' }}>
-                  Datum zalohy
-                </span>
-                <span style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px', color: 'var(--forge-text-primary)' }}>
-                  {formatDate(importFile.created_at)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'var(--forge-font-body)', fontSize: '12px', color: 'var(--forge-text-muted)' }}>
-                  Tenant ID
-                </span>
-                <span style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px', color: 'var(--forge-text-primary)' }}>
-                  {importFile.tenantId}
-                </span>
-              </div>
+              {[
+                { label: 'Soubor', value: importFileName },
+                { label: 'Datum zalohy', value: formatDate(importFile.created_at) },
+                { label: 'Tenant ID', value: importFile.tenantId },
+                { label: 'Verze formatu', value: `v${importFile.version || 1}` },
+                { label: 'Pocet sekci', value: `${importFile.configCount || Object.keys(importFile.data || {}).length}` },
+              ].map((row, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontFamily: 'var(--forge-font-body)', fontSize: '12px', color: 'var(--forge-text-muted)' }}>
+                    {row.label}
+                  </span>
+                  <span style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px', color: 'var(--forge-text-primary)' }}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
               {importFile.tenantId !== tenantId && (
                 <StatusBanner type="warning">
                   Tenant ID v zaloze ({importFile.tenantId}) se lisi od aktualniho ({tenantId}). Data budou importovana do aktualniho tenanta.
@@ -1181,18 +1477,31 @@ export default function ConfigBackupRestore() {
 
             {/* Config selection */}
             <div>
-              <div style={{
-                fontFamily: 'var(--forge-font-tech)',
-                fontSize: '10px',
-                color: 'var(--forge-text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: '8px',
-              }}>
-                OBSAH ZALOHY — VYBERTE SEKCE K OBNOVENI
+              <SectionLabel>OBSAH ZALOHY — VYBERTE SEKCE K OBNOVENI</SectionLabel>
+
+              {/* Select all for import */}
+              <div style={{ borderBottom: '1px solid var(--forge-border-default)', paddingBottom: '2px', marginBottom: '2px' }}>
+                <CheckboxRow
+                  checked={importSelected.length === CONFIG_NAMESPACES.filter(ns => importFile.data?.[ns.key] != null).length}
+                  onChange={(checked) => {
+                    if (checked) {
+                      const available = CONFIG_NAMESPACES
+                        .filter(ns => importFile.data?.[ns.key] != null)
+                        .map(ns => ns.key);
+                      setImportSelected(available);
+                    } else {
+                      setImportSelected([]);
+                    }
+                  }}
+                  label={importSelected.length === CONFIG_NAMESPACES.filter(ns => importFile.data?.[ns.key] != null).length ? 'Odznacit vse' : 'Vybrat vse dostupne'}
+                  icon="CheckSquare"
+                  color="var(--forge-accent-primary)"
+                  detail={`${importSelected.length}/${CONFIG_NAMESPACES.filter(ns => importFile.data?.[ns.key] != null).length}`}
+                />
               </div>
+
               <div style={{
-                maxHeight: '300px',
+                maxHeight: '260px',
                 overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1227,7 +1536,7 @@ export default function ConfigBackupRestore() {
         message={
           dryRun
             ? `Suchy beh zkontroluje ${importSelected.length} konfiguracnich sekci bez provedeni zmen.`
-            : `Tato akce prepise ${importSelected.length} konfiguracnich sekci. Stavajici data budou nahrazena daty ze zalohy. Tuto akci nelze vzit zpet.`
+            : `Tato akce prepise ${importSelected.length} konfiguracnich sekci. Stavajici data budou nahrazena daty ze zalohy.${preChangeBackup ? ' Pred importem bude automaticky vytvorena zaloha.' : ' Tuto akci nelze vzit zpet.'}`
         }
         confirmLabel={dryRun ? 'Spustit' : 'Importovat'}
         cancelLabel="Zrusit"
@@ -1235,6 +1544,18 @@ export default function ConfigBackupRestore() {
         loading={importing}
         onConfirm={handleImportConfirm}
         onCancel={() => setConfirmImportOpen(false)}
+      />
+
+      {/* ===== DELETE BACKUP CONFIRMATION ===== */}
+      <ForgeConfirmDialog
+        open={deleteConfirmId != null}
+        title="Smazat zalohu?"
+        message="Tato zaloha bude trvale smazana z historie. Tuto akci nelze vzit zpet."
+        confirmLabel="Smazat"
+        cancelLabel="Zrusit"
+        destructive
+        onConfirm={() => handleDeleteBackup(deleteConfirmId)}
+        onCancel={() => setDeleteConfirmId(null)}
       />
     </div>
   );

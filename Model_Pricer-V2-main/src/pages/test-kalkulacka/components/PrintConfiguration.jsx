@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 
 import Input from '../../../components/ui/Input';
@@ -8,6 +8,8 @@ import { Checkbox } from '../../../components/ui/Checkbox';
 import ForgeCheckbox from '../../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import MaterialComparison from './MaterialComparison';
+import QualityComparison from './QualityComparison';
+import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
 const fg = {
@@ -238,6 +240,50 @@ const sliderCSS = `
 }
 `;
 
+/* ── User Print Presets (localStorage) ──────────────────────────────────── */
+const USER_PRESETS_KEY = 'modelpricer:user:print-presets';
+const MAX_USER_PRESETS = 10;
+
+const DEFAULT_USER_PRESETS = [
+  {
+    id: '__default_quick_draft',
+    name: 'Rychly navrh',
+    isDefault: true,
+    settings: { quality: 'draft', infill: 10, supports: false },
+  },
+  {
+    id: '__default_standard',
+    name: 'Standard',
+    isDefault: true,
+    settings: { quality: 'standard', infill: 20, supports: false },
+  },
+  {
+    id: '__default_high_quality',
+    name: 'Vysoka kvalita',
+    isDefault: true,
+    settings: { quality: 'fine', infill: 30, supports: true },
+  },
+];
+
+function loadUserPresets() {
+  try {
+    const raw = localStorage.getItem(USER_PRESETS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUserPresets(presets) {
+  try {
+    localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(presets));
+  } catch {
+    // localStorage full or unavailable — silently fail
+  }
+}
+
 const PrintConfiguration = ({
   onConfigChange,
   selectedFile,
@@ -253,10 +299,12 @@ const PrintConfiguration = ({
   printConfigs,
   expressConfig,
   selectedExpressTierId,
+  onExpressTierChange,
   couponsConfig,
   appliedCouponCode,
   shippingConfig,
   selectedShippingMethodId,
+  onShippingMethodChange,
   // Widget slicing presets
   availablePresets = [],
   defaultPresetId = null,
@@ -301,6 +349,65 @@ const PrintConfiguration = ({
       });
     }
   }, [initialConfig]);
+
+  /* ── User presets state ─────────────────────────────────────────────── */
+  const [userPresets, setUserPresets] = useState(() => loadUserPresets());
+  const [userPresetsOpen, setUserPresetsOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [savePresetName, setSavePresetName] = useState('');
+  const saveInputRef = useRef(null);
+
+  const allUserPresets = useMemo(
+    () => [...DEFAULT_USER_PRESETS, ...userPresets],
+    [userPresets],
+  );
+
+  const handleSaveUserPreset = useCallback(() => {
+    const trimmed = (savePresetName || '').trim();
+    if (!trimmed) return;
+    if (userPresets.length >= MAX_USER_PRESETS) return;
+
+    const newPreset = {
+      id: `user_${Date.now()}`,
+      name: trimmed,
+      isDefault: false,
+      settings: {
+        material: config?.material,
+        color: config?.color,
+        quality: config?.quality,
+        infill: config?.infill,
+        quantity: config?.quantity,
+        supports: !!config?.supports,
+      },
+    };
+    const next = [...userPresets, newPreset];
+    setUserPresets(next);
+    saveUserPresets(next);
+    setSavePresetName('');
+    setSaveDialogOpen(false);
+  }, [savePresetName, userPresets, config]);
+
+  const handleDeleteUserPreset = useCallback((presetId) => {
+    const next = userPresets.filter((p) => p.id !== presetId);
+    setUserPresets(next);
+    saveUserPresets(next);
+  }, [userPresets]);
+
+  const handleApplyUserPreset = useCallback((preset) => {
+    if (!preset?.settings) return;
+    const merged = { ...config, ...preset.settings };
+    Object.keys(merged).forEach((k) => {
+      if (merged[k] === undefined) delete merged[k];
+    });
+    setConfig(merged);
+    onConfigChange?.(merged);
+  }, [config, onConfigChange]);
+
+  useEffect(() => {
+    if (saveDialogOpen && saveInputRef.current) {
+      saveInputRef.current.focus();
+    }
+  }, [saveDialogOpen]);
 
   // Dynamic materials/colors from AdminPricing (pricing:v3)
   const fallbackColors = useMemo(() => {
@@ -534,6 +641,12 @@ const PrintConfiguration = ({
     onConfigChange?.(newConfig);
   };
 
+  const applyQualitySettings = useCallback((settings) => {
+    const newConfig = { ...config, ...settings };
+    setConfig(newConfig);
+    onConfigChange?.(newConfig);
+  }, [config, onConfigChange]);
+
 
   if (!selectedFile) {
     return (
@@ -552,11 +665,259 @@ const PrintConfiguration = ({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} role="form" aria-label="Konfigurace tisku">
       <style>{sliderCSS}</style>
 
+      {/* ── User Print Presets (savable) ────────────────────────────────── */}
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Moje predvolby tisku">
+        <button
+          type="button"
+          onClick={() => setUserPresetsOpen((v) => !v)}
+          aria-expanded={userPresetsOpen}
+          aria-controls="user-presets-panel"
+          style={{
+            ...fg.sectionTitle,
+            marginBottom: userPresetsOpen ? '1rem' : 0,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            width: '100%',
+            padding: 0,
+          }}
+        >
+          <Icon name="Bookmark" size={20} style={{ marginRight: '0.5rem' }} />
+          <span style={{ flex: 1, textAlign: 'left' }}>
+            {language === 'en' ? 'MY PRESETS' : 'MOJE PREDVOLBY'}
+          </span>
+          <Icon
+            name={userPresetsOpen ? 'ChevronUp' : 'ChevronDown'}
+            size={16}
+            style={{ color: 'var(--forge-text-muted)', transition: 'transform 0.2s' }}
+          />
+        </button>
+
+        {userPresetsOpen && (
+          <div id="user-presets-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {/* Preset chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} role="group" aria-label="Seznam predvoleb">
+              {allUserPresets.map((preset) => (
+                <div
+                  key={preset.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '999px',
+                    border: '1px solid var(--forge-border-default)',
+                    background: preset.isDefault
+                      ? 'var(--forge-bg-elevated)'
+                      : 'rgba(0, 212, 170, 0.06)',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s, background 0.15s',
+                    fontSize: 'var(--forge-text-sm)',
+                    fontFamily: 'var(--forge-font-body)',
+                    color: 'var(--forge-text-primary)',
+                    maxWidth: '100%',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleApplyUserPreset(preset)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      color: 'inherit',
+                      fontFamily: 'inherit',
+                      fontSize: 'inherit',
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '160px',
+                    }}
+                    title={preset.name}
+                    aria-label={`${language === 'en' ? 'Apply preset' : 'Pouzit predvolbu'}: ${preset.name}`}
+                  >
+                    {preset.isDefault && (
+                      <Icon name="Zap" size={12} style={{ marginRight: '0.25rem', verticalAlign: '-1px', color: 'var(--forge-text-muted)' }} />
+                    )}
+                    {preset.name}
+                  </button>
+                  {!preset.isDefault && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteUserPreset(preset.id);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '0 0 0 0.125rem',
+                        cursor: 'pointer',
+                        color: 'var(--forge-text-muted)',
+                        lineHeight: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        minWidth: '20px',
+                        minHeight: '20px',
+                        justifyContent: 'center',
+                      }}
+                      aria-label={`${language === 'en' ? 'Delete preset' : 'Smazat predvolbu'}: ${preset.name}`}
+                    >
+                      <Icon name="X" size={12} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Save new preset */}
+            {!saveDialogOpen ? (
+              <button
+                type="button"
+                onClick={() => setSaveDialogOpen(true)}
+                disabled={userPresets.length >= MAX_USER_PRESETS}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  padding: '0.375rem 0.75rem',
+                  borderRadius: 'var(--forge-radius-md)',
+                  border: '1px dashed var(--forge-border-default)',
+                  background: 'none',
+                  cursor: userPresets.length >= MAX_USER_PRESETS ? 'not-allowed' : 'pointer',
+                  opacity: userPresets.length >= MAX_USER_PRESETS ? 0.5 : 1,
+                  fontSize: 'var(--forge-text-sm)',
+                  fontFamily: 'var(--forge-font-body)',
+                  color: 'var(--forge-text-muted)',
+                  transition: 'border-color 0.15s, color 0.15s',
+                  alignSelf: 'flex-start',
+                  minHeight: '36px',
+                }}
+                onMouseEnter={(e) => {
+                  if (userPresets.length < MAX_USER_PRESETS) {
+                    e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                    e.currentTarget.style.color = 'var(--forge-accent-primary)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                  e.currentTarget.style.color = 'var(--forge-text-muted)';
+                }}
+                aria-label={language === 'en' ? 'Save current settings as preset' : 'Ulozit aktualni nastaveni jako predvolbu'}
+              >
+                <Icon name="Plus" size={14} />
+                {language === 'en' ? 'Save as preset' : 'Ulozit jako predvolbu'}
+              </button>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem',
+                  borderRadius: 'var(--forge-radius-md)',
+                  border: '1px solid var(--forge-accent-primary)',
+                  background: 'rgba(0, 212, 170, 0.04)',
+                }}
+              >
+                <label htmlFor="user-preset-name" className="sr-only">
+                  {language === 'en' ? 'Preset name' : 'Nazev predvolby'}
+                </label>
+                <input
+                  ref={saveInputRef}
+                  id="user-preset-name"
+                  type="text"
+                  maxLength={40}
+                  value={savePresetName}
+                  onChange={(e) => setSavePresetName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveUserPreset();
+                    if (e.key === 'Escape') { setSaveDialogOpen(false); setSavePresetName(''); }
+                  }}
+                  placeholder={language === 'en' ? 'Preset name...' : 'Nazev predvolby...'}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '0.375rem 0.5rem',
+                    borderRadius: 'var(--forge-radius-sm)',
+                    border: '1px solid var(--forge-border-default)',
+                    background: 'var(--forge-bg-surface)',
+                    color: 'var(--forge-text-primary)',
+                    fontSize: 'var(--forge-text-sm)',
+                    fontFamily: 'var(--forge-font-body)',
+                    outline: 'none',
+                  }}
+                  aria-label={language === 'en' ? 'Preset name' : 'Nazev predvolby'}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveUserPreset}
+                  disabled={!(savePresetName || '').trim()}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: 'var(--forge-radius-sm)',
+                    border: 'none',
+                    background: 'var(--forge-accent-primary)',
+                    color: 'var(--forge-bg-void, #0a0e17)',
+                    fontSize: 'var(--forge-text-sm)',
+                    fontFamily: 'var(--forge-font-body)',
+                    fontWeight: 600,
+                    cursor: (savePresetName || '').trim() ? 'pointer' : 'not-allowed',
+                    opacity: (savePresetName || '').trim() ? 1 : 0.5,
+                    minHeight: '32px',
+                    whiteSpace: 'nowrap',
+                  }}
+                  aria-label={language === 'en' ? 'Confirm save' : 'Potvrdit ulozeni'}
+                >
+                  {language === 'en' ? 'Save' : 'Ulozit'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSaveDialogOpen(false); setSavePresetName(''); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '0.25rem',
+                    cursor: 'pointer',
+                    color: 'var(--forge-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    minWidth: '28px',
+                    minHeight: '28px',
+                    justifyContent: 'center',
+                  }}
+                  aria-label={language === 'en' ? 'Cancel' : 'Zrusit'}
+                >
+                  <Icon name="X" size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Limit hint */}
+            {userPresets.length >= MAX_USER_PRESETS && (
+              <p style={fg.textMuted}>
+                {language === 'en'
+                  ? `Maximum ${MAX_USER_PRESETS} custom presets reached. Delete one to save a new one.`
+                  : `Maximum ${MAX_USER_PRESETS} vlastnich predvoleb dosazeno. Smazte jednu pro ulozeni nove.`}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Slicing preset selector (loaded from backend) */}
-      <div className="tk-print-config-card" style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Preset pro slicovani">
         <h3 style={fg.sectionTitle}>
           <Icon name="Sliders" size={20} style={{ marginRight: '0.5rem' }} />
           {presetUi.label}
@@ -564,12 +925,13 @@ const PrintConfiguration = ({
 
         {/* Error / no presets banners */}
         {presetsError && (
-          <div style={fg.bannerError}>
+          <div style={fg.bannerError} role="alert">
             <span>{presetUi.failed}</span>
             {onPresetsRetry && (
               <button
                 onClick={onPresetsRetry}
-                style={fg.bannerRetry}
+                style={{ ...fg.bannerRetry, minHeight: '44px', minWidth: '44px' }}
+                aria-label={language === 'en' ? 'Retry loading presets' : 'Zkusit znovu nacist presety'}
               >
                 {language === 'en' ? 'Retry' : 'Zkusit znovu'}
               </button>
@@ -611,13 +973,13 @@ const PrintConfiguration = ({
       </div>
 
       {/* Quality Presets */}
-      <div className="tk-print-config-card" style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Rychle predvolby">
         <h3 style={fg.sectionTitle}>
           <Icon name="Zap" size={20} style={{ marginRight: '0.5rem' }} />
-          RYCHLÉ PŘEDVOLBY
+          RYCHLE PREDVOLBY
         </h3>
 
-        <div className="tk-print-preset-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+        <div className="tk-print-preset-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }} role="group" aria-label="Rychle predvolby kvality">
           {Object.entries(qualityPresets).map(([key, preset]) => (
             <button
               key={key}
@@ -625,6 +987,7 @@ const PrintConfiguration = ({
               style={{ ...fg.presetBtn, minHeight: '44px' }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-default)'; }}
+              aria-label={`Predvolba ${preset.name}: ${preset.description}`}
             >
               <div style={{ fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
                 {preset.name}
@@ -636,31 +999,65 @@ const PrintConfiguration = ({
       </div>
 
       {/* Material Selection */}
-      <div className="tk-print-config-card" style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Material a barva">
         <h3 style={fg.sectionTitle}>
           <Icon name="Package" size={20} style={{ marginRight: '0.5rem' }} />
-          MATERIÁL A BARVA
+          MATERIAL A BARVA
         </h3>
 
         <div className="tk-print-material-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <Select
-            label="MATERIÁL"
-            options={materialOptions}
-            value={config?.material || ''}
-            onChange={(value) => handleMaterialChange(value)}
-            searchable
-            disabled={disabled || materialOptions.length <= 1}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Color swatch for selected material */}
+              {(() => {
+                const matColors = Array.isArray(selectedMaterial?.colors) ? selectedMaterial.colors : [];
+                const selectedColor = matColors.find((c) => c.id === config?.color) || matColors[0];
+                const hex = selectedColor?.hex;
+                if (!hex) return null;
+                return (
+                  <div style={{
+                    width: '0.75rem',
+                    height: '0.75rem',
+                    borderRadius: '50%',
+                    border: '1px solid var(--forge-border-default)',
+                    backgroundColor: hex,
+                    flexShrink: 0,
+                  }} aria-hidden="true" />
+                );
+              })()}
+              <label htmlFor="tk-material-select" style={fg.label}>MATERIAL</label>
+              {selectedMaterial?.price_per_gram != null && (
+                <span style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--forge-font-mono)',
+                  color: 'var(--forge-text-muted)',
+                  marginLeft: 'auto',
+                }}>
+                  od {Number(selectedMaterial.price_per_gram).toFixed(2)} Kč/g
+                </span>
+              )}
+            </div>
+            <Select
+              options={materialOptions}
+              value={config?.material || ''}
+              onChange={(value) => handleMaterialChange(value)}
+              searchable
+              disabled={disabled || materialOptions.length <= 1}
+            />
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={fg.label}>BARVA</label>
-            <div className="tk-print-color-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+            <div className="tk-print-color-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }} role="radiogroup" aria-label="Vyber barvu">
               {uiColors?.map((color) => (
                 <button
                   key={color?.id}
                   onClick={() => handleColorChange(color?.id)}
                   disabled={disabled}
                   className="tk-print-color-btn"
+                  role="radio"
+                  aria-checked={config?.color === color?.id}
+                  aria-label={`Barva: ${color?.name}`}
                   style={{ ...fg.colorBtn(config?.color === color?.id), minHeight: '44px' }}
                 >
                   <div style={fg.colorDot(color?.hex)} />
@@ -696,7 +1093,7 @@ const PrintConfiguration = ({
       />
 
       {/* Print Quality */}
-      <div className="tk-print-config-card" style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Kvalita tisku">
         <h3 style={fg.sectionTitle}>
           <Icon name="Layers" size={20} style={{ marginRight: '0.5rem' }} />
           KVALITA TISKU
@@ -711,10 +1108,11 @@ const PrintConfiguration = ({
           />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={fg.label}>
-              VÝPLŇ: <span style={fg.infillValue}>{config?.infill}%</span>
+            <label htmlFor="tk-infill-slider" style={fg.label}>
+              VYPLN: <span style={fg.infillValue}>{config?.infill}%</span>
             </label>
             <input
+              id="tk-infill-slider"
               type="range"
               min="10"
               max="100"
@@ -723,6 +1121,10 @@ const PrintConfiguration = ({
               onChange={(e) => handleConfigChange('infill', parseInt(e?.target?.value))}
               className="forge-slider"
               style={fg.slider}
+              aria-label={`Vypln: ${config?.infill}%`}
+              aria-valuemin={10}
+              aria-valuemax={100}
+              aria-valuenow={config?.infill}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={fg.textMuted}>Rychlý (10%)</span>
@@ -741,11 +1143,28 @@ const PrintConfiguration = ({
         </div>
       </div>
 
+      {/* Quality Comparison (expandable) */}
+      <QualityComparison
+        pricingConfig={pricingConfig}
+        feesConfig={feesConfig}
+        feeSelections={feeSelections}
+        selectedFile={selectedFile}
+        printConfigs={printConfigs}
+        currentConfig={config}
+        onApplyPreset={applyQualitySettings}
+        expressConfig={expressConfig}
+        selectedExpressTierId={selectedExpressTierId}
+        couponsConfig={couponsConfig}
+        appliedCouponCode={appliedCouponCode}
+        shippingConfig={shippingConfig}
+        selectedShippingMethodId={selectedShippingMethodId}
+      />
+
       {/* Quantity */}
-      <div className="tk-print-config-card" style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Mnozstvi">
         <h3 style={fg.sectionTitle}>
           <Icon name="Package2" size={20} style={{ marginRight: '0.5rem' }} />
-          MNOŽSTVÍ
+          MNOZSTVI
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -756,11 +1175,26 @@ const PrintConfiguration = ({
             max={9999}
             disabled={disabled}
             label="POČET KUSŮ"
-            unitPrice={
-              selectedFile?.result?.price != null && Number.isFinite(Number(selectedFile.result.price))
-                ? Number(selectedFile.result.price) / Math.max(1, config?.quantity ?? 1)
-                : null
-            }
+            unitPrice={(() => {
+              // Compute per-unit price from pricing engine for the selected model
+              if (!selectedFile || selectedFile.status !== 'completed' || !selectedFile.result) return null;
+              if (!pricingConfig) return null;
+              try {
+                const singleQuote = calculateOrderQuote({
+                  uploadedFiles: [selectedFile],
+                  printConfigs: { [selectedFile.id]: { ...config, quantity: 1 } },
+                  pricingConfig,
+                  feesConfig,
+                  feeSelections,
+                });
+                if (singleQuote && Number.isFinite(singleQuote.total) && singleQuote.total > 0) {
+                  return singleQuote.total;
+                }
+              } catch {
+                // Silently fail — just don't show unit price
+              }
+              return null;
+            })()}
             currency="Kč"
           />
 
@@ -807,10 +1241,10 @@ const PrintConfiguration = ({
       </div>
 
       {/* Additional services (fees from AdminFees) */}
-      <div className="tk-print-config-card" style={fg.card}>
+      <div className="tk-print-config-card" style={fg.card} role="region" aria-label="Dodatecne sluzby">
         <h3 style={fg.sectionTitle}>
           <Icon name="Wrench" size={20} style={{ marginRight: '0.5rem' }} />
-          DODATEČNÉ SLUŽBY
+          DODATECNE SLUZBY
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -841,6 +1275,16 @@ const PrintConfiguration = ({
                 <div
                   key={fee.id}
                   className="tk-fee-card"
+                  role="checkbox"
+                  aria-checked={isSelected}
+                  aria-label={`Sluzba: ${fee.name} - ${formatFeeValue(fee)}`}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleFeeSelected(fee.id, !isSelected);
+                    }
+                  }}
                   style={{
                     ...fg.feeCard,
                     cursor: 'pointer',
@@ -975,6 +1419,196 @@ const PrintConfiguration = ({
           )}
         </div>
       </div>
+
+      {/* Shipping method selection */}
+      {shippingConfig?.enabled && Array.isArray(shippingConfig.methods) && shippingConfig.methods.filter(m => m.active !== false).length > 0 && (
+        <div className="tk-print-config-card" style={fg.card} role="region" aria-label={language === 'en' ? 'Shipping' : 'Doprava'}>
+          <h3 style={fg.sectionTitle}>
+            <Icon name="Truck" size={20} style={{ marginRight: '0.5rem' }} />
+            {language === 'en' ? 'SHIPPING' : 'DOPRAVA'}
+          </h3>
+
+          {/* Free shipping progress */}
+          {shippingConfig.free_shipping_enabled && shippingConfig.free_shipping_threshold > 0 && (() => {
+            // Compute current order total for free shipping check
+            const orderTotal = (() => {
+              try {
+                const completedFiles = (uploadedFiles || []).filter(f => f?.status === 'completed' && f?.result);
+                if (completedFiles.length === 0 || !pricingConfig) return 0;
+                const q = calculateOrderQuote({ uploadedFiles: completedFiles, printConfigs: printConfigs || {}, pricingConfig, feesConfig, feeSelections, expressConfig, selectedExpressTierId });
+                return q?.total || 0;
+              } catch { return 0; }
+            })();
+            const threshold = shippingConfig.free_shipping_threshold;
+            const qualifies = orderTotal >= threshold;
+            const remaining = Math.max(0, threshold - orderTotal);
+            const progress = Math.min(100, (orderTotal / threshold) * 100);
+
+            return (
+              <div style={{ marginBottom: '0.75rem' }}>
+                {qualifies ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: 'var(--forge-text-sm)', color: 'var(--forge-success, #10B981)', fontWeight: 500 }}>
+                    <Icon name="Check" size={14} />
+                    <span>{language === 'en' ? 'Free shipping!' : 'Doprava zdarma!'}</span>
+                  </div>
+                ) : (
+                  <div>
+                    <div
+                      style={{ height: '6px', borderRadius: '3px', background: 'rgba(0, 212, 170, 0.15)', overflow: 'hidden', marginBottom: '0.375rem' }}
+                      role="progressbar"
+                      aria-valuenow={Math.round(progress)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={language === 'en' ? `Free shipping progress: ${Math.round(progress)}%` : `Postup k doprave zdarma: ${Math.round(progress)}%`}
+                    >
+                      <div style={{ height: '100%', width: `${progress}%`, borderRadius: '3px', background: 'var(--forge-accent-primary)', transition: 'width 0.3s' }} />
+                    </div>
+                    <p style={fg.textMuted}>
+                      {language === 'en'
+                        ? `Add ${Math.round(remaining)} CZK for free shipping`
+                        : `Ještě ${Math.round(remaining)} Kč do dopravy zdarma`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {shippingConfig.methods
+              .filter(m => m.active !== false)
+              .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+              .map(method => {
+                const isSelected = method.id === selectedShippingMethodId;
+                const isFree = method.type === 'PICKUP';
+                const price = isFree ? 0 : (method.price || 0);
+                const deliveryText = (method.delivery_days_min > 0 || method.delivery_days_max > 0)
+                  ? (method.delivery_days_min === method.delivery_days_max
+                    ? `${method.delivery_days_min} ${language === 'en' ? 'days' : 'dní'}`
+                    : `${method.delivery_days_min}–${method.delivery_days_max} ${language === 'en' ? 'days' : 'dní'}`)
+                  : null;
+
+                return (
+                  <button
+                    key={method.id}
+                    type="button"
+                    onClick={() => onShippingMethodChange?.(method.id)}
+                    disabled={disabled}
+                    aria-pressed={isSelected}
+                    aria-label={`${method.name}${deliveryText ? `, ${deliveryText}` : ''}${isFree ? ', zdarma' : `, ${price} Kc`}${isSelected ? ' (vybrano)' : ''}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.75rem',
+                      borderRadius: 'var(--forge-radius-md)',
+                      border: isSelected ? '2px solid var(--forge-accent-primary)' : '1px solid var(--forge-border-default)',
+                      background: isSelected ? 'rgba(0, 212, 170, 0.06)' : 'var(--forge-bg-elevated)',
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                      transition: 'border-color 0.15s, background 0.15s',
+                      opacity: disabled ? 0.6 : 1,
+                      minHeight: '44px',
+                    }}
+                  >
+                    <div style={{
+                      width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0,
+                      border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-border-default)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--forge-accent-primary)' }} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ ...fg.text, fontWeight: 500 }}>{method.name}</div>
+                      {deliveryText && <div style={fg.textMuted}>{deliveryText}</div>}
+                      {method.description && <div style={fg.textMuted}>{method.description}</div>}
+                    </div>
+                    <span style={{
+                      ...fg.mono,
+                      fontSize: 'var(--forge-text-sm)',
+                      color: price === 0 ? 'var(--forge-success, #10B981)' : 'var(--forge-accent-primary)',
+                    }}>
+                      {price === 0
+                        ? (language === 'en' ? 'Free' : 'Zdarma')
+                        : `${price} Kč`}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Express / Priority delivery */}
+      {expressConfig?.enabled && Array.isArray(expressConfig.tiers) && expressConfig.tiers.filter(t => t.active !== false).length > 0 && (
+        <div className="tk-print-config-card" style={fg.card} role="region" aria-label={language === 'en' ? 'Delivery speed' : 'Rychlost dodani'}>
+          <h3 style={fg.sectionTitle}>
+            <Icon name="Zap" size={20} style={{ marginRight: '0.5rem' }} />
+            {language === 'en' ? 'DELIVERY SPEED' : 'RYCHLOST DODANI'}
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {expressConfig.tiers
+              .filter(t => t.active !== false)
+              .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+              .map(tier => {
+                const isSelected = tier.id === selectedExpressTierId;
+                const surchargeLabel = tier.surcharge_value > 0
+                  ? (tier.surcharge_type === 'percent' ? `+${tier.surcharge_value}%` : `+${tier.surcharge_value} Kč`)
+                  : (language === 'en' ? 'Included' : 'V ceně');
+                const deliveryText = tier.delivery_days > 0
+                  ? `${tier.delivery_days} ${language === 'en' ? 'business days' : 'prac. dní'}`
+                  : (language === 'en' ? 'Standard' : 'Standardní');
+
+                return (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => onExpressTierChange?.(tier.id)}
+                    disabled={disabled}
+                    aria-pressed={isSelected}
+                    aria-label={`${tier.name}, ${deliveryText}, ${surchargeLabel}${isSelected ? ' (vybrano)' : ''}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.75rem',
+                      borderRadius: 'var(--forge-radius-md)',
+                      border: isSelected ? '2px solid var(--forge-accent-primary)' : '1px solid var(--forge-border-default)',
+                      background: isSelected ? 'rgba(0, 212, 170, 0.06)' : 'var(--forge-bg-elevated)',
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                      transition: 'border-color 0.15s, background 0.15s',
+                      opacity: disabled ? 0.6 : 1,
+                      minHeight: '44px',
+                    }}
+                  >
+                    <div style={{
+                      width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0,
+                      border: isSelected ? '2px solid var(--forge-accent-primary)' : '2px solid var(--forge-border-default)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--forge-accent-primary)' }} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ ...fg.text, fontWeight: 500 }}>{tier.name}</div>
+                      <div style={fg.textMuted}>{deliveryText}</div>
+                    </div>
+                    <span style={{
+                      ...fg.mono,
+                      fontSize: 'var(--forge-text-sm)',
+                      color: tier.surcharge_value > 0 ? 'var(--forge-warning, #F59E0B)' : 'var(--forge-success, #10B981)',
+                    }}>
+                      {surchargeLabel}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Estimated Results */}
       <div style={fg.resultCard}>

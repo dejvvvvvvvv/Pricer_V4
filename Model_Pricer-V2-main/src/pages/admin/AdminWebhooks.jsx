@@ -1,10 +1,11 @@
-// Admin Webhooks Page — Register, test, and manage webhook endpoints
+// Admin Webhooks Page — Register, test, manage webhook endpoints, delivery logs, docs
 // Route: /admin/webhooks
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Icon from '../../components/AppIcon';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import { ForgeConfirmDialog, useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
+import { CopyButton } from '../../components/ui/forge/CopyButton';
 import { SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { debug } from '@/lib/debug';
@@ -12,20 +13,128 @@ import { generateId } from '@/utils/generateId';
 import {
   getWebhooks,
   createWebhook,
+  updateWebhook,
   deleteWebhook,
   testWebhook,
+  retryDelivery,
+  regenerateSecret,
 } from '../../services/webhookApi';
 
 // ─── Constants ───────────────────────────────────────────────
 
 const AVAILABLE_EVENTS = [
-  { key: 'order.created', label: 'Objednavka vytvorena', color: '#00D4AA' },
-  { key: 'order.updated', label: 'Objednavka aktualizovana', color: '#3B82F6' },
-  { key: 'order.completed', label: 'Objednavka dokoncena', color: '#10B981' },
-  { key: 'order.cancelled', label: 'Objednavka zrusena', color: '#EF4444' },
-  { key: 'slice.completed', label: 'Slicing dokoncen', color: '#8B5CF6' },
-  { key: 'slice.failed', label: 'Slicing selhal', color: '#F97316' },
+  { key: 'order.created', label: 'Objednavka vytvorena', color: '#00D4AA', group: 'Objednavky' },
+  { key: 'order.updated', label: 'Objednavka aktualizovana', color: '#3B82F6', group: 'Objednavky' },
+  { key: 'order.completed', label: 'Objednavka dokoncena', color: '#10B981', group: 'Objednavky' },
+  { key: 'order.cancelled', label: 'Objednavka zrusena', color: '#EF4444', group: 'Objednavky' },
+  { key: 'payment.received', label: 'Platba prijata', color: '#8B5CF6', group: 'Platby' },
+  { key: 'payment.refunded', label: 'Platba vracena', color: '#F97316', group: 'Platby' },
+  { key: 'invoice.created', label: 'Faktura vytvorena', color: '#06B6D4', group: 'Faktury' },
+  { key: 'invoice.paid', label: 'Faktura uhrazena', color: '#84CC16', group: 'Faktury' },
 ];
+
+const EVENT_GROUPS = ['Objednavky', 'Platby', 'Faktury'];
+
+const TABS = [
+  { key: 'webhooks', label: 'Webhooky', icon: 'Webhook' },
+  { key: 'deliveries', label: 'Doruceni', icon: 'Send' },
+  { key: 'docs', label: 'Dokumentace', icon: 'BookOpen' },
+];
+
+// ─── Payload examples for documentation ──────────────────────
+
+const PAYLOAD_EXAMPLES = {
+  'order.created': {
+    event: 'order.created',
+    timestamp: '2026-03-12T14:30:00.000Z',
+    data: {
+      id: 'ord_abc123',
+      status: 'new',
+      customer: { email: 'zakaznik@example.com', name: 'Jan Novak' },
+      items: [{ model: 'dil_v2.stl', material: 'PLA', quantity: 2, price: 450 }],
+      total: 900,
+      currency: 'CZK',
+    },
+  },
+  'order.updated': {
+    event: 'order.updated',
+    timestamp: '2026-03-12T15:00:00.000Z',
+    data: {
+      id: 'ord_abc123',
+      status: 'in_progress',
+      previous_status: 'new',
+      updated_fields: ['status'],
+    },
+  },
+  'order.completed': {
+    event: 'order.completed',
+    timestamp: '2026-03-12T18:00:00.000Z',
+    data: {
+      id: 'ord_abc123',
+      status: 'completed',
+      completed_at: '2026-03-12T18:00:00.000Z',
+      total: 900,
+      currency: 'CZK',
+    },
+  },
+  'order.cancelled': {
+    event: 'order.cancelled',
+    timestamp: '2026-03-12T16:00:00.000Z',
+    data: {
+      id: 'ord_abc123',
+      status: 'cancelled',
+      reason: 'Zakaznik zrusil objednavku',
+      cancelled_at: '2026-03-12T16:00:00.000Z',
+    },
+  },
+  'payment.received': {
+    event: 'payment.received',
+    timestamp: '2026-03-12T14:35:00.000Z',
+    data: {
+      id: 'pay_xyz789',
+      order_id: 'ord_abc123',
+      amount: 900,
+      currency: 'CZK',
+      method: 'card',
+      status: 'succeeded',
+    },
+  },
+  'payment.refunded': {
+    event: 'payment.refunded',
+    timestamp: '2026-03-13T10:00:00.000Z',
+    data: {
+      id: 'pay_xyz789',
+      order_id: 'ord_abc123',
+      amount: 900,
+      currency: 'CZK',
+      refund_reason: 'Vadny vyrobek',
+    },
+  },
+  'invoice.created': {
+    event: 'invoice.created',
+    timestamp: '2026-03-12T14:40:00.000Z',
+    data: {
+      id: 'inv_def456',
+      order_id: 'ord_abc123',
+      number: 'FA-2026-0042',
+      total: 900,
+      currency: 'CZK',
+      due_date: '2026-03-26',
+    },
+  },
+  'invoice.paid': {
+    event: 'invoice.paid',
+    timestamp: '2026-03-12T14:45:00.000Z',
+    data: {
+      id: 'inv_def456',
+      order_id: 'ord_abc123',
+      number: 'FA-2026-0042',
+      paid_at: '2026-03-12T14:45:00.000Z',
+      amount: 900,
+      currency: 'CZK',
+    },
+  },
+};
 
 // ─── Styles ──────────────────────────────────────────────────
 
@@ -91,16 +200,34 @@ const btnOutline = {
   fontWeight: 500,
 };
 
-const btnDanger = {
-  ...btnOutline,
-  borderColor: 'var(--forge-error, #DC2626)',
-  color: 'var(--forge-error, #DC2626)',
-};
-
 const btnSmall = {
   ...btnOutline,
   padding: '6px 12px',
   fontSize: '12px',
+};
+
+const sectionLabel = {
+  fontSize: '11px',
+  fontFamily: 'var(--forge-font-tech)',
+  color: 'var(--forge-text-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  marginBottom: '8px',
+  display: 'block',
+};
+
+const codeBlockStyle = {
+  backgroundColor: 'var(--forge-bg-elevated)',
+  border: '1px solid var(--forge-border-default)',
+  borderRadius: 'var(--forge-radius-sm, 8px)',
+  padding: '16px',
+  fontSize: '12px',
+  fontFamily: 'var(--forge-font-tech)',
+  color: 'var(--forge-text-primary)',
+  whiteSpace: 'pre',
+  overflowX: 'auto',
+  lineHeight: 1.6,
+  margin: 0,
 };
 
 // ─── Event Badge ─────────────────────────────────────────────
@@ -161,42 +288,168 @@ function StatusBadge({ active }) {
   );
 }
 
-// ─── Delivery Log Item ───────────────────────────────────────
+// ─── HTTP Status Badge ───────────────────────────────────────
 
-function DeliveryLogItem({ delivery }) {
-  const isSuccess = delivery.statusCode >= 200 && delivery.statusCode < 300;
-  const color = isSuccess ? 'var(--forge-success, #10B981)' : 'var(--forge-error, #EF4444)';
-  const date = delivery.timestamp
-    ? new Date(delivery.timestamp).toLocaleString('cs-CZ')
-    : '—';
+function HttpStatusBadge({ code }) {
+  const isSuccess = code >= 200 && code < 300;
+  const isClientErr = code >= 400 && code < 500;
+  const color = isSuccess
+    ? 'var(--forge-success, #10B981)'
+    : isClientErr
+      ? '#F59E0B'
+      : 'var(--forge-error, #EF4444)';
 
   return (
-    <div
+    <span
       style={{
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '8px 12px',
-        borderRadius: 'var(--forge-radius-sm, 8px)',
-        backgroundColor: 'var(--forge-bg-elevated)',
-        fontSize: '12px',
+        gap: '4px',
+        padding: '2px 8px',
+        borderRadius: '6px',
+        fontSize: '11px',
         fontFamily: 'var(--forge-font-tech)',
+        fontWeight: 600,
+        color: color,
+        backgroundColor: `${isSuccess ? '#10B981' : isClientErr ? '#F59E0B' : '#EF4444'}15`,
       }}
     >
-      <span style={{ color: 'var(--forge-text-muted)' }}>{date}</span>
-      <span style={{ color: 'var(--forge-text-secondary)' }}>{delivery.event || '—'}</span>
-      <span
+      <Icon name={isSuccess ? 'Check' : 'X'} size={10} />
+      {code}
+    </span>
+  );
+}
+
+// ─── Success Rate Bar ────────────────────────────────────────
+
+function SuccessRateBar({ deliveries }) {
+  if (!deliveries || deliveries.length === 0) return null;
+  const total = deliveries.length;
+  const success = deliveries.filter(
+    (d) => d.statusCode >= 200 && d.statusCode < 300
+  ).length;
+  const rate = Math.round((success / total) * 100);
+  const color =
+    rate >= 90
+      ? 'var(--forge-success, #10B981)'
+      : rate >= 50
+        ? '#F59E0B'
+        : 'var(--forge-error, #EF4444)';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          color: color,
-          fontWeight: 600,
+          flex: 1,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: 'var(--forge-bg-elevated)',
+          overflow: 'hidden',
+          minWidth: 60,
         }}
       >
-        <Icon name={isSuccess ? 'Check' : 'X'} size={12} />
-        {delivery.statusCode}
+        <div
+          style={{
+            width: `${rate}%`,
+            height: '100%',
+            backgroundColor: color,
+            borderRadius: 2,
+            transition: 'width 300ms ease-out',
+          }}
+        />
+      </div>
+      <span
+        style={{
+          fontSize: '11px',
+          fontFamily: 'var(--forge-font-tech)',
+          color: color,
+          fontWeight: 600,
+          minWidth: 36,
+          textAlign: 'right',
+        }}
+      >
+        {rate}%
       </span>
+    </div>
+  );
+}
+
+// ─── Secret Display ──────────────────────────────────────────
+
+function SecretDisplay({ secret, webhookId, onRegenerate }) {
+  const [revealed, setRevealed] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  if (!secret) {
+    return (
+      <span
+        style={{
+          fontSize: '12px',
+          fontFamily: 'var(--forge-font-body)',
+          color: 'var(--forge-text-muted)',
+          fontStyle: 'italic',
+        }}
+      >
+        Bez secret klice
+      </span>
+    );
+  }
+
+  const masked = secret.substring(0, 8) + '••••••••••••••••';
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      await onRegenerate(webhookId);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+      <code
+        style={{
+          fontFamily: 'var(--forge-font-tech)',
+          fontSize: '12px',
+          color: 'var(--forge-text-primary)',
+          backgroundColor: 'var(--forge-bg-elevated)',
+          padding: '4px 10px',
+          borderRadius: '6px',
+          border: '1px solid var(--forge-border-default)',
+          userSelect: revealed ? 'text' : 'none',
+        }}
+      >
+        {revealed ? secret : masked}
+      </code>
+      <button
+        onClick={() => setRevealed((r) => !r)}
+        style={{ ...btnSmall, padding: '4px 8px' }}
+        title={revealed ? 'Skryt' : 'Zobrazit'}
+        aria-label={revealed ? 'Skryt secret' : 'Zobrazit secret'}
+      >
+        <Icon name={revealed ? 'EyeOff' : 'Eye'} size={13} />
+      </button>
+      <CopyButton
+        text={secret}
+        label="Kopirovat"
+        copiedLabel="Skopirovano"
+        style={{ padding: '4px 8px', fontSize: '11px' }}
+      />
+      <button
+        onClick={handleRegenerate}
+        disabled={regenerating}
+        style={{
+          ...btnSmall,
+          padding: '4px 8px',
+          borderColor: 'var(--forge-error)',
+          color: 'var(--forge-error)',
+          opacity: regenerating ? 0.6 : 1,
+        }}
+        title="Regenerovat secret (stary prestane fungovat)"
+      >
+        <Icon name={regenerating ? 'Loader2' : 'RefreshCw'} size={12} />
+      </button>
     </div>
   );
 }
@@ -205,7 +458,6 @@ function DeliveryLogItem({ delivery }) {
 
 function TestResultFlash({ result, onDismiss }) {
   if (!result) return null;
-
   const isSuccess = result.success;
   const color = isSuccess ? 'var(--forge-success, #10B981)' : 'var(--forge-error, #EF4444)';
 
@@ -230,14 +482,7 @@ function TestResultFlash({ result, onDismiss }) {
       <span style={{ flex: 1 }}>{result.message}</span>
       <button
         onClick={onDismiss}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: color,
-          padding: '2px',
-          display: 'flex',
-        }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color, padding: '2px', display: 'flex' }}
         aria-label="Zavrit"
       >
         <Icon name="X" size={14} />
@@ -248,11 +493,25 @@ function TestResultFlash({ result, onDismiss }) {
 
 // ─── Webhook Card ────────────────────────────────────────────
 
-function WebhookCard({ webhook, onTest, onDelete, testResult, testingId }) {
+function WebhookCard({
+  webhook,
+  onTest,
+  onDelete,
+  onToggleActive,
+  onEdit,
+  onRegenerate,
+  testResult,
+  testingId,
+  clearTestResult,
+}) {
   const isTesting = testingId === webhook.id;
+  const lastTriggered = webhook.deliveries?.length
+    ? new Date(webhook.deliveries[0].timestamp).toLocaleString('cs-CZ')
+    : null;
 
   return (
     <div style={cardStyle}>
+      {/* Header row */}
       <div
         style={{
           display: 'flex',
@@ -262,16 +521,9 @@ function WebhookCard({ webhook, onTest, onDelete, testResult, testingId }) {
           flexWrap: 'wrap',
         }}
       >
-        {/* Left: URL + events + status */}
+        {/* Left: URL + metadata */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '10px',
-            }}
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
             <span
               style={{
                 fontFamily: 'var(--forge-font-tech)',
@@ -286,38 +538,52 @@ function WebhookCard({ webhook, onTest, onDelete, testResult, testingId }) {
           </div>
 
           {/* Events */}
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '6px',
-              marginBottom: '10px',
-            }}
-          >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
             {(webhook.events || []).map((ev) => (
               <EventBadge key={ev} eventKey={ev} />
             ))}
           </div>
 
-          {/* Created date */}
-          <span
-            style={{
-              fontSize: '11px',
-              fontFamily: 'var(--forge-font-tech)',
-              color: 'var(--forge-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-          >
-            Vytvoreno:{' '}
-            {webhook.createdAt
-              ? new Date(webhook.createdAt).toLocaleDateString('cs-CZ')
-              : '—'}
-          </span>
+          {/* Metadata row */}
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={sectionLabel}>
+              Vytvoreno:{' '}
+              {webhook.createdAt
+                ? new Date(webhook.createdAt).toLocaleDateString('cs-CZ')
+                : '\u2014'}
+            </span>
+            {lastTriggered && (
+              <span style={sectionLabel}>
+                Posledni aktivita: {lastTriggered}
+              </span>
+            )}
+          </div>
+
+          {/* Success rate */}
+          {webhook.deliveries && webhook.deliveries.length > 0 && (
+            <div style={{ maxWidth: 200, marginTop: '8px' }}>
+              <span style={{ ...sectionLabel, marginBottom: '4px' }}>Uspesnost doruceni</span>
+              <SuccessRateBar deliveries={webhook.deliveries} />
+            </div>
+          )}
         </div>
 
         {/* Right: Actions */}
-        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
+          <button
+            style={btnSmall}
+            onClick={() => onToggleActive(webhook)}
+            title={webhook.active !== false ? 'Deaktivovat' : 'Aktivovat'}
+          >
+            <Icon name={webhook.active !== false ? 'Pause' : 'Play'} size={14} />
+          </button>
+          <button
+            style={btnSmall}
+            onClick={() => onEdit(webhook)}
+            title="Upravit webhook"
+          >
+            <Icon name="Pencil" size={14} />
+          </button>
           <button
             style={btnSmall}
             onClick={() => onTest(webhook.id)}
@@ -325,7 +591,7 @@ function WebhookCard({ webhook, onTest, onDelete, testResult, testingId }) {
             title="Odeslat testovaci udalost"
           >
             <Icon name={isTesting ? 'Loader2' : 'Send'} size={14} />
-            {isTesting ? 'Testovani...' : 'Test'}
+            {isTesting ? 'Test...' : 'Test'}
           </button>
           <button
             style={{ ...btnSmall, borderColor: 'var(--forge-error)', color: 'var(--forge-error)' }}
@@ -337,33 +603,30 @@ function WebhookCard({ webhook, onTest, onDelete, testResult, testingId }) {
         </div>
       </div>
 
-      {/* Test result flash */}
-      {testResult && testResult.webhookId === webhook.id && (
-        <TestResultFlash
-          result={testResult}
-          onDismiss={() => {}}
-        />
+      {/* Secret display */}
+      {webhook.secret && (
+        <div style={{ marginTop: '16px' }}>
+          <span style={sectionLabel}>Webhook Secret</span>
+          <SecretDisplay
+            secret={webhook.secret}
+            webhookId={webhook.id}
+            onRegenerate={onRegenerate}
+          />
+        </div>
       )}
 
-      {/* Delivery log preview */}
+      {/* Test result flash */}
+      {testResult && testResult.webhookId === webhook.id && (
+        <TestResultFlash result={testResult} onDismiss={() => clearTestResult()} />
+      )}
+
+      {/* Delivery log preview (last 3) */}
       {webhook.deliveries && webhook.deliveries.length > 0 && (
         <div style={{ marginTop: '16px' }}>
-          <span
-            style={{
-              fontSize: '11px',
-              fontFamily: 'var(--forge-font-tech)',
-              color: 'var(--forge-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              marginBottom: '8px',
-              display: 'block',
-            }}
-          >
-            Posledni doruceni
-          </span>
+          <span style={sectionLabel}>Posledni doruceni</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {webhook.deliveries.slice(0, 5).map((d, i) => (
-              <DeliveryLogItem key={d.id || i} delivery={d} />
+            {webhook.deliveries.slice(0, 3).map((d, i) => (
+              <DeliveryRow key={d.id || i} delivery={d} compact />
             ))}
           </div>
         </div>
@@ -372,12 +635,237 @@ function WebhookCard({ webhook, onTest, onDelete, testResult, testingId }) {
   );
 }
 
-// ─── Add Webhook Form ────────────────────────────────────────
+// ─── Delivery Row ────────────────────────────────────────────
 
-function AddWebhookForm({ onSubmit, onCancel, saving }) {
-  const [url, setUrl] = useState('');
-  const [events, setEvents] = useState([]);
-  const [secret, setSecret] = useState('');
+function DeliveryRow({ delivery, compact, onRetry, onViewPayload, retryingId }) {
+  const date = delivery.timestamp
+    ? new Date(delivery.timestamp).toLocaleString('cs-CZ')
+    : '\u2014';
+  const isSuccess = delivery.statusCode >= 200 && delivery.statusCode < 300;
+  const isRetrying = retryingId === delivery.id;
+
+  if (compact) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          borderRadius: 'var(--forge-radius-sm, 8px)',
+          backgroundColor: 'var(--forge-bg-elevated)',
+          fontSize: '12px',
+          fontFamily: 'var(--forge-font-tech)',
+          gap: '12px',
+        }}
+      >
+        <span style={{ color: 'var(--forge-text-muted)', minWidth: 120 }}>{date}</span>
+        <EventBadge eventKey={delivery.event || '\u2014'} />
+        <HttpStatusBadge code={delivery.statusCode} />
+        {delivery.responseTime != null && (
+          <span style={{ color: 'var(--forge-text-muted)', fontSize: '11px' }}>
+            {delivery.responseTime}ms
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 14px',
+        borderRadius: 'var(--forge-radius-sm, 8px)',
+        backgroundColor: 'var(--forge-bg-elevated)',
+        fontSize: '12px',
+        fontFamily: 'var(--forge-font-tech)',
+        gap: '12px',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ color: 'var(--forge-text-muted)', minWidth: 130 }}>{date}</span>
+      <EventBadge eventKey={delivery.event || '\u2014'} />
+      <span
+        style={{
+          color: 'var(--forge-text-muted)',
+          fontSize: '11px',
+          flex: 1,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          minWidth: 80,
+        }}
+      >
+        {delivery.url || ''}
+      </span>
+      <HttpStatusBadge code={delivery.statusCode} />
+      {delivery.responseTime != null && (
+        <span style={{ color: 'var(--forge-text-muted)', fontSize: '11px', minWidth: 45, textAlign: 'right' }}>
+          {delivery.responseTime}ms
+        </span>
+      )}
+      <div style={{ display: 'flex', gap: '4px' }}>
+        {onViewPayload && (
+          <button
+            onClick={() => onViewPayload(delivery)}
+            style={{ ...btnSmall, padding: '3px 8px' }}
+            title="Zobrazit payload"
+          >
+            <Icon name="Code" size={12} />
+          </button>
+        )}
+        {!isSuccess && onRetry && (
+          <button
+            onClick={() => onRetry(delivery)}
+            disabled={isRetrying}
+            style={{
+              ...btnSmall,
+              padding: '3px 8px',
+              borderColor: 'var(--forge-accent-primary)',
+              color: 'var(--forge-accent-primary)',
+              opacity: isRetrying ? 0.6 : 1,
+            }}
+            title="Znovu odeslat"
+          >
+            <Icon name={isRetrying ? 'Loader2' : 'RotateCcw'} size={12} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Payload Detail Modal ────────────────────────────────────
+
+function PayloadModal({ delivery, onClose }) {
+  if (!delivery) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        padding: '20px',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          ...cardStyle,
+          maxWidth: 680,
+          width: '100%',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          margin: 0,
+          animation: 'forge-fade-in 200ms ease-out',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '16px',
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontFamily: 'var(--forge-font-heading)',
+              fontSize: '16px',
+              color: 'var(--forge-text-primary)',
+            }}
+          >
+            Detail doruceni
+          </h3>
+          <button
+            onClick={onClose}
+            style={{ ...btnSmall, padding: '4px 8px' }}
+            aria-label="Zavrit"
+          >
+            <Icon name="X" size={16} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <EventBadge eventKey={delivery.event || '\u2014'} />
+          <HttpStatusBadge code={delivery.statusCode} />
+          {delivery.responseTime != null && (
+            <span
+              style={{
+                fontSize: '12px',
+                fontFamily: 'var(--forge-font-tech)',
+                color: 'var(--forge-text-muted)',
+              }}
+            >
+              {delivery.responseTime}ms
+            </span>
+          )}
+        </div>
+
+        <div style={{ marginBottom: '12px' }}>
+          <span style={sectionLabel}>URL</span>
+          <code
+            style={{
+              fontFamily: 'var(--forge-font-tech)',
+              fontSize: '12px',
+              color: 'var(--forge-text-primary)',
+              wordBreak: 'break-all',
+            }}
+          >
+            {delivery.url || '\u2014'}
+          </code>
+        </div>
+
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <span style={sectionLabel}>Request payload</span>
+            {delivery.payload && (
+              <CopyButton
+                text={JSON.stringify(delivery.payload, null, 2)}
+                label="Kopirovat"
+                copiedLabel="Skopirovano"
+                style={{ padding: '2px 8px', fontSize: '10px' }}
+              />
+            )}
+          </div>
+          <pre style={codeBlockStyle}>
+            {delivery.payload
+              ? JSON.stringify(delivery.payload, null, 2)
+              : 'Payload neni k dispozici'}
+          </pre>
+        </div>
+
+        {delivery.responseBody && (
+          <div>
+            <span style={sectionLabel}>Response body</span>
+            <pre style={codeBlockStyle}>
+              {typeof delivery.responseBody === 'string'
+                ? delivery.responseBody
+                : JSON.stringify(delivery.responseBody, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Add/Edit Webhook Form ──────────────────────────────────
+
+function WebhookForm({ onSubmit, onCancel, saving, initial }) {
+  const isEdit = !!initial;
+  const [url, setUrl] = useState(initial?.url || '');
+  const [events, setEvents] = useState(initial?.events || []);
+  const [secret, setSecret] = useState(initial?.secret || '');
   const [urlError, setUrlError] = useState('');
 
   const toggleEvent = (key) => {
@@ -386,8 +874,18 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
     );
   };
 
+  const selectGroup = (group) => {
+    const groupEvents = AVAILABLE_EVENTS.filter((e) => e.group === group).map((e) => e.key);
+    const allSelected = groupEvents.every((k) => events.includes(k));
+    if (allSelected) {
+      setEvents((prev) => prev.filter((e) => !groupEvents.includes(e)));
+    } else {
+      setEvents((prev) => [...new Set([...prev, ...groupEvents])]);
+    }
+  };
+
   const handleGenerateSecret = () => {
-    setSecret(generateId());
+    setSecret('whsec_' + generateId().replace(/-/g, ''));
   };
 
   const validateUrl = (value) => {
@@ -415,6 +913,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
     if (events.length === 0) return;
 
     onSubmit({
+      ...(isEdit ? { id: initial.id } : {}),
       url: url.trim(),
       events,
       secret: secret.trim() || undefined,
@@ -423,16 +922,9 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
 
   return (
     <div style={cardStyle}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          marginBottom: '20px',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
         <Icon
-          name="Plus"
+          name={isEdit ? 'Pencil' : 'Plus'}
           size={18}
           style={{ color: 'var(--forge-accent-primary)' }}
         />
@@ -445,7 +937,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
             color: 'var(--forge-text-primary)',
           }}
         >
-          Novy webhook
+          {isEdit ? 'Upravit webhook' : 'Novy webhook'}
         </h3>
       </div>
 
@@ -464,9 +956,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
             placeholder="https://example.com/webhooks/model-pricer"
             style={{
               ...monoInputStyle,
-              borderColor: urlError
-                ? 'var(--forge-error, #EF4444)'
-                : 'var(--forge-border-default)',
+              borderColor: urlError ? 'var(--forge-error, #EF4444)' : 'var(--forge-border-default)',
             }}
             required
           />
@@ -485,85 +975,147 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
           )}
         </div>
 
-        {/* Events */}
+        {/* Events by group */}
         <div style={{ marginBottom: '16px' }}>
           <label style={labelStyle}>Udalosti *</label>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-              gap: '8px',
-            }}
-          >
-            {AVAILABLE_EVENTS.map((ev) => {
-              const checked = events.includes(ev.key);
-              return (
+          {EVENT_GROUPS.map((group) => {
+            const groupEvents = AVAILABLE_EVENTS.filter((e) => e.group === group);
+            const allChecked = groupEvents.every((e) => events.includes(e.key));
+            const someChecked = groupEvents.some((e) => events.includes(e.key));
+            return (
+              <div key={group} style={{ marginBottom: '12px' }}>
                 <button
-                  key={ev.key}
                   type="button"
-                  onClick={() => toggleEvent(ev.key)}
+                  onClick={() => selectGroup(group)}
                   style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--forge-radius-sm, 8px)',
-                    border: `1px solid ${checked ? ev.color + '60' : 'var(--forge-border-default)'}`,
-                    backgroundColor: checked ? ev.color + '12' : 'var(--forge-bg-elevated)',
-                    cursor: 'pointer',
-                    transition: 'all 150ms ease-out',
-                    textAlign: 'left',
+                    gap: '8px',
+                    marginBottom: '6px',
+                    padding: '2px 0',
                   }}
                 >
                   <span
                     style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '4px',
-                      border: `2px solid ${checked ? ev.color : 'var(--forge-border-active)'}`,
-                      backgroundColor: checked ? ev.color : 'transparent',
+                      width: 16,
+                      height: 16,
+                      borderRadius: '3px',
+                      border: `2px solid ${allChecked ? 'var(--forge-accent-primary)' : 'var(--forge-border-active)'}`,
+                      backgroundColor: allChecked ? 'var(--forge-accent-primary)' : 'transparent',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
-                      transition: 'all 150ms ease-out',
                     }}
                   >
-                    {checked && <Icon name="Check" size={12} style={{ color: '#fff' }} />}
+                    {allChecked && <Icon name="Check" size={10} style={{ color: '#fff' }} />}
+                    {!allChecked && someChecked && (
+                      <span
+                        style={{
+                          width: 8,
+                          height: 2,
+                          backgroundColor: 'var(--forge-accent-primary)',
+                          borderRadius: 1,
+                        }}
+                      />
+                    )}
                   </span>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        fontFamily: 'var(--forge-font-tech)',
-                        color: checked ? ev.color : 'var(--forge-text-primary)',
-                        fontWeight: 500,
-                      }}
-                    >
-                      {ev.key}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        fontFamily: 'var(--forge-font-body)',
-                        color: 'var(--forge-text-muted)',
-                        marginTop: '2px',
-                      }}
-                    >
-                      {ev.label}
-                    </div>
-                  </div>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontFamily: 'var(--forge-font-body)',
+                      fontWeight: 600,
+                      color: 'var(--forge-text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.03em',
+                    }}
+                  >
+                    {group}
+                  </span>
                 </button>
-              );
-            })}
-          </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                    gap: '6px',
+                    paddingLeft: '24px',
+                  }}
+                >
+                  {groupEvents.map((ev) => {
+                    const checked = events.includes(ev.key);
+                    return (
+                      <button
+                        key={ev.key}
+                        type="button"
+                        onClick={() => toggleEvent(ev.key)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 12px',
+                          borderRadius: 'var(--forge-radius-sm, 8px)',
+                          border: `1px solid ${checked ? ev.color + '60' : 'var(--forge-border-default)'}`,
+                          backgroundColor: checked ? ev.color + '12' : 'var(--forge-bg-elevated)',
+                          cursor: 'pointer',
+                          transition: 'all 150ms ease-out',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: '3px',
+                            border: `2px solid ${checked ? ev.color : 'var(--forge-border-active)'}`,
+                            backgroundColor: checked ? ev.color : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            transition: 'all 150ms ease-out',
+                          }}
+                        >
+                          {checked && <Icon name="Check" size={10} style={{ color: '#fff' }} />}
+                        </span>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: '12px',
+                              fontFamily: 'var(--forge-font-tech)',
+                              color: checked ? ev.color : 'var(--forge-text-primary)',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {ev.key}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              fontFamily: 'var(--forge-font-body)',
+                              color: 'var(--forge-text-muted)',
+                              marginTop: '1px',
+                            }}
+                          >
+                            {ev.label}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
           {events.length === 0 && (
             <span
               style={{
                 fontSize: '12px',
                 color: 'var(--forge-text-muted)',
                 fontFamily: 'var(--forge-font-body)',
-                marginTop: '6px',
+                marginTop: '2px',
                 display: 'block',
               }}
             >
@@ -583,12 +1135,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
               placeholder="whsec_..."
               style={{ ...monoInputStyle, flex: 1 }}
             />
-            <button
-              type="button"
-              onClick={handleGenerateSecret}
-              style={btnOutline}
-              title="Automaticky vygenerovat secret"
-            >
+            <button type="button" onClick={handleGenerateSecret} style={btnOutline} title="Vygenerovat secret">
               <Icon name="RefreshCw" size={14} />
               Generovat
             </button>
@@ -602,7 +1149,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
               display: 'block',
             }}
           >
-            Secret bude pouzit k podpisu payloadu (HMAC-SHA256).
+            Secret slouzi k overeni podpisu payloadu (HMAC-SHA256). Doporucujeme ho nastavit.
           </span>
         </div>
 
@@ -621,7 +1168,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
             }}
           >
             <Icon name={saving ? 'Loader2' : 'Save'} size={16} />
-            {saving ? 'Ukladani...' : 'Ulozit webhook'}
+            {saving ? 'Ukladani...' : isEdit ? 'Ulozit zmeny' : 'Ulozit webhook'}
           </button>
         </div>
       </form>
@@ -633,13 +1180,7 @@ function AddWebhookForm({ onSubmit, onCancel, saving }) {
 
 function EmptyState({ onAdd }) {
   return (
-    <div
-      style={{
-        ...cardStyle,
-        textAlign: 'center',
-        padding: '48px 24px',
-      }}
-    >
+    <div style={{ ...cardStyle, textAlign: 'center', padding: '48px 24px' }}>
       <div
         style={{
           width: 56,
@@ -652,11 +1193,7 @@ function EmptyState({ onAdd }) {
           margin: '0 auto 16px',
         }}
       >
-        <Icon
-          name="Webhook"
-          size={28}
-          style={{ color: 'var(--forge-text-muted)' }}
-        />
+        <Icon name="Webhook" size={28} style={{ color: 'var(--forge-text-muted)' }} />
       </div>
       <h3
         style={{
@@ -681,10 +1218,9 @@ function EmptyState({ onAdd }) {
           lineHeight: 1.6,
         }}
       >
-        Webhooky umoznuji automaticky odesilat notifikace na vasi URL adresu
-        kdyz se v systemu stane urcita udalost (napr. nova objednavka, dokonceny
-        slicing). Muzete je vyuzit pro integraci s vlastnimi systemy, CRM, Slack
-        nebo dalsi automatizaci.
+        Webhooky umoznuji automaticky odesilat notifikace na vasi URL adresu kdyz se v systemu stane
+        urcita udalost (napr. nova objednavka, platba, faktura). Muzete je vyuzit pro integraci s
+        vlastnimi systemy, CRM, Slack nebo dalsi automatizaci.
       </p>
       <button onClick={onAdd} style={btnPrimary}>
         <Icon name="Plus" size={16} />
@@ -708,18 +1244,9 @@ function ErrorBanner({ message, onRetry }) {
         backgroundColor: 'rgba(239, 68, 68, 0.06)',
       }}
     >
-      <Icon
-        name="AlertTriangle"
-        size={20}
-        style={{ color: 'var(--forge-error)', flexShrink: 0 }}
-      />
+      <Icon name="AlertTriangle" size={20} style={{ color: 'var(--forge-error)', flexShrink: 0 }} />
       <span
-        style={{
-          flex: 1,
-          fontFamily: 'var(--forge-font-body)',
-          fontSize: '14px',
-          color: 'var(--forge-text-primary)',
-        }}
+        style={{ flex: 1, fontFamily: 'var(--forge-font-body)', fontSize: '14px', color: 'var(--forge-text-primary)' }}
       >
         {message}
       </span>
@@ -729,6 +1256,406 @@ function ErrorBanner({ message, onRetry }) {
           Zkusit znovu
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── Deliveries Tab ──────────────────────────────────────────
+
+function DeliveriesTab({ webhooks, onRetry, retryingId }) {
+  const [selectedPayload, setSelectedPayload] = useState(null);
+
+  const allDeliveries = useMemo(() => {
+    const all = [];
+    (webhooks || []).forEach((wh) => {
+      (wh.deliveries || []).forEach((d) => {
+        all.push({ ...d, webhookUrl: wh.url, webhookId: wh.id });
+      });
+    });
+    return all.sort((a, b) => {
+      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return tb - ta;
+    });
+  }, [webhooks]);
+
+  if (allDeliveries.length === 0) {
+    return (
+      <div style={{ ...cardStyle, textAlign: 'center', padding: '40px 24px' }}>
+        <Icon name="Inbox" size={32} style={{ color: 'var(--forge-text-muted)', marginBottom: '12px' }} />
+        <p
+          style={{
+            fontFamily: 'var(--forge-font-body)',
+            fontSize: '14px',
+            color: 'var(--forge-text-muted)',
+            margin: 0,
+          }}
+        >
+          Zatim zadna doruceni. Doruceni se zobrazi po odeslani prvni udalosti.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <h3
+            style={{
+              margin: 0,
+              fontFamily: 'var(--forge-font-heading)',
+              fontSize: '16px',
+              color: 'var(--forge-text-primary)',
+            }}
+          >
+            Log doruceni
+          </h3>
+          <span
+            style={{
+              fontSize: '12px',
+              fontFamily: 'var(--forge-font-tech)',
+              color: 'var(--forge-text-muted)',
+            }}
+          >
+            {allDeliveries.length} zaznam{allDeliveries.length === 1 ? '' : allDeliveries.length < 5 ? 'y' : 'u'}
+          </span>
+        </div>
+
+        {/* Table header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '6px 14px',
+            fontSize: '10px',
+            fontFamily: 'var(--forge-font-tech)',
+            color: 'var(--forge-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            gap: '12px',
+            marginBottom: '4px',
+          }}
+        >
+          <span style={{ minWidth: 130 }}>Cas</span>
+          <span style={{ minWidth: 100 }}>Udalost</span>
+          <span style={{ flex: 1, minWidth: 80 }}>URL</span>
+          <span style={{ minWidth: 50 }}>Status</span>
+          <span style={{ minWidth: 45, textAlign: 'right' }}>Doba</span>
+          <span style={{ minWidth: 60 }}>Akce</span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {allDeliveries.map((d, i) => (
+            <DeliveryRow
+              key={d.id || i}
+              delivery={{ ...d, url: d.webhookUrl }}
+              onRetry={(del) => onRetry(d.webhookId, del.id)}
+              onViewPayload={setSelectedPayload}
+              retryingId={retryingId}
+            />
+          ))}
+        </div>
+      </div>
+
+      <PayloadModal
+        delivery={selectedPayload}
+        onClose={() => setSelectedPayload(null)}
+      />
+    </>
+  );
+}
+
+// ─── Documentation Tab ──────────────────────────────────────
+
+function DocsTab() {
+  const [selectedEvent, setSelectedEvent] = useState('order.created');
+
+  return (
+    <div>
+      {/* Authentication */}
+      <div style={cardStyle}>
+        <h3
+          style={{
+            margin: '0 0 16px',
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '16px',
+            color: 'var(--forge-text-primary)',
+          }}
+        >
+          Overeni podpisu (HMAC-SHA256)
+        </h3>
+        <p
+          style={{
+            fontFamily: 'var(--forge-font-body)',
+            fontSize: '13px',
+            color: 'var(--forge-text-secondary)',
+            lineHeight: 1.7,
+            margin: '0 0 16px',
+          }}
+        >
+          Kazdy webhook request obsahuje hlavicku{' '}
+          <code
+            style={{
+              fontFamily: 'var(--forge-font-tech)',
+              backgroundColor: 'var(--forge-bg-elevated)',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              fontSize: '12px',
+            }}
+          >
+            X-Webhook-Signature
+          </code>{' '}
+          s HMAC-SHA256 podpisem tela requestu. Pouzijte svuj webhook secret k overeni, ze request pochazi z ModelPricer.
+        </p>
+
+        <span style={sectionLabel}>Node.js</span>
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <pre style={codeBlockStyle}>{`const crypto = require('crypto');
+
+function verifyWebhookSignature(body, signature, secret) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(body, 'utf8')
+    .digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+
+// Express middleware
+app.post('/webhooks/model-pricer', (req, res) => {
+  const signature = req.headers['x-webhook-signature'];
+  const rawBody = JSON.stringify(req.body);
+
+  if (!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET)) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  // Zpracovat udalost
+  const { event, data } = req.body;
+  console.log('Webhook event:', event, data);
+  res.status(200).json({ received: true });
+});`}</pre>
+          <div style={{ position: 'absolute', top: 8, right: 8 }}>
+            <CopyButton
+              text={`const crypto = require('crypto');\n\nfunction verifyWebhookSignature(body, signature, secret) {\n  const expected = crypto\n    .createHmac('sha256', secret)\n    .update(body, 'utf8')\n    .digest('hex');\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expected)\n  );\n}`}
+              label="Kopirovat"
+              copiedLabel="Skopirovano"
+            />
+          </div>
+        </div>
+
+        <span style={sectionLabel}>Python</span>
+        <div style={{ position: 'relative' }}>
+          <pre style={codeBlockStyle}>{`import hmac
+import hashlib
+
+def verify_webhook(body: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode('utf-8'),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+# Flask example
+@app.route('/webhooks/model-pricer', methods=['POST'])
+def handle_webhook():
+    signature = request.headers.get('X-Webhook-Signature', '')
+    if not verify_webhook(request.data, signature, WEBHOOK_SECRET):
+        return jsonify({'error': 'Invalid signature'}), 401
+
+    event = request.json
+    print(f"Event: {event['event']}")
+    return jsonify({'received': True}), 200`}</pre>
+          <div style={{ position: 'absolute', top: 8, right: 8 }}>
+            <CopyButton
+              text={`import hmac\nimport hashlib\n\ndef verify_webhook(body: bytes, signature: str, secret: str) -> bool:\n    expected = hmac.new(\n        secret.encode('utf-8'),\n        body,\n        hashlib.sha256\n    ).hexdigest()\n    return hmac.compare_digest(signature, expected)`}
+              label="Kopirovat"
+              copiedLabel="Skopirovano"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Payload examples */}
+      <div style={cardStyle}>
+        <h3
+          style={{
+            margin: '0 0 16px',
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '16px',
+            color: 'var(--forge-text-primary)',
+          }}
+        >
+          Priklady payloadu
+        </h3>
+        <p
+          style={{
+            fontFamily: 'var(--forge-font-body)',
+            fontSize: '13px',
+            color: 'var(--forge-text-secondary)',
+            lineHeight: 1.7,
+            margin: '0 0 16px',
+          }}
+        >
+          Kazdy webhook request je POST s JSON telem obsahujicim pole{' '}
+          <code style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px' }}>event</code>,{' '}
+          <code style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px' }}>timestamp</code> a{' '}
+          <code style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px' }}>data</code>.
+        </p>
+
+        {/* Event selector */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+          {AVAILABLE_EVENTS.map((ev) => (
+            <button
+              key={ev.key}
+              onClick={() => setSelectedEvent(ev.key)}
+              style={{
+                padding: '5px 12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontFamily: 'var(--forge-font-tech)',
+                fontWeight: 500,
+                border: `1px solid ${selectedEvent === ev.key ? ev.color + '60' : 'var(--forge-border-default)'}`,
+                backgroundColor: selectedEvent === ev.key ? ev.color + '15' : 'transparent',
+                color: selectedEvent === ev.key ? ev.color : 'var(--forge-text-muted)',
+                cursor: 'pointer',
+                transition: 'all 150ms ease-out',
+              }}
+            >
+              {ev.key}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ position: 'relative' }}>
+          <pre style={codeBlockStyle}>
+            {JSON.stringify(PAYLOAD_EXAMPLES[selectedEvent], null, 2)}
+          </pre>
+          <div style={{ position: 'absolute', top: 8, right: 8 }}>
+            <CopyButton
+              text={JSON.stringify(PAYLOAD_EXAMPLES[selectedEvent], null, 2)}
+              label="Kopirovat"
+              copiedLabel="Skopirovano"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* HTTP Headers */}
+      <div style={cardStyle}>
+        <h3
+          style={{
+            margin: '0 0 16px',
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '16px',
+            color: 'var(--forge-text-primary)',
+          }}
+        >
+          HTTP hlavicky
+        </h3>
+        <p
+          style={{
+            fontFamily: 'var(--forge-font-body)',
+            fontSize: '13px',
+            color: 'var(--forge-text-secondary)',
+            lineHeight: 1.7,
+            margin: '0 0 16px',
+          }}
+        >
+          Kazdy webhook request obsahuje nasledujici hlavicky:
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { header: 'Content-Type', value: 'application/json', desc: 'Telo requestu je vzdy JSON' },
+            { header: 'X-Webhook-Signature', value: 'sha256=...', desc: 'HMAC-SHA256 podpis tela requestu' },
+            { header: 'X-Webhook-Id', value: 'whd_abc123', desc: 'Unikatni ID doruceni (pro deduplikaci)' },
+            { header: 'X-Webhook-Event', value: 'order.created', desc: 'Typ udalosti' },
+            { header: 'User-Agent', value: 'ModelPricer-Webhook/1.0', desc: 'Identifikace serveru' },
+          ].map((h) => (
+            <div
+              key={h.header}
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '12px',
+                padding: '8px 12px',
+                borderRadius: 'var(--forge-radius-sm, 8px)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+              }}
+            >
+              <code
+                style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '12px',
+                  color: 'var(--forge-accent-primary)',
+                  minWidth: 180,
+                  flexShrink: 0,
+                }}
+              >
+                {h.header}
+              </code>
+              <code
+                style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '12px',
+                  color: 'var(--forge-text-muted)',
+                  minWidth: 120,
+                }}
+              >
+                {h.value}
+              </code>
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontFamily: 'var(--forge-font-body)',
+                  color: 'var(--forge-text-secondary)',
+                }}
+              >
+                {h.desc}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Best practices */}
+      <div style={cardStyle}>
+        <h3
+          style={{
+            margin: '0 0 16px',
+            fontFamily: 'var(--forge-font-heading)',
+            fontSize: '16px',
+            color: 'var(--forge-text-primary)',
+          }}
+        >
+          Doporuceni
+        </h3>
+        <ul
+          style={{
+            fontFamily: 'var(--forge-font-body)',
+            fontSize: '13px',
+            color: 'var(--forge-text-secondary)',
+            lineHeight: 2,
+            margin: 0,
+            paddingLeft: '20px',
+          }}
+        >
+          <li>Vzdy overujte podpis pred zpracovanim payloadu.</li>
+          <li>
+            Odpovezte{' '}
+            <code style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '12px' }}>200</code> co nejdrive
+            (do 5 sekund) a zpracujte data asynchronne.
+          </li>
+          <li>Implementujte idempotenci pomoci hlavicky X-Webhook-Id pro pripad opakoveho doruceni.</li>
+          <li>Loggujte vsechny prijate webhooky pro debugging.</li>
+          <li>Pouzijte HTTPS endpoint s platnym SSL certifikatem.</li>
+          <li>Pri selhani doruceni se system pokusi webhook odeslat znovu az 3x s exponencialnim backoff.</li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -746,9 +1673,12 @@ export default function AdminWebhooks() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState(null);
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState(null);
   const [testResult, setTestResult] = useState(null);
+  const [retryingId, setRetryingId] = useState(null);
+  const [activeTab, setActiveTab] = useState('webhooks');
 
   // ─── Load webhooks ──────────────────────────────────────────
 
@@ -757,15 +1687,12 @@ export default function AdminWebhooks() {
     setError(null);
     try {
       const data = await getWebhooks();
-      // Backend may return { data: [...] } or plain array
       const list = Array.isArray(data) ? data : (data?.data || data?.webhooks || []);
       setWebhooks(list);
     } catch (err) {
       debug('AdminWebhooks: fetch error', err);
       setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          'Nepodarilo se nacist webhooky. Zkontrolujte pripojeni.'
+        err?.response?.data?.message || err?.message || 'Nepodarilo se nacist webhooky. Zkontrolujte pripojeni.'
       );
       setWebhooks([]);
     } finally {
@@ -777,22 +1704,23 @@ export default function AdminWebhooks() {
     fetchWebhooks();
   }, [fetchWebhooks]);
 
-  // ─── Create webhook ─────────────────────────────────────────
+  // ─── Create / Update webhook ───────────────────────────────
 
-  const handleCreate = useCallback(
+  const handleSubmit = useCallback(
     async (config) => {
       setSaving(true);
       try {
-        await createWebhook(config);
+        if (config.id) {
+          await updateWebhook(config.id, config);
+        } else {
+          await createWebhook(config);
+        }
         setShowForm(false);
+        setEditingWebhook(null);
         await fetchWebhooks();
       } catch (err) {
-        debug('AdminWebhooks: create error', err);
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            'Nepodarilo se vytvorit webhook.'
-        );
+        debug('AdminWebhooks: save error', err);
+        setError(err?.response?.data?.message || err?.message || 'Nepodarilo se ulozit webhook.');
       } finally {
         setSaving(false);
       }
@@ -800,7 +1728,29 @@ export default function AdminWebhooks() {
     [fetchWebhooks]
   );
 
-  // ─── Delete webhook ─────────────────────────────────────────
+  // ─── Toggle active ────────────────────────────────────────
+
+  const handleToggleActive = useCallback(
+    async (webhook) => {
+      try {
+        await updateWebhook(webhook.id, { active: webhook.active === false });
+        await fetchWebhooks();
+      } catch (err) {
+        debug('AdminWebhooks: toggle error', err);
+        setError(err?.response?.data?.message || err?.message || 'Nepodarilo se zmenit stav webhoku.');
+      }
+    },
+    [fetchWebhooks]
+  );
+
+  // ─── Edit webhook ─────────────────────────────────────────
+
+  const handleEdit = useCallback((webhook) => {
+    setEditingWebhook(webhook);
+    setShowForm(true);
+  }, []);
+
+  // ─── Delete webhook ───────────────────────────────────────
 
   const handleDelete = useCallback(
     async (webhook) => {
@@ -818,17 +1768,13 @@ export default function AdminWebhooks() {
         await fetchWebhooks();
       } catch (err) {
         debug('AdminWebhooks: delete error', err);
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            'Nepodarilo se smazat webhook.'
-        );
+        setError(err?.response?.data?.message || err?.message || 'Nepodarilo se smazat webhook.');
       }
     },
     [confirm, fetchWebhooks]
   );
 
-  // ─── Test webhook ───────────────────────────────────────────
+  // ─── Test webhook ─────────────────────────────────────────
 
   const handleTest = useCallback(
     async (webhookId) => {
@@ -839,11 +1785,8 @@ export default function AdminWebhooks() {
         setTestResult({
           webhookId,
           success: true,
-          message:
-            data?.message ||
-            `Test uspesny — odpoved ${data?.statusCode || 200}`,
+          message: data?.message || `Test uspesny \u2014 odpoved ${data?.statusCode || 200}`,
         });
-        // Refresh to update delivery log
         await fetchWebhooks();
       } catch (err) {
         debug('AdminWebhooks: test error', err);
@@ -851,9 +1794,7 @@ export default function AdminWebhooks() {
           webhookId,
           success: false,
           message:
-            err?.response?.data?.message ||
-            err?.message ||
-            'Testovaci udalost selhala. Zkontrolujte endpoint.',
+            err?.response?.data?.message || err?.message || 'Testovaci udalost selhala. Zkontrolujte endpoint.',
         });
       } finally {
         setTestingId(null);
@@ -862,17 +1803,66 @@ export default function AdminWebhooks() {
     [fetchWebhooks]
   );
 
-  // ─── Render ─────────────────────────────────────────────────
+  // ─── Retry delivery ──────────────────────────────────────
+
+  const handleRetry = useCallback(
+    async (webhookId, deliveryId) => {
+      setRetryingId(deliveryId);
+      try {
+        await retryDelivery(webhookId, deliveryId);
+        await fetchWebhooks();
+      } catch (err) {
+        debug('AdminWebhooks: retry error', err);
+        setError(err?.response?.data?.message || err?.message || 'Nepodarilo se znovu odeslat.');
+      } finally {
+        setRetryingId(null);
+      }
+    },
+    [fetchWebhooks]
+  );
+
+  // ─── Regenerate secret ────────────────────────────────────
+
+  const handleRegenerate = useCallback(
+    async (webhookId) => {
+      const ok = await confirm({
+        title: 'Regenerovat secret?',
+        message:
+          'Stary secret prestane okamzite fungovat. Budete muset aktualizovat secret na vasem endpointu. Pokracovat?',
+        confirmLabel: 'Regenerovat',
+        cancelLabel: 'Zrusit',
+        destructive: true,
+      });
+      if (!ok) return;
+
+      try {
+        await regenerateSecret(webhookId);
+        await fetchWebhooks();
+      } catch (err) {
+        debug('AdminWebhooks: regenerate error', err);
+        setError(err?.response?.data?.message || err?.message || 'Nepodarilo se regenerovat secret.');
+      }
+    },
+    [confirm, fetchWebhooks]
+  );
+
+  // ─── Render ───────────────────────────────────────────────
+
+  const isFormVisible = showForm && !loading;
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '960px' }}>
       <ForgePageHeader
         title="Webhooky"
         breadcrumb="ADMIN / WEBHOOKS"
         actions={
-          !showForm && !loading && (
+          !isFormVisible &&
+          !loading && (
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => {
+                setEditingWebhook(null);
+                setShowForm(true);
+              }}
               style={btnPrimary}
             >
               <Icon name="Plus" size={16} />
@@ -882,92 +1872,165 @@ export default function AdminWebhooks() {
         }
       />
 
-      <div style={{ marginTop: '24px' }}>
-        {/* Error banner */}
-        {error && (
-          <ErrorBanner message={error} onRetry={fetchWebhooks} />
-        )}
-
-        {/* Loading state */}
-        {loading && <SkeletonTable rows={3} columns={3} />}
-
-        {/* Add form */}
-        {showForm && !loading && (
-          <AddWebhookForm
-            onSubmit={handleCreate}
-            onCancel={() => setShowForm(false)}
-            saving={saving}
-          />
-        )}
-
-        {/* Webhook list */}
-        {!loading && webhooks.length > 0 && (
-          <div>
-            {webhooks.map((wh) => (
-              <WebhookCard
-                key={wh.id}
-                webhook={wh}
-                onTest={handleTest}
-                onDelete={handleDelete}
-                testResult={testResult}
-                testingId={testingId}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!loading && webhooks.length === 0 && !error && !showForm && (
-          <EmptyState onAdd={() => setShowForm(true)} />
-        )}
-
-        {/* Info card */}
-        {!loading && webhooks.length > 0 && (
-          <div
+      {/* Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '2px',
+          marginTop: '20px',
+          marginBottom: '20px',
+          borderBottom: '1px solid var(--forge-border-default)',
+        }}
+      >
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             style={{
-              ...cardStyle,
               display: 'flex',
-              alignItems: 'flex-start',
-              gap: '12px',
-              backgroundColor: 'var(--forge-bg-elevated)',
-              border: '1px solid var(--forge-border-default)',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 16px',
+              border: 'none',
+              borderBottom: `2px solid ${activeTab === tab.key ? 'var(--forge-accent-primary)' : 'transparent'}`,
+              backgroundColor: 'transparent',
+              color: activeTab === tab.key ? 'var(--forge-text-primary)' : 'var(--forge-text-muted)',
+              fontSize: '13px',
+              fontFamily: 'var(--forge-font-body)',
+              fontWeight: activeTab === tab.key ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'all 150ms ease-out',
+              marginBottom: '-1px',
             }}
           >
-            <Icon
-              name="Info"
-              size={16}
-              style={{
-                color: 'var(--forge-text-muted)',
-                flexShrink: 0,
-                marginTop: '2px',
-              }}
-            />
-            <div
-              style={{
-                fontSize: '12px',
-                fontFamily: 'var(--forge-font-body)',
-                color: 'var(--forge-text-muted)',
-                lineHeight: 1.6,
-              }}
-            >
-              Webhook payloady jsou podepsany pomoci HMAC-SHA256 pokud je nastaven
-              secret. Overujte podpis v hlavicce{' '}
-              <code
+            <Icon name={tab.icon} size={15} />
+            {tab.label}
+            {tab.key === 'webhooks' && webhooks.length > 0 && (
+              <span
                 style={{
-                  fontFamily: 'var(--forge-font-tech)',
-                  backgroundColor: 'var(--forge-bg-surface)',
-                  padding: '1px 6px',
-                  borderRadius: '4px',
                   fontSize: '11px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  backgroundColor: 'var(--forge-bg-elevated)',
+                  padding: '1px 7px',
+                  borderRadius: '10px',
+                  color: 'var(--forge-text-muted)',
                 }}
               >
-                X-Webhook-Signature
-              </code>{' '}
-              na vasem endpointu.
-            </div>
-          </div>
-        )}
+                {webhooks.length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
+
+      {/* Error banner */}
+      {error && <ErrorBanner message={error} onRetry={fetchWebhooks} />}
+
+      {/* Loading state */}
+      {loading && <SkeletonTable rows={3} columns={3} />}
+
+      {/* ─── Webhooks Tab ─── */}
+      {activeTab === 'webhooks' && !loading && (
+        <>
+          {/* Add/Edit form */}
+          {isFormVisible && (
+            <WebhookForm
+              onSubmit={handleSubmit}
+              onCancel={() => {
+                setShowForm(false);
+                setEditingWebhook(null);
+              }}
+              saving={saving}
+              initial={editingWebhook}
+            />
+          )}
+
+          {/* Webhook list */}
+          {webhooks.length > 0 && (
+            <div>
+              {webhooks.map((wh) => (
+                <WebhookCard
+                  key={wh.id}
+                  webhook={wh}
+                  onTest={handleTest}
+                  onDelete={handleDelete}
+                  onToggleActive={handleToggleActive}
+                  onEdit={handleEdit}
+                  onRegenerate={handleRegenerate}
+                  testResult={testResult}
+                  testingId={testingId}
+                  clearTestResult={() => setTestResult(null)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {webhooks.length === 0 && !error && !isFormVisible && (
+            <EmptyState
+              onAdd={() => {
+                setEditingWebhook(null);
+                setShowForm(true);
+              }}
+            />
+          )}
+
+          {/* Info card */}
+          {webhooks.length > 0 && !isFormVisible && (
+            <div
+              style={{
+                ...cardStyle,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+              }}
+            >
+              <Icon
+                name="Info"
+                size={16}
+                style={{ color: 'var(--forge-text-muted)', flexShrink: 0, marginTop: '2px' }}
+              />
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontFamily: 'var(--forge-font-body)',
+                  color: 'var(--forge-text-muted)',
+                  lineHeight: 1.6,
+                }}
+              >
+                Webhook payloady jsou podepsany pomoci HMAC-SHA256 pokud je nastaven secret. Overujte podpis
+                v hlavicce{' '}
+                <code
+                  style={{
+                    fontFamily: 'var(--forge-font-tech)',
+                    backgroundColor: 'var(--forge-bg-surface)',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                  }}
+                >
+                  X-Webhook-Signature
+                </code>{' '}
+                na vasem endpointu. Priklady kodu najdete v zalozce Dokumentace.
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ─── Deliveries Tab ─── */}
+      {activeTab === 'deliveries' && !loading && (
+        <DeliveriesTab
+          webhooks={webhooks}
+          onRetry={handleRetry}
+          retryingId={retryingId}
+        />
+      )}
+
+      {/* ─── Docs Tab ─── */}
+      {activeTab === 'docs' && !loading && <DocsTab />}
 
       {/* Confirm dialog */}
       <ConfirmDialog />

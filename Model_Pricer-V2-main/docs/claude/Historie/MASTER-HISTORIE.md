@@ -183,6 +183,16 @@
 
 ---
 
+## 2026-03-12
+
+### S01: Autonomous Improvements Wave 21-26
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **159-AD** | 2026-03-12 | UPRAVY | AD | Session 2026-03-12: 5 implementaci (Global Search, Backend API, Onboarding Wizard, Share/Export, Batch Ops) | ~16 | 20 agentu spusteno, 5 dokonceno, 15 rate-limited; 4 nove soubory, 8 novych BE endpointu |
+
+---
+
 ## 2026-02-27
 
 ### S01: MCP Server Research & Installation + Vercel Migration Planning

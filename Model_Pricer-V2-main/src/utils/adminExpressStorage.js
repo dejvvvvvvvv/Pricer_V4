@@ -41,11 +41,15 @@ function normalizeTier(tier, idx = 0) {
     id: String(t.id || '').trim() || generateId('tier'),
     name: String(t.name || '').trim() || `Tier ${idx + 1}`,
     surcharge_type: normalizedSurchargeType,
-    surcharge_value: safeNum(t.surcharge_value, 0),
-    delivery_days: safeNum(t.delivery_days, 5),
+    surcharge_value: Math.max(0, safeNum(t.surcharge_value, 0)),
+    delivery_days: Math.max(0, safeNum(t.delivery_days, 5)),
     is_default: parseBool(t.is_default, false),
     sort_order: safeNum(t.sort_order, idx),
     active: parseBool(t.active, true),
+    // V1.1 fields — min order threshold, cutoff time, internal note
+    min_order_value: Math.max(0, safeNum(t.min_order_value, 0)),
+    cutoff_time: String(t.cutoff_time || '').trim(),
+    description: String(t.description || '').trim(),
   };
 }
 
@@ -54,9 +58,9 @@ export function getDefaultExpressConfigV1() {
     schema_version: SCHEMA_VERSION,
     enabled: true,
     tiers: [
-      { id: 'standard', name: 'Standard', surcharge_type: 'percent', surcharge_value: 0, delivery_days: 5, is_default: true, sort_order: 0, active: true },
-      { id: 'express', name: 'Express', surcharge_type: 'percent', surcharge_value: 25, delivery_days: 2, is_default: false, sort_order: 1, active: true },
-      { id: 'rush', name: 'Rush', surcharge_type: 'percent', surcharge_value: 50, delivery_days: 1, is_default: false, sort_order: 2, active: true },
+      { id: 'standard', name: 'Standard', surcharge_type: 'percent', surcharge_value: 0, delivery_days: 5, is_default: true, sort_order: 0, active: true, min_order_value: 0, cutoff_time: '', description: '' },
+      { id: 'express', name: 'Express', surcharge_type: 'percent', surcharge_value: 25, delivery_days: 2, is_default: false, sort_order: 1, active: true, min_order_value: 0, cutoff_time: '', description: '' },
+      { id: 'rush', name: 'Rush', surcharge_type: 'percent', surcharge_value: 50, delivery_days: 1, is_default: false, sort_order: 2, active: true, min_order_value: 500, cutoff_time: '14:00', description: '' },
     ],
     upsell_enabled: true,
     upsell_message: '',
@@ -89,6 +93,46 @@ export function loadExpressConfigV1() {
   const seeded = normalizeExpressConfigV1(getDefaultExpressConfigV1());
   writeTenantJson(NS_EXPRESS_V1, seeded);
   return seeded;
+}
+
+/**
+ * Validate express config before save. Returns array of error strings (empty = valid).
+ */
+export function validateExpressConfigV1(data) {
+  const errors = [];
+  const tiers = Array.isArray(data?.tiers) ? data.tiers : [];
+
+  if (tiers.length === 0) {
+    errors.push('NO_TIERS');
+  }
+
+  const names = new Set();
+  for (const tier of tiers) {
+    const name = String(tier.name || '').trim();
+    if (!name) {
+      errors.push('EMPTY_NAME');
+    } else if (names.has(name.toLowerCase())) {
+      errors.push('DUPLICATE_NAME:' + name);
+    }
+    names.add(name.toLowerCase());
+
+    if (Number(tier.surcharge_value) < 0) {
+      errors.push('NEGATIVE_SURCHARGE:' + name);
+    }
+    if (Number(tier.delivery_days) < 0) {
+      errors.push('NEGATIVE_DAYS:' + name);
+    }
+    if (Number(tier.min_order_value) < 0) {
+      errors.push('NEGATIVE_MIN_ORDER:' + name);
+    }
+    // cutoff_time format: empty or HH:MM
+    const ct = String(tier.cutoff_time || '').trim();
+    if (ct && !/^\d{1,2}:\d{2}$/.test(ct)) {
+      errors.push('INVALID_CUTOFF:' + name);
+    }
+  }
+
+  return errors;
 }
 
 export function saveExpressConfigV1(data) {

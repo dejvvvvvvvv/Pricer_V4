@@ -147,6 +147,30 @@ const fg = {
     paddingTop: '1.5rem',
     borderTop: '1px solid var(--forge-border-default)',
   },
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    cursor: 'pointer',
+  },
+  toggleCheckbox: {
+    width: '1rem',
+    height: '1rem',
+    borderRadius: 'var(--forge-radius-sm)',
+    accentColor: 'var(--forge-accent-primary)',
+    cursor: 'pointer',
+  },
+  toggleLabel: {
+    fontSize: 'var(--forge-text-sm)',
+    fontFamily: 'var(--forge-font-body)',
+    color: 'var(--forge-text-secondary)',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  collapsibleSection: {
+    overflow: 'hidden',
+    transition: 'max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease',
+  },
 };
 
 /* ── Payment method radio styles ──────────────────────────────────────── */
@@ -321,6 +345,15 @@ export default function CheckoutForm({
       city: '',
       zip: '',
       country: language === 'en' ? '' : 'CZ',
+      billingAddressSameAsShipping: true,
+      billingStreet: '',
+      billingCity: '',
+      billingZip: '',
+      billingCountry: language === 'en' ? '' : 'CZ',
+      isCompanyPurchase: false,
+      companyName: '',
+      ico: '',
+      dic: '',
       note: '',
       gdprConsent: false,
       payment_method: defaultMethod,
@@ -328,6 +361,8 @@ export default function CheckoutForm({
   });
 
   const selectedPaymentMethod = watch('payment_method');
+  const billingAddressSameAsShipping = watch('billingAddressSameAsShipping');
+  const isCompanyPurchase = watch('isCompanyPurchase');
 
   // If only 1 method, ensure it is always selected
   useEffect(() => {
@@ -413,6 +448,23 @@ export default function CheckoutForm({
         zip: data.zip,
         country: data.country,
       },
+      billing_address_same_as_shipping: data.billingAddressSameAsShipping,
+      billing_address: data.billingAddressSameAsShipping
+        ? null
+        : {
+            street: data.billingStreet,
+            city: data.billingCity,
+            zip: data.billingZip,
+            country: data.billingCountry,
+          },
+      is_company_purchase: data.isCompanyPurchase,
+      company_info: data.isCompanyPurchase
+        ? {
+            name: data.companyName,
+            ico: data.ico,
+            dic: data.dic || null,
+          }
+        : null,
       payment_method: data.payment_method,
       payment_info: paymentInfo,
       models: (uploadedFiles || [])
@@ -455,6 +507,14 @@ export default function CheckoutForm({
       totals_snapshot: quote
         ? { total: quote.total, currency: quote.currency, simple: quote.simple }
         : { total: 0, currency: 'CZK' },
+      coupon_snapshot: quote?.coupon
+        ? {
+            code: quote.coupon.code,
+            type: quote.coupon.type,
+            value: quote.coupon.value,
+            discount: quote.coupon.discount,
+          }
+        : null,
       flags: [],
       notes: data.note ? [{ text: data.note, created_at: now }] : [],
       activity: [{ timestamp: now, user_id: 'customer', type: 'CREATED', payload: { status: 'NEW' } }],
@@ -631,6 +691,129 @@ export default function CheckoutForm({
               </div>
             </div>
 
+            {/* Company Purchase Toggle */}
+            <div style={fg.card}>
+              <div style={fg.toggleRow}>
+                <input
+                  type="checkbox"
+                  id="company-purchase"
+                  style={fg.toggleCheckbox}
+                  {...register('isCompanyPurchase')}
+                />
+                <label htmlFor="company-purchase" style={fg.toggleLabel}>
+                  <Icon name="Building" size={16} style={{ marginRight: '0.375rem', verticalAlign: 'text-bottom', color: 'var(--forge-text-muted)' }} />
+                  {t('Nakupuji na firmu', 'Purchasing as a company')}
+                </label>
+              </div>
+
+              <div
+                style={{
+                  ...fg.collapsibleSection,
+                  maxHeight: isCompanyPurchase ? '500px' : '0',
+                  opacity: isCompanyPurchase ? 1 : 0,
+                  marginTop: isCompanyPurchase ? '1rem' : '0',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <Input
+                      label={t('NAZEV FIRMY *', 'COMPANY NAME *')}
+                      placeholder={t('Moje firma s.r.o.', 'My Company Ltd.')}
+                      {...register('companyName')}
+                      error={errors.companyName?.message}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <Input
+                        label={t('ICO *', 'COMPANY ID *')}
+                        placeholder="12345678"
+                        {...register('ico')}
+                        error={errors.ico?.message}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        label={t('DIC', 'VAT ID')}
+                        placeholder="CZ12345678"
+                        {...register('dic')}
+                        error={errors.dic?.message}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Billing Address Toggle */}
+            <div style={fg.card}>
+              <div style={fg.toggleRow}>
+                <input
+                  type="checkbox"
+                  id="billing-same"
+                  style={fg.toggleCheckbox}
+                  {...register('billingAddressSameAsShipping')}
+                />
+                <label htmlFor="billing-same" style={fg.toggleLabel}>
+                  <Icon name="FileCheck" size={16} style={{ marginRight: '0.375rem', verticalAlign: 'text-bottom', color: 'var(--forge-text-muted)' }} />
+                  {t('Fakturacni adresa je stejna jako dodaci', 'Billing address is same as shipping')}
+                </label>
+              </div>
+
+              <div
+                style={{
+                  ...fg.collapsibleSection,
+                  maxHeight: billingAddressSameAsShipping ? '0' : '500px',
+                  opacity: billingAddressSameAsShipping ? 0 : 1,
+                  marginTop: billingAddressSameAsShipping ? '0' : '1rem',
+                }}
+              >
+                <h4 style={{ ...fg.sectionTitle, fontSize: 'var(--forge-text-base)', marginBottom: '0.75rem' }}>
+                  <Icon name="MapPin" size={18} style={{ marginRight: '0.5rem' }} />
+                  {t('FAKTURACNI ADRESA', 'BILLING ADDRESS')}
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <Input
+                      label={t('ULICE A CISLO POPISNE *', 'STREET ADDRESS *')}
+                      placeholder={t('Hlavni 123', '123 Main St')}
+                      {...register('billingStreet')}
+                      error={errors.billingStreet?.message}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <Input
+                        label={t('MESTO *', 'CITY *')}
+                        placeholder={t('Praha', 'Prague')}
+                        {...register('billingCity')}
+                        error={errors.billingCity?.message}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        label={t('PSC *', 'ZIP *')}
+                        placeholder="110 00"
+                        {...register('billingZip')}
+                        error={errors.billingZip?.message}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Input
+                      label={t('STAT *', 'COUNTRY *')}
+                      placeholder={t('Ceska republika', 'Czech Republic')}
+                      {...register('billingCountry')}
+                      error={errors.billingCountry?.message}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Payment Method Selection */}
             <div style={fg.card}>
               <h3 style={fg.sectionTitle}>
@@ -772,6 +955,18 @@ export default function CheckoutForm({
                       <div style={fg.summaryLine}>
                         <span>{t('Prirazka', 'Markup')}</span>
                         <span style={fg.summaryValue}>{formatCzk(quote.simple.markup)}</span>
+                      </div>
+                    )}
+                    {quote.coupon && (
+                      <div style={{
+                        ...fg.summaryLine,
+                        color: 'var(--forge-accent-primary)',
+                        fontWeight: 500,
+                      }}>
+                        <span>{t('Sleva', 'Discount')} ({quote.coupon.code})</span>
+                        <span style={{ ...fg.summaryValue, color: 'var(--forge-accent-primary)' }}>
+                          - {formatCzk(quote.coupon.discount)}
+                        </span>
                       </div>
                     )}
                     <div style={fg.totalRow}>

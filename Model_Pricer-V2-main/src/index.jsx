@@ -7,6 +7,7 @@ import "./styles/index.css";
 import { ActiveAuthProvider } from "./providers";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppProvider } from "./contexts/AppContext";
+import { registerServiceWorker } from "./lib/swRegister";
 
 const container = document.getElementById("root");
 const root = createRoot(container);
@@ -20,3 +21,6 @@ root.render(
     </ActiveAuthProvider>
   </LanguageProvider>
 );
+
+// Register service worker for PWA support (production only)
+registerServiceWorker();

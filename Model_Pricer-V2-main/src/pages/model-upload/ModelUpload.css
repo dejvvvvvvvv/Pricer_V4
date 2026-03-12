@@ -1,0 +1,450 @@
+/* ── Model Upload Page — Forge Dark Theme ──────────────────────────────── */
+
+.mu-page {
+  min-height: 100vh;
+  background: var(--forge-bg-void, #08090C);
+  color: var(--forge-text-primary, #E8ECF1);
+  font-family: var(--forge-font-body, 'Inter', sans-serif);
+  padding: 2rem 1rem 4rem;
+}
+
+.mu-container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.mu-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.mu-header__title {
+  font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--forge-text-primary, #E8ECF1);
+  margin: 0 0 0.5rem;
+}
+
+.mu-header__subtitle {
+  font-size: 1rem;
+  color: var(--forge-text-secondary, #A0A8B8);
+  margin: 0;
+}
+
+/* ── Drop Zone ─────────────────────────────────────────────────────────── */
+
+.mu-dropzone {
+  position: relative;
+  border: 2px dashed var(--forge-border-default, #1E2028);
+  border-radius: var(--forge-radius-xl, 16px);
+  background: var(--forge-bg-surface, #0E1015);
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.mu-dropzone:hover {
+  border-color: var(--forge-border-active, #2A2D38);
+  background: var(--forge-bg-elevated, #14161D);
+}
+
+.mu-dropzone--active {
+  border-color: var(--forge-accent-primary, #00D4AA) !important;
+  background: rgba(0, 212, 170, 0.04) !important;
+  box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.08), inset 0 0 30px rgba(0, 212, 170, 0.03);
+}
+
+.mu-dropzone--active .mu-dropzone__border-anim {
+  opacity: 1;
+}
+
+.mu-dropzone__border-anim {
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.mu-dropzone__border-anim::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    var(--forge-accent-primary, #00D4AA) 25%,
+    transparent 50%,
+    var(--forge-accent-primary, #00D4AA) 75%,
+    transparent 100%
+  ) border-box;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask-composite: xor;
+  animation: mu-border-spin 3s linear infinite;
+}
+
+@keyframes mu-border-spin {
+  to { transform: rotate(360deg); }
+}
+
+.mu-dropzone__icon {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--forge-bg-elevated, #14161D);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.mu-dropzone--active .mu-dropzone__icon {
+  background: rgba(0, 212, 170, 0.1);
+  transform: scale(1.08);
+}
+
+.mu-dropzone__title {
+  font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--forge-text-primary, #E8ECF1);
+  margin: 0 0 0.5rem;
+}
+
+.mu-dropzone__text {
+  font-size: 0.875rem;
+  color: var(--forge-text-secondary, #A0A8B8);
+  margin: 0 0 1.25rem;
+}
+
+.mu-dropzone__browse {
+  color: var(--forge-accent-primary, #00D4AA);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.mu-dropzone__formats {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.mu-format-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--forge-radius-md, 8px);
+  background: var(--forge-bg-elevated, #14161D);
+  border: 1px solid var(--forge-border-default, #1E2028);
+  font-family: var(--forge-font-mono, monospace);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--forge-text-secondary, #A0A8B8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mu-format-badge--soon {
+  opacity: 0.5;
+}
+
+.mu-format-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--forge-accent-primary, #00D4AA);
+}
+
+.mu-format-badge--soon .mu-format-badge__dot {
+  background: var(--forge-text-muted, #7A8291);
+}
+
+.mu-dropzone__meta {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--forge-text-muted, #7A8291);
+}
+
+/* ── Progress Bar ──────────────────────────────────────────────────────── */
+
+.mu-progress {
+  margin-top: 1.5rem;
+}
+
+.mu-progress__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-family: var(--forge-font-tech, monospace);
+  color: var(--forge-text-muted, #7A8291);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mu-progress__track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--forge-bg-void, #08090C);
+  overflow: hidden;
+}
+
+.mu-progress__fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--forge-accent-primary, #00D4AA);
+  transition: width 0.3s ease;
+}
+
+/* ── Error / Rejection ─────────────────────────────────────────────────── */
+
+.mu-error {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--forge-radius-md, 8px);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--forge-error, #EF4444);
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Preview Section ───────────────────────────────────────────────────── */
+
+.mu-preview {
+  margin-top: 2rem;
+}
+
+.mu-preview__card {
+  background: var(--forge-bg-surface, #0E1015);
+  border: 1px solid var(--forge-border-default, #1E2028);
+  border-radius: var(--forge-radius-xl, 16px);
+  overflow: hidden;
+}
+
+.mu-preview__viewer {
+  aspect-ratio: 16 / 10;
+  background: var(--forge-bg-void, #08090C);
+  position: relative;
+}
+
+.mu-preview__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--forge-text-muted, #7A8291);
+  font-size: 0.8125rem;
+}
+
+.mu-preview__info {
+  padding: 1.25rem;
+}
+
+.mu-preview__filename {
+  font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--forge-text-primary, #E8ECF1);
+  margin: 0 0 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mu-preview__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.mu-stat {
+  padding: 0.625rem 0.75rem;
+  background: var(--forge-bg-elevated, #14161D);
+  border-radius: var(--forge-radius-md, 8px);
+  border: 1px solid var(--forge-border-default, #1E2028);
+}
+
+.mu-stat__label {
+  font-size: 0.625rem;
+  font-family: var(--forge-font-body, 'Inter', sans-serif);
+  color: var(--forge-text-muted, #7A8291);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.2rem;
+}
+
+.mu-stat__value {
+  font-size: 0.8125rem;
+  font-family: var(--forge-font-mono, monospace);
+  color: var(--forge-text-primary, #E8ECF1);
+  font-weight: 600;
+}
+
+.mu-preview__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ── Session History ───────────────────────────────────────────────────── */
+
+.mu-history {
+  margin-top: 2.5rem;
+}
+
+.mu-history__title {
+  font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--forge-text-muted, #7A8291);
+  margin: 0 0 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mu-history__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.mu-history__item {
+  background: var(--forge-bg-surface, #0E1015);
+  border: 1px solid var(--forge-border-default, #1E2028);
+  border-radius: var(--forge-radius-xl, 16px);
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mu-history__item:hover {
+  border-color: var(--forge-border-active, #2A2D38);
+  background: var(--forge-bg-elevated, #14161D);
+}
+
+.mu-history__item--active {
+  border-color: var(--forge-accent-primary, #00D4AA);
+  background: rgba(0, 212, 170, 0.04);
+}
+
+.mu-history__item-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--forge-radius-md, 8px);
+  background: var(--forge-bg-elevated, #14161D);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mu-history__item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mu-history__item-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--forge-text-primary, #E8ECF1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mu-history__item-meta {
+  font-size: 0.6875rem;
+  color: var(--forge-text-muted, #7A8291);
+  font-family: var(--forge-font-mono, monospace);
+  margin-top: 0.15rem;
+}
+
+/* ── Success Feedback ──────────────────────────────────────────────────── */
+
+.mu-success {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.625rem 1rem;
+  border-radius: var(--forge-radius-md, 8px);
+  background: rgba(0, 212, 170, 0.06);
+  border: 1px solid rgba(0, 212, 170, 0.15);
+  color: var(--forge-accent-primary, #00D4AA);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  animation: mu-fade-in 0.3s ease;
+}
+
+@keyframes mu-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .mu-page {
+    padding: 1.25rem 0.75rem 3rem;
+  }
+
+  .mu-header__title {
+    font-size: 1.5rem;
+  }
+
+  .mu-dropzone {
+    padding: 2rem 1.25rem;
+  }
+
+  .mu-dropzone__icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .mu-preview__viewer {
+    aspect-ratio: 4 / 3;
+  }
+
+  .mu-preview__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mu-preview__actions {
+    flex-direction: column;
+  }
+
+  .mu-history__list {
+    grid-template-columns: 1fr;
+  }
+}

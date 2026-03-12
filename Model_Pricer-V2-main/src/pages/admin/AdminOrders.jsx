@@ -22,10 +22,35 @@ import {
 } from '../../utils/adminOrdersStorage';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import { loadKanbanConfigV1, saveKanbanConfigV1 } from '../../utils/adminKanbanStorage';
+import { addNotification } from '../../utils/adminNotificationStorage';
+import { generateId } from '../../utils/generateId';
+import { logActivity } from '../../utils/adminActivityLog';
 import OrderDetailModal from './components/orders/OrderDetailModal';
 import StorageStatusBadge from './components/orders/StorageStatusBadge';
 import { ExportDropdown, BulkActionsBar } from './components/OrderExportActions';
 import AdminOrderDetail from './AdminOrderDetail';
+import PrintQueue from './components/orders/PrintQueue';
+import OrderCalendar from './components/orders/OrderCalendar';
+import QuickOrderForm from './components/orders/QuickOrderForm';
+import {
+  getAllViews,
+  loadOrderViews,
+  addOrderView,
+  updateOrderView,
+  deleteOrderView,
+  setDefaultOrderView,
+  serializeFilters,
+  applyViewFilters,
+  hasActiveFilters,
+} from '../../utils/adminOrderViewsStorage';
+import {
+  loadTags as loadOrderTags,
+  getAllOrderTagAssignments,
+  addOrderTag,
+  removeOrderTag,
+  bulkAddTag,
+} from '../../utils/adminOrderTagsStorage';
+import { OrderTagChips } from './components/orders/OrderTagSelector';
 
 // =====================================
 // Admin Orders — Variant A (front-end demo)
@@ -36,6 +61,22 @@ import AdminOrderDetail from './AdminOrderDetail';
 // =====================================
 
 const PAGE_SIZE = 15;
+
+const viewMenuItemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  width: '100%',
+  padding: '6px 12px',
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--forge-text-secondary)',
+  fontSize: '12px',
+  fontFamily: 'var(--forge-font-body)',
+  cursor: 'pointer',
+  textAlign: 'left',
+  whiteSpace: 'nowrap',
+};
 
 function formatDateTime(iso, locale = 'cs-CZ') {
   try {
@@ -244,11 +285,50 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
   const [viewMode, setViewMode] = useState('table');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [showQuickOrder, setShowQuickOrder] = useState(false);
+  const [kanbanConfig, setKanbanConfig] = useState(null);
+  // Saved views state
+  const [savedViews, setSavedViews] = useState(() => getAllViews());
+  const [activeViewId, setActiveViewId] = useState(null);
+  const [showSaveViewInput, setShowSaveViewInput] = useState(false);
+  const [newViewName, setNewViewName] = useState('');
+  const [editingViewId, setEditingViewId] = useState(null);
+  const [editingViewName, setEditingViewName] = useState('');
+  const [viewMenuOpenId, setViewMenuOpenId] = useState(null);
+  const viewMenuRef = useRef(null);
+
+  // Tag system state
+  const [tagFilter, setTagFilter] = useState(() => new Set());
+  const [allTags, setAllTags] = useState(() => loadOrderTags());
+  const [tagAssignments, setTagAssignments] = useState(() => getAllOrderTagAssignments());
+  const refreshTags = () => {
+    setAllTags(loadOrderTags());
+    setTagAssignments(getAllOrderTagAssignments());
+  };
+
+  const refreshViews = () => setSavedViews(getAllViews());
 
   useEffect(() => {
     try {
       const kc = loadKanbanConfigV1();
+      setKanbanConfig(kc);
       if (kc?.view_preference === 'kanban') setViewMode('kanban');
+      if (kc?.view_preference === 'print-queue') setViewMode('print-queue');
+      if (kc?.view_preference === 'calendar') setViewMode('calendar');
+    } catch {}
+    // Apply default view on mount
+    try {
+      const { defaultViewId, allViews } = getAllViews();
+      if (defaultViewId) {
+        const defaultView = allViews.find((v) => v.id === defaultViewId);
+        if (defaultView) {
+          setActiveViewId(defaultViewId);
+          applyViewFilters(defaultView, {
+            setStatusFilter, setMaterialFilter, setPresetFilter,
+            setFlagFilter, setDateFrom, setDateTo, setSortKey, setQ,
+          });
+        }
+      }
     } catch {}
   }, []);
 
@@ -259,6 +339,73 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
       saveKanbanConfigV1({ ...kc, view_preference: mode });
     } catch {}
   };
+
+  // Close view context menu on outside click
+  useEffect(() => {
+    if (!viewMenuOpenId) return;
+    const handleClick = (e) => {
+      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target)) {
+        setViewMenuOpenId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [viewMenuOpenId]);
+
+  const filterSetters = {
+    setStatusFilter, setMaterialFilter, setPresetFilter,
+    setFlagFilter, setDateFrom, setDateTo, setSortKey, setQ,
+  };
+
+  function handleApplyView(view) {
+    setActiveViewId(view.id);
+    applyViewFilters(view, filterSetters);
+    setViewMenuOpenId(null);
+  }
+
+  function handleSaveNewView() {
+    const trimmed = newViewName.trim();
+    if (!trimmed) return;
+    const filters = serializeFilters({ statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey });
+    const created = addOrderView(trimmed, filters);
+    setActiveViewId(created.id);
+    setNewViewName('');
+    setShowSaveViewInput(false);
+    refreshViews();
+  }
+
+  function handleUpdateViewFilters(viewId) {
+    const filters = serializeFilters({ statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey });
+    updateOrderView(viewId, { filters });
+    refreshViews();
+    setViewMenuOpenId(null);
+  }
+
+  function handleRenameView(viewId) {
+    const trimmed = editingViewName.trim();
+    if (!trimmed) return;
+    updateOrderView(viewId, { name: trimmed });
+    setEditingViewId(null);
+    setEditingViewName('');
+    refreshViews();
+    setViewMenuOpenId(null);
+  }
+
+  function handleDeleteView(viewId) {
+    deleteOrderView(viewId);
+    if (activeViewId === viewId) setActiveViewId(null);
+    refreshViews();
+    setViewMenuOpenId(null);
+  }
+
+  function handleSetDefault(viewId) {
+    const currentDefault = savedViews.defaultViewId;
+    setDefaultOrderView(currentDefault === viewId ? null : viewId);
+    refreshViews();
+    setViewMenuOpenId(null);
+  }
+
+  const currentHasFilters = hasActiveFilters({ statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey });
 
   const allMaterials = useMemo(() => {
     const set = new Set();
@@ -315,6 +462,12 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
         if (!flags.some((f) => flagFilter.has(f))) return false;
       }
 
+      // tags
+      if (tagFilter.size > 0) {
+        const oTags = tagAssignments[o.id] || [];
+        if (!oTags.some((t) => tagFilter.has(t))) return false;
+      }
+
       return true;
     });
 
@@ -329,7 +482,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     });
 
     return sorted;
-  }, [orders, q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey]);
+  }, [orders, q, statusFilter, materialFilter, presetFilter, flagFilter, tagFilter, tagAssignments, dateFrom, dateTo, sortKey]);
 
   // Column-header sorting: enrich filtered data with sortable fields
   const enrichedFiltered = useMemo(() => {
@@ -351,7 +504,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 
   useEffect(() => {
     setPage(1);
-  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey, columnSortConfig]);
+  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, tagFilter, dateFrom, dateTo, sortKey, columnSortConfig]);
 
   function toggleSet(setter, value) {
     setter((prev) => {
@@ -367,9 +520,11 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     setMaterialFilter(new Set());
     setPresetFilter(new Set());
     setFlagFilter(new Set());
+    setTagFilter(new Set());
     setDateFrom('');
     setDateTo('');
     setSortKey('newest');
+    setActiveViewId(null);
   }
 
   const activeFilterCount = useMemo(() => {
@@ -378,16 +533,17 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     if (materialFilter.size > 0) count++;
     if (presetFilter.size > 0) count++;
     if (flagFilter.size > 0) count++;
+    if (tagFilter.size > 0) count++;
     if (dateFrom) count++;
     if (dateTo) count++;
     if (sortKey !== 'newest') count++;
     return count;
-  }, [statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo, sortKey]);
+  }, [statusFilter, materialFilter, presetFilter, flagFilter, tagFilter, dateFrom, dateTo, sortKey]);
 
   // Clear selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, dateFrom, dateTo]);
+  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, tagFilter, dateFrom, dateTo]);
 
   function toggleSelection(orderId) {
     setSelectedIds((prev) => {
@@ -427,16 +583,83 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
     });
     setOrders(next);
     saveOrders(next);
+    let changedCount = 0;
     for (const id of selectedIds) {
       const orig = orders.find((o) => o.id === id);
       if (orig && orig.status !== newStatus) {
         appendOrderActivity(id, { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: orig.status, to: newStatus } });
+        changedCount++;
       }
+    }
+    if (changedCount > 0) {
+      addNotification({
+        type: 'order',
+        title: `Zmena statusu: ${changedCount} objednavek`,
+        description: `Status zmenen na "${getStatusLabel(newStatus)}"`,
+      });
     }
     setSelectedIds(new Set());
   }
 
   const allPageSelected = pageItems.length > 0 && pageItems.every((o) => selectedIds.has(o.id));
+
+  function handleDuplicateFromList(e, sourceOrder) {
+    e.stopPropagation();
+    const newId = generateId('ord');
+    const newOrderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
+    const now = nowIso();
+    const sourceLabel = sourceOrder.order_number || sourceOrder.id;
+
+    const duplicated = {
+      ...JSON.parse(JSON.stringify(sourceOrder)),
+      id: newId,
+      order_number: newOrderNumber,
+      status: 'NEW',
+      created_at: now,
+      updated_at: now,
+      notes: [
+        {
+          id: generateId('note'),
+          text: `Duplikovano z objednavky #${sourceLabel}`,
+          author: 'admin',
+          created_at: now,
+          type: 'text',
+          category: 'internal',
+          pinned: false,
+        },
+      ],
+      activity: [
+        {
+          action: 'ORDER_DUPLICATED',
+          actor: 'admin',
+          timestamp: now,
+          details: `Duplikovano z objednavky #${sourceLabel}`,
+        },
+      ],
+    };
+    delete duplicated.storage;
+    delete duplicated.invoice;
+    delete duplicated.payment;
+
+    const updated = [duplicated, ...orders];
+    setOrders(updated);
+    saveOrders(updated);
+
+    logActivity({
+      action: `ORDER_DUPLICATED: ${newOrderNumber} (z ${sourceLabel})`,
+      category: 'order',
+      details: `${(sourceOrder.customer_snapshot || {}).name || '-'}, ${(sourceOrder.models || []).length} model(u)`,
+      user: 'admin',
+    });
+
+    addNotification({
+      type: 'order',
+      title: `Objednavka duplikovana`,
+      description: `Nova objednavka ${newOrderNumber} vytvorena z #${sourceLabel}`,
+    });
+
+    navigate(`./${newId}`);
+  }
 
   return (
     <div className="orders">
@@ -446,12 +669,36 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
           <p className="subtitle">Rychly prehled objednavek, filtru a audit logu. (Demo Varianta A)</p>
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className="toggle-btn"
+            style={{
+              background: 'var(--forge-accent-primary, #00D4AA)',
+              color: 'var(--forge-bg-void, #0A0E17)',
+              fontWeight: 600,
+              padding: '6px 14px',
+              gap: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderColor: 'transparent',
+            }}
+            onClick={() => setShowQuickOrder(true)}
+          >
+            <Icon name="Plus" size={14} />
+            {language === 'cs' ? 'Nova objednavka' : 'New order'}
+          </button>
           <div className="view-toggle">
-            <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => toggleView('table')} type="button">
+            <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => toggleView('table')} type="button" title="Tabulka">
               <Icon name="List" size={16} />
             </button>
-            <button className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => toggleView('kanban')} type="button">
+            <button className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => toggleView('kanban')} type="button" title="Kanban">
               <Icon name="Columns" size={16} />
+            </button>
+            <button className={`toggle-btn ${viewMode === 'print-queue' ? 'active' : ''}`} onClick={() => toggleView('print-queue')} type="button" title="Tiskova fronta">
+              <Icon name="Printer" size={16} />
+            </button>
+            <button className={`toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`} onClick={() => toggleView('calendar')} type="button" title="Kalendar">
+              <Icon name="Calendar" size={16} />
             </button>
           </div>
           <ExportDropdown orders={filtered} selectedIds={selectedIds} />
@@ -510,9 +757,243 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
             )}
           </div>
 
+          {/* Saved Views Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            flexWrap: 'wrap',
+            marginTop: '8px',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--forge-border-default)',
+          }}>
+            <span style={{
+              fontSize: '10px',
+              fontFamily: 'var(--forge-font-tech)',
+              color: 'var(--forge-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+            }}>Pohledy</span>
+
+            {savedViews.allViews.map((view) => (
+              <div key={view.id} style={{ position: 'relative', display: 'inline-flex' }}>
+                {editingViewId === view.id ? (
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); handleRenameView(view.id); }}
+                    style={{ display: 'inline-flex', gap: '2px' }}
+                  >
+                    <input
+                      autoFocus
+                      value={editingViewName}
+                      onChange={(e) => setEditingViewName(e.target.value)}
+                      onBlur={() => { setEditingViewId(null); setEditingViewName(''); }}
+                      onKeyDown={(e) => { if (e.key === 'Escape') { setEditingViewId(null); setEditingViewName(''); } }}
+                      style={{
+                        width: '110px',
+                        padding: '2px 6px',
+                        fontSize: '10px',
+                        fontFamily: 'var(--forge-font-tech)',
+                        border: '1px solid var(--forge-accent-primary)',
+                        borderRadius: '999px',
+                        background: 'var(--forge-bg-void)',
+                        color: 'var(--forge-text-primary)',
+                        outline: 'none',
+                      }}
+                    />
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyView(view)}
+                    onContextMenu={(e) => {
+                      if (view.builtin) return;
+                      e.preventDefault();
+                      setViewMenuOpenId(viewMenuOpenId === view.id ? null : view.id);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      border: `1px solid ${activeViewId === view.id ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
+                      background: activeViewId === view.id ? 'var(--forge-accent-primary)' : 'var(--forge-bg-elevated)',
+                      color: activeViewId === view.id ? '#08090C' : 'var(--forge-text-secondary)',
+                      borderRadius: '999px',
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      fontFamily: 'var(--forge-font-tech)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.03em',
+                      cursor: 'pointer',
+                      transition: 'all var(--forge-duration-micro) ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {view.isDefault && <Icon name="Star" size={10} />}
+                    {view.name}
+                    {!view.builtin && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewMenuOpenId(viewMenuOpenId === view.id ? null : view.id);
+                        }}
+                        style={{ marginLeft: '2px', opacity: 0.6, cursor: 'pointer' }}
+                      >
+                        <Icon name="MoreVertical" size={10} />
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* Context menu for custom views */}
+                {viewMenuOpenId === view.id && !view.builtin && (
+                  <div
+                    ref={viewMenuRef}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: '4px',
+                      background: 'var(--forge-bg-surface)',
+                      border: '1px solid var(--forge-border-default)',
+                      borderRadius: 'var(--forge-radius-lg)',
+                      boxShadow: 'var(--forge-shadow-lg)',
+                      zIndex: 50,
+                      minWidth: '160px',
+                      padding: '4px 0',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingViewId(view.id);
+                        setEditingViewName(view.name);
+                        setViewMenuOpenId(null);
+                      }}
+                      style={viewMenuItemStyle}
+                    >
+                      <Icon name="Edit2" size={12} /> Prejmenovat
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateViewFilters(view.id)}
+                      style={viewMenuItemStyle}
+                    >
+                      <Icon name="RefreshCw" size={12} /> Aktualizovat filtry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetDefault(view.id)}
+                      style={viewMenuItemStyle}
+                    >
+                      <Icon name="Star" size={12} /> {view.isDefault ? 'Zrusit vychozi' : 'Nastavit jako vychozi'}
+                    </button>
+                    <div style={{ height: '1px', background: 'var(--forge-border-default)', margin: '4px 0' }} />
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteView(view.id)}
+                      style={{ ...viewMenuItemStyle, color: 'var(--forge-error)' }}
+                    >
+                      <Icon name="Trash2" size={12} /> Smazat
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Save as view button / input */}
+            {showSaveViewInput ? (
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleSaveNewView(); }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <input
+                  autoFocus
+                  value={newViewName}
+                  onChange={(e) => setNewViewName(e.target.value)}
+                  placeholder="Nazev pohledu..."
+                  onKeyDown={(e) => { if (e.key === 'Escape') { setShowSaveViewInput(false); setNewViewName(''); } }}
+                  style={{
+                    width: '140px',
+                    padding: '2px 8px',
+                    fontSize: '10px',
+                    fontFamily: 'var(--forge-font-tech)',
+                    border: '1px solid var(--forge-accent-primary)',
+                    borderRadius: '999px',
+                    background: 'var(--forge-bg-void)',
+                    color: 'var(--forge-text-primary)',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!newViewName.trim()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    border: '1px solid var(--forge-accent-primary)',
+                    background: 'var(--forge-accent-primary)',
+                    color: '#08090C',
+                    borderRadius: '999px',
+                    padding: '2px 8px',
+                    fontSize: '10px',
+                    fontFamily: 'var(--forge-font-tech)',
+                    fontWeight: 700,
+                    cursor: newViewName.trim() ? 'pointer' : 'not-allowed',
+                    opacity: newViewName.trim() ? 1 : 0.5,
+                  }}
+                >
+                  <Icon name="Check" size={10} /> Ulozit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowSaveViewInput(false); setNewViewName(''); }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    border: '1px solid var(--forge-border-default)',
+                    background: 'var(--forge-bg-elevated)',
+                    color: 'var(--forge-text-secondary)',
+                    borderRadius: '999px',
+                    padding: '2px 6px',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Icon name="X" size={10} />
+                </button>
+              </form>
+            ) : currentHasFilters ? (
+              <button
+                type="button"
+                onClick={() => setShowSaveViewInput(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  border: '1px dashed var(--forge-border-default)',
+                  background: 'transparent',
+                  color: 'var(--forge-text-muted)',
+                  borderRadius: '999px',
+                  padding: '2px 8px',
+                  fontSize: '10px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all var(--forge-duration-micro) ease',
+                }}
+              >
+                <Icon name="Plus" size={10} /> Ulozit pohled
+              </button>
+            ) : null}
+          </div>
+
           {/* Collapsible filter body */}
           <div style={{
-            maxHeight: filtersExpanded ? '300px' : '0px',
+            maxHeight: filtersExpanded ? '400px' : '0px',
             overflow: 'hidden',
             transition: 'max-height 0.25s ease',
             marginTop: filtersExpanded ? '8px' : '0px',
@@ -561,7 +1042,43 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
               </div>
             </div>
 
-            {/* Row 3: Date range + Sort */}
+            {/* Row 3: TAGS */}
+            {allTags.length > 0 && (
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Stitky</span>
+                  {allTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleSet(setTagFilter, tag.id)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        border: `1px solid ${tagFilter.has(tag.id) ? tag.color : 'var(--forge-border-default)'}`,
+                        background: tagFilter.has(tag.id) ? `${tag.color}20` : 'var(--forge-bg-elevated)',
+                        color: tagFilter.has(tag.id) ? tag.color : 'var(--forge-text-secondary)',
+                        borderRadius: '999px',
+                        padding: '2px 8px',
+                        fontSize: '10px',
+                        fontFamily: 'var(--forge-font-tech)',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.03em',
+                        cursor: 'pointer',
+                        transition: 'all var(--forge-duration-micro) ease',
+                      }}
+                    >
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Row 4: Date range + Sort */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <div className="date-range" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Od</span>
@@ -587,11 +1104,40 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
       <BulkActionsBar
         selectedIds={selectedIds}
         orders={filtered}
+        allOrders={orders}
         onDeselectAll={() => setSelectedIds(new Set())}
         onBulkStatusChange={handleBulkStatusChange}
+        onBulkDelete={(ids) => {
+          const next = orders.filter((o) => !ids.has(o.id));
+          setOrders(next);
+          saveOrders(next);
+          addNotification({
+            type: 'order',
+            title: `Smazano: ${ids.size} objednavek`,
+            description: 'Objednavky byly trvale odstraneny',
+          });
+          setSelectedIds(new Set());
+        }}
+        onOrdersUpdate={(updatedOrders) => {
+          setOrders(updatedOrders);
+          setSelectedIds(new Set());
+          refreshTags();
+        }}
       />
 
-      {viewMode === 'table' ? (
+      {viewMode === 'calendar' ? (
+        <OrderCalendar
+          orders={filtered}
+          onViewOrder={(orderId) => navigate(`./${orderId}`)}
+          language={language}
+        />
+      ) : viewMode === 'print-queue' ? (
+        <PrintQueue
+          orders={orders}
+          setOrders={setOrders}
+          onViewOrder={(orderId) => navigate(`./${orderId}`)}
+        />
+      ) : viewMode === 'table' ? (
         <div className="panel">
           <div className="table-wrap">
             <table className="table">
@@ -615,6 +1161,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                   <th>WEIGHT</th>
                   <SortableTh sortKey="_total" currentSort={columnSortConfig} onSort={requestColumnSort}>TOTAL</SortableTh>
                   <SortableTh sortKey="_status" currentSort={columnSortConfig} onSort={requestColumnSort}>STATUS</SortableTh>
+                  <th>STITKY</th>
                   <th>FLAGS</th>
                   <th></th>
                 </tr>
@@ -625,7 +1172,12 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                   const mats = extractOrderMaterials(o);
                   const flags = collectOrderFlags(o);
                   return (
-                    <tr key={o.id} className={`${idx % 2 === 0 ? 'row-even' : 'row-odd'}${selectedIds.has(o.id) ? ' row-selected' : ''}`}>
+                    <tr
+                      key={o.id}
+                      className={`${idx % 2 === 0 ? 'row-even' : 'row-odd'}${selectedIds.has(o.id) ? ' row-selected' : ''}`}
+                      onClick={() => navigate(`./${o.id}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td style={{ textAlign: 'center', width: '36px' }}>
                         <input
                           type="checkbox"
@@ -657,6 +1209,18 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                           {getStatusLabel(o.status, language)}
                         </Badge>
                       </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <OrderTagChips
+                          orderId={o.id}
+                          allTags={allTags}
+                          assignments={tagAssignments}
+                          size="small"
+                          onRemove={(tagId) => {
+                            removeOrderTag(o.id, tagId);
+                            refreshTags();
+                          }}
+                        />
+                      </td>
                       <td>
                         <div className="flags">
                           {flags.slice(0, 3).map((f) => (
@@ -668,8 +1232,32 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                         </div>
                       </td>
                       <td className="actions">
-                        <button className="btn-primary btn-small" onClick={() => navigate(`./${o.id}`)} type="button">
+                        <button className="btn-primary btn-small" onClick={(e) => { e.stopPropagation(); navigate(`./${o.id}`); }} type="button">
                           Detail
+                        </button>
+                        <button
+                          className="btn-small"
+                          onClick={(e) => handleDuplicateFromList(e, o)}
+                          type="button"
+                          title="Duplikovat objednavku"
+                          style={{
+                            marginLeft: '4px',
+                            background: 'transparent',
+                            border: '1px solid var(--forge-border-default)',
+                            color: 'var(--forge-text-secondary)',
+                            cursor: 'pointer',
+                            borderRadius: 'var(--forge-radius-md)',
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            fontFamily: 'var(--forge-font-body)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; e.currentTarget.style.color = 'var(--forge-accent-primary)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-default)'; e.currentTarget.style.color = 'var(--forge-text-secondary)'; }}
+                        >
+                          <Icon name="Copy" size={12} /> Duplikovat
                         </button>
                       </td>
                     </tr>
@@ -678,7 +1266,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 
                 {pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="empty">Zadne objednavky pro zvolene filtry.</td>
+                    <td colSpan={13} className="empty">Zadne objednavky pro zvolene filtry.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -698,17 +1286,39 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
       ) : (
         <KanbanBoard
           orders={filtered}
+          kanbanConfig={kanbanConfig}
           onViewOrder={(order) => navigate(`./${order?.id || order}`)}
           onStatusChange={(orderId, newStatus) => {
+            const orig = orders.find(o => o.id === orderId);
             const next = orders.map(o => {
               if (o.id !== orderId) return o;
               return { ...o, status: newStatus, updated_at: nowIso(), activity: [{ timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } }, ...(o.activity || [])].slice(0, 200) };
             });
             setOrders(next);
             saveOrders(next);
+            if (orig && orig.status !== newStatus) {
+              addNotification({
+                type: 'order',
+                title: `Objednavka #${(orig.order_number || orderId).toString().slice(-6)}`,
+                description: `Status: ${getStatusLabel(orig.status)} → ${getStatusLabel(newStatus)}`,
+              });
+            }
+          }}
+          onConfigChange={(newConfig) => {
+            const saved = saveKanbanConfigV1(newConfig);
+            setKanbanConfig(saved);
           }}
         />
       )}
+
+      <QuickOrderForm
+        open={showQuickOrder}
+        onClose={() => setShowQuickOrder(false)}
+        onCreated={() => {
+          setOrders(loadOrders());
+          setShowQuickOrder(false);
+        }}
+      />
 
       <style>{`
         .orders { max-width: 1200px; }

@@ -14,6 +14,19 @@ const ALLOWED_TRANSITIONS = {
   CANCELED: ['NEW'], // Allow reopen
 };
 
+// How many hours an order can stay in a status before it's considered overdue
+const OVERDUE_THRESHOLDS_HOURS = {
+  NEW: 4,
+  REVIEW: 8,
+  APPROVED: 24,
+  PRINTING: 72,
+  POSTPROCESS: 48,
+  READY: 24,
+  SHIPPED: 168, // 7 days
+  DONE: 0, // never overdue
+  CANCELED: 0,
+};
+
 export function canTransition(fromStatus, toStatus) {
   const allowed = ALLOWED_TRANSITIONS[fromStatus];
   if (!allowed) return false;
@@ -54,4 +67,25 @@ export function getStatusLabel(status) {
   return labels[status] || status;
 }
 
-export { STATUS_ORDER, ALLOWED_TRANSITIONS };
+/**
+ * Check if an order is overdue based on how long it has been in its current status.
+ * @param {string} status - current status
+ * @param {string} updatedAt - ISO date string of last status change (or created_at)
+ * @returns {{ overdue: boolean, hoursInStatus: number, thresholdHours: number }}
+ */
+export function checkOverdue(status, updatedAt) {
+  const threshold = OVERDUE_THRESHOLDS_HOURS[status] || 0;
+  if (threshold <= 0) return { overdue: false, hoursInStatus: 0, thresholdHours: 0 };
+
+  const now = Date.now();
+  const updated = new Date(updatedAt || 0).getTime();
+  const hoursInStatus = Math.max(0, (now - updated) / (1000 * 60 * 60));
+
+  return {
+    overdue: hoursInStatus >= threshold,
+    hoursInStatus: Math.round(hoursInStatus),
+    thresholdHours: threshold,
+  };
+}
+
+export { STATUS_ORDER, ALLOWED_TRANSITIONS, OVERDUE_THRESHOLDS_HOURS };

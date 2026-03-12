@@ -2,16 +2,19 @@
  * NotificationCenter — Bell icon with dropdown for admin header.
  *
  * Features:
- * - Unread badge with count
- * - Dropdown with scrollable notification list
- * - Mark as read / Mark all as read / Clear all
+ * - Unread badge with count (capped at 99+)
+ * - Badge pulse animation on new notifications
+ * - Dropdown with scrollable notification list (max 400px wide, 500px tall)
+ * - Mark as read on click / Mark all as read / Clear all (with ForgeConfirmDialog)
  * - Relative timestamps in Czech
- * - Type-based icons (order, slicing, config, storage, error, info)
- * - Click outside to close
+ * - Type-based icons & colors (order, slicing, config, storage, error, info)
+ * - Notification preferences panel (per-type toggle, sound on/off)
+ * - Click outside / Escape to close
  * - aria-live for accessibility
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Icon from '../../../components/AppIcon';
+import { useConfirmDialog } from '../../../components/ui/forge/ForgeConfirmDialog';
 import {
   getNotifications,
   markAsRead,
@@ -19,16 +22,19 @@ import {
   clearAllNotifications,
   getUnreadCount,
   removeNotification,
+  getNotificationPrefs,
+  saveNotificationPrefs,
+  NOTIFICATION_UPDATED_EVENT,
 } from '../../../utils/adminNotificationStorage';
 
 // ---- Icon & color mapping per notification type ----
 const TYPE_CONFIG = {
-  order:   { icon: 'ShoppingCart', color: 'var(--forge-accent-primary)' },
-  slicing: { icon: 'Layers',      color: 'var(--forge-info)' },
-  config:  { icon: 'Settings',    color: 'var(--forge-warning)' },
-  storage: { icon: 'HardDrive',   color: 'var(--forge-accent-secondary)' },
-  error:   { icon: 'AlertCircle', color: 'var(--forge-error)' },
-  info:    { icon: 'Info',        color: 'var(--forge-info)' },
+  order:   { icon: 'ShoppingCart', color: 'var(--forge-accent-primary)', label: 'Objednavky' },
+  slicing: { icon: 'Layers',      color: 'var(--forge-info)',           label: 'Slicovani' },
+  config:  { icon: 'Settings',    color: 'var(--forge-warning)',        label: 'Konfigurace' },
+  storage: { icon: 'HardDrive',   color: 'var(--forge-accent-secondary)', label: 'Uloziste' },
+  error:   { icon: 'AlertCircle', color: 'var(--forge-error)',          label: 'Chyby' },
+  info:    { icon: 'Info',        color: 'var(--forge-info)',           label: 'Informace' },
 };
 
 // ---- Relative time in Czech ----
@@ -47,9 +53,15 @@ function formatRelativeTime(timestamp) {
   if (hours < 24) return `pred ${hours} hod`;
   if (days === 1) return 'vcera';
   if (days < 7) return `pred ${days} dny`;
-  // Fallback: date
   const d = new Date(timestamp);
   return `${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
+// ---- Badge count formatter ----
+function formatBadge(count) {
+  if (count <= 0) return '';
+  if (count > 99) return '99+';
+  return String(count);
 }
 
 // ---- Styles ----
@@ -73,11 +85,11 @@ const styles = {
   },
   badge: {
     position: 'absolute',
-    top: '2px',
-    right: '2px',
-    minWidth: '16px',
-    height: '16px',
-    borderRadius: '8px',
+    top: '0px',
+    right: '-2px',
+    minWidth: '18px',
+    height: '18px',
+    borderRadius: '9px',
     backgroundColor: 'var(--forge-error)',
     color: '#fff',
     fontSize: '10px',
@@ -86,7 +98,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '0 4px',
+    padding: '0 5px',
     lineHeight: 1,
     pointerEvents: 'none',
     boxShadow: '0 0 0 2px var(--forge-bg-surface)',
@@ -95,8 +107,8 @@ const styles = {
     position: 'absolute',
     top: 'calc(100% + 8px)',
     right: 0,
-    width: '360px',
-    maxHeight: '480px',
+    width: '400px',
+    maxHeight: '500px',
     backgroundColor: 'var(--forge-bg-elevated)',
     border: '1px solid var(--forge-border-default)',
     borderRadius: 'var(--forge-radius-lg)',
@@ -122,7 +134,8 @@ const styles = {
   },
   headerActions: {
     display: 'flex',
-    gap: '8px',
+    gap: '6px',
+    alignItems: 'center',
   },
   headerBtn: {
     background: 'none',
@@ -135,6 +148,18 @@ const styles = {
     borderRadius: 'var(--forge-radius-sm)',
     transition: 'color 150ms, background-color 150ms',
   },
+  headerIconBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--forge-text-muted)',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: 'var(--forge-radius-sm)',
+    transition: 'color 150ms, background-color 150ms',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   list: {
     flex: 1,
     overflowY: 'auto',
@@ -142,10 +167,11 @@ const styles = {
   },
   item: (isUnread) => ({
     display: 'flex',
-    gap: '12px',
+    gap: '10px',
     padding: '12px 16px',
     borderBottom: '1px solid var(--forge-border-default)',
     backgroundColor: isUnread ? 'rgba(0, 212, 170, 0.04)' : 'transparent',
+    borderLeft: isUnread ? '3px solid var(--forge-accent-primary)' : '3px solid transparent',
     cursor: 'pointer',
     transition: 'background-color 150ms ease-out',
   }),
@@ -218,46 +244,157 @@ const styles = {
     fontSize: '13px',
     marginTop: '12px',
   },
-  unreadDot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    backgroundColor: 'var(--forge-accent-primary)',
+  // ---- Preferences panel ----
+  prefsPanel: {
+    borderTop: '1px solid var(--forge-border-default)',
+    padding: '12px 16px',
+    backgroundColor: 'var(--forge-bg-surface)',
+  },
+  prefsPanelTitle: {
+    fontFamily: 'var(--forge-font-heading)',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--forge-text-secondary)',
+    margin: '0 0 10px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  prefsRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '4px 0',
+  },
+  prefsLabel: {
+    fontFamily: 'var(--forge-font-body)',
+    fontSize: '12px',
+    color: 'var(--forge-text-secondary)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  prefsToggle: (active) => ({
+    width: '32px',
+    height: '18px',
+    borderRadius: '9px',
+    backgroundColor: active ? 'var(--forge-accent-primary)' : 'var(--forge-bg-overlay)',
+    border: 'none',
+    cursor: 'pointer',
+    position: 'relative',
+    transition: 'background-color 150ms ease-out',
     flexShrink: 0,
-    marginTop: '6px',
+  }),
+  prefsToggleKnob: (active) => ({
+    position: 'absolute',
+    top: '2px',
+    left: active ? '16px' : '2px',
+    width: '14px',
+    height: '14px',
+    borderRadius: '50%',
+    backgroundColor: '#fff',
+    transition: 'left 150ms ease-out',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+  }),
+  prefsDivider: {
+    height: '1px',
+    backgroundColor: 'var(--forge-border-default)',
+    margin: '8px 0',
   },
 };
 
+// ---- Badge pulse animation (injected once) ----
+const PULSE_CLASS = 'nc-badge-pulse';
+let styleInjected = false;
+function injectPulseStyle() {
+  if (styleInjected || typeof document === 'undefined') return;
+  styleInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes nc-badge-pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    .${PULSE_CLASS} {
+      animation: nc-badge-pulse 0.4s ease-out;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ---- Toggle switch sub-component ----
+function Toggle({ active, onChange, ariaLabel }) {
+  return (
+    <button
+      style={styles.prefsToggle(active)}
+      onClick={onChange}
+      role="switch"
+      aria-checked={active}
+      aria-label={ariaLabel}
+    >
+      <span style={styles.prefsToggleKnob(active)} />
+    </button>
+  );
+}
+
 const NotificationCenter = () => {
   const [open, setOpen] = useState(false);
+  const [showPrefs, setShowPrefs] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [prefs, setPrefs] = useState(null);
+  const [pulsing, setPulsing] = useState(false);
+  const prevUnreadRef = useRef(0);
   const wrapperRef = useRef(null);
+
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   // Reload from storage
   const reload = useCallback(() => {
-    setNotifications(getNotifications());
+    const all = getNotifications();
+    setNotifications(all);
     setUnreadCount(getUnreadCount());
+  }, []);
+
+  // Load prefs separately to avoid re-creating reload callback
+  const loadPrefs = useCallback(() => {
+    setPrefs(getNotificationPrefs());
   }, []);
 
   // Initial load + poll every 10s for external changes
   useEffect(() => {
+    injectPulseStyle();
     reload();
+    loadPrefs();
     const interval = setInterval(reload, 10000);
     return () => clearInterval(interval);
-  }, [reload]);
+  }, [reload, loadPrefs]);
 
   // Reload when dropdown opens
   useEffect(() => {
-    if (open) reload();
-  }, [open, reload]);
+    if (open) {
+      reload();
+      loadPrefs();
+    }
+  }, [open, reload, loadPrefs]);
 
   // Listen for custom event from other parts of the app
   useEffect(() => {
     const handler = () => reload();
-    window.addEventListener('notification-storage-updated', handler);
-    return () => window.removeEventListener('notification-storage-updated', handler);
+    window.addEventListener(NOTIFICATION_UPDATED_EVENT, handler);
+    return () => window.removeEventListener(NOTIFICATION_UPDATED_EVENT, handler);
   }, [reload]);
+
+  // Badge pulse when unread count increases
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+      setPulsing(true);
+      const t = setTimeout(() => setPulsing(false), 500);
+      prevUnreadRef.current = unreadCount;
+      return () => clearTimeout(t);
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Click outside to close
   useEffect(() => {
@@ -265,11 +402,14 @@ const NotificationCenter = () => {
     const handleClick = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setOpen(false);
+        setShowPrefs(false);
       }
     };
-    // Escape key
     const handleKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setShowPrefs(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('keydown', handleKey);
@@ -279,14 +419,25 @@ const NotificationCenter = () => {
     };
   }, [open]);
 
-  const handleToggle = () => setOpen((v) => !v);
+  const handleToggle = () => {
+    setOpen((v) => !v);
+    if (open) setShowPrefs(false);
+  };
 
   const handleMarkAllRead = () => {
     markAllAsRead();
     reload();
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
+    const ok = await confirm({
+      title: 'Smazat vsechny notifikace?',
+      message: 'Tato akce smaze vsechny notifikace. Nelze ji vratit zpet.',
+      confirmLabel: 'Smazat vse',
+      cancelLabel: 'Zrusit',
+      destructive: true,
+    });
+    if (!ok) return;
     clearAllNotifications();
     reload();
   };
@@ -303,6 +454,38 @@ const NotificationCenter = () => {
     removeNotification(notifId);
     reload();
   };
+
+  // ---- Preferences handlers ----
+  const updatePrefs = useCallback((updater) => {
+    setPrefs((prev) => {
+      const current = prev || getNotificationPrefs();
+      const next = updater(current);
+      saveNotificationPrefs(next);
+      return next;
+    });
+  }, []);
+
+  const toggleTypeEnabled = (type) => {
+    updatePrefs((p) => ({
+      ...p,
+      enabledTypes: { ...p.enabledTypes, [type]: !p.enabledTypes[type] },
+    }));
+  };
+
+  const toggleSound = () => {
+    updatePrefs((p) => ({ ...p, soundEnabled: !p.soundEnabled }));
+  };
+
+  // Filter notifications by enabled types for display
+  const currentPrefs = prefs || getNotificationPrefs();
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      const typeEnabled = currentPrefs.enabledTypes[n.type];
+      return typeEnabled !== false;
+    });
+  }, [notifications, currentPrefs]);
+
+  const badgeText = formatBadge(unreadCount);
 
   return (
     <div ref={wrapperRef} style={styles.wrapper}>
@@ -324,8 +507,12 @@ const NotificationCenter = () => {
       >
         <Icon name="Bell" size={20} />
         {unreadCount > 0 && (
-          <span style={styles.badge} aria-hidden="true">
-            {unreadCount > 9 ? '9+' : unreadCount}
+          <span
+            style={styles.badge}
+            className={pulsing ? PULSE_CLASS : undefined}
+            aria-hidden="true"
+          >
+            {badgeText}
           </span>
         )}
       </button>
@@ -379,18 +566,74 @@ const NotificationCenter = () => {
                   Smazat vse
                 </button>
               )}
+              {/* Settings gear */}
+              <button
+                onClick={() => setShowPrefs((v) => !v)}
+                style={{
+                  ...styles.headerIconBtn,
+                  color: showPrefs ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
+                  backgroundColor: showPrefs ? 'var(--forge-accent-primary-ghost)' : 'transparent',
+                }}
+                aria-label="Nastaveni notifikaci"
+                onMouseEnter={(e) => {
+                  if (!showPrefs) {
+                    e.currentTarget.style.color = 'var(--forge-text-primary)';
+                    e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showPrefs) {
+                    e.currentTarget.style.color = 'var(--forge-text-muted)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+              >
+                <Icon name="Settings" size={14} />
+              </button>
             </div>
           </div>
 
+          {/* Preferences panel (collapsible) */}
+          {showPrefs && (
+            <div style={styles.prefsPanel}>
+              <p style={styles.prefsPanelTitle}>Nastaveni</p>
+              {Object.entries(TYPE_CONFIG).map(([type, cfg]) => (
+                <div key={type} style={styles.prefsRow}>
+                  <span style={styles.prefsLabel}>
+                    <Icon name={cfg.icon} size={13} color={cfg.color} />
+                    {cfg.label}
+                  </span>
+                  <Toggle
+                    active={currentPrefs.enabledTypes[type] !== false}
+                    onChange={() => toggleTypeEnabled(type)}
+                    ariaLabel={`${cfg.label} notifikace`}
+                  />
+                </div>
+              ))}
+              <div style={styles.prefsDivider} />
+              <div style={styles.prefsRow}>
+                <span style={styles.prefsLabel}>
+                  <Icon name={currentPrefs.soundEnabled ? 'Volume2' : 'VolumeX'} size={13} color="var(--forge-text-muted)" />
+                  Zvuk
+                </span>
+                <Toggle
+                  active={currentPrefs.soundEnabled}
+                  onChange={toggleSound}
+                  ariaLabel="Zvuk notifikaci"
+                />
+              </div>
+            </div>
+          )}
+
           {/* List */}
           <div style={styles.list}>
-            {notifications.length === 0 ? (
+            {filteredNotifications.length === 0 ? (
               <div style={styles.empty}>
                 <Icon name="BellOff" size={32} color="var(--forge-text-disabled)" />
-                <span style={styles.emptyText}>Zadne nove notifikace</span>
+                <span style={styles.emptyText}>Zadne notifikace</span>
               </div>
             ) : (
-              notifications.map((notif) => {
+              filteredNotifications.map((notif) => {
                 const config = TYPE_CONFIG[notif.type] || TYPE_CONFIG.info;
                 return (
                   <div
@@ -401,7 +644,6 @@ const NotificationCenter = () => {
                       e.currentTarget.style.backgroundColor = notif.read
                         ? 'var(--forge-bg-overlay)'
                         : 'rgba(0, 212, 170, 0.07)';
-                      // Show close button
                       const closeBtn = e.currentTarget.querySelector('[data-close]');
                       if (closeBtn) closeBtn.style.opacity = '1';
                     }}
@@ -421,13 +663,6 @@ const NotificationCenter = () => {
                       }
                     }}
                   >
-                    {/* Unread dot */}
-                    {!notif.read ? (
-                      <div style={styles.unreadDot} aria-hidden="true" />
-                    ) : (
-                      <div style={{ width: 6, minWidth: 6 }} />
-                    )}
-
                     {/* Type icon */}
                     <div style={styles.itemIconWrap(config.color)}>
                       <Icon name={config.icon} size={16} color={config.color} />
@@ -466,6 +701,9 @@ const NotificationCenter = () => {
           </div>
         </div>
       )}
+
+      {/* Confirm dialog for Clear All */}
+      <ConfirmDialog />
     </div>
   );
 };

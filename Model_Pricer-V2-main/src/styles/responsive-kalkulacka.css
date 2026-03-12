@@ -400,6 +400,19 @@
   }
 }
 
+/* ---------- PricingShareMenu dropdown ---------- */
+
+@media (max-width: 640px) {
+  .pricing-share-menu-dropdown {
+    min-width: 200px !important;
+    right: -0.5rem !important;
+  }
+
+  .pricing-share-menu-dropdown button[role="menuitem"] {
+    min-height: 44px;
+  }
+}
+
 /* ---------- Breadcrumb ---------- */
 
 @media (max-width: 640px) {

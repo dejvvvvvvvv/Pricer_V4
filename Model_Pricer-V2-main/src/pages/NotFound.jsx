@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ForgeButton from '@/components/ui/forge/ForgeButton';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -7,6 +7,7 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 const NotFound = () => {
   useDocumentTitle('404 - Page Not Found');
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useLanguage();
 
   const pageStyle = {
@@ -42,10 +43,26 @@ const NotFound = () => {
     fontFamily: 'var(--forge-font-body)',
     fontSize: 'var(--forge-text-base)',
     color: 'var(--forge-text-muted)',
-    marginBottom: '32px',
+    marginBottom: '12px',
     maxWidth: '420px',
     textAlign: 'center',
     lineHeight: 1.6,
+  };
+
+  const urlBadgeStyle = {
+    fontFamily: 'var(--forge-font-mono, monospace)',
+    fontSize: 'var(--forge-text-sm, 0.75rem)',
+    color: 'var(--forge-text-muted, #7A8291)',
+    backgroundColor: 'var(--forge-bg-elevated, #161920)',
+    border: '1px solid var(--forge-border-default, #1E2230)',
+    borderRadius: 'var(--forge-radius-sm, 4px)',
+    padding: '6px 14px',
+    marginBottom: '28px',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    display: 'inline-block',
   };
 
   const linksContainerStyle = {
@@ -100,6 +117,9 @@ const NotFound = () => {
         <p style={descStyle}>
           {t('notFound.description')}
         </p>
+        <div style={urlBadgeStyle} title={location.pathname} aria-label={t('notFound.requestedUrl')}>
+          {location.pathname}
+        </div>
         <div style={linksContainerStyle}>
           <ForgeButton variant="primary" onClick={() => navigate('/')}>
             {t('notFound.goHome')}

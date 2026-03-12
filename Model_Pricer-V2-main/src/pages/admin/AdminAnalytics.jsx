@@ -12,8 +12,25 @@ import {
   getAnalyticsSessions,
   logExportToAudit,
 } from '../../utils/adminAnalyticsStorage';
-import { exportJSON } from '../../utils/exportData';
+import { loadOrders, computeOrderTotals, extractOrderMaterials } from '../../utils/adminOrdersStorage';
+import { exportJSON, downloadFile } from '../../utils/exportData';
 import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  generateRevenueReport,
+  generateMaterialReport,
+  generateCustomerReport,
+  generateOrderStatusReport,
+  reportToCSV,
+  reportToHTML,
+  REPORT_TYPES,
+  loadScheduledReports,
+  toggleScheduledReport,
+  checkScheduledReports,
+  saveReportToHistory,
+  loadReportHistory,
+} from '../../utils/reportGenerator';
+
+/* ── Helpers ──────────────────────────────────────────────────────────── */
 
 function isoDaysAgo(days) {
   const d = new Date();
@@ -25,6 +42,19 @@ function isoDaysAgo(days) {
 function isoNowEnd() {
   const d = new Date();
   d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
+
+function isoStartOfYear() {
+  const d = new Date();
+  d.setMonth(0, 1);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function isoStartOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
 
@@ -45,6 +75,11 @@ function formatNumber(n, digits = 0) {
   });
 }
 
+function formatKc(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '-';
+  return `${formatNumber(n, 0)} Kc`;
+}
+
 function downloadTextFile({ filename, content, mime = 'text/plain;charset=utf-8' }) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -57,11 +92,26 @@ function downloadTextFile({ filename, content, mime = 'text/plain;charset=utf-8'
   URL.revokeObjectURL(url);
 }
 
+/* ── Period helpers ───────────────────────────────────────────────────── */
+
+function getDateRangeForPeriod(period) {
+  switch (period) {
+    case 'today': return { from: isoStartOfToday(), to: isoNowEnd() };
+    case '7': return { from: isoDaysAgo(7), to: isoNowEnd() };
+    case '30': return { from: isoDaysAgo(30), to: isoNowEnd() };
+    case 'year': return { from: isoStartOfYear(), to: isoNowEnd() };
+    case 'all': return { from: '2020-01-01T00:00:00.000Z', to: isoNowEnd() };
+    default: return { from: isoDaysAgo(30), to: isoNowEnd() };
+  }
+}
+
+/* ── Shared sub-components ────────────────────────────────────────────── */
+
 function TabButton({ active, onClick, children }) {
   return (
     <button
       type="button"
-      className={`mp-tab ${active ? 'active' : ''}`}
+      className={`aa-tab ${active ? 'active' : ''}`}
       onClick={onClick}
     >
       {children}
@@ -69,23 +119,25 @@ function TabButton({ active, onClick, children }) {
   );
 }
 
-function StatCard({ title, value, sub }) {
+function PeriodButton({ active, onClick, children }) {
   return (
-    <div className="mp-card mp-stat">
-      <div className="mp-stat-title">{title}</div>
-      <div className="mp-stat-value">{value}</div>
-      {sub ? <div className="mp-stat-sub">{sub}</div> : null}
-    </div>
+    <button
+      type="button"
+      className={`aa-period-btn ${active ? 'active' : ''}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 
 function MiniSeriesTable({ title, series, headerDate, headerCount, noDataText }) {
   const safeSeries = Array.isArray(series) ? series : [];
   return (
-    <div className="mp-card">
-      <div className="mp-card-title">{title}</div>
-      <div className="mp-table-wrap">
-        <table className="mp-table">
+    <div className="aa-card">
+      <div className="aa-card-title">{title}</div>
+      <div className="aa-table-wrap">
+        <table className="aa-table">
           <thead>
             <tr>
               <th>{headerDate || 'Datum'}</th>
@@ -94,7 +146,7 @@ function MiniSeriesTable({ title, series, headerDate, headerCount, noDataText })
           </thead>
           <tbody>
             {safeSeries.length === 0 ? (
-              <tr><td colSpan={2} className="mp-muted">{noDataText || 'No data'}</td></tr>
+              <tr><td colSpan={2} className="aa-muted">{noDataText || 'No data'}</td></tr>
             ) : (
               safeSeries.map((row) => (
                 <tr key={row.date}>
@@ -110,30 +162,192 @@ function MiniSeriesTable({ title, series, headerDate, headerCount, noDataText })
   );
 }
 
+/* ── Order-based metrics computation ─────────────────────────────────── */
+
+function computeOrderMetrics(orders, fromISO, toISO) {
+  const from = new Date(fromISO);
+  const to = new Date(toISO);
+
+  const filtered = orders.filter((o) => {
+    const created = new Date(o.created_at || o.createdAt || '');
+    return created >= from && created <= to;
+  });
+
+  let totalRevenue = 0;
+  let totalOrders = filtered.length;
+  const statusCounts = {};
+  const materialCounts = {};
+  const dailyRevenue = {};
+  const dailyOrders = {};
+  let totalPrintTimeMin = 0;
+  let totalWeightG = 0;
+  let activeOrders = 0;
+
+  const activeStatuses = new Set(['NEW', 'REVIEW', 'APPROVED', 'PRINTING', 'POSTPROCESS', 'READY']);
+
+  for (const order of filtered) {
+    const totals = computeOrderTotals(order);
+    totalRevenue += totals.total || 0;
+    totalPrintTimeMin += totals.sum_time_min || 0;
+    totalWeightG += totals.sum_weight_g || 0;
+
+    const status = order.status || 'NEW';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+    if (activeStatuses.has(status)) activeOrders++;
+
+    const materials = extractOrderMaterials(order);
+    for (const mat of materials) {
+      materialCounts[mat] = (materialCounts[mat] || 0) + 1;
+    }
+
+    const dayKey = (order.created_at || order.createdAt || '').slice(0, 10);
+    if (dayKey) {
+      dailyRevenue[dayKey] = (dailyRevenue[dayKey] || 0) + (totals.total || 0);
+      dailyOrders[dayKey] = (dailyOrders[dayKey] || 0) + 1;
+    }
+  }
+
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  // Compute previous period for trend
+  const periodMs = to.getTime() - from.getTime();
+  const prevFrom = new Date(from.getTime() - periodMs);
+  const prevTo = new Date(from.getTime());
+
+  const prevFiltered = orders.filter((o) => {
+    const created = new Date(o.created_at || o.createdAt || '');
+    return created >= prevFrom && created < prevTo;
+  });
+
+  let prevRevenue = 0;
+  for (const order of prevFiltered) {
+    const totals = computeOrderTotals(order);
+    prevRevenue += totals.total || 0;
+  }
+
+  const revenueTrend = prevRevenue > 0
+    ? ((totalRevenue - prevRevenue) / prevRevenue) * 100
+    : (totalRevenue > 0 ? 100 : 0);
+
+  const ordersTrend = prevFiltered.length > 0
+    ? ((totalOrders - prevFiltered.length) / prevFiltered.length) * 100
+    : (totalOrders > 0 ? 100 : 0);
+
+  const prevAvg = prevFiltered.length > 0 ? prevRevenue / prevFiltered.length : 0;
+  const avgTrend = prevAvg > 0
+    ? ((avgOrderValue - prevAvg) / prevAvg) * 100
+    : (avgOrderValue > 0 ? 100 : 0);
+
+  // Revenue over time (sorted)
+  const revenueOverTime = Object.entries(dailyRevenue)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, revenue]) => ({
+      date,
+      label: formatShortDate(date),
+      revenue: Math.round(revenue),
+    }));
+
+  // Orders by status
+  const ordersByStatus = Object.entries(statusCounts).map(([status, count]) => ({
+    status,
+    name: status,
+    value: count,
+  }));
+
+  // Top materials
+  const topMaterials = Object.entries(materialCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 8)
+    .map(([name, count]) => ({ name, count }));
+
+  // Average order value trend
+  const aovOverTime = Object.entries(dailyRevenue)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date]) => {
+      const dayOrders = dailyOrders[date] || 1;
+      const dayRev = dailyRevenue[date] || 0;
+      return {
+        date,
+        label: formatShortDate(date),
+        aov: Math.round(dayRev / dayOrders),
+      };
+    });
+
+  // Print time distribution
+  const printTimeBuckets = { '0-30': 0, '30-60': 0, '60-120': 0, '120-240': 0, '240+': 0 };
+  for (const order of filtered) {
+    const totals = computeOrderTotals(order);
+    const timeMin = totals.sum_time_min || 0;
+    if (timeMin <= 30) printTimeBuckets['0-30']++;
+    else if (timeMin <= 60) printTimeBuckets['30-60']++;
+    else if (timeMin <= 120) printTimeBuckets['60-120']++;
+    else if (timeMin <= 240) printTimeBuckets['120-240']++;
+    else printTimeBuckets['240+']++;
+  }
+
+  const printTimeDistribution = Object.entries(printTimeBuckets)
+    .filter(([, count]) => count > 0)
+    .map(([range, count]) => ({ range: `${range} min`, count }));
+
+  return {
+    totalRevenue,
+    totalOrders,
+    avgOrderValue,
+    activeOrders,
+    revenueTrend,
+    ordersTrend,
+    avgTrend,
+    totalPrintTimeMin,
+    totalWeightG,
+    revenueOverTime,
+    ordersByStatus,
+    topMaterials,
+    aovOverTime,
+    printTimeDistribution,
+  };
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
+/* ── Main Component ──────────────────────────────────────────────────── */
+
 export default function AdminAnalytics() {
   const { language } = useLanguage();
   const cs = language === 'cs';
 
   const ui = useMemo(() => ({
     title: cs ? 'Analytika' : 'Analytics',
-    subtitle: cs ? 'Prehled toho, co se deje ve widgetu.' : 'Overview of widget activity.',
+    subtitle: cs ? 'Prehled trzeb, objednavek a aktivity.' : 'Revenue, orders and activity overview.',
     refresh: cs ? 'Obnovit' : 'Refresh',
     resetDemo: cs ? 'Reset demo dat' : 'Reset demo data',
-    period: cs ? 'Obdobi' : 'Period',
-    last7: cs ? 'Poslednich 7 dni' : 'Last 7 days',
-    last30: cs ? 'Poslednich 30 dni' : 'Last 30 days',
-    last90: cs ? 'Poslednich 90 dni' : 'Last 90 days',
-    custom: cs ? 'Vlastni' : 'Custom',
-    from: cs ? 'Od' : 'From',
-    to: cs ? 'Do' : 'To',
+    // Period labels
+    today: cs ? 'Dnes' : 'Today',
+    thisWeek: cs ? 'Tento tyden' : 'This week',
+    thisMonth: cs ? 'Tento mesic' : 'This month',
+    thisYear: cs ? 'Tento rok' : 'This year',
+    allTime: cs ? 'Vse' : 'All time',
     // Tab labels
-    tabOverview: cs ? 'Prehled' : 'Overview',
+    tabCharts: cs ? 'Grafy' : 'Charts',
+    tabOverview: cs ? 'Detailni prehled' : 'Detailed Overview',
     tabCalculations: cs ? 'Kalkulace' : 'Calculations',
     tabOrders: cs ? 'Objednavky' : 'Orders',
     tabLost: cs ? 'Ztracene' : 'Lost',
-    tabCharts: cs ? 'Grafy' : 'Charts',
     tabExports: cs ? 'Exporty' : 'Exports',
-    // StatCard labels
+    // Summary cards
+    totalRevenue: cs ? 'Celkove trzby' : 'Total Revenue',
+    totalOrders: cs ? 'Celkem objednavek' : 'Total Orders',
+    avgOrder: cs ? 'Prumerna objednavka' : 'Avg Order Value',
+    activeOrdersLabel: cs ? 'Aktivni objednavky' : 'Active Orders',
+    vsPrev: cs ? 'vs predchozi obdobi' : 'vs previous period',
+    noOrders: cs ? 'Zatim zadne objednavky' : 'No orders yet',
+    noOrdersHint: cs
+      ? 'Objednavky se objevi az budou vytvoreny pres kalkulacku nebo admin panel.'
+      : 'Orders will appear once created via the calculator or admin panel.',
+    // Overview tab
     calculations: cs ? 'Kalkulace' : 'Calculations',
     orders: cs ? 'Objednavky' : 'Orders',
     conversion: cs ? 'Konverze' : 'Conversion',
@@ -142,7 +356,6 @@ export default function AdminAnalytics() {
     avgTime: cs ? 'Prumerny cas' : 'Average time',
     avgWeight: cs ? 'Prumerna hmotnost' : 'Average weight',
     noData: cs ? 'Zadna data' : 'No data',
-    // Tables
     date: cs ? 'Datum' : 'Date',
     count: cs ? 'Pocet' : 'Count',
     calcsPerDay: cs ? 'Kalkulace / den' : 'Calculations / day',
@@ -151,13 +364,13 @@ export default function AdminAnalytics() {
     topPresets: cs ? 'Top presety' : 'Top presets',
     topFees: cs ? 'Top poplatky (fees)' : 'Top fees',
     chosen: cs ? 'Zvoleno' : 'Chosen',
+    material: cs ? 'Material' : 'Material',
+    preset: 'Preset',
     // Calculations tab
     searchPlaceholder: cs ? 'Hledej session / soubor / material / preset' : 'Search session / file / material / preset',
     onlyFailed: cs ? 'Jen neuspesne' : 'Only failed',
     calcSessions: cs ? 'Kalkulacni sessions' : 'Calculation sessions',
     file: cs ? 'Soubor' : 'File',
-    material: cs ? 'Material' : 'Material',
-    preset: 'Preset',
     time: cs ? 'Cas' : 'Time',
     weight: cs ? 'Hmotnost' : 'Weight',
     price: cs ? 'Cena' : 'Price',
@@ -165,7 +378,7 @@ export default function AdminAnalytics() {
     status: 'Status',
     detail: cs ? 'Detail' : 'Detail',
     noCalcs: cs ? 'Zadne kalkulace v tomto obdobi' : 'No calculations in this period',
-    // Orders tab
+    // Orders sub-tab
     revenue: cs ? 'Odhadovane trzby' : 'Est. revenue',
     avgOrderValue: cs ? 'Prumerna objednavka' : 'Avg order value',
     note: cs ? 'Poznamka' : 'Note',
@@ -190,7 +403,7 @@ export default function AdminAnalytics() {
     exportNote: cs
       ? 'Export se v demo rezimu generuje synchronne z localStorage. Vytvoreni exportu se zapisuje do Audit logu (G).'
       : 'Export is generated synchronously from localStorage in demo mode. Export creation is logged to Audit log (G).',
-    // Session detail (ForgeDialog)
+    // Session detail
     sessionDetail: cs ? 'Detail session' : 'Session detail',
     summary: cs ? 'Shrnuti' : 'Summary',
     timeline: cs ? 'Casova osa' : 'Timeline',
@@ -205,37 +418,45 @@ export default function AdminAnalytics() {
       : 'Really delete all analytics demo data?',
   }), [cs]);
 
-  const [tab, setTab] = useState('overview');
-  const [range, setRange] = useState('30');
-  const [fromISO, setFromISO] = useState(isoDaysAgo(30));
-  const [toISO, setToISO] = useState(isoNowEnd());
+  const [tab, setTab] = useState('charts');
+  const [period, setPeriod] = useState('30');
   const [refreshKey, setRefreshKey] = useState(0);
   const [onlyFailed, setOnlyFailed] = useState(false);
   const [q, setQ] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [exportType, setExportType] = useState('calculations');
 
+  // Reports tab state
+  const [reportType, setReportType] = useState('revenue');
+  const [reportFrom, setReportFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [generatedReport, setGeneratedReport] = useState(null);
+  const [scheduledReports, setScheduledReports] = useState(() => loadScheduledReports());
+  const [autoReports, setAutoReports] = useState([]);
+  const [reportHistory, setReportHistory] = useState(() => loadReportHistory());
+
+  const { fromISO, toISO } = useMemo(() => getDateRangeForPeriod(period), [period]);
+
   useEffect(() => {
     ensureDemoAnalyticsSeeded();
   }, []);
 
-  useEffect(() => {
-    if (range === '7') {
-      setFromISO(isoDaysAgo(7));
-      setToISO(isoNowEnd());
-    } else if (range === '30') {
-      setFromISO(isoDaysAgo(30));
-      setToISO(isoNowEnd());
-    } else if (range === '90') {
-      setFromISO(isoDaysAgo(90));
-      setToISO(isoNowEnd());
-    }
-  }, [range]);
+  // Load all orders once
+  const allOrders = useMemo(() => loadOrders(), [refreshKey]);
 
+  // Compute order-based metrics for selected period
+  const orderMetrics = useMemo(
+    () => computeOrderMetrics(allOrders, fromISO, toISO),
+    [allOrders, fromISO, toISO]
+  );
+
+  // Analytics sessions (widget analytics data)
   const sessions = useMemo(() => {
     const all = getAnalyticsSessions();
     const ranged = filterSessionsByRange(all, { fromISO, toISO });
-    // keep most recent first
     return [...ranged].sort((a, b) => (b.last_event_at || '').localeCompare(a.last_event_at || ''));
   }, [fromISO, toISO, refreshKey]);
 
@@ -309,82 +530,194 @@ export default function AdminAnalytics() {
     forceRefresh();
   }
 
+  // Check scheduled reports on mount
+  useEffect(() => {
+    const due = checkScheduledReports();
+    if (due.length > 0) {
+      setAutoReports(due);
+      setReportHistory(loadReportHistory());
+      setScheduledReports(loadScheduledReports());
+    }
+  }, []);
+
+  function handleGenerateReport() {
+    const from = new Date(reportFrom + 'T00:00:00').toISOString();
+    const to = new Date(reportTo + 'T23:59:59').toISOString();
+    let report = null;
+    switch (reportType) {
+      case 'revenue': report = generateRevenueReport(from, to); break;
+      case 'material': report = generateMaterialReport(from, to); break;
+      case 'customer': report = generateCustomerReport(from, to); break;
+      case 'orderStatus': report = generateOrderStatusReport(from, to); break;
+    }
+    if (report) {
+      setGeneratedReport(report);
+      saveReportToHistory(report);
+      setReportHistory(loadReportHistory());
+    }
+  }
+
+  function handleDownloadCSV() {
+    if (!generatedReport) return;
+    const csv = reportToCSV(generatedReport);
+    const filename = `report_${generatedReport.type}_${reportFrom}_${reportTo}.csv`;
+    downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+  }
+
+  function handleDownloadPDF() {
+    if (!generatedReport) return;
+    const html = reportToHTML(generatedReport);
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => win.print(), 300);
+    }
+  }
+
+  function handleToggleSchedule(typeId) {
+    const updated = toggleScheduledReport(typeId);
+    setScheduledReports(updated);
+  }
+
+  function renderTrendIndicator(value) {
+    if (!value || value === 0) return null;
+    const isUp = value > 0;
+    return (
+      <span className={`aa-trend ${isUp ? 'up' : 'down'}`}>
+        {isUp ? '+' : ''}{formatNumber(value, 1)}%
+      </span>
+    );
+  }
+
+  const hasOrders = allOrders.length > 0;
+
   return (
-    <div className="mp-admin-analytics">
-      <div className="mp-head">
+    <div className="aa-analytics">
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="aa-header">
         <div>
-          <h1 className="mp-title">{ui.title}</h1>
-          <p className="mp-subtitle">{ui.subtitle}</p>
+          <h1 className="aa-title">{ui.title}</h1>
+          <p className="aa-subtitle">{ui.subtitle}</p>
         </div>
-
-        <div className="mp-actions">
-          <div className="mp-range">
-            <label className="mp-label">{ui.period}</label>
-            <select className="mp-select" value={range} onChange={(e) => setRange(e.target.value)}>
-              <option value="7">{ui.last7}</option>
-              <option value="30">{ui.last30}</option>
-              <option value="90">{ui.last90}</option>
-              <option value="custom">{ui.custom}</option>
-            </select>
-          </div>
-
-          {range === 'custom' ? (
-            <div className="mp-custom-range">
-              <div>
-                <label className="mp-label">{ui.from}</label>
-                <input
-                  className="mp-input"
-                  type="date"
-                  value={fromISO.slice(0, 10)}
-                  onChange={(e) => setFromISO(`${e.target.value}T00:00:00.000Z`)}
-                />
-              </div>
-              <div>
-                <label className="mp-label">{ui.to}</label>
-                <input
-                  className="mp-input"
-                  type="date"
-                  value={toISO.slice(0, 10)}
-                  onChange={(e) => setToISO(`${e.target.value}T23:59:59.999Z`)}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <button type="button" className="mp-btn mp-btn-ghost" onClick={handleClear}>
+        <div className="aa-header-actions">
+          <button type="button" className="aa-btn aa-btn-ghost" onClick={handleClear}>
             {ui.resetDemo}
           </button>
-          <button type="button" className="mp-btn" onClick={forceRefresh}>
+          <button type="button" className="aa-btn" onClick={forceRefresh}>
             {ui.refresh}
           </button>
         </div>
       </div>
 
-      <div className="mp-tabs">
+      {/* ── Period Selector ─────────────────────────────────────────────── */}
+      <div className="aa-period-bar">
+        <PeriodButton active={period === 'today'} onClick={() => setPeriod('today')}>{ui.today}</PeriodButton>
+        <PeriodButton active={period === '7'} onClick={() => setPeriod('7')}>{ui.thisWeek}</PeriodButton>
+        <PeriodButton active={period === '30'} onClick={() => setPeriod('30')}>{ui.thisMonth}</PeriodButton>
+        <PeriodButton active={period === 'year'} onClick={() => setPeriod('year')}>{ui.thisYear}</PeriodButton>
+        <PeriodButton active={period === 'all'} onClick={() => setPeriod('all')}>{ui.allTime}</PeriodButton>
+      </div>
+
+      {/* ── Summary Cards ───────────────────────────────────────────────── */}
+      {hasOrders ? (
+        <div className="aa-summary-grid">
+          <div className="aa-summary-card">
+            <div className="aa-summary-label">{ui.totalRevenue}</div>
+            <div className="aa-summary-value">{formatKc(orderMetrics.totalRevenue)}</div>
+            <div className="aa-summary-trend">
+              {renderTrendIndicator(orderMetrics.revenueTrend)}
+              <span className="aa-summary-vs">{ui.vsPrev}</span>
+            </div>
+          </div>
+          <div className="aa-summary-card">
+            <div className="aa-summary-label">{ui.totalOrders}</div>
+            <div className="aa-summary-value">{formatNumber(orderMetrics.totalOrders)}</div>
+            <div className="aa-summary-trend">
+              {renderTrendIndicator(orderMetrics.ordersTrend)}
+              <span className="aa-summary-vs">{ui.vsPrev}</span>
+            </div>
+          </div>
+          <div className="aa-summary-card">
+            <div className="aa-summary-label">{ui.avgOrder}</div>
+            <div className="aa-summary-value">{formatKc(orderMetrics.avgOrderValue)}</div>
+            <div className="aa-summary-trend">
+              {renderTrendIndicator(orderMetrics.avgTrend)}
+              <span className="aa-summary-vs">{ui.vsPrev}</span>
+            </div>
+          </div>
+          <div className="aa-summary-card">
+            <div className="aa-summary-label">{ui.activeOrdersLabel}</div>
+            <div className="aa-summary-value">{formatNumber(orderMetrics.activeOrders)}</div>
+            <div className="aa-summary-sub">
+              {cs ? 'rozpracovane objednavky' : 'in progress'}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="aa-empty-banner">
+          <div className="aa-empty-title">{ui.noOrders}</div>
+          <div className="aa-empty-hint">{ui.noOrdersHint}</div>
+        </div>
+      )}
+
+      {/* ── Tabs ────────────────────────────────────────────────────────── */}
+      <div className="aa-tabs">
+        <TabButton active={tab === 'charts'} onClick={() => setTab('charts')}>{ui.tabCharts}</TabButton>
         <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>{ui.tabOverview}</TabButton>
         <TabButton active={tab === 'calculations'} onClick={() => setTab('calculations')}>{ui.tabCalculations}</TabButton>
         <TabButton active={tab === 'orders'} onClick={() => setTab('orders')}>{ui.tabOrders}</TabButton>
         <TabButton active={tab === 'lost'} onClick={() => setTab('lost')}>{ui.tabLost}</TabButton>
-        <TabButton active={tab === 'charts'} onClick={() => setTab('charts')}>{ui.tabCharts}</TabButton>
         <TabButton active={tab === 'exports'} onClick={() => setTab('exports')}>{ui.tabExports}</TabButton>
+        <TabButton active={tab === 'reports'} onClick={() => setTab('reports')}>{cs ? 'Reporty' : 'Reports'}</TabButton>
       </div>
 
-      {tab === 'overview' ? (
-        <div className="mp-section">
-          <div className="mp-grid">
-            <StatCard title={ui.calculations} value={formatNumber(overview.metrics.calculations)} sub="PRICE_SHOWN" />
-            <StatCard title={ui.orders} value={formatNumber(overview.metrics.orders)} sub="ORDER_CREATED / ADD_TO_CART" />
-            <StatCard
-              title={ui.conversion}
-              value={`${formatNumber(overview.metrics.conversion_rate * 100, 1)} %`}
-              sub={ui.conversionSub}
-            />
-            <StatCard title={ui.avgPrice} value={`${formatNumber(overview.metrics.avg_price, 0)} Kc`} />
-            <StatCard title={ui.avgTime} value={`${formatNumber(overview.metrics.avg_time_min, 1)} min`} />
-            <StatCard title={ui.avgWeight} value={`${formatNumber(overview.metrics.avg_weight_g, 1)} g`} />
+      {/* ── Tab: Charts (DEFAULT) ───────────────────────────────────────── */}
+      {tab === 'charts' && (
+        <div className="aa-section">
+          <AnalyticsCharts
+            sessions={sessions}
+            cs={cs}
+            orderMetrics={orderMetrics}
+            hasOrders={hasOrders}
+          />
+        </div>
+      )}
+
+      {/* ── Tab: Detailed Overview ──────────────────────────────────────── */}
+      {tab === 'overview' && (
+        <div className="aa-section">
+          <div className="aa-stat-grid">
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.calculations}</div>
+              <div className="aa-stat-value">{formatNumber(overview.metrics.calculations)}</div>
+              <div className="aa-stat-sub">PRICE_SHOWN</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.orders}</div>
+              <div className="aa-stat-value">{formatNumber(overview.metrics.orders)}</div>
+              <div className="aa-stat-sub">ORDER / ADD_TO_CART</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.conversion}</div>
+              <div className="aa-stat-value">{formatNumber(overview.metrics.conversion_rate * 100, 1)}%</div>
+              <div className="aa-stat-sub">{ui.conversionSub}</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.avgPrice}</div>
+              <div className="aa-stat-value">{formatKc(overview.metrics.avg_price)}</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.avgTime}</div>
+              <div className="aa-stat-value">{formatNumber(overview.metrics.avg_time_min, 1)} min</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.avgWeight}</div>
+              <div className="aa-stat-value">{formatNumber(overview.metrics.avg_weight_g, 1)} g</div>
+            </div>
           </div>
 
-          <div className="mp-two">
+          <div className="aa-grid-2">
             <MiniSeriesTable
               title={ui.calcsPerDay}
               series={overview.series.calculations_per_day}
@@ -401,15 +734,15 @@ export default function AdminAnalytics() {
             />
           </div>
 
-          <div className="mp-three">
-            <div className="mp-card">
-              <div className="mp-card-title">{ui.topMaterials}</div>
-              <div className="mp-table-wrap">
-                <table className="mp-table">
+          <div className="aa-grid-3">
+            <div className="aa-card">
+              <div className="aa-card-title">{ui.topMaterials}</div>
+              <div className="aa-table-wrap">
+                <table className="aa-table">
                   <thead><tr><th>{ui.material}</th><th style={{ textAlign: 'right' }}>{ui.count}</th></tr></thead>
                   <tbody>
                     {overview.top.materials.length === 0 ? (
-                      <tr><td colSpan={2} className="mp-muted">{ui.noData}</td></tr>
+                      <tr><td colSpan={2} className="aa-muted">{ui.noData}</td></tr>
                     ) : (
                       overview.top.materials.map((r) => (
                         <tr key={r.key}><td>{r.key}</td><td style={{ textAlign: 'right' }}>{formatNumber(r.count)}</td></tr>
@@ -420,14 +753,14 @@ export default function AdminAnalytics() {
               </div>
             </div>
 
-            <div className="mp-card">
-              <div className="mp-card-title">{ui.topPresets}</div>
-              <div className="mp-table-wrap">
-                <table className="mp-table">
+            <div className="aa-card">
+              <div className="aa-card-title">{ui.topPresets}</div>
+              <div className="aa-table-wrap">
+                <table className="aa-table">
                   <thead><tr><th>{ui.preset}</th><th style={{ textAlign: 'right' }}>{ui.count}</th><th style={{ textAlign: 'right' }}>{ui.conversion}</th></tr></thead>
                   <tbody>
                     {overview.top.presets.length === 0 ? (
-                      <tr><td colSpan={3} className="mp-muted">{ui.noData}</td></tr>
+                      <tr><td colSpan={3} className="aa-muted">{ui.noData}</td></tr>
                     ) : (
                       overview.top.presets.map((r) => (
                         <tr key={r.key}>
@@ -442,14 +775,14 @@ export default function AdminAnalytics() {
               </div>
             </div>
 
-            <div className="mp-card">
-              <div className="mp-card-title">{ui.topFees}</div>
-              <div className="mp-table-wrap">
-                <table className="mp-table">
+            <div className="aa-card">
+              <div className="aa-card-title">{ui.topFees}</div>
+              <div className="aa-table-wrap">
+                <table className="aa-table">
                   <thead><tr><th>Fee</th><th style={{ textAlign: 'right' }}>{ui.chosen}</th></tr></thead>
                   <tbody>
                     {overview.top.fees.length === 0 ? (
-                      <tr><td colSpan={2} className="mp-muted">{ui.noData}</td></tr>
+                      <tr><td colSpan={2} className="aa-muted">{ui.noData}</td></tr>
                     ) : (
                       overview.top.fees.map((r) => (
                         <tr key={r.key}><td>{r.key}</td><td style={{ textAlign: 'right' }}>{formatNumber(r.count)}</td></tr>
@@ -461,17 +794,16 @@ export default function AdminAnalytics() {
             </div>
           </div>
 
-          <div className="mp-hint">
-            {ui.hint}
-          </div>
+          <div className="aa-hint">{ui.hint}</div>
         </div>
-      ) : null}
+      )}
 
-      {tab === 'calculations' ? (
-        <div className="mp-section">
-          <div className="mp-filterbar">
+      {/* ── Tab: Calculations ───────────────────────────────────────────── */}
+      {tab === 'calculations' && (
+        <div className="aa-section">
+          <div className="aa-filterbar">
             <input
-              className="mp-input"
+              className="aa-input"
               placeholder={ui.searchPlaceholder}
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -483,10 +815,10 @@ export default function AdminAnalytics() {
             />
           </div>
 
-          <div className="mp-card">
-            <div className="mp-card-title">{ui.calcSessions}</div>
-            <div className="mp-table-wrap">
-              <table className="mp-table">
+          <div className="aa-card">
+            <div className="aa-card-title">{ui.calcSessions}</div>
+            <div className="aa-table-wrap">
+              <table className="aa-table">
                 <thead>
                   <tr>
                     <th>{ui.time}</th>
@@ -503,7 +835,7 @@ export default function AdminAnalytics() {
                 </thead>
                 <tbody>
                   {calculations.length === 0 ? (
-                    <tr><td colSpan={10} className="mp-muted">{ui.noCalcs}</td></tr>
+                    <tr><td colSpan={10} className="aa-muted">{ui.noCalcs}</td></tr>
                   ) : (
                     calculations.map((s) => (
                       <tr key={s.session_id}>
@@ -515,13 +847,13 @@ export default function AdminAnalytics() {
                         <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.weight_g, 1)} g</td>
                         <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.price_total, 0)} Kc</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`mp-pill ${s.converted ? 'ok' : ''}`}>{s.converted ? 'YES' : 'NO'}</span>
+                          <span className={`aa-pill ${s.converted ? 'ok' : ''}`}>{s.converted ? 'YES' : 'NO'}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`mp-pill ${s.status === 'success' ? 'ok' : 'warn'}`}>{s.status}</span>
+                          <span className={`aa-pill ${s.status === 'success' ? 'ok' : 'warn'}`}>{s.status}</span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="mp-link" onClick={() => setSelectedSessionId(s.session_id)}>{ui.detail}</button>
+                          <button className="aa-link" onClick={() => setSelectedSessionId(s.session_id)}>{ui.detail}</button>
                         </td>
                       </tr>
                     ))
@@ -531,30 +863,39 @@ export default function AdminAnalytics() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {tab === 'orders' ? (
-        <div className="mp-section">
-          <div className="mp-grid mp-grid-3">
-            <StatCard title={ui.revenue} value={`${formatNumber(overview.metrics.revenue_estimate, 0)} Kc`} />
-            <StatCard title={ui.orders} value={formatNumber(overview.metrics.orders)} />
-            <StatCard title={ui.avgOrderValue} value={`${formatNumber(overview.metrics.avg_order_value, 0)} Kc`} />
+      {/* ── Tab: Orders ─────────────────────────────────────────────────── */}
+      {tab === 'orders' && (
+        <div className="aa-section">
+          <div className="aa-stat-grid aa-stat-grid-3">
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.revenue}</div>
+              <div className="aa-stat-value">{formatKc(overview.metrics.revenue_estimate)}</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.orders}</div>
+              <div className="aa-stat-value">{formatNumber(overview.metrics.orders)}</div>
+            </div>
+            <div className="aa-stat-card">
+              <div className="aa-stat-label">{ui.avgOrderValue}</div>
+              <div className="aa-stat-value">{formatKc(overview.metrics.avg_order_value)}</div>
+            </div>
           </div>
-          <div className="mp-card">
-            <div className="mp-card-title">{ui.note}</div>
-            <p className="mp-muted" style={{ margin: 0 }}>
-              {ui.ordersNote}
-            </p>
+          <div className="aa-card">
+            <div className="aa-card-title">{ui.note}</div>
+            <p className="aa-muted" style={{ margin: 0 }}>{ui.ordersNote}</p>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {tab === 'lost' ? (
-        <div className="mp-section">
-          <div className="mp-card">
-            <div className="mp-card-title">{ui.lostTitle}</div>
-            <div className="mp-table-wrap">
-              <table className="mp-table">
+      {/* ── Tab: Lost ───────────────────────────────────────────────────── */}
+      {tab === 'lost' && (
+        <div className="aa-section">
+          <div className="aa-card">
+            <div className="aa-card-title">{ui.lostTitle}</div>
+            <div className="aa-table-wrap">
+              <table className="aa-table">
                 <thead>
                   <tr>
                     <th>{ui.lastActivity}</th>
@@ -569,7 +910,7 @@ export default function AdminAnalytics() {
                 </thead>
                 <tbody>
                   {lost.length === 0 ? (
-                    <tr><td colSpan={8} className="mp-muted">{ui.noLost}</td></tr>
+                    <tr><td colSpan={8} className="aa-muted">{ui.noLost}</td></tr>
                   ) : (
                     lost.map((s) => (
                       <tr key={s.session_id}>
@@ -581,7 +922,7 @@ export default function AdminAnalytics() {
                         <td style={{ textAlign: 'right' }}>{formatNumber(s.summary?.weight_g, 1)} g</td>
                         <td>{s.drop_off_step || '-'}</td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="mp-link" onClick={() => setSelectedSessionId(s.session_id)}>{ui.detail}</button>
+                          <button className="aa-link" onClick={() => setSelectedSessionId(s.session_id)}>{ui.detail}</button>
                         </td>
                       </tr>
                     ))
@@ -591,37 +932,428 @@ export default function AdminAnalytics() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {tab === 'charts' ? (
-        <div className="mp-section">
-          <AnalyticsCharts sessions={sessions} cs={cs} />
-        </div>
-      ) : null}
-
-      {tab === 'exports' ? (
-        <div className="mp-section">
-          <div className="mp-card">
-            <div className="mp-card-title">{ui.csvExport}</div>
-            <div className="mp-export">
+      {/* ── Tab: Exports ────────────────────────────────────────────────── */}
+      {tab === 'exports' && (
+        <div className="aa-section">
+          <div className="aa-card">
+            <div className="aa-card-title">{ui.csvExport}</div>
+            <div className="aa-export-row">
               <div>
-                <label className="mp-label">{ui.exportType}</label>
-                <select className="mp-select" value={exportType} onChange={(e) => setExportType(e.target.value)}>
+                <label className="aa-field-label">{ui.exportType}</label>
+                <select className="aa-select" value={exportType} onChange={(e) => setExportType(e.target.value)}>
                   <option value="calculations">{ui.exportCalcs}</option>
                   <option value="lost">{ui.exportLost}</option>
                   <option value="overview">{ui.exportOverview}</option>
                 </select>
               </div>
-              <button type="button" className="mp-btn" onClick={handleExport}>{ui.generate}</button>
-              <button type="button" className="mp-btn mp-btn-ghost" onClick={handleExportJson}>{ui.generateJson}</button>
+              <button type="button" className="aa-btn" onClick={handleExport}>{ui.generate}</button>
+              <button type="button" className="aa-btn aa-btn-ghost" onClick={handleExportJson}>{ui.generateJson}</button>
             </div>
-            <p className="mp-muted" style={{ marginTop: 10 }}>
-              {ui.exportNote}
-            </p>
+            <p className="aa-muted" style={{ marginTop: 10 }}>{ui.exportNote}</p>
           </div>
         </div>
-      ) : null}
+      )}
 
+      {/* ── Tab: Reports ────────────────────────────────────────────────── */}
+      {tab === 'reports' && (
+        <div className="aa-section">
+          {/* Auto-generated reports notification */}
+          {autoReports.length > 0 && (
+            <div className="aa-card" style={{ marginBottom: 14, borderColor: 'var(--forge-accent-primary)' }}>
+              <div className="aa-card-title" style={{ color: 'var(--forge-accent-primary)' }}>
+                {cs ? 'Automaticky vygenerovane reporty' : 'Auto-generated reports'}
+              </div>
+              <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--forge-text-secondary)' }}>
+                {cs
+                  ? `${autoReports.length} planovany(ch) report(u) bylo automaticky vygenerovano za predchozi mesic.`
+                  : `${autoReports.length} scheduled report(s) were auto-generated for the previous month.`}
+              </p>
+              {autoReports.map((r, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="aa-link"
+                  onClick={() => setGeneratedReport(r)}
+                  style={{ marginRight: 8 }}
+                >
+                  {r.title}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Report configuration */}
+          <div className="aa-card" style={{ marginBottom: 14 }}>
+            <div className="aa-card-title">{cs ? 'Generovani reportu' : 'Generate Report'}</div>
+            <div className="aa-rpt-config">
+              <div>
+                <label className="aa-field-label">{cs ? 'Typ reportu' : 'Report type'}</label>
+                <select
+                  className="aa-select"
+                  value={reportType}
+                  onChange={(e) => setReportType(e.target.value)}
+                >
+                  {REPORT_TYPES.map((rt) => (
+                    <option key={rt.id} value={rt.id}>{rt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="aa-field-label">{cs ? 'Od' : 'From'}</label>
+                <input
+                  type="date"
+                  className="aa-input"
+                  value={reportFrom}
+                  onChange={(e) => setReportFrom(e.target.value)}
+                  style={{ width: 160 }}
+                />
+              </div>
+              <div>
+                <label className="aa-field-label">{cs ? 'Do' : 'To'}</label>
+                <input
+                  type="date"
+                  className="aa-input"
+                  value={reportTo}
+                  onChange={(e) => setReportTo(e.target.value)}
+                  style={{ width: 160 }}
+                />
+              </div>
+              <div style={{ alignSelf: 'flex-end' }}>
+                <button type="button" className="aa-btn aa-btn-primary" onClick={handleGenerateReport}>
+                  {cs ? 'Generovat report' : 'Generate report'}
+                </button>
+              </div>
+            </div>
+            <p className="aa-muted" style={{ marginTop: 10, fontSize: 12 }}>
+              {REPORT_TYPES.find((rt) => rt.id === reportType)?.description || ''}
+            </p>
+          </div>
+
+          {/* Report preview */}
+          {generatedReport && (
+            <div className="aa-card" style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div className="aa-card-title" style={{ marginBottom: 0 }}>{generatedReport.title}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="aa-btn" onClick={handleDownloadCSV}>
+                    {cs ? 'Stahnout CSV' : 'Download CSV'}
+                  </button>
+                  <button type="button" className="aa-btn" onClick={handleDownloadPDF}>
+                    {cs ? 'Tisknout / PDF' : 'Print / PDF'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Revenue report preview */}
+              {generatedReport.type === 'revenue' && (
+                <>
+                  <div className="aa-stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Celkove trzby' : 'Total revenue'}</div>
+                      <div className="aa-stat-value">{formatKc(generatedReport.summary.totalRevenue)}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Objednavek' : 'Orders'}</div>
+                      <div className="aa-stat-value">{formatNumber(generatedReport.summary.totalOrders)}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Prum. denne' : 'Avg daily'}</div>
+                      <div className="aa-stat-value">{formatKc(generatedReport.summary.avgDailyRevenue)}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Prum. objednavka' : 'Avg order'}</div>
+                      <div className="aa-stat-value">{formatKc(generatedReport.summary.avgOrderValue)}</div>
+                    </div>
+                  </div>
+                  <div className="aa-table-wrap" style={{ marginTop: 12 }}>
+                    <table className="aa-table">
+                      <thead>
+                        <tr>
+                          <th>{cs ? 'Datum' : 'Date'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Trzby' : 'Revenue'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Objednavky' : 'Orders'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Prum. hodnota' : 'Avg value'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {generatedReport.daily.length === 0 ? (
+                          <tr><td colSpan={4} className="aa-muted">{cs ? 'Zadna data' : 'No data'}</td></tr>
+                        ) : (
+                          generatedReport.daily.map((d) => (
+                            <tr key={d.date}>
+                              <td>{d.dateFormatted}</td>
+                              <td style={{ textAlign: 'right' }}>{formatKc(d.revenue)}</td>
+                              <td style={{ textAlign: 'right' }}>{d.orders}</td>
+                              <td style={{ textAlign: 'right' }}>{formatKc(d.avgOrderValue)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Material report preview */}
+              {generatedReport.type === 'material' && (
+                <>
+                  <div className="aa-stat-grid aa-stat-grid-3">
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Materialu' : 'Materials'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.totalMaterials}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Objednavek' : 'Orders'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.totalOrders}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Nejpouzivanejsi' : 'Most used'}</div>
+                      <div className="aa-stat-value" style={{ fontSize: 16 }}>{generatedReport.summary.mostUsed?.name || '-'}</div>
+                    </div>
+                  </div>
+                  <div className="aa-table-wrap" style={{ marginTop: 12 }}>
+                    <table className="aa-table">
+                      <thead>
+                        <tr>
+                          <th>{cs ? 'Material' : 'Material'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Objednavek' : 'Orders'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Trzby' : 'Revenue'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Hmotnost' : 'Weight'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Podil' : 'Share'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {generatedReport.materials.length === 0 ? (
+                          <tr><td colSpan={5} className="aa-muted">{cs ? 'Zadna data' : 'No data'}</td></tr>
+                        ) : (
+                          generatedReport.materials.map((m) => (
+                            <tr key={m.name}>
+                              <td>{m.name}</td>
+                              <td style={{ textAlign: 'right' }}>{m.orderCount}</td>
+                              <td style={{ textAlign: 'right' }}>{formatKc(m.revenue)}</td>
+                              <td style={{ textAlign: 'right' }}>{formatNumber(m.totalWeightG, 0)} g</td>
+                              <td style={{ textAlign: 'right' }}>{m.sharePercent}%</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Customer report preview */}
+              {generatedReport.type === 'customer' && (
+                <>
+                  <div className="aa-stat-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Zakazniku' : 'Customers'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.totalCustomers}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Novych' : 'New'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.newCustomers}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Vracejicich se' : 'Returning'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.returningCustomers}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Celkove trzby' : 'Total revenue'}</div>
+                      <div className="aa-stat-value">{formatKc(generatedReport.summary.totalRevenue)}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Prum. objednavka' : 'Avg order'}</div>
+                      <div className="aa-stat-value">{formatKc(generatedReport.summary.avgOrderValue)}</div>
+                    </div>
+                  </div>
+                  <div className="aa-table-wrap" style={{ marginTop: 12 }}>
+                    <table className="aa-table">
+                      <thead>
+                        <tr>
+                          <th>{cs ? 'Zakaznik' : 'Customer'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Objednavek' : 'Orders'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Trzby' : 'Revenue'}</th>
+                          <th style={{ textAlign: 'right' }}>{cs ? 'Prum. hodnota' : 'Avg value'}</th>
+                          <th>{cs ? 'Vracejici se' : 'Returning'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {generatedReport.customers.length === 0 ? (
+                          <tr><td colSpan={5} className="aa-muted">{cs ? 'Zadna data' : 'No data'}</td></tr>
+                        ) : (
+                          generatedReport.customers.map((c) => (
+                            <tr key={c.name}>
+                              <td>{c.name}</td>
+                              <td style={{ textAlign: 'right' }}>{c.orderCount}</td>
+                              <td style={{ textAlign: 'right' }}>{formatKc(c.totalRevenue)}</td>
+                              <td style={{ textAlign: 'right' }}>{formatKc(c.avgOrderValue)}</td>
+                              <td>
+                                <span className={`aa-pill ${c.isReturning ? 'ok' : ''}`}>
+                                  {c.isReturning ? (cs ? 'Ano' : 'Yes') : (cs ? 'Ne' : 'No')}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Order status report preview */}
+              {generatedReport.type === 'orderStatus' && (
+                <>
+                  <div className="aa-stat-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Celkem' : 'Total'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.totalOrders}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Dokonceno' : 'Completed'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.completedOrders}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Zruseno' : 'Canceled'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.canceledOrders}</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Mira dokonceni' : 'Completion rate'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.completionRate}%</div>
+                    </div>
+                    <div className="aa-stat-card">
+                      <div className="aa-stat-label">{cs ? 'Mira zruseni' : 'Cancel rate'}</div>
+                      <div className="aa-stat-value">{generatedReport.summary.cancelRate}%</div>
+                    </div>
+                  </div>
+
+                  <div className="aa-grid-2" style={{ marginTop: 12 }}>
+                    <div className="aa-card">
+                      <div className="aa-card-title">{cs ? 'Konverzni trychtyr' : 'Conversion funnel'}</div>
+                      <div className="aa-table-wrap">
+                        <table className="aa-table">
+                          <thead>
+                            <tr>
+                              <th>Status</th>
+                              <th style={{ textAlign: 'right' }}>{cs ? 'Pocet' : 'Count'}</th>
+                              <th style={{ textAlign: 'right' }}>{cs ? 'Podil' : 'Share'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {generatedReport.funnel.map((f) => (
+                              <tr key={f.status}>
+                                <td>{f.statusLabel}</td>
+                                <td style={{ textAlign: 'right' }}>{f.count}</td>
+                                <td style={{ textAlign: 'right' }}>{f.percent}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="aa-card">
+                      <div className="aa-card-title">{cs ? 'Prumerna doba zpracovani' : 'Avg processing time'}</div>
+                      <div className="aa-table-wrap">
+                        <table className="aa-table">
+                          <thead>
+                            <tr>
+                              <th>Status</th>
+                              <th style={{ textAlign: 'right' }}>{cs ? 'Prum. doba' : 'Avg time'}</th>
+                              <th style={{ textAlign: 'right' }}>{cs ? 'Vzorku' : 'Samples'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {generatedReport.avgProcessingTimes.filter((t) => t.sampleCount > 0).length === 0 ? (
+                              <tr><td colSpan={3} className="aa-muted">{cs ? 'Nedostatek dat' : 'Insufficient data'}</td></tr>
+                            ) : (
+                              generatedReport.avgProcessingTimes
+                                .filter((t) => t.sampleCount > 0)
+                                .map((t) => (
+                                  <tr key={t.status}>
+                                    <td>{t.statusLabel}</td>
+                                    <td style={{ textAlign: 'right' }}>{t.avgHours.toFixed(1)} h</td>
+                                    <td style={{ textAlign: 'right' }}>{t.sampleCount}</td>
+                                  </tr>
+                                ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Scheduled reports & history */}
+          <div className="aa-grid-2">
+            <div className="aa-card">
+              <div className="aa-card-title">{cs ? 'Planovane mesicni reporty' : 'Scheduled monthly reports'}</div>
+              <p className="aa-muted" style={{ fontSize: 12, margin: '0 0 12px' }}>
+                {cs
+                  ? 'Oznacene reporty se automaticky vygeneruji pri prvni navsteve po konci mesice.'
+                  : 'Checked reports auto-generate on first visit after month-end.'}
+              </p>
+              {REPORT_TYPES.map((rt) => {
+                const isScheduled = scheduledReports.some((s) => s.reportType === rt.id && s.enabled);
+                return (
+                  <div key={rt.id} className="aa-schedule-row">
+                    <ForgeCheckbox
+                      checked={isScheduled}
+                      onChange={() => handleToggleSchedule(rt.id)}
+                      label={rt.label}
+                    />
+                    <span className="aa-muted" style={{ fontSize: 11 }}>{rt.description}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="aa-card">
+              <div className="aa-card-title">{cs ? 'Historie reportu' : 'Report history'}</div>
+              <div className="aa-table-wrap">
+                <table className="aa-table">
+                  <thead>
+                    <tr>
+                      <th>{cs ? 'Datum' : 'Date'}</th>
+                      <th>{cs ? 'Typ' : 'Type'}</th>
+                      <th>{cs ? 'Obdobi' : 'Period'}</th>
+                      <th>{cs ? 'Auto' : 'Auto'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportHistory.length === 0 ? (
+                      <tr><td colSpan={4} className="aa-muted">{cs ? 'Zatim zadne reporty' : 'No reports yet'}</td></tr>
+                    ) : (
+                      reportHistory.slice(0, 10).map((rh, i) => (
+                        <tr key={i}>
+                          <td>{formatDateTime(rh.generatedAt)}</td>
+                          <td>{rh.title}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {rh.from?.slice(0, 10)} - {rh.to?.slice(0, 10)}
+                          </td>
+                          <td>
+                            {rh.autoGenerated && (
+                              <span className="aa-pill ok">{cs ? 'Auto' : 'Auto'}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Session Detail Dialog ───────────────────────────────────────── */}
       <ForgeDialog
         open={!!selectedSession}
         onClose={() => setSelectedSessionId(null)}
@@ -630,39 +1362,39 @@ export default function AdminAnalytics() {
       >
         {selectedSession && (
           <>
-            <div className="mp-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+            <div className="aa-muted" style={{ marginBottom: 12, fontSize: 13 }}>
               {selectedSession.session_id}
             </div>
-            <div className="mp-detail-grid">
-              <div className="mp-card">
-                <div className="mp-card-title">{ui.summary}</div>
-                <div className="mp-kv">
-                  <div className="mp-k">{ui.lastEvent}</div><div className="mp-v">{formatDateTime(selectedSession.last_event_at)}</div>
-                  <div className="mp-k">{ui.material}</div><div className="mp-v">{selectedSession.summary?.material || '-'}</div>
-                  <div className="mp-k">{ui.preset}</div><div className="mp-v">{selectedSession.summary?.preset || '-'}</div>
-                  <div className="mp-k">{ui.price}</div><div className="mp-v">{formatNumber(selectedSession.summary?.price_total, 0)} Kc</div>
-                  <div className="mp-k">{ui.printTime}</div><div className="mp-v">{formatNumber((selectedSession.summary?.print_time_seconds || 0) / 60, 1)} min</div>
-                  <div className="mp-k">{ui.weight}</div><div className="mp-v">{formatNumber(selectedSession.summary?.weight_g, 1)} g</div>
-                  <div className="mp-k">{ui.converted}</div><div className="mp-v">{selectedSession.converted ? 'YES' : 'NO'}</div>
-                  <div className="mp-k">{ui.status}</div><div className="mp-v">{selectedSession.status}</div>
+            <div className="aa-detail-grid">
+              <div className="aa-card">
+                <div className="aa-card-title">{ui.summary}</div>
+                <div className="aa-kv">
+                  <div className="aa-k">{ui.lastEvent}</div><div className="aa-v">{formatDateTime(selectedSession.last_event_at)}</div>
+                  <div className="aa-k">{ui.material}</div><div className="aa-v">{selectedSession.summary?.material || '-'}</div>
+                  <div className="aa-k">{ui.preset}</div><div className="aa-v">{selectedSession.summary?.preset || '-'}</div>
+                  <div className="aa-k">{ui.price}</div><div className="aa-v">{formatNumber(selectedSession.summary?.price_total, 0)} Kc</div>
+                  <div className="aa-k">{ui.printTime}</div><div className="aa-v">{formatNumber((selectedSession.summary?.print_time_seconds || 0) / 60, 1)} min</div>
+                  <div className="aa-k">{ui.weight}</div><div className="aa-v">{formatNumber(selectedSession.summary?.weight_g, 1)} g</div>
+                  <div className="aa-k">{ui.converted}</div><div className="aa-v">{selectedSession.converted ? 'YES' : 'NO'}</div>
+                  <div className="aa-k">{ui.status}</div><div className="aa-v">{selectedSession.status}</div>
                 </div>
               </div>
 
-              <div className="mp-card">
-                <div className="mp-card-title">{ui.timeline}</div>
-                <div className="mp-timeline">
+              <div className="aa-card">
+                <div className="aa-card-title">{ui.timeline}</div>
+                <div className="aa-timeline">
                   {selectedSession.events.map((e) => (
-                    <div key={e.id} className="mp-timeline-item">
-                      <div className="mp-tl-dot" />
-                      <div className="mp-tl-content">
-                        <div className="mp-tl-top">
-                          <span className="mp-tl-type">{e.event_type}</span>
-                          <span className="mp-muted">{formatDateTime(e.timestamp)}</span>
+                    <div key={e.id} className="aa-timeline-item">
+                      <div className="aa-tl-dot" />
+                      <div className="aa-tl-content">
+                        <div className="aa-tl-top">
+                          <span className="aa-tl-type">{e.event_type}</span>
+                          <span className="aa-muted">{formatDateTime(e.timestamp)}</span>
                         </div>
                         {e.metadata && Object.keys(e.metadata).length ? (
-                          <pre className="mp-json">{JSON.stringify(e.metadata, null, 2)}</pre>
+                          <pre className="aa-json">{JSON.stringify(e.metadata, null, 2)}</pre>
                         ) : (
-                          <div className="mp-muted">{ui.noMetadata}</div>
+                          <div className="aa-muted">{ui.noMetadata}</div>
                         )}
                       </div>
                     </div>
@@ -675,61 +1407,483 @@ export default function AdminAnalytics() {
       </ForgeDialog>
 
       <style>{`
-        .mp-admin-analytics{padding:24px;background:var(--forge-bg-void);min-height:100vh;}
-        .mp-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;}
-        .mp-title{font-size:26px;margin:0 0 4px 0;color:var(--forge-text-primary);font-family:var(--forge-font-heading);}
-        .mp-subtitle{margin:0;color:var(--forge-text-secondary);}
-        .mp-actions{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
-        .mp-range{min-width:180px;}
-        .mp-custom-range{display:flex;gap:10px;align-items:flex-end;}
-        .mp-label{display:block;font-size:11px;color:var(--forge-text-secondary);margin-bottom:6px;font-family:var(--forge-font-tech);text-transform:uppercase;letter-spacing:0.08em;}
-        .mp-input,.mp-select{width:100%;padding:10px 12px;border-radius:var(--forge-radius-md);border:1px solid var(--forge-border-default);background:var(--forge-bg-elevated);color:var(--forge-text-primary);outline:none;}
-        .mp-input:focus,.mp-select:focus{border-color:var(--forge-accent-primary);}
-        .mp-btn{padding:10px 14px;border-radius:var(--forge-radius-md);border:1px solid var(--forge-border-default);background:var(--forge-bg-elevated);color:var(--forge-text-primary);cursor:pointer;font-weight:600;}
-        .mp-btn:hover{background:var(--forge-bg-overlay);border-color:var(--forge-border-active);}
-        .mp-btn-ghost{background:transparent;}
-        .mp-tabs{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap;}
-        .mp-tab{padding:10px 12px;border-radius:999px;border:1px solid var(--forge-border-default);background:var(--forge-bg-elevated);color:var(--forge-text-muted);cursor:pointer;font-weight:500;font-family:var(--forge-font-tech);letter-spacing:0.04em;font-size:13px;}
-        .mp-tab.active{background:var(--forge-accent-primary);border-color:var(--forge-accent-primary);color:var(--forge-bg-void);}
-        .mp-section{margin-top:18px;}
-        .mp-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;}
-        .mp-grid-3{grid-template-columns:repeat(3,minmax(0,1fr));}
-        @media (max-width:1100px){.mp-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-        .mp-card{border:1px solid var(--forge-border-default);background:var(--forge-bg-surface);border-radius:var(--forge-radius-xl);padding:14px;box-shadow:var(--forge-shadow-sm);}
-        .mp-stat-title{font-size:11px;color:var(--forge-text-muted);font-family:var(--forge-font-tech);text-transform:uppercase;letter-spacing:0.08em;}
-        .mp-stat-value{font-size:22px;margin-top:6px;color:var(--forge-text-primary);font-weight:700;font-family:var(--forge-font-mono);}
-        .mp-stat-sub{font-size:12px;color:var(--forge-text-muted);margin-top:6px;font-family:var(--forge-font-tech);}
-        .mp-card-title{font-size:11px;margin-bottom:10px;color:var(--forge-text-secondary);font-weight:600;font-family:var(--forge-font-tech);text-transform:uppercase;letter-spacing:0.08em;}
-        .mp-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;}
-        .mp-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px;}
-        @media (max-width:1100px){.mp-two,.mp-three{grid-template-columns:1fr;}}
-        .mp-table-wrap{overflow:auto;}
-        .mp-table{width:100%;border-collapse:collapse;font-size:13px;}
-        .mp-table th,.mp-table td{padding:10px;border-bottom:1px solid var(--forge-border-default);}
-        .mp-table th{text-align:left;font-weight:600;color:var(--forge-text-muted);font-family:var(--forge-font-tech);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;}
-        .mp-table td{color:var(--forge-text-secondary);}
-        .mp-muted{color:var(--forge-text-muted);}
-        .mp-hint{margin-top:12px;color:var(--forge-text-muted);font-size:13px;}
-        .mp-filterbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
-        .mp-check{display:flex;gap:8px;align-items:center;color:var(--forge-text-secondary);font-size:13px;}
-        .mp-link{background:transparent;border:none;color:var(--forge-accent-primary);cursor:pointer;padding:6px 8px;border-radius:var(--forge-radius-md);font-weight:500;}
-        .mp-link:hover{background:rgba(0,212,170,0.08);}
-        .mp-pill{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid var(--forge-border-default);font-size:12px;color:var(--forge-text-secondary);font-weight:500;font-family:var(--forge-font-tech);}
-        .mp-pill.ok{border-color:rgba(0,212,170,0.3);background:rgba(0,212,170,0.08);color:var(--forge-success);}
-        .mp-pill.warn{border-color:rgba(255,181,71,0.3);background:rgba(255,181,71,0.08);color:var(--forge-warning);}
-        .mp-export{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
-        .mp-detail-grid{display:grid;grid-template-columns:380px 1fr;gap:12px;}
-        @media (max-width:900px){.mp-detail-grid{grid-template-columns:1fr;}}
-        .mp-kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:13px;}
-        .mp-k{color:var(--forge-text-muted);font-family:var(--forge-font-tech);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;}
-        .mp-v{color:var(--forge-text-primary);}
-        .mp-timeline{display:flex;flex-direction:column;gap:10px;}
-        .mp-timeline-item{display:flex;gap:10px;}
-        .mp-tl-dot{width:10px;height:10px;border-radius:50%;margin-top:6px;background:var(--forge-accent-primary);box-shadow:0 0 0 4px rgba(0,212,170,0.15);}
-        .mp-tl-content{flex:1;}
-        .mp-tl-top{display:flex;justify-content:space-between;gap:10px;align-items:center;}
-        .mp-tl-type{font-weight:600;color:var(--forge-text-primary);font-family:var(--forge-font-tech);}
-        .mp-json{margin:8px 0 0 0;padding:10px;border-radius:var(--forge-radius-lg);background:var(--forge-bg-elevated);border:1px solid var(--forge-border-default);font-size:12px;overflow:auto;color:var(--forge-text-secondary);font-family:var(--forge-font-mono);}
+        .aa-analytics {
+          padding: 24px 28px;
+          background: var(--forge-bg-void);
+          min-height: 100vh;
+        }
+
+        /* ── Header ─────────────────────────────────────────────────────── */
+        .aa-header {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          align-items: flex-start;
+          flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+        .aa-title {
+          font-size: 24px;
+          margin: 0 0 4px 0;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-heading);
+          font-weight: 700;
+        }
+        .aa-subtitle {
+          margin: 0;
+          color: var(--forge-text-muted);
+          font-size: 14px;
+        }
+        .aa-header-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        /* ── Period Selector ────────────────────────────────────────────── */
+        .aa-period-bar {
+          display: flex;
+          gap: 4px;
+          margin-bottom: 20px;
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-lg);
+          padding: 4px;
+          width: fit-content;
+        }
+        .aa-period-btn {
+          padding: 7px 14px;
+          border-radius: var(--forge-radius-md);
+          border: none;
+          background: transparent;
+          color: var(--forge-text-muted);
+          cursor: pointer;
+          font-weight: 500;
+          font-size: 13px;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.02em;
+          transition: all 0.15s ease;
+        }
+        .aa-period-btn:hover {
+          color: var(--forge-text-primary);
+          background: var(--forge-bg-elevated);
+        }
+        .aa-period-btn.active {
+          background: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
+          font-weight: 600;
+        }
+
+        /* ── Summary Cards ──────────────────────────────────────────────── */
+        .aa-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 14px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 1000px) {
+          .aa-summary-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+          .aa-summary-grid { grid-template-columns: 1fr; }
+        }
+        .aa-summary-card {
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
+          padding: 18px 20px;
+        }
+        .aa-summary-label {
+          font-size: 11px;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 8px;
+        }
+        .aa-summary-value {
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+          line-height: 1.1;
+        }
+        .aa-summary-trend {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 8px;
+        }
+        .aa-trend {
+          font-size: 12px;
+          font-weight: 600;
+          font-family: var(--forge-font-tech);
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .aa-trend.up {
+          color: var(--forge-success, #00D4AA);
+          background: rgba(0, 212, 170, 0.1);
+        }
+        .aa-trend.down {
+          color: var(--forge-error, #EF4444);
+          background: rgba(239, 68, 68, 0.1);
+        }
+        .aa-summary-vs {
+          font-size: 11px;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
+        }
+        .aa-summary-sub {
+          font-size: 12px;
+          color: var(--forge-text-muted);
+          margin-top: 8px;
+          font-family: var(--forge-font-tech);
+        }
+
+        /* ── Empty banner ───────────────────────────────────────────────── */
+        .aa-empty-banner {
+          background: var(--forge-bg-surface);
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-xl);
+          padding: 32px 24px;
+          text-align: center;
+          margin-bottom: 24px;
+        }
+        .aa-empty-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--forge-text-secondary);
+          font-family: var(--forge-font-heading);
+          margin-bottom: 6px;
+        }
+        .aa-empty-hint {
+          font-size: 13px;
+          color: var(--forge-text-muted);
+        }
+
+        /* ── Tabs ───────────────────────────────────────────────────────── */
+        .aa-tabs {
+          display: flex;
+          gap: 2px;
+          margin-bottom: 20px;
+          border-bottom: 1px solid var(--forge-border-default);
+          padding-bottom: 0;
+        }
+        .aa-tab {
+          padding: 10px 16px;
+          border: none;
+          border-bottom: 2px solid transparent;
+          background: transparent;
+          color: var(--forge-text-muted);
+          cursor: pointer;
+          font-weight: 500;
+          font-family: var(--forge-font-tech);
+          letter-spacing: 0.02em;
+          font-size: 13px;
+          transition: all 0.15s ease;
+        }
+        .aa-tab:hover {
+          color: var(--forge-text-primary);
+        }
+        .aa-tab.active {
+          color: var(--forge-accent-primary);
+          border-bottom-color: var(--forge-accent-primary);
+          font-weight: 600;
+        }
+
+        /* ── Section & Cards ────────────────────────────────────────────── */
+        .aa-section { margin-top: 0; }
+        .aa-card {
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
+          border-radius: var(--forge-radius-xl);
+          padding: 16px;
+        }
+        .aa-card-title {
+          font-size: 11px;
+          margin-bottom: 12px;
+          color: var(--forge-text-secondary);
+          font-weight: 600;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        /* ── Stat grid (overview tab) ───────────────────────────────────── */
+        .aa-stat-grid {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+        .aa-stat-grid-3 {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        @media (max-width: 1100px) {
+          .aa-stat-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .aa-stat-card {
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-surface);
+          border-radius: var(--forge-radius-xl);
+          padding: 14px;
+        }
+        .aa-stat-label {
+          font-size: 11px;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+        .aa-stat-value {
+          font-size: 22px;
+          margin-top: 6px;
+          color: var(--forge-text-primary);
+          font-weight: 700;
+          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+        }
+        .aa-stat-sub {
+          font-size: 12px;
+          color: var(--forge-text-muted);
+          margin-top: 6px;
+          font-family: var(--forge-font-tech);
+        }
+
+        /* ── Grids ──────────────────────────────────────────────────────── */
+        .aa-grid-2 {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+        .aa-grid-3 {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+        @media (max-width: 1100px) {
+          .aa-grid-2, .aa-grid-3 { grid-template-columns: 1fr; }
+        }
+
+        /* ── Tables ─────────────────────────────────────────────────────── */
+        .aa-table-wrap { overflow: auto; }
+        .aa-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .aa-table th, .aa-table td {
+          padding: 10px;
+          border-bottom: 1px solid var(--forge-border-default);
+        }
+        .aa-table th {
+          text-align: left;
+          font-weight: 600;
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+        .aa-table td { color: var(--forge-text-secondary); }
+
+        /* ── Shared elements ────────────────────────────────────────────── */
+        .aa-muted { color: var(--forge-text-muted); }
+        .aa-hint {
+          margin-top: 12px;
+          color: var(--forge-text-muted);
+          font-size: 13px;
+        }
+        .aa-filterbar {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+        }
+        .aa-input, .aa-select {
+          padding: 10px 12px;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          outline: none;
+          font-size: 13px;
+        }
+        .aa-input { width: 300px; max-width: 100%; }
+        .aa-input:focus, .aa-select:focus {
+          border-color: var(--forge-accent-primary);
+        }
+        .aa-field-label {
+          display: block;
+          font-size: 11px;
+          color: var(--forge-text-secondary);
+          margin-bottom: 6px;
+          font-family: var(--forge-font-tech);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        /* ── Buttons ────────────────────────────────────────────────────── */
+        .aa-btn {
+          padding: 9px 16px;
+          border-radius: var(--forge-radius-md);
+          border: 1px solid var(--forge-border-default);
+          background: var(--forge-bg-elevated);
+          color: var(--forge-text-primary);
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 13px;
+          transition: all 0.15s ease;
+        }
+        .aa-btn:hover {
+          background: var(--forge-bg-overlay);
+          border-color: var(--forge-border-active);
+        }
+        .aa-btn-ghost { background: transparent; }
+
+        /* ── Pills ──────────────────────────────────────────────────────── */
+        .aa-pill {
+          display: inline-block;
+          padding: 3px 8px;
+          border-radius: 999px;
+          border: 1px solid var(--forge-border-default);
+          font-size: 11px;
+          color: var(--forge-text-secondary);
+          font-weight: 500;
+          font-family: var(--forge-font-tech);
+        }
+        .aa-pill.ok {
+          border-color: rgba(0, 212, 170, 0.3);
+          background: rgba(0, 212, 170, 0.08);
+          color: var(--forge-success);
+        }
+        .aa-pill.warn {
+          border-color: rgba(255, 181, 71, 0.3);
+          background: rgba(255, 181, 71, 0.08);
+          color: var(--forge-warning);
+        }
+
+        .aa-link {
+          background: transparent;
+          border: none;
+          color: var(--forge-accent-primary);
+          cursor: pointer;
+          padding: 6px 8px;
+          border-radius: var(--forge-radius-md);
+          font-weight: 500;
+          font-size: 13px;
+        }
+        .aa-link:hover { background: rgba(0, 212, 170, 0.08); }
+
+        .aa-export-row {
+          display: flex;
+          gap: 12px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+        }
+
+        /* ── Detail dialog ──────────────────────────────────────────────── */
+        .aa-detail-grid {
+          display: grid;
+          grid-template-columns: 380px 1fr;
+          gap: 12px;
+        }
+        @media (max-width: 900px) {
+          .aa-detail-grid { grid-template-columns: 1fr; }
+        }
+        .aa-kv {
+          display: grid;
+          grid-template-columns: 140px 1fr;
+          gap: 8px 12px;
+          font-size: 13px;
+        }
+        .aa-k {
+          color: var(--forge-text-muted);
+          font-family: var(--forge-font-tech);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+        .aa-v { color: var(--forge-text-primary); }
+
+        /* ── Timeline ───────────────────────────────────────────────────── */
+        .aa-timeline {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .aa-timeline-item {
+          display: flex;
+          gap: 10px;
+        }
+        .aa-tl-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          margin-top: 6px;
+          background: var(--forge-accent-primary);
+          box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.15);
+          flex-shrink: 0;
+        }
+        .aa-tl-content { flex: 1; }
+        .aa-tl-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+        }
+        .aa-tl-type {
+          font-weight: 600;
+          color: var(--forge-text-primary);
+          font-family: var(--forge-font-tech);
+        }
+        .aa-json {
+          margin: 8px 0 0 0;
+          padding: 10px;
+          border-radius: var(--forge-radius-lg);
+          background: var(--forge-bg-elevated);
+          border: 1px solid var(--forge-border-default);
+          font-size: 12px;
+          overflow: auto;
+          color: var(--forge-text-secondary);
+          font-family: var(--forge-font-mono);
+        }
+
+        /* ── Reports tab ──────────────────────────────────────────────── */
+        .aa-rpt-config {
+          display: flex;
+          gap: 14px;
+          align-items: flex-start;
+          flex-wrap: wrap;
+        }
+        .aa-btn-primary {
+          background: var(--forge-accent-primary);
+          color: var(--forge-bg-void);
+          border-color: var(--forge-accent-primary);
+          font-weight: 700;
+        }
+        .aa-btn-primary:hover {
+          opacity: 0.9;
+          background: var(--forge-accent-primary);
+          border-color: var(--forge-accent-primary);
+        }
+        .aa-schedule-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 0;
+          border-bottom: 1px solid var(--forge-border-default);
+        }
+        .aa-schedule-row:last-child {
+          border-bottom: none;
+        }
+        @media (max-width: 800px) {
+          .aa-rpt-config { flex-direction: column; }
+          .aa-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
       `}</style>
     </div>
   );

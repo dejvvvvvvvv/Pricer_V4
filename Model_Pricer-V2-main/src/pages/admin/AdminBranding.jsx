@@ -1,394 +1,277 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
-import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   getBranding,
-  getDefaultBranding,
-  getPlanFeatures,
   saveBranding,
 } from '../../utils/adminBrandingWidgetStorage';
+import {
+  readCompanyData,
+  writeCompanyData,
+} from '../../utils/adminCompanyStorage';
 import { getTenantId } from '../../utils/adminTenantStorage';
 
+/* ------------------------------------------------------------------ */
+/*  Debounce helper                                                    */
+/* ------------------------------------------------------------------ */
+function useDebouncedSave(saveFn, delay = 800) {
+  const timerRef = useRef(null);
+  const latestRef = useRef(null);
+
+  const trigger = useCallback(
+    (data) => {
+      latestRef.current = data;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        saveFn(latestRef.current);
+        timerRef.current = null;
+      }, delay);
+    },
+    [saveFn, delay],
+  );
+
+  // Flush on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        saveFn(latestRef.current);
+      }
+    };
+  }, [saveFn]);
+
+  return trigger;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Logo file helpers                                                  */
+/* ------------------------------------------------------------------ */
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
+
+function readFileAsDataUrl(f) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(f);
+  });
+}
+
+async function optimizeLogo(f) {
+  if (f.type === 'image/svg+xml') return readFileAsDataUrl(f);
+  try {
+    const MAX = 512;
+    const bitmap = await createImageBitmap(f);
+    const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const webp = canvas.toDataURL('image/webp', 0.92);
+    if (webp && webp.startsWith('data:image')) return webp;
+    return canvas.toDataURL('image/png');
+  } catch {
+    return readFileAsDataUrl(f);
+  }
+}
+
+/* ================================================================== */
+/*  AdminBranding Component                                            */
+/* ================================================================== */
 const AdminBranding = () => {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const customerId = getTenantId();
-
-  // Plan features (Varianta A: local storage seed)
-  const [plan, setPlan] = useState(null);
-
-  // Track baseline for "dirty state"
-  const [savedSnapshot, setSavedSnapshot] = useState(null);
-
-  // Simple inline validation
-  const [errors, setErrors] = useState({});
-
-  // Logo draft (user picked file but not yet applied)
-  const [logoDraft, setLogoDraft] = useState(null);
-  const [logoDraftPreview, setLogoDraftPreview] = useState(null);
-  const [logoDraftError, setLogoDraftError] = useState(null);
+  const tenantId = getTenantId();
   const logoInputRef = useRef(null);
 
-  // State for branding data
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved
+  const [logoError, setLogoError] = useState(null);
+
+  // Branding state (visual identity — stored via brandingWidgetStorage)
   const [branding, setBranding] = useState({
     businessName: '',
     tagline: '',
     logo: null,
     primaryColor: '#2563EB',
     secondaryColor: '#10B981',
-    backgroundColor: '#FFFFFF',
-    fontFamily: 'Inter',
-    showLogo: true,
-    showBusinessName: true,
-    showTagline: true,
-    showPoweredBy: true,
-    cornerRadius: 12
   });
 
-  const pickEditable = (b) => ({
-    businessName: b?.businessName ?? '',
-    tagline: b?.tagline ?? '',
-    logo: b?.logo ?? null,
-    primaryColor: b?.primaryColor ?? '#2563EB',
-    secondaryColor: b?.secondaryColor ?? '#10B981',
-    backgroundColor: b?.backgroundColor ?? '#FFFFFF',
-    fontFamily: b?.fontFamily ?? 'Inter',
-    showLogo: !!b?.showLogo,
-    showBusinessName: !!b?.showBusinessName,
-    showTagline: !!b?.showTagline,
-    showPoweredBy: !!b?.showPoweredBy,
-    cornerRadius: typeof b?.cornerRadius === 'number' ? b.cornerRadius : 12,
+  // Company / legal state (stored via companyStorage)
+  const [company, setCompany] = useState({
+    companyName: '',
+    ico: '',
+    dic: '',
+    address: '',
+    city: '',
+    zip: '',
+    country: 'CZ',
+    contactEmail: '',
+    contactPhone: '',
+    website: '',
+    bankAccount: '',
+    bankName: '',
+    iban: '',
   });
 
-  const isDirty = useMemo(() => {
-    if (!savedSnapshot) return false;
-    return JSON.stringify(pickEditable(branding)) !== JSON.stringify(pickEditable(savedSnapshot));
-  }, [branding, savedSnapshot]);
-
+  /* ---- Load data ------------------------------------------------ */
   useEffect(() => {
-    // Load from local storage (Varianta A)
     try {
-      setLoading(true);
-      const p = getPlanFeatures(customerId);
-      setPlan(p);
-      const loaded = getBranding(customerId);
-      setBranding(loaded);
-      setSavedSnapshot(loaded);
+      const b = getBranding(tenantId);
+      setBranding({
+        businessName: b.businessName || '',
+        tagline: b.tagline || '',
+        logo: b.logo || null,
+        primaryColor: b.primaryColor || '#2563EB',
+        secondaryColor: b.secondaryColor || '#10B981',
+      });
+      const c = readCompanyData();
+      setCompany((prev) => ({ ...prev, ...c }));
     } finally {
       setLoading(false);
     }
-  }, [customerId]);
+  }, [tenantId]);
 
-  useEffect(() => {
-    // Validate live
-    const nextErrors = {};
+  /* ---- Persist functions ---------------------------------------- */
+  const persistBranding = useCallback(
+    (b) => {
+      setSaveStatus('saving');
+      // Merge with existing stored branding to preserve fields we don't edit here
+      const existing = getBranding(tenantId);
+      saveBranding(tenantId, { ...existing, ...b }, 'admin');
+      setTimeout(() => setSaveStatus('saved'), 300);
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    },
+    [tenantId],
+  );
 
-    const isHex = (v) => /^#[0-9a-fA-F]{6}$/.test((v || '').trim());
-    if (!branding.businessName || branding.businessName.trim().length < 2) {
-      nextErrors.businessName = 'Zadej alespon 2 znaky.';
-    }
-    if (!isHex(branding.primaryColor)) nextErrors.primaryColor = 'Pouzij HEX ve formatu #RRGGBB.';
-    if (!isHex(branding.secondaryColor)) nextErrors.secondaryColor = 'Pouzij HEX ve formatu #RRGGBB.';
-    if (!isHex(branding.backgroundColor)) nextErrors.backgroundColor = 'Pouzij HEX ve formatu #RRGGBB.';
+  const persistCompany = useCallback(
+    (c) => {
+      setSaveStatus('saving');
+      writeCompanyData(c);
+      setTimeout(() => setSaveStatus('saved'), 300);
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    },
+    [],
+  );
 
-    const r = Number(branding.cornerRadius);
-    if (Number.isNaN(r) || r < 0 || r > 24) {
-      nextErrors.cornerRadius = 'Zaobleni musi byt v rozsahu 0-24.';
-    }
+  const debouncedSaveBranding = useDebouncedSave(persistBranding);
+  const debouncedSaveCompany = useDebouncedSave(persistCompany);
 
-    setErrors(nextErrors);
-  }, [branding]);
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      if (Object.keys(errors).length > 0) {
-        alert('Oprav prosim chyby ve formulari (cervene).');
-        return;
-      }
-
-      const readAsDataUrl = (f) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(f);
-        });
-
-      const rasterToOptimizedDataUrl = async (f) => {
-        // Keep SVG untouched.
-        if (f.type === 'image/svg+xml') return await readAsDataUrl(f);
-        try {
-          const MAX = 512;
-          const bitmap = await createImageBitmap(f);
-          const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
-          const w = Math.max(1, Math.round(bitmap.width * scale));
-          const h = Math.max(1, Math.round(bitmap.height * scale));
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(bitmap, 0, 0, w, h);
-          // Try WEBP first (small), fallback to PNG.
-          const webp = canvas.toDataURL('image/webp', 0.92);
-          if (webp && typeof webp === 'string' && webp.startsWith('data:image')) return webp;
-          return canvas.toDataURL('image/png');
-        } catch {
-          return await readAsDataUrl(f);
-        }
-      };
-
-      // If user selected a logo file but didn't click "Pouzit", auto-apply it on Save.
-      const brandingToSave = { ...branding };
-      if (logoDraft) {
-        const dataUrl = await rasterToOptimizedDataUrl(logoDraft);
-        brandingToSave.logo = dataUrl;
-      }
-
-      const saved = saveBranding(customerId, pickEditable(brandingToSave), 'admin');
-      setBranding(saved);
-      setSavedSnapshot(saved);
-      if (logoDraftPreview) URL.revokeObjectURL(logoDraftPreview);
-      setLogoDraft(null);
-      setLogoDraftPreview(null);
-      setLogoDraftError(null);
-      alert('Branding ulozen.');
-    } catch (e) {
-      console.error(e);
-      alert('Ulozeni se nepodarilo.');
-    } finally {
-      setSaving(false);
-    }
+  /* ---- Field change handlers ------------------------------------ */
+  const updateBranding = (field, value) => {
+    const next = { ...branding, [field]: value };
+    setBranding(next);
+    debouncedSaveBranding(next);
   };
 
-  const handleResetToDefaults = () => {
-    // Reset in UI only (requires Save) - per spec.
-    const defaults = getDefaultBranding();
-    // Enforce plan gating for Powered by
-    const canHide = !!plan?.features?.can_hide_powered_by;
-    if (!canHide) defaults.showPoweredBy = true;
-    setBranding(defaults);
+  const updateCompany = (field, value) => {
+    const next = { ...company, [field]: value };
+    setCompany(next);
+    debouncedSaveCompany(next);
   };
 
-  const enforcePoweredBy = useMemo(() => {
-    const canHide = !!plan?.features?.can_hide_powered_by;
-    return { canHide, poweredByRequired: !canHide };
-  }, [plan]);
-
-  useEffect(() => {
-    // Hard-enforce required Powered by in the UI (backend enforcement is mirrored in storage helper)
-    if (enforcePoweredBy.poweredByRequired && branding.showPoweredBy !== true) {
-      setBranding((prev) => ({ ...prev, showPoweredBy: true }));
-    }
-  }, [enforcePoweredBy.poweredByRequired]);
-
-  const startLogoDraftFromFile = (file) => {
+  /* ---- Logo handling -------------------------------------------- */
+  const handleLogoFile = async (file) => {
     if (!file) return;
-    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-      setLogoDraftError('Nepodporovany format. Pouzij PNG/JPG/SVG/WEBP.');
-      setLogoDraft(null);
-      setLogoDraftPreview(null);
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setLogoError('Nepodporovany format. Pouzij PNG, JPG, SVG nebo WEBP.');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setLogoDraftError('Soubor je prilis velky (max 2 MB).');
-      setLogoDraft(null);
-      setLogoDraftPreview(null);
+    if (file.size > MAX_LOGO_SIZE) {
+      setLogoError('Soubor je prilis velky (max 2 MB).');
       return;
     }
-    setLogoDraftError(null);
-    setLogoDraft(file);
-    const url = URL.createObjectURL(file);
-    setLogoDraftPreview(url);
-  };
-
-  const applyLogoDraft = async () => {
-    if (!logoDraft) return;
+    setLogoError(null);
     try {
-      const readAsDataUrl = (f) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(f);
-        });
-
-      const rasterToOptimizedDataUrl = async (f) => {
-        if (f.type === 'image/svg+xml') return await readAsDataUrl(f);
-        try {
-          const MAX = 512;
-          const bitmap = await createImageBitmap(f);
-          const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
-          const w = Math.max(1, Math.round(bitmap.width * scale));
-          const h = Math.max(1, Math.round(bitmap.height * scale));
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(bitmap, 0, 0, w, h);
-          const webp = canvas.toDataURL('image/webp', 0.92);
-          if (webp && typeof webp === 'string' && webp.startsWith('data:image')) return webp;
-          return canvas.toDataURL('image/png');
-        } catch {
-          return await readAsDataUrl(f);
-        }
-      };
-
-      const dataUrl = await rasterToOptimizedDataUrl(logoDraft);
-      setBranding({ ...branding, logo: dataUrl });
-      setLogoDraft(null);
-      if (logoDraftPreview) URL.revokeObjectURL(logoDraftPreview);
-      setLogoDraftPreview(null);
-    } catch (e) {
-      console.error(e);
-      setLogoDraftError('Logo se nepodarilo nacist. Zkus to prosim znovu.');
+      const dataUrl = await optimizeLogo(file);
+      updateBranding('logo', dataUrl);
+    } catch {
+      setLogoError('Logo se nepodarilo nacist.');
     }
   };
 
   const removeLogo = () => {
-    if (logoDraftPreview) URL.revokeObjectURL(logoDraftPreview);
-    setLogoDraft(null);
-    setLogoDraftPreview(null);
-    setLogoDraftError(null);
-    setBranding({ ...branding, logo: null });
+    setLogoError(null);
+    updateBranding('logo', null);
   };
 
-  const colorPresets = [
-    { name: 'Blue', primary: '#2563EB', secondary: '#10B981', background: '#FFFFFF' },
-    { name: 'Green', primary: '#10B981', secondary: '#F59E0B', background: '#FFFFFF' },
-    { name: 'Purple', primary: '#7C3AED', secondary: '#EC4899', background: '#FFFFFF' },
-    { name: 'Orange', primary: '#F97316', secondary: '#10B981', background: '#FFFFFF' }
-  ];
+  /* ---- Validation helpers --------------------------------------- */
+  const isHex = (v) => /^#[0-9a-fA-F]{6}$/.test((v || '').trim());
 
-  const fonts = ['Inter', 'Roboto', 'Poppins', 'Open Sans'];
-
-  const handleColorPreset = (preset) => {
-    setBranding({
-      ...branding,
-      primaryColor: preset.primary,
-      secondaryColor: preset.secondary,
-      backgroundColor: preset.background
-    });
-  };
-
-  /* ---- FORGE Style Objects ---- */
-
-  const styles = {
-    page: {
-      maxWidth: 1400,
-    },
-    pageHeader: {
-      marginBottom: 32,
+  /* ================================================================ */
+  /*  STYLES                                                           */
+  /* ================================================================ */
+  const s = {
+    page: { maxWidth: 1280 },
+    header: {
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: 'center',
+      marginBottom: 28,
     },
     h1: {
-      margin: '0 0 8px 0',
+      margin: 0,
       fontSize: 'var(--forge-text-2xl)',
       fontWeight: 700,
       fontFamily: 'var(--forge-font-heading)',
       color: 'var(--forge-text-primary)',
     },
     subtitle: {
-      margin: 0,
+      margin: '6px 0 0',
       fontSize: 'var(--forge-text-base)',
       fontFamily: 'var(--forge-font-body)',
       color: 'var(--forge-text-muted)',
     },
-    headerActions: {
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-    },
-    statusBadge: {
+    saveIndicator: {
       display: 'inline-flex',
       alignItems: 'center',
-      padding: '2px 10px',
+      gap: 6,
+      padding: '4px 12px',
       borderRadius: 999,
       fontFamily: 'var(--forge-font-mono)',
       fontSize: 11,
       fontWeight: 500,
-      whiteSpace: 'nowrap',
-    },
-    statusDirty: {
-      backgroundColor: 'rgba(255,181,71,0.12)',
-      color: 'var(--forge-warning)',
-    },
-    statusSaved: {
-      backgroundColor: 'rgba(0,212,170,0.12)',
-      color: 'var(--forge-success)',
-    },
-    statusError: {
-      backgroundColor: 'rgba(255,71,87,0.12)',
-      color: 'var(--forge-error)',
-    },
-    saveStatus: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-    },
-    unsavedBanner: {
-      marginBottom: 24,
-      padding: '12px 16px',
-      backgroundColor: 'rgba(255,181,71,0.08)',
-      border: '1px solid rgba(255,181,71,0.2)',
-      borderRadius: 'var(--forge-radius-md)',
-      color: 'var(--forge-warning)',
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 'var(--forge-text-base)',
+      transition: 'all 200ms ease',
     },
     grid: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 24,
-      marginBottom: 24,
+      gridTemplateColumns: '340px 1fr',
+      gap: 28,
     },
-    column: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 24,
-    },
-    section: {
+    card: {
       backgroundColor: 'var(--forge-bg-surface)',
       border: '1px solid var(--forge-border-default)',
-      borderRadius: 'var(--forge-radius-md)',
+      borderRadius: 'var(--forge-radius-lg)',
       padding: 24,
+      marginBottom: 20,
     },
-    sectionTitle: {
-      margin: '0 0 20px 0',
-      fontSize: 'var(--forge-text-xl)',
+    cardTitle: {
+      margin: '0 0 16px',
+      fontSize: 'var(--forge-text-lg)',
       fontWeight: 600,
       fontFamily: 'var(--forge-font-heading)',
       color: 'var(--forge-text-primary)',
-      paddingBottom: 12,
-      borderBottom: '1px solid var(--forge-border-default)',
     },
-    formGroup: {
-      marginBottom: 20,
-    },
-    formGroupLast: {
-      marginBottom: 0,
-    },
+    field: { marginBottom: 16 },
+    fieldLast: { marginBottom: 0 },
     label: {
       display: 'block',
-      marginBottom: 8,
+      marginBottom: 6,
       fontFamily: 'var(--forge-font-tech)',
       fontSize: 11,
       fontWeight: 500,
       color: 'var(--forge-text-secondary)',
       textTransform: 'uppercase',
-      letterSpacing: '0.08em',
+      letterSpacing: '0.06em',
     },
     input: {
       width: '100%',
-      padding: '10px 12px',
+      padding: '9px 12px',
       backgroundColor: 'var(--forge-bg-elevated)',
       border: '1px solid var(--forge-border-default)',
       borderRadius: 'var(--forge-radius-sm)',
@@ -396,889 +279,787 @@ const AdminBranding = () => {
       fontSize: 'var(--forge-text-base)',
       color: 'var(--forge-text-primary)',
       outline: 'none',
-      transition: 'border-color 120ms ease-out, box-shadow 120ms ease-out',
       boxSizing: 'border-box',
+      transition: 'border-color 120ms ease, box-shadow 120ms ease',
     },
     inputError: {
       borderColor: 'var(--forge-error)',
       boxShadow: '0 0 0 2px rgba(255,71,87,0.15)',
     },
-    helpText: {
-      margin: '6px 0 0 0',
+    helper: {
+      margin: '4px 0 0',
       fontSize: 'var(--forge-text-sm)',
       fontFamily: 'var(--forge-font-body)',
       color: 'var(--forge-text-muted)',
     },
-    errorText: {
-      margin: '6px 0 0 0',
+    errorMsg: {
+      margin: '4px 0 0',
       fontSize: 'var(--forge-text-sm)',
       fontFamily: 'var(--forge-font-body)',
       color: 'var(--forge-error)',
     },
-    sectionHeadRow: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+    row: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
       gap: 12,
-      paddingBottom: 12,
-      borderBottom: '1px solid var(--forge-border-default)',
-      marginBottom: 12,
     },
-    btnTertiary: {
-      padding: '8px 12px',
-      border: '1px solid var(--forge-border-active)',
-      backgroundColor: 'var(--forge-bg-elevated)',
-      borderRadius: 'var(--forge-radius-md)',
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 13,
-      color: 'var(--forge-text-secondary)',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      whiteSpace: 'nowrap',
-    },
-    helpCallout: {
-      margin: '0 0 16px 0',
-      padding: '12px 14px',
-      backgroundColor: 'var(--forge-bg-elevated)',
-      border: '1px solid var(--forge-border-default)',
-      borderRadius: 'var(--forge-radius-md)',
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 13,
-      color: 'var(--forge-text-secondary)',
-      lineHeight: 1.4,
-    },
-    checkboxGroup: {
-      display: 'flex',
-      flexDirection: 'column',
+    row3: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
       gap: 12,
-      marginBottom: 20,
     },
-    checkboxLabel: {
+    /* Color picker */
+    colorRow: {
       display: 'flex',
       alignItems: 'center',
-      gap: 8,
-      cursor: 'pointer',
+      gap: 10,
     },
-    checkboxSpan: {
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 'var(--forge-text-base)',
-      color: 'var(--forge-text-secondary)',
-    },
-    chip: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '1px 8px',
-      borderRadius: 999,
-      fontFamily: 'var(--forge-font-mono)',
-      fontSize: 10,
-      fontWeight: 600,
-      backgroundColor: 'rgba(108,99,255,0.12)',
-      color: 'var(--forge-accent-tertiary)',
-      letterSpacing: '0.05em',
-    },
-    currentLogo: {
-      display: 'flex',
-      gap: 16,
-      marginBottom: 16,
-    },
-    logoPreview: {
-      width: 120,
-      height: 120,
+    colorSwatch: {
+      width: 36,
+      height: 36,
+      borderRadius: 'var(--forge-radius-md)',
       border: '1px solid var(--forge-border-default)',
-      borderRadius: 'var(--forge-radius-lg)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'var(--forge-bg-elevated)',
-      color: 'var(--forge-text-muted)',
+      flexShrink: 0,
+      cursor: 'pointer',
+      position: 'relative',
+      overflow: 'hidden',
     },
-    logoInfo: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      gap: 4,
+    colorNative: {
+      position: 'absolute',
+      inset: 0,
+      width: '100%',
+      height: '100%',
+      opacity: 0,
+      cursor: 'pointer',
+      border: 'none',
+      padding: 0,
     },
-    logoInfoP: {
-      margin: 0,
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 13,
-      color: 'var(--forge-text-muted)',
-    },
-    uploadArea: {
+    /* Upload zone */
+    uploadZone: {
       backgroundColor: 'var(--forge-bg-elevated)',
       border: '2px dashed var(--forge-border-active)',
       borderRadius: 'var(--forge-radius-md)',
-      padding: 32,
+      padding: '20px 16px',
       textAlign: 'center',
       cursor: 'pointer',
-      transition: 'all 0.2s',
-      marginBottom: 16,
+      transition: 'border-color 150ms ease, background-color 150ms ease',
     },
-    uploadAreaP: {
-      margin: '8px 0 0 0',
-      fontFamily: 'var(--forge-font-body)',
+    uploadText: {
+      margin: '6px 0 0',
       fontSize: 'var(--forge-text-base)',
+      fontFamily: 'var(--forge-font-body)',
       color: 'var(--forge-text-secondary)',
     },
     uploadHint: {
-      margin: '8px 0 0 0',
-      fontFamily: 'var(--forge-font-body)',
+      margin: '4px 0 0',
       fontSize: 'var(--forge-text-sm)',
+      fontFamily: 'var(--forge-font-body)',
       color: 'var(--forge-text-muted)',
     },
-    uploadActions: {
-      display: 'flex',
-      gap: 12,
-    },
-    colorInputGroup: {
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-    },
-    colorSwatch: {
-      width: 40,
-      height: 40,
-      borderRadius: 'var(--forge-radius-lg)',
-      border: '1px solid var(--forge-border-default)',
-      flexShrink: 0,
-    },
-    colorPresets: {
-      display: 'flex',
-      gap: 8,
-      flexWrap: 'wrap',
-    },
-    presetBtn: {
-      padding: '8px 16px',
-      backgroundColor: 'var(--forge-bg-elevated)',
-      border: '1px solid var(--forge-border-default)',
-      borderRadius: 'var(--forge-radius-sm)',
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 'var(--forge-text-base)',
-      color: 'var(--forge-text-secondary)',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-    },
-    fontOptions: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 12,
-    },
-    radioLabel: {
+    logoPreviewRow: {
       display: 'flex',
       alignItems: 'center',
-      gap: 8,
-      cursor: 'pointer',
-    },
-    radioSpan: {
-      fontFamily: 'var(--forge-font-body)',
-      fontSize: 'var(--forge-text-base)',
-      color: 'var(--forge-text-secondary)',
-    },
-    stickyPreview: {
-      position: 'sticky',
-      top: 24,
-    },
-    calculatorPreview: {
-      border: '1px solid var(--forge-border-default)',
-      borderRadius: 12,
-      padding: 24,
-      minHeight: 400,
-    },
-    previewHeader: {
-      display: 'flex',
       gap: 12,
-      alignItems: 'center',
-      marginBottom: 16,
+      marginBottom: 12,
     },
-    previewLogo: {
-      width: 48,
-      height: 48,
-      borderRadius: 'var(--forge-radius-lg)',
+    logoThumb: {
+      width: 64,
+      height: 64,
+      borderRadius: 'var(--forge-radius-md)',
+      border: '1px solid var(--forge-border-default)',
       backgroundColor: 'var(--forge-bg-elevated)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: 'var(--forge-text-muted)',
+      overflow: 'hidden',
     },
-    previewH4: {
-      margin: 0,
-      fontSize: 18,
-      fontWeight: 600,
-      color: '#111827',
-    },
-    previewSubtitle: {
-      margin: '4px 0 0 0',
-      fontSize: 13,
-      color: '#6B7280',
-    },
-    previewDivider: {
-      height: 1,
-      backgroundColor: '#E5E7EB',
-      margin: '16px 0',
-    },
-    previewForm: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 16,
-    },
-    previewFieldLabel: {
-      display: 'block',
-      marginBottom: 6,
-      fontSize: 13,
-      fontWeight: 500,
-      color: '#374151',
-    },
-    previewInput: {
-      padding: '10px 12px',
-      border: '1px solid #D1D5DB',
-      fontSize: 14,
-      color: '#6B7280',
-    },
-    previewButton: {
-      padding: '12px 24px',
-      color: 'white',
-      border: 'none',
-      fontSize: 14,
-      fontWeight: 600,
-      cursor: 'pointer',
-      marginTop: 8,
-    },
-    previewFooter: {
-      marginTop: 16,
-      paddingTop: 16,
-      borderTop: '1px solid #E5E7EB',
-      textAlign: 'center',
-    },
-    previewFooterSmall: {
-      fontSize: 11,
-      color: '#9CA3AF',
-    },
-    btnPrimary: {
-      padding: '10px 28px',
-      backgroundColor: 'var(--forge-accent-primary)',
-      color: '#08090C',
-      border: 'none',
-      borderRadius: 'var(--forge-radius-sm)',
-      fontFamily: 'var(--forge-font-heading)',
-      fontSize: 'var(--forge-text-base)',
-      fontWeight: 600,
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-    },
-    btnPrimaryDisabled: {
-      opacity: 0.5,
-      cursor: 'not-allowed',
-    },
-    btnSecondary: {
-      padding: '10px 20px',
-      backgroundColor: 'transparent',
-      color: 'var(--forge-text-secondary)',
-      border: '1px solid var(--forge-border-active)',
-      borderRadius: 'var(--forge-radius-sm)',
-      fontFamily: 'var(--forge-font-heading)',
-      fontSize: 'var(--forge-text-base)',
-      fontWeight: 600,
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-    },
-    btnDanger: {
-      padding: '10px 20px',
-      backgroundColor: 'transparent',
-      color: 'var(--forge-error)',
+    removeBtn: {
+      padding: '5px 10px',
       border: '1px solid var(--forge-error)',
       borderRadius: 'var(--forge-radius-sm)',
-      fontFamily: 'var(--forge-font-heading)',
-      fontSize: 'var(--forge-text-base)',
-      fontWeight: 600,
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-    },
-    sliderLabels: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      marginTop: 8,
-    },
-    sliderLabelSpan: {
+      backgroundColor: 'transparent',
+      color: 'var(--forge-error)',
       fontFamily: 'var(--forge-font-body)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'background-color 150ms ease',
+    },
+    /* Preview card */
+    previewSticky: {
+      position: 'sticky',
+      top: 24,
+    },
+    previewCard: {
+      backgroundColor: 'var(--forge-bg-surface)',
+      border: '1px solid var(--forge-border-default)',
+      borderRadius: 'var(--forge-radius-lg)',
+      padding: 24,
+      overflow: 'hidden',
+    },
+    previewLabel: {
+      margin: '0 0 12px',
       fontSize: 'var(--forge-text-sm)',
+      fontFamily: 'var(--forge-font-tech)',
+      fontWeight: 500,
       color: 'var(--forge-text-muted)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
     },
   };
 
-  // Hover handlers for buttons
-  const btnPrimaryHover = {
-    onMouseEnter: (e) => {
-      if (!e.currentTarget.disabled) {
-        e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary-h)';
-        e.currentTarget.style.transform = 'translateY(-1px)';
-        e.currentTarget.style.boxShadow = 'var(--forge-shadow-glow)';
-      }
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.backgroundColor = 'var(--forge-accent-primary)';
-      e.currentTarget.style.transform = 'translateY(0)';
-      e.currentTarget.style.boxShadow = 'none';
-    },
-  };
-
-  const btnSecondaryHover = {
-    onMouseEnter: (e) => {
-      if (!e.currentTarget.disabled) {
-        e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-        e.currentTarget.style.color = 'var(--forge-text-primary)';
-      }
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.backgroundColor = 'transparent';
-      e.currentTarget.style.color = 'var(--forge-text-secondary)';
-    },
-  };
-
-  const btnDangerHover = {
-    onMouseEnter: (e) => {
-      if (!e.currentTarget.disabled) {
-        e.currentTarget.style.backgroundColor = 'rgba(255,71,87,0.08)';
-      }
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.backgroundColor = 'transparent';
-    },
-  };
-
-  const btnTertiaryHover = {
-    onMouseEnter: (e) => {
-      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
-      e.currentTarget.style.borderColor = 'var(--forge-border-highlight)';
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-      e.currentTarget.style.borderColor = 'var(--forge-border-active)';
-    },
-  };
-
-  const presetBtnHover = {
-    onMouseEnter: (e) => {
-      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
-      e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
-      e.currentTarget.style.color = 'var(--forge-accent-primary)';
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-      e.currentTarget.style.borderColor = 'var(--forge-border-default)';
-      e.currentTarget.style.color = 'var(--forge-text-secondary)';
-    },
-  };
-
-  const uploadAreaHover = {
-    onMouseEnter: (e) => {
-      e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
-      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.borderColor = 'var(--forge-border-active)';
-      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
-    },
-  };
-
-  const inputFocusHandler = (e) => {
+  /* ---- Focus/blur handlers -------------------------------------- */
+  const onFocus = (e) => {
     e.target.style.borderColor = 'var(--forge-accent-primary)';
     e.target.style.boxShadow = '0 0 0 2px rgba(0,212,170,0.15)';
   };
-
-  const inputBlurHandler = (hasError) => (e) => {
-    e.target.style.borderColor = hasError ? 'var(--forge-error)' : 'var(--forge-border-default)';
+  const onBlur = (e) => {
+    e.target.style.borderColor = 'var(--forge-border-default)';
     e.target.style.boxShadow = 'none';
   };
 
-  // Compute slider track percent for FORGE slider styling
-  const sliderPercent = ((branding.cornerRadius - 0) / (24 - 0)) * 100;
-  const sliderTrackBg = `linear-gradient(to right, var(--forge-accent-primary) 0%, var(--forge-accent-primary) ${sliderPercent}%, var(--forge-bg-overlay) ${sliderPercent}%, var(--forge-bg-overlay) 100%)`;
+  /* ---- Upload zone hover ---------------------------------------- */
+  const uploadHover = {
+    onMouseEnter: (e) => {
+      e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-overlay)';
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.borderColor = 'var(--forge-border-active)';
+      e.currentTarget.style.backgroundColor = 'var(--forge-bg-elevated)';
+    },
+  };
+
+  /* ---- Save indicator colors ------------------------------------ */
+  const indicatorStyle =
+    saveStatus === 'saving'
+      ? { backgroundColor: 'rgba(255,181,71,0.12)', color: 'var(--forge-warning)' }
+      : saveStatus === 'saved'
+        ? { backgroundColor: 'rgba(0,212,170,0.12)', color: 'var(--forge-success)' }
+        : { backgroundColor: 'transparent', color: 'var(--forge-text-muted)' };
+
+  const indicatorText =
+    saveStatus === 'saving' ? 'Ukladam...' : saveStatus === 'saved' ? 'Ulozeno' : '';
+
+  /* ================================================================ */
+  /*  RENDER                                                           */
+  /* ================================================================ */
+  if (loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--forge-text-muted)' }}>
+        Nacitam...
+      </div>
+    );
+  }
+
+  const displayName = branding.businessName || company.companyName || 'Vas nazev firmy';
+  const displayTagline = branding.tagline || 'Popis vasi firmy';
 
   return (
-    <div style={styles.page}>
-      <div style={styles.pageHeader}>
+    <div style={s.page}>
+      {/* Header */}
+      <div style={s.header}>
         <div>
-          <h1 style={styles.h1}>{t('admin.branding.title')}</h1>
-          <p style={styles.subtitle}>{t('admin.branding.subtitle')}</p>
+          <h1 style={s.h1}>{t('admin.branding.title') || 'Branding'}</h1>
+          <p style={s.subtitle}>Nastaveni vizualni identity a kontaktnich udaju firmy</p>
         </div>
-        <div style={styles.headerActions}>
-          <div style={styles.saveStatus} aria-live="polite">
-            {isDirty ? (
-              <span style={{ ...styles.statusBadge, ...styles.statusDirty }}>Neuulozene zmeny</span>
-            ) : (
-              <span style={{ ...styles.statusBadge, ...styles.statusSaved }}>Ulozeno</span>
+        {indicatorText && (
+          <span style={{ ...s.saveIndicator, ...indicatorStyle }}>
+            {saveStatus === 'saved' && (
+              <Icon name="Check" size={14} style={{ color: 'var(--forge-success)' }} />
             )}
-            {Object.keys(errors).length > 0 && (
-              <span
-                style={{ ...styles.statusBadge, ...styles.statusError }}
-                title="Nejdriv oprav chyby ve formulari"
-              >
-                {Object.keys(errors).length}x chyba
-              </span>
-            )}
-          </div>
-          <button
-            style={{
-              ...styles.btnSecondary,
-              ...(saving || loading ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
-            }}
-            onClick={handleResetToDefaults}
-            disabled={saving || loading}
-            title="Resetuje hodnoty na vychozi (vyzaduje Ulozit)"
-            {...btnSecondaryHover}
-          >
-            {t('common.reset')}
-          </button>
-          <button
-            style={{
-              ...styles.btnPrimary,
-              ...(saving || loading || !isDirty || Object.keys(errors).length > 0 ? styles.btnPrimaryDisabled : {}),
-            }}
-            onClick={handleSave}
-            disabled={saving || loading || !isDirty || Object.keys(errors).length > 0}
-            title={!isDirty ? 'Neni co ukladat' : undefined}
-            {...btnPrimaryHover}
-          >
-            {saving ? t('common.saving') : 'Ulozit zmeny'}
-          </button>
-        </div>
+            {indicatorText}
+          </span>
+        )}
       </div>
 
-      {isDirty && (
-        <div style={styles.unsavedBanner}>
-          Mas neulozene zmeny. Klikni na <strong>Ulozit zmeny</strong>, aby se projevily ve widgetu.
-        </div>
-      )}
+      {/* Grid: Preview | Settings */}
+      <div className="admin-branding-layout" style={s.grid}>
+        {/* LEFT: Live Preview */}
+        <div style={s.previewSticky}>
+          <div style={s.previewCard}>
+            <p style={s.previewLabel}>Nahled</p>
 
-      <div className="admin-branding-grid-responsive" style={styles.grid}>
-        {/* Left Column */}
-        <div style={styles.column}>
-          {/* Business Information */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t('admin.branding.businessInfo')}</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>{t('admin.branding.businessName')}</label>
+            {/* Simulated header */}
+            <div
+              style={{
+                borderRadius: 'var(--forge-radius-md)',
+                border: '1px solid var(--forge-border-default)',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Header bar */}
+              <div
+                style={{
+                  padding: '16px 20px',
+                  backgroundColor: branding.primaryColor || '#2563EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                {branding.logo ? (
+                  <img
+                    src={branding.logo}
+                    alt=""
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 6,
+                      objectFit: 'contain',
+                      backgroundColor: 'rgba(255,255,255,0.15)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 6,
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name="Image" size={18} style={{ color: 'rgba(255,255,255,0.7)' }} />
+                  </div>
+                )}
+                <div>
+                  <div
+                    style={{
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      fontFamily: 'var(--forge-font-heading)',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                  <div
+                    style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: 11,
+                      fontFamily: 'var(--forge-font-body)',
+                      marginTop: 2,
+                    }}
+                  >
+                    {displayTagline}
+                  </div>
+                </div>
+              </div>
+
+              {/* Body preview */}
+              <div style={{ padding: '16px 20px', backgroundColor: 'var(--forge-bg-elevated)' }}>
+                <div
+                  style={{
+                    height: 8,
+                    width: '75%',
+                    backgroundColor: 'var(--forge-border-active)',
+                    borderRadius: 4,
+                    marginBottom: 10,
+                  }}
+                />
+                <div
+                  style={{
+                    height: 8,
+                    width: '50%',
+                    backgroundColor: 'var(--forge-border-active)',
+                    borderRadius: 4,
+                    marginBottom: 16,
+                  }}
+                />
+                <div
+                  style={{
+                    height: 32,
+                    borderRadius: 'var(--forge-radius-sm)',
+                    backgroundColor: branding.primaryColor || '#2563EB',
+                    opacity: 0.9,
+                  }}
+                />
+              </div>
+
+              {/* Footer preview */}
+              <div
+                style={{
+                  padding: '10px 20px',
+                  borderTop: '1px solid var(--forge-border-default)',
+                  backgroundColor: 'var(--forge-bg-surface)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: 'var(--forge-font-body)',
+                    color: 'var(--forge-text-muted)',
+                  }}
+                >
+                  {company.contactEmail || 'email@firma.cz'}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: 'var(--forge-font-body)',
+                    color: 'var(--forge-text-muted)',
+                  }}
+                >
+                  {company.contactPhone || '+420 ...'}
+                </span>
+              </div>
+            </div>
+
+            {/* Accent color swatch */}
+            <div
+              style={{
+                marginTop: 16,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 4,
+                  backgroundColor: branding.primaryColor,
+                  border: '1px solid var(--forge-border-default)',
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--forge-font-mono)',
+                  fontSize: 11,
+                  color: 'var(--forge-text-muted)',
+                }}
+              >
+                Primary
+              </span>
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 4,
+                  backgroundColor: branding.secondaryColor,
+                  border: '1px solid var(--forge-border-default)',
+                  marginLeft: 8,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--forge-font-mono)',
+                  fontSize: 11,
+                  color: 'var(--forge-text-muted)',
+                }}
+              >
+                Accent
+              </span>
+            </div>
+          </div>
+
+          {/* Company invoice mini-preview */}
+          {(company.companyName || company.ico) && (
+            <div style={{ ...s.previewCard, marginTop: 16 }}>
+              <p style={s.previewLabel}>Fakturacni udaje</p>
+              <div
+                style={{
+                  fontSize: 'var(--forge-text-sm)',
+                  fontFamily: 'var(--forge-font-body)',
+                  color: 'var(--forge-text-secondary)',
+                  lineHeight: 1.6,
+                }}
+              >
+                {company.companyName && <div style={{ fontWeight: 600, color: 'var(--forge-text-primary)' }}>{company.companyName}</div>}
+                {company.address && <div>{company.address}</div>}
+                {(company.zip || company.city) && (
+                  <div>
+                    {company.zip} {company.city}
+                  </div>
+                )}
+                {company.ico && <div>ICO: {company.ico}</div>}
+                {company.dic && <div>DIC: {company.dic}</div>}
+                {company.bankAccount && (
+                  <div style={{ marginTop: 6 }}>
+                    {company.bankName && <span>{company.bankName}: </span>}
+                    {company.bankAccount}
+                  </div>
+                )}
+                {company.iban && <div>IBAN: {company.iban}</div>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Settings forms */}
+        <div>
+          {/* Card 1: Company Info */}
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>Zakladni informace</h3>
+
+            <div style={s.field}>
+              <label style={s.label}>Nazev firmy / znacky</label>
               <input
                 type="text"
                 value={branding.businessName}
-                onChange={(e) => setBranding({ ...branding, businessName: e.target.value })}
-                placeholder={t('admin.branding.businessNamePlaceholder')}
-                maxLength={50}
-                style={{
-                  ...styles.input,
-                  ...(errors.businessName ? styles.inputError : {}),
-                }}
-                onFocus={inputFocusHandler}
-                onBlur={inputBlurHandler(!!errors.businessName)}
+                onChange={(e) => updateBranding('businessName', e.target.value)}
+                placeholder="Moje 3D tiskarna"
+                maxLength={60}
+                style={s.input}
+                onFocus={onFocus}
+                onBlur={onBlur}
               />
-              {errors.businessName && <p style={styles.errorText}>{errors.businessName}</p>}
-              <p style={styles.helpText}>{t('admin.branding.businessNameHelp')}</p>
+              <p style={s.helper}>Zobrazuje se v hlavicce widgetu a na fakturach</p>
             </div>
-            <div style={{ ...styles.formGroup, marginBottom: 0 }}>
-              <label style={styles.label}>{t('admin.branding.tagline')}</label>
+
+            <div style={s.field}>
+              <label style={s.label}>Popisek / tagline</label>
               <input
                 type="text"
                 value={branding.tagline}
-                onChange={(e) => setBranding({ ...branding, tagline: e.target.value })}
-                placeholder={t('admin.branding.taglinePlaceholder')}
-                maxLength={100}
-                style={styles.input}
-                onFocus={inputFocusHandler}
-                onBlur={inputBlurHandler(false)}
+                onChange={(e) => updateBranding('tagline', e.target.value)}
+                placeholder="Rychla kalkulace a objednavka 3D tisku"
+                maxLength={120}
+                style={s.input}
+                onFocus={onFocus}
+                onBlur={onBlur}
               />
+              <p style={s.helper}>Kratky popis pod nazvem firmy</p>
             </div>
-          </div>
 
-          {/* Logo */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t('admin.branding.logo')}</h3>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) startLogoDraftFromFile(f);
-                e.target.value = '';
-              }}
-            />
-
-            {branding.logo && (
-              <div style={styles.currentLogo}>
-                <div style={styles.logoPreview}>
-                  <img src={branding.logo} alt="Logo" style={{ maxWidth: 72, maxHeight: 72, objectFit: 'contain' }} />
+            <div style={s.fieldLast}>
+              <label style={s.label}>Logo</label>
+              {branding.logo ? (
+                <div style={s.logoPreviewRow}>
+                  <div style={s.logoThumb}>
+                    <img
+                      src={branding.logo}
+                      alt="Logo"
+                      style={{ maxWidth: 56, maxHeight: 56, objectFit: 'contain' }}
+                    />
+                  </div>
+                  <button
+                    style={s.removeBtn}
+                    onClick={removeLogo}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(255,71,87,0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    Odebrat logo
+                  </button>
                 </div>
-                <div style={styles.logoInfo}>
-                  <p style={styles.logoInfoP}>PNG, JPG, SVG (max 2 MB)</p>
-                  <p style={{ ...styles.logoInfoP, fontSize: 12, color: 'var(--forge-text-muted)' }}>Logo se ulozi po kliknuti na Ulozit zmeny.</p>
-                </div>
-              </div>
-            )}
-
-            <div
-              style={styles.uploadArea}
-              role="button"
-              tabIndex={0}
-              onClick={() => logoInputRef.current?.click()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') logoInputRef.current?.click();
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const f = e.dataTransfer.files?.[0];
-                if (f) startLogoDraftFromFile(f);
-              }}
-              title="Klikni pro vyber souboru, nebo sem pretahni logo"
-              {...uploadAreaHover}
-            >
-              {logoDraftPreview ? (
-                <div>
-                  <img src={logoDraftPreview} alt="Nahled" style={{ maxWidth: 140, maxHeight: 80, objectFit: 'contain' }} />
-                  <p style={styles.uploadHint}>Pripraveno k nahrani</p>
-                </div>
-              ) : (
-                <>
-                  <Icon name="Upload" size={32} style={{ color: 'var(--forge-text-muted)' }} />
-                  <p style={styles.uploadAreaP}>{t('admin.branding.dragDrop')}</p>
-                  <p style={styles.uploadHint}>{t('admin.branding.orClick')}</p>
-                  <p style={styles.uploadHint}>{t('admin.branding.recommended')}</p>
-                </>
-              )}
-            </div>
-
-            {logoDraftError && <p style={styles.errorText}>{logoDraftError}</p>}
-
-            <div style={styles.uploadActions}>
-              <button style={styles.btnSecondary} onClick={() => logoInputRef.current?.click()} {...btnSecondaryHover}>
-                {t('admin.branding.chooseFile')}
-              </button>
-              <button
-                style={{
-                  ...styles.btnPrimary,
-                  ...(!logoDraft ? styles.btnPrimaryDisabled : {}),
-                }}
-                onClick={applyLogoDraft}
-                disabled={!logoDraft}
-                {...btnPrimaryHover}
-              >
-                Pouzit logo
-              </button>
-              {(branding.logo || logoDraft) && (
-                <button
-                  style={styles.btnDanger}
-                  onClick={() => {
-                    setBranding({ ...branding, logo: null });
-                    setLogoDraft(null);
-                    if (logoDraftPreview) URL.revokeObjectURL(logoDraftPreview);
-                    setLogoDraftPreview(null);
-                    setLogoDraftError(null);
-                  }}
-                  {...btnDangerHover}
-                >
-                  {t('admin.branding.removeLogo')}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Display in widget */}
-          <div style={styles.section}>
-            <div style={styles.sectionHeadRow}>
-              <h3 style={{ ...styles.sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>{t('admin.branding.calculatorSettings')}</h3>
-              <button
-                style={styles.btnTertiary}
-                onClick={() => (window.location.href = '/admin/widget')}
-                title="Rozlozeni, embed kod a widget instance se resi ve Widget Code"
-                {...btnTertiaryHover}
-              >
-                Otevrit Widget
-              </button>
-            </div>
-            <p style={styles.helpCallout}>
-              Tip: zde nastavujes hlavne <strong style={{ color: 'var(--forge-text-primary)' }}>logo/barvy/typografii</strong> a co se ukazuje v hlavicce widgetu.
-              Rozmery, embed kod a instance widgetu nastavis ve strance <strong style={{ color: 'var(--forge-text-primary)' }}>Widget</strong>.
-            </p>
-            <div style={styles.checkboxGroup}>
-              <ForgeCheckbox
-                checked={branding.showLogo}
-                onChange={(e) => setBranding({ ...branding, showLogo: e.target.checked })}
-                label={t('admin.branding.showLogo')}
-              />
-              <ForgeCheckbox
-                checked={branding.showBusinessName}
-                onChange={(e) => setBranding({ ...branding, showBusinessName: e.target.checked })}
-                label={t('admin.branding.showBusinessName')}
-              />
-              <ForgeCheckbox
-                checked={branding.showTagline}
-                onChange={(e) => setBranding({ ...branding, showTagline: e.target.checked })}
-                label={t('admin.branding.showTagline')}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ForgeCheckbox
-                  checked={enforcePoweredBy.poweredByRequired ? true : branding.showPoweredBy}
-                  disabled={enforcePoweredBy.poweredByRequired}
-                  onChange={(e) => setBranding({ ...branding, showPoweredBy: e.target.checked })}
-                  label={t('admin.branding.showPoweredBy')}
-                />
-                {enforcePoweredBy.poweredByRequired && (
-                  <span style={styles.chip} title="Dostupne v tarifu Pro">
-                    PRO
-                  </span>
-                )}
-              </div>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <label style={styles.label}>{t('admin.branding.cornerRadius')} {branding.cornerRadius}px</label>
+              ) : null}
               <input
-                type="range"
-                min="0"
-                max="24"
-                step="1"
-                value={branding.cornerRadius}
-                onChange={(e) => setBranding({ ...branding, cornerRadius: parseInt(e.target.value) })}
-                style={{
-                  width: '100%',
-                  height: 4,
-                  borderRadius: 2,
-                  background: sliderTrackBg,
-                  outline: 'none',
-                  WebkitAppearance: 'none',
-                  MozAppearance: 'none',
-                  cursor: 'pointer',
-                  margin: '8px 0',
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleLogoFile(f);
+                  e.target.value = '';
                 }}
-                className="forge-slider-input"
               />
-              {errors.cornerRadius && <p style={styles.errorText}>{errors.cornerRadius}</p>}
-              <div style={styles.sliderLabels}>
-                <span style={styles.sliderLabelSpan}>0px (Sharp)</span>
-                <span style={styles.sliderLabelSpan}>24px (Rounded)</span>
+              <div
+                style={s.uploadZone}
+                role="button"
+                tabIndex={0}
+                onClick={() => logoInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') logoInputRef.current?.click();
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) handleLogoFile(f);
+                }}
+                {...uploadHover}
+              >
+                <Icon name="Upload" size={24} style={{ color: 'var(--forge-text-muted)' }} />
+                <p style={s.uploadText}>Pretahni sem logo nebo klikni</p>
+                <p style={s.uploadHint}>PNG, JPG, SVG, WEBP do 2 MB</p>
               </div>
+              {logoError && <p style={s.errorMsg}>{logoError}</p>}
             </div>
           </div>
 
-          {/* Color Scheme */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t('admin.branding.colorScheme')}</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>{t('admin.branding.primaryColor')}</label>
-              <div style={styles.colorInputGroup}>
+          {/* Card 2: Visual Identity */}
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>Vizualni identita</h3>
+
+            <div style={s.field}>
+              <label style={s.label}>Primarni barva</label>
+              <div style={s.colorRow}>
+                <div style={{ ...s.colorSwatch, backgroundColor: branding.primaryColor }}>
+                  <input
+                    type="color"
+                    value={branding.primaryColor}
+                    onChange={(e) => updateBranding('primaryColor', e.target.value)}
+                    style={s.colorNative}
+                    title="Vybrat primarni barvu"
+                  />
+                </div>
                 <input
                   type="text"
                   value={branding.primaryColor}
-                  onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                  onChange={(e) => updateBranding('primaryColor', e.target.value)}
                   style={{
-                    ...styles.input,
+                    ...s.input,
                     flex: 1,
-                    ...(errors.primaryColor ? styles.inputError : {}),
+                    fontFamily: 'var(--forge-font-mono)',
+                    fontSize: 13,
+                    ...(branding.primaryColor && !isHex(branding.primaryColor) ? s.inputError : {}),
                   }}
-                  onFocus={inputFocusHandler}
-                  onBlur={inputBlurHandler(!!errors.primaryColor)}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                  maxLength={7}
                 />
-                <div style={{ ...styles.colorSwatch, backgroundColor: branding.primaryColor }} />
               </div>
-              <p style={styles.helpText}>{t('admin.branding.primaryColorHelp')}</p>
-              {errors.primaryColor && <p style={styles.errorText}>{errors.primaryColor}</p>}
+              {branding.primaryColor && !isHex(branding.primaryColor) && (
+                <p style={s.errorMsg}>Format: #RRGGBB</p>
+              )}
+              <p style={s.helper}>Pouziva se pro hlavicku, tlacitka a hlavni akcenty</p>
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>{t('admin.branding.secondaryColor')}</label>
-              <div style={styles.colorInputGroup}>
+
+            <div style={s.fieldLast}>
+              <label style={s.label}>Sekundarni / akcentova barva</label>
+              <div style={s.colorRow}>
+                <div style={{ ...s.colorSwatch, backgroundColor: branding.secondaryColor }}>
+                  <input
+                    type="color"
+                    value={branding.secondaryColor}
+                    onChange={(e) => updateBranding('secondaryColor', e.target.value)}
+                    style={s.colorNative}
+                    title="Vybrat sekundarni barvu"
+                  />
+                </div>
                 <input
                   type="text"
                   value={branding.secondaryColor}
-                  onChange={(e) => setBranding({ ...branding, secondaryColor: e.target.value })}
+                  onChange={(e) => updateBranding('secondaryColor', e.target.value)}
                   style={{
-                    ...styles.input,
+                    ...s.input,
                     flex: 1,
-                    ...(errors.secondaryColor ? styles.inputError : {}),
+                    fontFamily: 'var(--forge-font-mono)',
+                    fontSize: 13,
+                    ...(branding.secondaryColor && !isHex(branding.secondaryColor) ? s.inputError : {}),
                   }}
-                  onFocus={inputFocusHandler}
-                  onBlur={inputBlurHandler(!!errors.secondaryColor)}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                  maxLength={7}
                 />
-                <div style={{ ...styles.colorSwatch, backgroundColor: branding.secondaryColor }} />
               </div>
-              <p style={styles.helpText}>{t('admin.branding.secondaryColorHelp')}</p>
-              {errors.secondaryColor && <p style={styles.errorText}>{errors.secondaryColor}</p>}
+              {branding.secondaryColor && !isHex(branding.secondaryColor) && (
+                <p style={s.errorMsg}>Format: #RRGGBB</p>
+              )}
+              <p style={s.helper}>Pro sekundarni elementy, badges, hover stavy</p>
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>{t('admin.branding.backgroundColor')}</label>
-              <div style={styles.colorInputGroup}>
+          </div>
+
+          {/* Card 3: Contact */}
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>Kontaktni udaje</h3>
+
+            <div style={s.field}>
+              <label style={s.label}>E-mail</label>
+              <input
+                type="email"
+                value={company.contactEmail}
+                onChange={(e) => updateCompany('contactEmail', e.target.value)}
+                placeholder="info@firma.cz"
+                style={s.input}
+                onFocus={onFocus}
+                onBlur={onBlur}
+              />
+            </div>
+
+            <div style={s.row}>
+              <div style={s.field}>
+                <label style={s.label}>Telefon</label>
+                <input
+                  type="tel"
+                  value={company.contactPhone}
+                  onChange={(e) => updateCompany('contactPhone', e.target.value)}
+                  placeholder="+420 123 456 789"
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+              <div style={s.field}>
+                <label style={s.label}>Web</label>
+                <input
+                  type="url"
+                  value={company.website}
+                  onChange={(e) => updateCompany('website', e.target.value)}
+                  placeholder="https://firma.cz"
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Legal & Invoicing */}
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>Fakturacni a pravni udaje</h3>
+
+            <div style={s.field}>
+              <label style={s.label}>Nazev spolecnosti</label>
+              <input
+                type="text"
+                value={company.companyName}
+                onChange={(e) => updateCompany('companyName', e.target.value)}
+                placeholder="3D Print s.r.o."
+                maxLength={100}
+                style={s.input}
+                onFocus={onFocus}
+                onBlur={onBlur}
+              />
+              <p style={s.helper}>Pravni nazev pro faktury (muze se lisit od nazvu znacky)</p>
+            </div>
+
+            <div style={s.field}>
+              <label style={s.label}>Adresa sidla</label>
+              <input
+                type="text"
+                value={company.address}
+                onChange={(e) => updateCompany('address', e.target.value)}
+                placeholder="Hlavni 123"
+                style={s.input}
+                onFocus={onFocus}
+                onBlur={onBlur}
+              />
+            </div>
+
+            <div style={{ ...s.row3, ...s.field }}>
+              <div>
+                <label style={s.label}>PSC</label>
                 <input
                   type="text"
-                  value={branding.backgroundColor}
-                  onChange={(e) => setBranding({ ...branding, backgroundColor: e.target.value })}
-                  style={{
-                    ...styles.input,
-                    flex: 1,
-                    ...(errors.backgroundColor ? styles.inputError : {}),
-                  }}
-                  onFocus={inputFocusHandler}
-                  onBlur={inputBlurHandler(!!errors.backgroundColor)}
+                  value={company.zip}
+                  onChange={(e) => updateCompany('zip', e.target.value)}
+                  placeholder="110 00"
+                  maxLength={10}
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
                 />
-                <div style={{ ...styles.colorSwatch, backgroundColor: branding.backgroundColor }} />
               </div>
-              <p style={styles.helpText}>{t('admin.branding.backgroundColorHelp')}</p>
-              {errors.backgroundColor && <p style={styles.errorText}>{errors.backgroundColor}</p>}
-            </div>
-            <div style={{ marginBottom: 0 }}>
-              <label style={styles.label}>{t('admin.branding.presets')}</label>
-              <div style={styles.colorPresets}>
-                {colorPresets.map((preset) => (
-                  <button
-                    key={preset.name}
-                    style={styles.presetBtn}
-                    onClick={() => handleColorPreset(preset)}
-                    {...presetBtnHover}
-                  >
-                    {preset.name}
-                  </button>
-                ))}
+              <div>
+                <label style={s.label}>Mesto</label>
+                <input
+                  type="text"
+                  value={company.city}
+                  onChange={(e) => updateCompany('city', e.target.value)}
+                  placeholder="Praha"
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
               </div>
-            </div>
-          </div>
-
-          {/* Typography */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t('admin.branding.typography')}</h3>
-            <div style={{ marginBottom: 0 }}>
-              <label style={styles.label}>{t('admin.branding.fontFamily')}</label>
-              <div style={styles.fontOptions}>
-                {fonts.map((font) => (
-                  <label key={font} style={styles.radioLabel}>
-                    <input
-                      type="radio"
-                      name="font"
-                      checked={branding.fontFamily === font}
-                      onChange={() => setBranding({ ...branding, fontFamily: font })}
-                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--forge-accent-primary)' }}
-                    />
-                    <span style={styles.radioSpan}>{font} {font === 'Inter' && '(Default)'}</span>
-                  </label>
-                ))}
+              <div>
+                <label style={s.label}>Stat</label>
+                <input
+                  type="text"
+                  value={company.country}
+                  onChange={(e) => updateCompany('country', e.target.value)}
+                  placeholder="CZ"
+                  maxLength={3}
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
               </div>
             </div>
-          </div>
 
-        </div>
+            <div style={{ ...s.row, ...s.field }}>
+              <div>
+                <label style={s.label}>ICO</label>
+                <input
+                  type="text"
+                  value={company.ico}
+                  onChange={(e) => updateCompany('ico', e.target.value)}
+                  placeholder="12345678"
+                  maxLength={12}
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+              <div>
+                <label style={s.label}>DIC</label>
+                <input
+                  type="text"
+                  value={company.dic}
+                  onChange={(e) => updateCompany('dic', e.target.value)}
+                  placeholder="CZ12345678"
+                  maxLength={14}
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+            </div>
 
-        {/* Right Column - Live Preview */}
-        <div style={styles.column}>
-          <div style={{ ...styles.section, ...styles.stickyPreview }}>
-            <h3 style={styles.sectionTitle}>{t('admin.branding.livePreview')}</h3>
-            <div
-              style={{
-                ...styles.calculatorPreview,
-                backgroundColor: branding.backgroundColor,
-                borderRadius: `${branding.cornerRadius}px`,
-                fontFamily: branding.fontFamily,
-              }}
-            >
-              <div style={styles.previewHeader}>
-                {branding.showLogo && (
-                  <div style={styles.previewLogo}>
-                    {branding.logo ? (
-                      <img src={branding.logo} alt="Logo" style={{ maxWidth: 40, maxHeight: 40, objectFit: 'contain' }} />
-                    ) : (
-                      <Icon name="Image" size={32} />
-                    )}
-                  </div>
-                )}
-                <div>
-                  {branding.showBusinessName && (
-                    <h4 style={{ ...styles.previewH4, fontFamily: branding.fontFamily }}>{branding.businessName}</h4>
-                  )}
-                  {branding.showTagline && (
-                    <p style={{ ...styles.previewSubtitle, fontFamily: branding.fontFamily }}>{branding.tagline}</p>
-                  )}
-                </div>
+            <div style={s.field}>
+              <label style={s.label}>Cislo uctu</label>
+              <input
+                type="text"
+                value={company.bankAccount}
+                onChange={(e) => updateCompany('bankAccount', e.target.value)}
+                placeholder="123456789/0100"
+                style={s.input}
+                onFocus={onFocus}
+                onBlur={onBlur}
+              />
+            </div>
+
+            <div style={{ ...s.row, ...s.fieldLast }}>
+              <div>
+                <label style={s.label}>Nazev banky</label>
+                <input
+                  type="text"
+                  value={company.bankName}
+                  onChange={(e) => updateCompany('bankName', e.target.value)}
+                  placeholder="Komercni banka"
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
               </div>
-              <div style={styles.previewDivider} />
-              <div style={{ ...styles.previewForm, fontFamily: branding.fontFamily }}>
-                <div>
-                  <label style={styles.previewFieldLabel}>{t('admin.branding.uploadModel')}</label>
-                  <div style={{ ...styles.previewInput, borderRadius: `${branding.cornerRadius}px` }}>
-                    Choose File
-                  </div>
-                </div>
-                <div>
-                  <label style={styles.previewFieldLabel}>{t('admin.branding.material')}</label>
-                  <div style={{ ...styles.previewInput, borderRadius: `${branding.cornerRadius}px` }}>
-                    PLA &#9660;
-                  </div>
-                </div>
-                <button
-                  style={{
-                    ...styles.previewButton,
-                    backgroundColor: branding.primaryColor,
-                    borderRadius: `${branding.cornerRadius}px`,
-                  }}
-                >
-                  {t('admin.branding.calculatePrice')}
-                </button>
+              <div>
+                <label style={s.label}>IBAN</label>
+                <input
+                  type="text"
+                  value={company.iban}
+                  onChange={(e) => updateCompany('iban', e.target.value)}
+                  placeholder="CZ65 0100 0000 0012 3456 789"
+                  maxLength={34}
+                  style={s.input}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
               </div>
-              {branding.showPoweredBy && (
-                <div style={styles.previewFooter}>
-                  <small style={styles.previewFooterSmall}>Powered by ModelPricer</small>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
 
       <style>{`
-        /* FORGE slider thumb styles */
-        .forge-slider-input::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: var(--forge-accent-primary);
-          border: none;
-          cursor: pointer;
-          margin-top: -6px;
-          transition: box-shadow 120ms ease-out;
-        }
-        .forge-slider-input::-webkit-slider-thumb:hover {
-          box-shadow: 0 0 0 4px rgba(0,212,170,0.2);
-        }
-        .forge-slider-input::-moz-range-thumb {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: var(--forge-accent-primary);
-          border: none;
-          cursor: pointer;
-        }
-        .forge-slider-input::-moz-range-thumb:hover {
-          box-shadow: 0 0 0 4px rgba(0,212,170,0.2);
-        }
-        .forge-slider-input::-webkit-slider-runnable-track {
-          height: 4px;
-          border-radius: 2px;
-        }
-        .forge-slider-input::-moz-range-track {
-          height: 4px;
-          border-radius: 2px;
-          background: transparent;
-        }
-        .forge-slider-input:focus::-webkit-slider-thumb {
-          box-shadow: 0 0 0 4px rgba(0,212,170,0.25);
-        }
-        .forge-slider-input:focus::-moz-range-thumb {
-          box-shadow: 0 0 0 4px rgba(0,212,170,0.25);
-        }
-
-        @media (max-width: 1024px) {
-          .admin-branding-grid-responsive {
+        @media (max-width: 900px) {
+          .admin-branding-layout {
             grid-template-columns: 1fr !important;
           }
         }

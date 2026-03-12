@@ -1,32 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import GridLayout, { WidthProvider } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
-import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 import { computeOverview } from '../../utils/adminAnalyticsStorage';
-import { getTeamSummary, getSeatLimit } from '../../utils/adminTeamAccessStorage';
-import { loadOrders } from '../../utils/adminOrdersStorage';
+import { loadOrders, computeOrderTotals, getStatusLabel, extractOrderMaterials } from '../../utils/adminOrdersStorage';
 import { getAuditEntries } from '../../utils/adminAuditLogStorage';
 import { readTenantJson, getTenantId } from '../../utils/adminTenantStorage';
 import { formatRelativeTime } from '../../utils/formatRelativeTime';
+import { getBranding, getDefaultBranding } from '../../utils/adminBrandingWidgetStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 
-import { loadDashboardConfig, saveDashboardConfig, resetDashboardConfig } from '../../utils/adminDashboardStorage';
-import { DASHBOARD_CATEGORIES, DASHBOARD_METRICS, getMetricByKey } from '../../utils/dashboardMetricRegistry';
-
-import {
-  getBranding,
-  getDefaultBranding,
-  getPlanFeatures,
-  getWidgets,
-  getWidgetDomains,
-} from '../../utils/adminBrandingWidgetStorage';
-
-import DashboardCharts from './components/DashboardCharts';
 import QuickSettings from './components/QuickSettings';
+import DataImportWizard from './components/DataImportWizard';
+import QuickOrderForm from './components/orders/QuickOrderForm';
+import OnboardingWizard, { isOnboardingCompleted } from './components/OnboardingWizard';
+
+/* ── Helpers ──────────────────────────────────────────────────────────── */
 
 function isoDaysAgo(days) {
   const d = new Date();
@@ -41,1931 +32,1480 @@ function isoNowEnd() {
   return d.toISOString();
 }
 
-function uid(prefix = 'card') {
-  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+function isToday(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth()
+    && d.getDate() === now.getDate();
 }
 
-function deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
-}
-
-function formatValue({ value, valueType, language }) {
-  if (valueType === 'text') return String(value ?? '—');
-
-  if (valueType === 'percent') {
-    const n = Number(value || 0);
-    return `${(n * 100).toFixed(1)}%`;
-  }
-
-  if (valueType === 'currency') {
-    const n = Number(value || 0);
-    const fmt = new Intl.NumberFormat(language === 'cs' ? 'cs-CZ' : 'en-US', { maximumFractionDigits: 0 });
-    return `${fmt.format(n)} Kč`;
-  }
-
-  if (valueType === 'minutes') {
-    const n = Number(value || 0);
-    return `${n.toFixed(1)} min`;
-  }
-
-  if (valueType === 'grams') {
-    const n = Number(value || 0);
-    const fmt = new Intl.NumberFormat(language === 'cs' ? 'cs-CZ' : 'en-US', { maximumFractionDigits: 0 });
-    return `${fmt.format(n)} g`;
-  }
-
-  // default: number
-  const n = Number(value || 0);
+function fmtCurrency(n, language) {
   const fmt = new Intl.NumberFormat(language === 'cs' ? 'cs-CZ' : 'en-US', { maximumFractionDigits: 0 });
-  return fmt.format(n);
+  return `${fmt.format(n)} Kc`;
 }
+
+/* ── Status colors ────────────────────────────────────────────────────── */
+
+const STATUS_COLORS = {
+  NEW: '#00D4AA',
+  REVIEW: '#4DA8DA',
+  APPROVED: '#22C55E',
+  PRINTING: '#FF6B35',
+  POSTPROCESS: '#9B59B6',
+  READY: '#FACC15',
+  SHIPPED: '#06B6D4',
+  DONE: '#10B981',
+  CANCELED: '#EF4444',
+};
+
+/* ── Quick links config ───────────────────────────────────────────────── */
+
+const QUICK_LINKS = [
+  { icon: 'ShoppingCart', path: '/admin/orders', labelCs: 'Objednavky', labelEn: 'Orders' },
+  { icon: 'DollarSign', path: '/admin/pricing', labelCs: 'Cenik', labelEn: 'Pricing' },
+  { icon: 'Layers', path: '/admin/parameters', labelCs: 'Materialy', labelEn: 'Materials' },
+  { icon: 'Palette', path: '/admin/branding', labelCs: 'Branding', labelEn: 'Branding' },
+  { icon: 'BarChart3', path: '/admin/analytics', labelCs: 'Analytika', labelEn: 'Analytics' },
+  { icon: 'Layout', path: '/admin/widget', labelCs: 'Widget', labelEn: 'Widget' },
+  { icon: 'Receipt', path: '/admin/fees', labelCs: 'Poplatky', labelEn: 'Fees' },
+  { icon: 'BookOpen', path: '/admin/presets', labelCs: 'Presety', labelEn: 'Presets' },
+];
+
+/* ── Main component ───────────────────────────────────────────────────── */
 
 const AdminDashboard = () => {
-  const RGL = useMemo(() => WidthProvider(GridLayout), []);
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showImportWizard, setShowImportWizard] = useState(false);
+  const [showQuickOrder, setShowQuickOrder] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingCompleted = useMemo(() => isOnboardingCompleted(), [refreshKey]);
+  const cs = language === 'cs';
 
-  // Dashboard layout (persistent, tenant-scoped)
-  const [dashboardConfig, setDashboardConfig] = useState(() => loadDashboardConfig());
-  const [draftConfig, setDraftConfig] = useState(null);
+  const tenantId = getTenantId();
 
-  const editing = !!draftConfig;
-  const activeConfig = editing ? draftConfig : dashboardConfig;
+  // ── Data ──
 
-  // Add / Settings modals
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addSearch, setAddSearch] = useState('');
-  const [addCategory, setAddCategory] = useState('all');
+  const allOrders = useMemo(() => loadOrders(), [refreshKey]);
 
-  const [settingsCardId, setSettingsCardId] = useState(null);
+  const todayStats = useMemo(() => {
+    let revenue = 0;
+    let newOrders = 0;
 
-  // Scroll containment for Add Metric modal — smooth easing
-  const addModalRef = useRef(null);
-
-  useEffect(() => {
-    if (!showAddModal || !editing) return;
-    document.body.style.overflow = 'hidden';
-    const overlay = addModalRef.current;
-    if (!overlay) return;
-
-    let targetY = 0;
-    let rafId = null;
-
-    const animate = () => {
-      const body = overlay.querySelector('.modal-body');
-      if (!body) { rafId = null; return; }
-      const diff = targetY - body.scrollTop;
-      if (Math.abs(diff) < 0.5) { body.scrollTop = targetY; rafId = null; return; }
-      body.scrollTop += diff * 0.18;
-      rafId = requestAnimationFrame(animate);
-    };
-
-    const handleWheel = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const body = overlay.querySelector('.modal-body');
-      if (!body) return;
-      let delta = e.deltaY;
-      if (e.deltaMode === 1) delta *= 40;
-      if (e.deltaMode === 2) delta *= body.clientHeight;
-      if (rafId === null) targetY = body.scrollTop;
-      const maxScroll = body.scrollHeight - body.clientHeight;
-      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
-      if (!rafId) rafId = requestAnimationFrame(animate);
-    };
-
-    overlay.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      overlay.removeEventListener('wheel', handleWheel);
-      if (rafId) cancelAnimationFrame(rafId);
-      document.body.style.overflow = '';
-    };
-  }, [showAddModal, editing]);
-
-  // Branding tips banner
-  const BRANDING_TENANT_ID = getTenantId();
-
-  // -----------------------
-  // Live Data (computed once)
-  // -----------------------
-
-  const analyticsByDays = useMemo(() => {
-    // Precompute common ranges so changing a card's days doesn't require extra storage hits.
-    const ranges = [7, 30, 90];
-    const map = {};
-    const toISO = isoNowEnd();
-    for (const days of ranges) {
-      const fromISO = isoDaysAgo(days);
-      map[days] = computeOverview({ fromISO, toISO });
+    for (const order of allOrders) {
+      const created = order.created_at || order.createdAt;
+      if (isToday(created)) {
+        newOrders++;
+        const totals = computeOrderTotals(order);
+        revenue += totals.total || 0;
+      }
     }
-    return map;
-  }, [refreshKey]);
 
-  const teamSummary = useMemo(() => getTeamSummary(), [refreshKey]);
-  const seatLimit = useMemo(() => getSeatLimit(), [refreshKey]);
+    const pending = allOrders.filter(o => o.status === 'NEW' || o.status === 'REVIEW').length;
+    const activePrints = allOrders.filter(o => o.status === 'PRINTING' || o.status === 'POSTPROCESS').length;
 
-  const ordersSummary = useMemo(() => {
-    const allOrders = loadOrders();
-    const newOrders = allOrders.filter(o => o.status === 'NEW' || o.status === 'REVIEW').length;
-    const totalOrders = allOrders.length;
-    return { newOrders, totalOrders };
-  }, [refreshKey]);
+    return { revenue, newOrders, pending, activePrints };
+  }, [allOrders]);
 
-  const parametersSummary = useMemo(() => {
-    const config = readTenantJson('parameters:v1', null);
-    if (!config?.parameters) return { activeCount: 0, changedCount: 0, widgetVisibleCount: 0 };
-    const params = Object.values(config.parameters);
-    const activeCount = params.filter(p => p?.active_for_slicing).length;
-    const changedCount = params.filter(p => p?.default_value_override !== null && p?.default_value_override !== undefined).length;
-    const widgetVisibleCount = params.filter(p => p?.widget_visible || p?.widget?.visible).length;
-    return { activeCount, changedCount, widgetVisibleCount };
-  }, [refreshKey]);
-
-  const presetsList = useMemo(() => {
-    const list = readTenantJson('presets:v1', []);
-    return Array.isArray(list) ? list : [];
-  }, [refreshKey]);
-
-    const pricingData = useMemo(() => {
-    // Read pricing config via tenant storage helper (pricing:v3 namespace).
-    // Supports both V3 materialPrices object and legacy materials array shapes.
-    const config = readTenantJson('pricing:v3', null);
-    if (!config) return { hourlyRate: 300, materialCount: 0, totalMaterials: 0 };
-
-    const hourlyRate =
-      config?.tenant_pricing?.rate_per_hour ??
-      config?.rate_per_hour ??
-      config?.timeRate ??
-      config?.tenant_pricing?.timeRate ??
-      300;
-
-    // Preferred shape (AdminPricing V3): materialPrices object
-    const materialPrices =
-      (config?.materialPrices && typeof config.materialPrices === 'object' ? config.materialPrices : null) ||
-      (config?.config?.materialPrices && typeof config.config.materialPrices === 'object' ? config.config.materialPrices : null) ||
-      null;
-
-    if (materialPrices) {
-      const total = Object.keys(materialPrices).filter((k) => k && materialPrices[k] !== null && materialPrices[k] !== undefined).length;
+  const recentOrders = useMemo(() => {
+    const sorted = [...allOrders].sort((a, b) => {
+      const da = a.created_at || a.createdAt || '';
+      const db = b.created_at || b.createdAt || '';
+      return db.localeCompare(da);
+    });
+    return sorted.slice(0, 8).map(order => {
+      const totals = computeOrderTotals(order);
       return {
-        hourlyRate,
-        // In materialPrices shape we only store enabled materials, so "enabled" == "total"
-        materialCount: total,
-        totalMaterials: total,
+        id: order.id,
+        orderNumber: order.order_number || order.id?.slice(0, 8) || '---',
+        customer: order.customer?.name || order.customer?.email || (cs ? 'Neznamy' : 'Unknown'),
+        status: order.status || 'NEW',
+        total: totals.total,
+        created: order.created_at || order.createdAt,
+        models: (order.models || []).length,
       };
-    }
+    });
+  }, [allOrders, cs]);
 
-    // Fallback legacy shape: materials array
-    const materials = Array.isArray(config?.materials) ? config.materials : [];
-    const totalMaterials = materials.length;
-    const enabledMaterials = materials.filter((m) => m && m.enabled !== false);
-    return {
-      hourlyRate,
-      materialCount: enabledMaterials.length,
-      totalMaterials,
-    };
-  }, [BRANDING_TENANT_ID, refreshKey]);
+  const attentionOrders = useMemo(() => {
+    return allOrders.filter(o => {
+      // Stuck: NEW/REVIEW for more than 48h
+      if (o.status === 'NEW' || o.status === 'REVIEW') {
+        const created = new Date(o.created_at || o.createdAt || Date.now());
+        const hoursOld = (Date.now() - created.getTime()) / (1000 * 60 * 60);
+        if (hoursOld > 48) return true;
+      }
+      // Has flags
+      if (o.flags && o.flags.length > 0) return true;
+      return false;
+    }).slice(0, 5);
+  }, [allOrders]);
 
-    const feesData = useMemo(() => {
-    // Read fees config via tenant storage helper (fees:v3 namespace).
-    const config = readTenantJson('fees:v3', null);
-
-    // Fee storage can be:
-    // - an array (legacy)
-    // - an object { fees: [...] } (AdminFees V3)
-    const fees = Array.isArray(config) ? config : (Array.isArray(config?.fees) ? config.fees : []);
-    const isActive = (f) => {
-      if (!f) return false;
-      // explicit off
-      if (f.active === false) return false;
-      if (f.enabled === false || f.enabled === 0) return false;
-      // explicit on
-      if (f.active === true) return true;
-      if (f.enabled === true || f.enabled === 1) return true;
-      // default: treat missing flags as active (safer for demo)
-      return true;
-    };
-
-    const normalizeType = (f) => {
-      const raw =
-        f?.type ??
-        f?.calculationType ??
-        f?.calculation_type ??
-        'flat';
-      let t = String(raw || 'flat').toLowerCase();
-      if (t === 'fixed') t = 'flat';
-      if (t === 'per_hour') t = 'per_minute'; // legacy compatibility
-      return t;
-    };
-
-    const activeFees = fees.filter(isActive);
-    const breakdown = activeFees.reduce((acc, f) => {
-      const type = normalizeType(f);
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {});
-
-    return { totalActive: activeFees.length, breakdown };
-  }, [BRANDING_TENANT_ID, refreshKey]);
-
-  const widgetsList = useMemo(() => getWidgets(BRANDING_TENANT_ID), [BRANDING_TENANT_ID, refreshKey]);
-  const widgetDomains = useMemo(() => getWidgetDomains(BRANDING_TENANT_ID), [BRANDING_TENANT_ID, refreshKey]);
-  const planFeatures = useMemo(() => getPlanFeatures(BRANDING_TENANT_ID), [BRANDING_TENANT_ID, refreshKey]);
-
-  const brandingTips = useMemo(() => {
-    const current = getBranding(BRANDING_TENANT_ID);
-    const defaults = getDefaultBranding();
-    const tips = [];
-    if (!current?.logo) tips.push(language === 'cs' ? 'Pridej logo (zlepsi duveryhodnost widgetu).' : 'Add a logo (improves trust).');
-    if (!current?.businessName || current.businessName === defaults.businessName) tips.push(language === 'cs' ? 'Nastav nazev firmy v Brandingu.' : 'Set your business name in Branding.');
-    if (!current?.tagline || current.tagline === defaults.tagline) tips.push(language === 'cs' ? 'Dopln tagline (kratky popis).' : 'Add a tagline (short description).');
-    return tips.slice(0, 3);
-  }, [BRANDING_TENANT_ID, refreshKey, language]);
-
-  // First-time user detection (no orders + no pricing configured)
-  const isFirstTimeUser = useMemo(() => {
-    return ordersSummary.totalOrders === 0 && pricingData.materialCount === 0;
-  }, [ordersSummary.totalOrders, pricingData.materialCount]);
-
-  // Recent activity from Audit Log
   const recentActivity = useMemo(() => {
     const entries = getAuditEntries();
-    return entries.slice(0, 5).map(e => ({
+    return entries.slice(0, 12).map(e => ({
       id: e.id,
       text: e.summary || e.action,
       actor: e.actor_email || 'System',
-      type: e.action.includes('CREATE') || e.action.includes('ADD') ? 'add' : 'update',
+      type: e.action?.includes('CREATE') || e.action?.includes('ADD') ? 'add'
+        : e.action?.includes('DELETE') || e.action?.includes('REMOVE') ? 'delete'
+        : 'update',
       time: formatRelativeTime(e.timestamp, language),
+      timestamp: e.timestamp,
     }));
+  }, [refreshKey, language]);
+
+  const analytics30d = useMemo(() => {
+    return computeOverview({ fromISO: isoDaysAgo(30), toISO: isoNowEnd() });
   }, [refreshKey]);
 
-  // -----------------------
-  // Actions
-  // -----------------------
+  const brandingTips = useMemo(() => {
+    const current = getBranding(tenantId);
+    const defaults = getDefaultBranding();
+    const tips = [];
+    if (!current?.logo) tips.push(cs ? 'Pridej logo' : 'Add a logo');
+    if (!current?.businessName || current.businessName === defaults.businessName) tips.push(cs ? 'Nastav nazev firmy' : 'Set business name');
+    if (!current?.tagline || current.tagline === defaults.tagline) tips.push(cs ? 'Dopln tagline' : 'Add tagline');
+    return tips;
+  }, [tenantId, refreshKey, cs]);
+
+  const systemStatus = useMemo(() => {
+    const pricing = readTenantJson('pricing:v3', null);
+    const fees = readTenantJson('fees:v3', null);
+    const feesList = Array.isArray(fees) ? fees : (Array.isArray(fees?.fees) ? fees.fees : []);
+
+    const hasPricing = !!(pricing && (pricing.materialPrices || pricing.materials?.length));
+    const hasFees = feesList.length > 0;
+
+    return { hasPricing, hasFees, totalOrders: allOrders.length };
+  }, [allOrders, refreshKey]);
+
+  // ── System alerts ──
+  const systemAlerts = useMemo(() => {
+    const alerts = [];
+    const now = new Date();
+
+    // Expired or expiring coupons
+    try {
+      const couponsConfig = loadCouponsConfigV1();
+      const coupons = couponsConfig.coupons || [];
+      const expiredCount = coupons.filter(c => {
+        if (!c.expires_at || !c.active) return false;
+        return new Date(c.expires_at) < now;
+      }).length;
+      const expiringCount = coupons.filter(c => {
+        if (!c.expires_at || !c.active) return false;
+        const exp = new Date(c.expires_at);
+        const daysLeft = (exp - now) / (1000 * 60 * 60 * 24);
+        return daysLeft >= 0 && daysLeft <= 7;
+      }).length;
+      if (expiredCount > 0) alerts.push({
+        type: 'error',
+        icon: 'Tag',
+        text: cs ? `${expiredCount} kupon(u) vyprselo` : `${expiredCount} coupon(s) expired`,
+        action: '/admin/pricing',
+      });
+      if (expiringCount > 0) alerts.push({
+        type: 'warning',
+        icon: 'Tag',
+        text: cs ? `${expiringCount} kupon(u) vyprsi do 7 dni` : `${expiringCount} coupon(s) expiring within 7 days`,
+        action: '/admin/pricing',
+      });
+    } catch { /* ignore */ }
+
+    // Presets without materials
+    try {
+      const pricingConfig = loadPricingConfigV3();
+      const materials = pricingConfig?.materials || [];
+      if (materials.length === 0 && pricingConfig) {
+        alerts.push({
+          type: 'warning',
+          icon: 'Layers',
+          text: cs ? 'Zadne materialy v ceniku' : 'No materials in pricing',
+          action: '/admin/parameters',
+        });
+      }
+    } catch { /* ignore */ }
+
+    // Missing branding logo
+    try {
+      const branding = getBranding(tenantId);
+      if (!branding?.logo) {
+        alerts.push({
+          type: 'info',
+          icon: 'Image',
+          text: cs ? 'Chybi logo v brandingu' : 'Missing branding logo',
+          action: '/admin/branding',
+        });
+      }
+    } catch { /* ignore */ }
+
+    // Storage approaching limit (estimate based on tenant keys)
+    try {
+      let totalSize = 0;
+      const tid = getTenantId();
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes(tid)) {
+          totalSize += (localStorage.getItem(key) || '').length;
+        }
+      }
+      const sizeMB = totalSize / (1024 * 1024);
+      if (sizeMB > 3) {
+        alerts.push({
+          type: 'warning',
+          icon: 'HardDrive',
+          text: cs ? `Uloziste: ${sizeMB.toFixed(1)} MB (limit ~5 MB)` : `Storage: ${sizeMB.toFixed(1)} MB (limit ~5 MB)`,
+          action: '/admin',
+        });
+      }
+    } catch { /* ignore */ }
+
+    return alerts;
+  }, [refreshKey, tenantId, cs]);
+
+  // ── Revenue sparkline data (last 7 days) ──
+  const revenueSparkline = useMemo(() => {
+    const days = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      days.push({ date: d, revenue: 0, label: d.toLocaleDateString(cs ? 'cs-CZ' : 'en-US', { weekday: 'short' }) });
+    }
+
+    for (const order of allOrders) {
+      const created = new Date(order.created_at || order.createdAt || 0);
+      for (const day of days) {
+        if (created.getFullYear() === day.date.getFullYear()
+          && created.getMonth() === day.date.getMonth()
+          && created.getDate() === day.date.getDate()) {
+          const totals = computeOrderTotals(order);
+          day.revenue += totals.total || 0;
+          break;
+        }
+      }
+    }
+
+    const max = Math.max(...days.map(d => d.revenue), 1);
+    const total7d = days.reduce((s, d) => s + d.revenue, 0);
+    return { days, max, total7d };
+  }, [allOrders, cs]);
+
+  // ── Popular materials (top 3) ──
+  const popularMaterials = useMemo(() => {
+    const counts = {};
+    for (const order of allOrders) {
+      const mats = extractOrderMaterials(order);
+      for (const mat of mats) {
+        counts[mat] = (counts[mat] || 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({ name, count }));
+  }, [allOrders]);
+
+  // ── Pending actions counter ──
+  const pendingActions = useMemo(() => {
+    const newOrders = allOrders.filter(o => o.status === 'NEW').length;
+
+    let pendingInvoices = 0;
+    for (const order of allOrders) {
+      if (['APPROVED', 'READY', 'SHIPPED', 'DONE'].includes(order.status)) {
+        if (!order.invoice_number && !order.payment_status) {
+          pendingInvoices++;
+        }
+      }
+    }
+
+    let expiringCoupons = 0;
+    try {
+      const couponsConfig = loadCouponsConfigV1();
+      const now = new Date();
+      expiringCoupons = (couponsConfig.coupons || []).filter(c => {
+        if (!c.expires_at || !c.active) return false;
+        const exp = new Date(c.expires_at);
+        const daysLeft = (exp - now) / (1000 * 60 * 60 * 24);
+        return daysLeft >= 0 && daysLeft <= 7;
+      }).length;
+    } catch { /* ignore */ }
+
+    const total = newOrders + pendingInvoices + expiringCoupons;
+    return { newOrders, pendingInvoices, expiringCoupons, total };
+  }, [allOrders, refreshKey]);
 
   const handleRefresh = () => setRefreshKey(k => k + 1);
 
-  const formatFeeType = (type) => {
-    const map = {
-      flat: 'fix',
-      per_gram: 'Kc/g',
-      per_minute: 'Kc/min',
-      percent: '%',
-      per_cm3: 'Kc/cm3',
-      per_cm2: 'Kc/cm2',
-      per_model: 'Kc/ks',
-      per_layer: 'Kc/vr.',
-      per_mm_height: 'Kc/mm'
-    };
-    return map[type] || type;
-  };
-
-  const startEdit = () => setDraftConfig(deepClone(dashboardConfig));
-  const cancelEdit = () => setDraftConfig(null);
-
-  const saveEdit = () => {
-    const saved = saveDashboardConfig(draftConfig);
-    setDashboardConfig(saved);
-    setDraftConfig(null);
-  };
-
-  const resetToDefault = () => {
-    const base = resetDashboardConfig();
-    setDashboardConfig(base);
-    setDraftConfig(editing ? deepClone(base) : null);
-  };
-
-  const updateDraft = (next) => setDraftConfig(next);
-
-  const moveCard = (index, delta) => {
-    if (!editing) return;
-    const cards = [...activeConfig.cards];
-    const nextIndex = index + delta;
-    if (nextIndex < 0 || nextIndex >= cards.length) return;
-    const [item] = cards.splice(index, 1);
-    cards.splice(nextIndex, 0, item);
-    updateDraft({ ...activeConfig, cards });
-  };
-
-
-  const toggleLockCard = (id) => {
-    if (!editing) return;
-    const cards = activeConfig.cards.map((c) => (c.id === id ? { ...c, locked: !c.locked } : c));
-    updateDraft({ ...activeConfig, cards });
-  };
-
-  const removeCard = (id) => {
-    if (!editing) return;
-    const cards = activeConfig.cards.filter(c => c.id !== id);
-    updateDraft({ ...activeConfig, cards });
-  };
-
-  const addMetricCard = (metricKey) => {
-    if (!editing) startEdit();
-    const metric = getMetricByKey(metricKey);
-    if (!metric) return;
-
-    const cfg = editing ? activeConfig : deepClone(dashboardConfig);
-    const cols = cfg?.grid?.cols || 3;
-    const occ = buildOccupancy(cfg.cards || [], cols);
-    const pos = occ.findFirstFree();
-
-    const card = {
-      id: uid('card'),
-      metricKey,
-      days: metric.supportsDays ? 30 : undefined,
-      color: metric.defaultColor || '#00D4AA',
-      titleOverride: '',
-      layout: { x: pos.x, y: pos.y, w: 1, h: 1 },
-    };
-
-    const nextCfg = { ...cfg, cards: [...cfg.cards, card] };
-    setDraftConfig(nextCfg);
-    setShowAddModal(false);
-    setSettingsCardId(card.id);
-  };
-
-  const openSettings = (id) => {
-    if (!editing) startEdit();
-    setSettingsCardId(id);
-  };
-
-  const closeSettings = () => setSettingsCardId(null);
-
-  const updateCard = (id, patch) => {
-    if (!editing) return;
-    const cards = activeConfig.cards.map(c => c.id === id ? { ...c, ...patch } : c);
-    updateDraft({ ...activeConfig, cards });
-  };
-
-  const dismissBrandingBanner = () => {
-    // Persist immediately
-    const next = saveDashboardConfig({
-      ...dashboardConfig,
-      ui: { ...dashboardConfig.ui, brandingBannerDismissed: true },
-    });
-    setDashboardConfig(next);
-    if (editing) {
-      setDraftConfig({ ...activeConfig, ui: { ...activeConfig.ui, brandingBannerDismissed: true } });
-    }
-  };
-
-  const toggleSection = (key) => {
-    if (!editing) return;
-    updateDraft({
-      ...activeConfig,
-      sections: { ...activeConfig.sections, [key]: !activeConfig.sections?.[key] },
-    });
-  };
-
-  // -----------------------
-  // Grid helpers (react-grid-layout)
-  // -----------------------
-
-  const gridCols = activeConfig?.grid?.cols || 3;
-  const gridRowHeight = activeConfig?.grid?.rowHeight || 128;
-  const gridMargin = activeConfig?.grid?.margin || [16, 16];
-
-  const sortByLayout = (cards) => {
-    return [...cards].sort((a, b) => {
-      const ay = a?.layout?.y ?? 0;
-      const by = b?.layout?.y ?? 0;
-      if (ay !== by) return ay - by;
-      const ax = a?.layout?.x ?? 0;
-      const bx = b?.layout?.x ?? 0;
-      return ax - bx;
-    });
-  };
-
-  const repackCardsForCols = (cards, cols) => {
-    const sorted = sortByLayout(cards);
-    return sorted.map((c, idx) => {
-      const w = Math.min(Math.max(c?.layout?.w ?? 1, 1), cols);
-      const h = Math.min(Math.max(c?.layout?.h ?? 1, 1), 50);
-      return {
-        ...c,
-        layout: {
-          x: idx % cols,
-          y: Math.floor(idx / cols),
-          w,
-          h,
-        },
-      };
-    });
-  };
-
-  const setDashboardCols = (cols) => {
-    if (!editing) return;
-    const nextCols = Math.min(Math.max(Number(cols) || 3, 2), 6);
-    const nextCards = repackCardsForCols(activeConfig.cards, nextCols);
-    updateDraft({
-      ...activeConfig,
-      grid: { ...(activeConfig.grid || {}), cols: nextCols },
-      cards: nextCards,
-    });
-  };
-
-  const buildOccupancy = (cards, cols) => {
-    const taken = new Set();
-    const mark = (x, y, w, h) => {
-      for (let yy = y; yy < y + h; yy++) {
-        for (let xx = x; xx < x + w; xx++) {
-          taken.add(`${xx},${yy}`);
-        }
-      }
-    };
-    for (const c of cards) {
-      const l = c?.layout;
-      if (!l) continue;
-      mark(l.x ?? 0, l.y ?? 0, l.w ?? 1, l.h ?? 1);
-    }
-    const isFree = (x, y) => !taken.has(`${x},${y}`);
-    const findFirstFree = () => {
-      for (let y = 0; y < 500; y++) {
-        for (let x = 0; x < cols; x++) {
-          if (isFree(x, y)) return { x, y };
-        }
-      }
-      return { x: 0, y: 0 };
-    };
-    return { taken, mark, findFirstFree };
-  };
-
-  const commitRglLayout = (layoutArr) => {
-    if (!editing) return;
-    const map = new Map(layoutArr.map((l) => [l.i, l]));
-    const cards = activeConfig.cards.map((c) => {
-      const l = map.get(c.id);
-      if (!l) return c;
-      return { ...c, layout: { x: l.x, y: l.y, w: l.w, h: l.h } };
-    });
-    updateDraft({ ...activeConfig, cards });
-  };
-
-  const setGridCols = (nextCols) => {
-    if (!editing) return;
-    const cols = Math.min(Math.max(Number(nextCols) || 3, 2), 6);
-    const cards = repackCardsForCols(activeConfig.cards, cols);
-    updateDraft({
-      ...activeConfig,
-      grid: { ...activeConfig.grid, cols },
-      cards,
-    });
-  };
-
-  // -----------------------
-  // Metric rendering
-  // -----------------------
-
-  const metricContext = useMemo(() => ({
-    language,
-    analyticsByDays,
-    teamSummary,
-    seatLimit,
-    ordersSummary,
-    parametersSummary,
-    presetsList,
-    pricingData,
-    feesData,
-    widgetsList,
-    widgetDomains,
-    planFeatures,
-    formatFeeType,
-  }), [
-    language,
-    analyticsByDays,
-    teamSummary,
-    seatLimit,
-    ordersSummary,
-    parametersSummary,
-    presetsList,
-    pricingData,
-    feesData,
-    widgetsList,
-    widgetDomains,
-    planFeatures,
-  ]);
-
-  const filteredMetrics = useMemo(() => {
-    const q = addSearch.trim().toLowerCase();
-    return DASHBOARD_METRICS
-      .filter(m => addCategory === 'all' ? true : m.category === addCategory)
-      .filter(m => {
-        if (!q) return true;
-        const label = m.getLabel?.({ language, days: m.supportsDays ? 30 : undefined }) || m.key;
-        return String(label).toLowerCase().includes(q) || String(m.key).toLowerCase().includes(q);
-      });
-  }, [addSearch, addCategory, language]);
-
-  const getCardMetricResult = (card) => {
-    const metric = getMetricByKey(card.metricKey);
-    if (!metric) {
-      return {
-        metric: null,
-        label: card.metricKey,
-        icon: 'AlertTriangle',
-        color: card.color || '#EF4444',
-        valueText: language === 'cs' ? 'Nezname' : 'Unknown',
-        change: '',
-        subtextNode: null,
-      };
-    }
-
-    const days = metric.supportsDays ? (card.days || 30) : undefined;
-    const label = (card.titleOverride && card.titleOverride.trim())
-      ? card.titleOverride
-      : metric.getLabel?.({ language, days }) || card.metricKey;
-
-    const res = metric.compute ? metric.compute(metricContext, { days, language }) : { value: 0 };
-    const valueText = formatValue({ value: res.value, valueType: metric.valueType, language });
-
-    // Special subtext types (keep registry pure JSON-friendly)
-    let subtextNode = null;
-    if (res.subtext && res.subtext.type === 'feeBreakdown') {
-      const breakdown = res.subtext.breakdown || {};
-      subtextNode = (
-        <div style={{
-          fontSize: 11,
-          fontFamily: 'var(--forge-font-mono)',
-          color: 'var(--forge-text-muted)',
-          marginTop: 4,
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 4
-        }}>
-          {Object.entries(breakdown).map(([type, count]) => (
-            <span key={type} style={{
-              background: 'var(--forge-bg-elevated)',
-              padding: '2px 6px',
-              borderRadius: 'var(--forge-radius-sm, 4px)',
-              border: '1px solid var(--forge-border-default)'
-            }}>
-              {count}x {formatFeeType(type)}
-            </span>
-          ))}
-        </div>
-      );
-    }
-
-    // Detect empty/zero state for friendly empty messages
-    const rawValue = res.value;
-    const isEmptyValue = rawValue === 0 || rawValue === null || rawValue === undefined || rawValue === '';
-    let emptyHint = '';
-    if (isEmptyValue) {
-      // Provide contextual empty hints based on metric category
-      const cat = metric.category || '';
-      if (cat === 'orders' || cat === 'analytics') {
-        emptyHint = language === 'cs' ? 'Zatim zadna data' : 'No data yet';
-      } else if (cat === 'pricing') {
-        emptyHint = language === 'cs' ? 'Neni nastaveno' : 'Not configured';
-      } else if (cat === 'fees') {
-        emptyHint = language === 'cs' ? 'Zadne poplatky' : 'No fees';
-      } else if (cat === 'team') {
-        emptyHint = language === 'cs' ? 'Zatim prazdne' : 'Empty';
-      } else if (cat === 'widget') {
-        emptyHint = language === 'cs' ? 'Zadne widgety' : 'No widgets';
-      } else {
-        emptyHint = language === 'cs' ? 'Zatim prazdne' : 'Empty';
-      }
-    }
-
-    return {
-      metric,
-      label,
-      icon: metric.icon || 'BarChart3',
-      color: card.color || metric.defaultColor || '#00D4AA',
-      valueText,
-      change: res.change || '',
-      subtextNode,
-      supportsDays: !!metric.supportsDays,
-      days,
-      isEmptyValue,
-      emptyHint,
-    };
-  };
-
-  // -----------------------
-  // Render
-  // -----------------------
+  // ── Render ──
 
   return (
-    <div className={`admin-dashboard ${editing ? "editing" : ""}`} data-kpi-cols={gridCols}>
-      <div className="dashboard-header">
+    <div className="admin-dashboard-v2">
+      {/* Header */}
+      <div className="dash-header">
         <div>
-          <h1 style={{
-            margin: '0 0 4px 0',
-            fontSize: 28,
-            fontWeight: 700,
-            fontFamily: 'var(--forge-font-heading)',
-            color: 'var(--forge-text-primary)',
-            letterSpacing: '-0.02em'
-          }}>
-            {language === 'cs' ? 'Dashboard' : 'Dashboard'}
-          </h1>
-          <p style={{
-            margin: 0,
-            color: 'var(--forge-text-muted)',
-            fontSize: 13,
-            fontFamily: 'var(--forge-font-tech)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em'
-          }}>
-            {language === 'cs' ? 'Prehled a rychle statistiky' : 'Overview and quick stats'}
+          <h1 className="dash-title">Dashboard</h1>
+          <p className="dash-subtitle">
+            {cs ? 'Prehled vaseho podnikani' : 'Your business overview'}
           </p>
         </div>
-
-        <div className="dashboard-actions">
-          {!editing ? (
-            <>
-              <button className="btn-secondary" onClick={startEdit}>
-                <Icon name="Pencil" size={16} />
-                {language === 'cs' ? 'Upravit dashboard' : 'Edit dashboard'}
-              </button>
-              <button className="btn-primary" onClick={handleRefresh}>
-                <Icon name="RefreshCw" size={16} />
-                {language === 'cs' ? 'Obnovit' : 'Refresh'}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="cols-control">
-                <span className="cols-label">{language === 'cs' ? 'Sloupce' : 'Columns'}</span>
-                <select
-                  className="cols-select"
-                  value={gridCols}
-                  onChange={(e) => setDashboardCols(e.target.value)}
-                >
-                  {[2,3,4,5,6].map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-              <button className="btn-secondary" onClick={() => setShowAddModal(true)}>
-                <Icon name="Plus" size={16} />
-                {language === 'cs' ? 'Pridat ukazatel' : 'Add KPI'}
-              </button>
-              <button className="btn-secondary" onClick={resetToDefault}>
-                <Icon name="RotateCcw" size={16} />
-                {language === 'cs' ? 'Reset' : 'Reset'}
-              </button>
-              <button className="btn-secondary" onClick={cancelEdit}>
-                {language === 'cs' ? 'Zrusit' : 'Cancel'}
-              </button>
-              <button className="btn-primary" onClick={saveEdit}>
-                <Icon name="Save" size={16} />
-                {language === 'cs' ? 'Ulozit' : 'Save'}
-              </button>
-            </>
-          )}
+        <div className="dash-header-actions">
+          <button className="dash-btn dash-btn--primary" onClick={() => setShowQuickOrder(true)}>
+            <Icon name="Plus" size={16} />
+            {cs ? 'Nova objednavka' : 'New order'}
+          </button>
+          <button className="dash-btn dash-btn--secondary" onClick={() => setShowImportWizard(true)}>
+            <Icon name="Download" size={16} />
+            {cs ? 'Import dat' : 'Import data'}
+          </button>
+          <button className="dash-btn dash-btn--secondary" onClick={handleRefresh}>
+            <Icon name="RefreshCw" size={16} />
+            {cs ? 'Obnovit' : 'Refresh'}
+          </button>
         </div>
       </div>
 
-      {/* Branding Tips Banner */}
-      {activeConfig?.sections?.brandingTips && !activeConfig?.ui?.brandingBannerDismissed && brandingTips.length > 0 && (
-        <div className="branding-banner">
-          <div className="branding-banner-left">
-            <div className="branding-banner-icon">
-              <Icon name="Sparkles" size={18} />
-            </div>
-            <div className="branding-banner-text">
-              <div className="branding-banner-title">
-                {language === 'cs' ? 'Doporuceni: dokonci Branding' : 'Tip: finish Branding'}
-              </div>
-              <ul className="branding-banner-list">
-                {brandingTips.map((tip, i) => <li key={i}>{tip}</li>)}
-              </ul>
+      {/* Onboarding banner */}
+      {!onboardingCompleted && (
+        <div className="dash-onboarding-banner" onClick={() => setShowOnboarding(true)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setShowOnboarding(true); }}>
+          <div className="dash-onboarding-banner-left">
+            <Icon name="Rocket" size={20} color="#00D4AA" />
+            <div>
+              <strong>{cs ? 'Dokoncete nastaveni' : 'Complete your setup'}</strong>
+              <span className="dash-onboarding-banner-sub">
+                {cs ? 'Spustte pruvodce nastavenim a pripravte si kalkulacku' : 'Run the setup wizard and get your calculator ready'}
+              </span>
             </div>
           </div>
-          <div className="branding-banner-actions">
-            <button className="btn-secondary" onClick={() => navigate('/admin/branding')}>
-              {language === 'cs' ? 'Otevrit Branding' : 'Open Branding'}
-            </button>
-            <button className="banner-close" onClick={dismissBrandingBanner} aria-label="Dismiss">
-              <Icon name="X" size={16} />
-            </button>
+          <div className="dash-onboarding-banner-action">
+            <span>{cs ? 'Spustit pruvodce' : 'Start wizard'}</span>
+            <Icon name="ArrowRight" size={14} />
           </div>
         </div>
       )}
 
-      {/* Welcome card for first-time users */}
-      {isFirstTimeUser && !editing && (
-        <div className="welcome-card">
-          <div className="welcome-card-icon">
-            <Icon name="Rocket" size={24} />
-          </div>
-          <div className="welcome-card-content">
-            <h3 className="welcome-card-title">
-              {language === 'cs' ? 'Vitejte v ModelPricer!' : 'Welcome to ModelPricer!'}
-            </h3>
-            <p className="welcome-card-text">
-              {language === 'cs'
-                ? 'Zacnete nastavenim ceniku a materialu v sekci Pricing. Pote muzete vytvorit widget pro svuj web.'
-                : 'Start by configuring your pricing and materials in the Pricing section. Then you can create a widget for your website.'}
-            </p>
-            <div className="welcome-card-actions">
-              <button className="btn-primary" onClick={() => navigate('/admin/pricing')}>
-                <Icon name="Settings" size={16} />
-                {language === 'cs' ? 'Nastavit cenik' : 'Configure Pricing'}
-              </button>
-              <button className="btn-secondary" onClick={() => navigate('/admin/widget')}>
-                <Icon name="Layout" size={16} />
-                {language === 'cs' ? 'Vytvorit widget' : 'Create Widget'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Summary cards */}
+      <div className="dash-summary-cards">
+        <SummaryCard
+          icon="DollarSign"
+          color="#00D4AA"
+          label={cs ? 'Dnesni trzby' : "Today's revenue"}
+          value={fmtCurrency(todayStats.revenue, language)}
+          sub={analytics30d?.metrics?.total_revenue > 0
+            ? `${cs ? '30d celkem' : '30d total'}: ${fmtCurrency(analytics30d.metrics.total_revenue, language)}`
+            : null}
+          onClick={() => navigate('/admin/analytics')}
+        />
+        <SummaryCard
+          icon="ShoppingCart"
+          color="#4DA8DA"
+          label={cs ? 'Dnesni objednavky' : "Today's orders"}
+          value={todayStats.newOrders}
+          sub={`${cs ? 'Celkem' : 'Total'}: ${allOrders.length}`}
+          onClick={() => navigate('/admin/orders')}
+        />
+        <SummaryCard
+          icon="Clock"
+          color="#FF6B35"
+          label={cs ? 'Cekaji na akci' : 'Pending action'}
+          value={todayStats.pending}
+          sub={cs ? 'Nove + Kontrola' : 'New + Review'}
+          highlight={todayStats.pending > 0}
+          onClick={() => navigate('/admin/orders')}
+        />
+        <SummaryCard
+          icon="Printer"
+          color="#9B59B6"
+          label={cs ? 'Aktivni tisky' : 'Active prints'}
+          value={todayStats.activePrints}
+          sub={cs ? 'Tiskne se + Postprocess' : 'Printing + Postprocess'}
+          onClick={() => navigate('/admin/orders')}
+        />
+      </div>
 
-      {/* Sections toggles (edit mode) */}
-      {editing && (
-        <div className="dashboard-edit-toggles">
-          <ForgeCheckbox
-            checked={!!activeConfig.sections?.activity}
-            onChange={() => toggleSection('activity')}
-            label={language === 'cs' ? 'Sekce aktivita' : 'Activity section'}
-          />
-          <ForgeCheckbox
-            checked={!!activeConfig.sections?.quickStats}
-            onChange={() => toggleSection('quickStats')}
-            label={language === 'cs' ? 'Rychle statistiky' : 'Quick stats'}
-          />
-          <ForgeCheckbox
-            checked={!!activeConfig.sections?.brandingTips}
-            onChange={() => toggleSection('brandingTips')}
-            label={language === 'cs' ? 'Branding doporuceni' : 'Branding tips'}
-          />
-        </div>
-      )}
+      {/* 2-column layout */}
+      <div className="dash-columns">
+        {/* Main column */}
+        <div className="dash-main">
 
-      {/* Main KPI Cards (Drag & Drop + Resize) */}
-      <RGL
-        className="stats-grid"
-        layout={activeConfig.cards.map((c) => ({
-          i: c.id,
-          x: c?.layout?.x ?? 0,
-          y: c?.layout?.y ?? 0,
-          w: c?.layout?.w ?? 1,
-          h: c?.layout?.h ?? 1,
-          static: !!c.locked,
-          isDraggable: editing && !c.locked,
-          isResizable: editing && !c.locked,
-        }))}
-        cols={gridCols}
-        rowHeight={gridRowHeight}
-        margin={gridMargin}
-        isDraggable={editing}
-        isResizable={editing}
-        compactType={null}
-        preventCollision={true}
-        resizeHandles={['se']}
-        draggableHandle=".kpi-drag-handle"
-        onDragStop={(layout) => commitRglLayout(layout)}
-        onResizeStop={(layout) => commitRglLayout(layout)}
-      >
-        {activeConfig.cards.map((card, cardIndex) => {
-          const r = getCardMetricResult(card);
-          // Determine accent color for top border based on card index
-          const accentColors = ['#00D4AA', '#FF6B35', '#4DA8DA'];
-          const topBorderColor = card.color || accentColors[cardIndex % accentColors.length];
-          return (
-            <div key={card.id} className="rgl-item">
-              <div className="stat-card" style={{
-                borderTop: `2px solid ${topBorderColor}`,
-                borderRight: '1px solid var(--forge-border-default)',
-                borderBottom: '1px solid var(--forge-border-default)',
-                borderLeft: '1px solid var(--forge-border-default)',
-                background: card.bgColor || 'var(--forge-bg-surface)',
-                borderRadius: 'var(--forge-radius-md, 6px)'
-              }}>
-                {editing && (
-                  <div className="card-edit-controls">
-                    <button className="icon-btn kpi-drag-handle" title={language === 'cs' ? 'Pretahnout' : 'Drag'}>
-                      <Icon name="GripVertical" size={14} />
-                    </button>
-                    <button
-                      className="icon-btn"
-                      onClick={() => toggleLockCard(card.id)}
-                      title={card.locked ? (language === 'cs' ? 'Odemknout' : 'Unlock') : (language === 'cs' ? 'Zamknout' : 'Lock')}
-                    >
-                      <Icon name={card.locked ? 'Lock' : 'Unlock'} size={14} />
-                    </button>
-
-                    <button className="icon-btn" onClick={() => openSettings(card.id)} title={language === 'cs' ? 'Nastaveni' : 'Settings'}>
-                      <Icon name="Settings" size={14} />
-                    </button>
-                    <button className="icon-btn danger" onClick={() => removeCard(card.id)} title={language === 'cs' ? 'Odebrat' : 'Remove'}>
-                      <Icon name="Trash2" size={14} />
-                    </button>
-                  </div>
-                )}
-
-                <div className="stat-icon" style={{ background: `${r.color}15` }}>
-                  <Icon name={r.icon} size={24} color={r.color} />
+          {/* Orders needing attention */}
+          {attentionOrders.length > 0 && (
+            <div className="dash-section dash-section--warning">
+              <div className="dash-section-header">
+                <div className="dash-section-header-left">
+                  <Icon name="AlertTriangle" size={18} color="#F59E0B" />
+                  <h3>{cs ? 'Vyzaduje pozornost' : 'Needs attention'}</h3>
                 </div>
-                <div className="stat-content">
-                  <p className="stat-label">{r.label}</p>
-                  <h2 className={`stat-value${r.isEmptyValue ? ' stat-value--empty' : ''}`}>{r.valueText}</h2>
-                  {r.isEmptyValue && r.emptyHint ? (
-                    <p className="stat-empty-hint">{r.emptyHint}</p>
-                  ) : r.change ? (
-                    <p className="stat-change">{r.change}</p>
-                  ) : (
-                    <p className="stat-change empty"> </p>
-                  )}
-                  {r.subtextNode}
-                </div>
+                <span className="dash-badge dash-badge--warning">{attentionOrders.length}</span>
               </div>
-            </div>
-          );
-        })}
-      </RGL>
-
-      {/* Recent Activity */}
-      {activeConfig.sections?.activity && (
-        <div className="dashboard-section">
-          <h3 style={{
-            fontFamily: 'var(--forge-font-heading)',
-            color: 'var(--forge-text-primary)'
-          }}>
-            {language === 'cs' ? 'Posledni aktivita' : 'Recent Activity'}
-          </h3>
-          <div className="activity-list">
-            {recentActivity.length === 0 ? (
-              <p className="empty-state">{language === 'cs' ? 'Zadna aktivita' : 'No activity'}</p>
-            ) : (
-              recentActivity.map((activity) => (
-                <div key={activity.id} className="activity-item">
-                  <div className={`activity-dot ${activity.type}`}></div>
-                  <div className="activity-content">
-                    <p>{activity.text}</p>
-                    <span className="activity-time">
-                      {activity.actor} &bull; {activity.time}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Quick Stats */}
-      {activeConfig.sections?.quickStats && (
-        <div className="dashboard-section">
-          <h3 style={{
-            fontFamily: 'var(--forge-font-heading)',
-            color: 'var(--forge-text-primary)'
-          }}>
-            {language === 'cs' ? 'Rychle statistiky' : 'Quick Stats'}
-          </h3>
-          <div className="quick-stats-grid">
-            <div className="quick-stat" style={{ borderTop: '2px solid #00D4AA' }}>
-              <span className="quick-stat-label">{language === 'cs' ? 'Prumerna cena (30d)' : 'Avg Price (30d)'}</span>
-              {(analyticsByDays?.[30]?.metrics?.avg_price || 0) > 0
-                ? <span className="quick-stat-value">{analyticsByDays[30].metrics.avg_price.toFixed(0)} Kc</span>
-                : <span className="quick-stat-value quick-stat-value--empty">{language === 'cs' ? '-- Kc' : '-- CZK'}</span>
-              }
-            </div>
-            <div className="quick-stat" style={{ borderTop: '2px solid #FF6B35' }}>
-              <span className="quick-stat-label">{language === 'cs' ? 'Prumerny cas (30d)' : 'Avg Time (30d)'}</span>
-              {(analyticsByDays?.[30]?.metrics?.avg_time_min || 0) > 0
-                ? <span className="quick-stat-value">{analyticsByDays[30].metrics.avg_time_min.toFixed(1)} min</span>
-                : <span className="quick-stat-value quick-stat-value--empty">-- min</span>
-              }
-            </div>
-            <div className="quick-stat" style={{ borderTop: '2px solid #4DA8DA' }}>
-              <span className="quick-stat-label">{language === 'cs' ? 'Pending pozvanek' : 'Pending Invites'}</span>
-              {teamSummary.pendingInvites > 0
-                ? <span className="quick-stat-value">{teamSummary.pendingInvites}</span>
-                : <span className="quick-stat-value quick-stat-value--empty">{language === 'cs' ? 'Zadne' : 'None'}</span>
-              }
-            </div>
-            <div className="quick-stat" style={{ borderTop: '2px solid #00D4AA' }}>
-              <span className="quick-stat-label">{language === 'cs' ? 'Nove objednavky' : 'New Orders'}</span>
-              {ordersSummary.newOrders > 0
-                ? <span className="quick-stat-value">{ordersSummary.newOrders}</span>
-                : <span className="quick-stat-value quick-stat-value--empty">{language === 'cs' ? 'Zadne' : 'None'}</span>
-              }
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Charts */}
-      {!editing && (
-        <DashboardCharts language={language} />
-      )}
-
-      {/* Quick Settings Panel */}
-      {!editing && (
-        <QuickSettings language={language} />
-      )}
-
-      {/* Add Metric Modal */}
-      {editing && showAddModal && (
-        <div className="modal-overlay" ref={addModalRef} onMouseDown={() => setShowAddModal(false)}>
-          <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{
-                fontFamily: 'var(--forge-font-heading)',
-                color: 'var(--forge-text-primary)'
-              }}>
-                {language === 'cs' ? 'Pridat ukazatel' : 'Add KPI'}
-              </h3>
-              <button className="icon-btn" onClick={() => setShowAddModal(false)}><Icon name="X" size={16} /></button>
-            </div>
-
-            <div className="modal-body">
-              <div className="modal-controls">
-                <input
-                  className="modal-input"
-                  placeholder={language === 'cs' ? 'Hledat...' : 'Search...'}
-                  value={addSearch}
-                  onChange={(e) => setAddSearch(e.target.value)}
-                />
-                <select className="modal-select" value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
-                  <option value="all">{language === 'cs' ? 'Vse' : 'All'}</option>
-                  {DASHBOARD_CATEGORIES.map(c => (
-                    <option key={c.key} value={c.key}>{labelByLang(c.label, language)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="metric-list">
-                {filteredMetrics.map((m) => {
-                  const supportsDays = !!m.supportsDays;
-                  const label = m.getLabel?.({ language, days: supportsDays ? 30 : undefined }) || m.key;
+              <div className="dash-attention-list">
+                {attentionOrders.map(order => {
+                  const created = new Date(order.created_at || order.createdAt || Date.now());
+                  const hoursOld = Math.round((Date.now() - created.getTime()) / (1000 * 60 * 60));
                   return (
-                    <button key={m.key} className="metric-row" onClick={() => addMetricCard(m.key)}>
-                      <div className="metric-row-left">
-                        <div className="metric-row-icon" style={{ background: `${(m.defaultColor || '#00D4AA')}15` }}>
-                          <Icon name={m.icon || 'BarChart3'} size={16} color={m.defaultColor || '#00D4AA'} />
-                        </div>
-                        <div className="metric-row-text">
-                          <div className="metric-row-title">{label}</div>
-                          <div className="metric-row-sub">{m.key}</div>
-                        </div>
+                    <div
+                      key={order.id}
+                      className="dash-attention-item"
+                      onClick={() => navigate(`/admin/orders`)}
+                    >
+                      <div className="dash-attention-info">
+                        <span className="dash-attention-id">
+                          #{order.order_number || order.id?.slice(0, 8)}
+                        </span>
+                        <span className="dash-attention-reason">
+                          {hoursOld > 48
+                            ? (cs ? `Ceka ${hoursOld}h` : `Waiting ${hoursOld}h`)
+                            : (cs ? 'Ma vlajky' : 'Has flags')}
+                        </span>
                       </div>
-                      <div className="metric-row-right">
-                        {supportsDays && <span className="pill">{language === 'cs' ? '7/30/90' : '7/30/90'}</span>}
-                        <Icon name="Plus" size={16} />
-                      </div>
-                    </button>
+                      <StatusBadge status={order.status} language={language} />
+                    </div>
                   );
                 })}
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Modal */}
-      {editing && settingsCardId && (
-        <SettingsModal
-          language={language}
-          gridCols={gridCols}
-          card={activeConfig.cards.find(c => c.id === settingsCardId)}
-          metric={getMetricByKey(activeConfig.cards.find(c => c.id === settingsCardId)?.metricKey)}
-          onClose={closeSettings}
-          onChange={(patch) => updateCard(settingsCardId, patch)}
-        />
-      )}
-
-      <style>{`
-        .admin-dashboard {
-          max-width: 1400px;
-          padding: 24px;
-          background: var(--forge-bg-void, #0A0E17);
-          min-height: 100vh;
-        }
-
-        .dashboard-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 20px;
-        }
-
-        .dashboard-actions {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .cols-control {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--forge-bg-surface, #111827);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          padding: 8px 10px;
-          border-radius: var(--forge-radius-md, 6px);
-        }
-
-        .cols-label {
-          font-size: 11px;
-          color: var(--forge-text-muted, #64748B);
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          font-weight: 600;
-        }
-
-        .cols-select {
-          border: 1px solid var(--forge-border-default, #1E293B);
-          background: var(--forge-bg-void, #0A0E17);
-          border-radius: var(--forge-radius-md, 6px);
-          padding: 6px 8px;
-          font-size: 13px;
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-          color: var(--forge-text-primary, #F1F5F9);
-          outline: none;
-        }
-
-        .btn-primary, .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 16px;
-          border-radius: var(--forge-radius-md, 6px);
-          font-size: 13px;
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
-          font-weight: 600;
-          cursor: pointer;
-          border: 1px solid transparent;
-          transition: all 0.2s;
-          letter-spacing: 0.02em;
-        }
-
-        .btn-primary {
-          background: var(--forge-accent-primary, #00D4AA);
-          color: var(--forge-bg-void, #0A0E17);
-        }
-
-        .btn-primary:hover {
-          background: #00E8BB;
-          box-shadow: 0 0 16px rgba(0, 212, 170, 0.25);
-        }
-
-        .btn-secondary {
-          background: var(--forge-bg-surface, #111827);
-          color: var(--forge-text-secondary, #94A3B8);
-          border-color: var(--forge-border-default, #1E293B);
-        }
-
-        .btn-secondary:hover {
-          background: var(--forge-bg-elevated, #1E293B);
-          border-color: var(--forge-accent-primary, #00D4AA);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        /* Branding banner */
-        .branding-banner {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          background: var(--forge-bg-surface, #111827);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          border-left: 3px solid var(--forge-accent-primary, #00D4AA);
-          border-radius: var(--forge-radius-md, 6px);
-          padding: 12px 14px;
-          margin-bottom: 18px;
-        }
-
-        .branding-banner-left {
-          display: flex;
-          gap: 12px;
-          align-items: flex-start;
-        }
-
-        .branding-banner-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: var(--forge-radius-md, 6px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(0, 212, 170, 0.1);
-          color: var(--forge-accent-primary, #00D4AA);
-          flex-shrink: 0;
-        }
-
-        .branding-banner-title {
-          font-weight: 700;
-          color: var(--forge-text-primary, #F1F5F9);
-          margin-bottom: 4px;
-          font-size: 14px;
-          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
-        }
-
-        .branding-banner-list {
-          margin: 0;
-          padding-left: 18px;
-          color: var(--forge-text-secondary, #94A3B8);
-          font-size: 13px;
-        }
-
-        .branding-banner-actions {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-        }
-
-        .banner-close {
-          width: 34px;
-          height: 34px;
-          border-radius: var(--forge-radius-md, 6px);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          background: var(--forge-bg-surface, #111827);
-          color: var(--forge-text-muted, #64748B);
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .banner-close:hover {
-          background: var(--forge-bg-elevated, #1E293B);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        /* Edit toggles */
-        .dashboard-edit-toggles {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          background: var(--forge-bg-surface, #111827);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          padding: 10px 12px;
-          border-radius: var(--forge-radius-md, 6px);
-          margin-bottom: 18px;
-        }
-        .toggle {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          color: var(--forge-text-secondary, #94A3B8);
-          font-size: 13px;
-          user-select: none;
-        }
-
-        .toggle input[type="checkbox"] {
-          accent-color: var(--forge-accent-primary, #00D4AA);
-        }
-
-        .stats-grid {
-          position: relative;
-          margin-bottom: 32px;
-        }
-
-        .kpi-drag-handle {
-          cursor: grab;
-        }
-
-        .kpi-drag-handle:active {
-          cursor: grabbing;
-        }
-
-        .stat-card {
-          position: relative;
-          height: 100%;
-          background: var(--forge-bg-surface, #111827);
-          border-radius: var(--forge-radius-md, 6px);
-          padding: 24px;
-          border: 1px solid var(--forge-border-default, #1E293B);
-          display: flex;
-          gap: 16px;
-          transition: all 0.2s;
-        }
-
-        .stat-card:hover {
-          border-color: rgba(0, 212, 170, 0.3);
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-          transform: translateY(-1px);
-        }
-
-        .card-edit-controls {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          display: flex;
-          gap: 6px;
-          background: var(--forge-bg-elevated, #1E293B);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          padding: 6px;
-          border-radius: var(--forge-radius-md, 6px);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        .icon-btn {
-          width: 28px;
-          height: 28px;
-          border-radius: var(--forge-radius-md, 6px);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          background: var(--forge-bg-surface, #111827);
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--forge-text-secondary, #94A3B8);
-        }
-
-        .icon-btn:hover {
-          background: var(--forge-bg-elevated, #1E293B);
-          color: var(--forge-text-primary, #F1F5F9);
-          border-color: var(--forge-accent-primary, #00D4AA);
-        }
-
-        .icon-btn:disabled {
-          opacity: 0.35;
-          cursor: not-allowed;
-        }
-
-        .icon-btn.danger {
-          color: #EF4444;
-        }
-
-        .icon-btn.danger:hover {
-          background: rgba(239, 68, 68, 0.15);
-          border-color: #EF4444;
-        }
-
-        .stat-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: var(--forge-radius-md, 6px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .stat-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .stat-label {
-          margin: 0 0 4px 0;
-          font-size: 11px;
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--forge-text-muted, #64748B);
-          font-weight: 500;
-        }
-
-        .stat-value {
-          margin: 0 0 4px 0;
-          font-size: 28px;
-          font-weight: 700;
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        .stat-change {
-          margin: 0;
-          font-size: 12px;
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-          color: var(--forge-text-muted, #64748B);
-        }
-
-        .stat-change.empty {
-          visibility: hidden;
-        }
-
-        .dashboard-section {
-          background: var(--forge-bg-surface, #111827);
-          border-radius: var(--forge-radius-md, 6px);
-          padding: 24px;
-          border: 1px solid var(--forge-border-default, #1E293B);
-          margin-bottom: 24px;
-        }
-
-        .dashboard-section h3 {
-          margin: 0 0 16px 0;
-          font-size: 18px;
-          font-weight: 700;
-          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        .activity-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .activity-item {
-          display: flex;
-          gap: 12px;
-          align-items: flex-start;
-          padding: 8px 10px;
-          border-radius: var(--forge-radius-md, 6px);
-          transition: background 0.15s;
-        }
-
-        .activity-item:hover {
-          background: var(--forge-bg-elevated, #1E293B);
-        }
-
-        .activity-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          margin-top: 6px;
-          flex-shrink: 0;
-        }
-
-        .activity-dot.add { background: #00D4AA; }
-        .activity-dot.update { background: #4DA8DA; }
-
-        .activity-content p {
-          margin: 0 0 2px 0;
-          font-size: 14px;
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        .activity-time {
-          font-size: 11px;
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-          color: var(--forge-text-muted, #64748B);
-        }
-
-        .empty-state {
-          margin: 0;
-          color: var(--forge-text-muted, #64748B);
-          font-size: 14px;
-        }
-
-        .quick-stats-grid {
-          display: grid;
-          grid-template-columns: 1.2fr 1fr 0.8fr 1fr;
-          gap: 16px;
-        }
-
-        .quick-stat {
-          background: var(--forge-bg-void, #0A0E17);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          border-radius: var(--forge-radius-md, 6px);
-          padding: 16px;
-        }
-
-        .quick-stat-label {
-          display: block;
-          font-size: 10px;
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--forge-text-muted, #64748B);
-          margin-bottom: 6px;
-        }
-
-        .quick-stat-value {
-          font-size: 18px;
-          font-weight: 700;
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        /* Modal */
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.65);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 16px;
-          z-index: 50;
-        }
-
-        .modal {
-          width: min(860px, 100%);
-          max-height: min(80vh, 900px);
-          overflow: hidden;
-          background: var(--forge-bg-surface, #111827);
-          border-radius: var(--forge-radius-md, 6px);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-          display: flex;
-          flex-direction: column;
-        }
-
-        .modal-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 14px 16px;
-          border-bottom: 1px solid var(--forge-border-default, #1E293B);
-        }
-
-        .modal-header h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 800;
-          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        .modal-body {
-          padding: 14px 16px 16px 16px;
-          overflow: auto;
-        }
-
-        .modal-controls {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 12px;
-          flex-wrap: wrap;
-        }
-
-        .modal-input, .modal-select {
-          border: 1px solid var(--forge-border-default, #1E293B);
-          border-radius: var(--forge-radius-md, 6px);
-          padding: 10px 12px;
-          font-size: 14px;
-          outline: none;
-          background: var(--forge-bg-void, #0A0E17);
-          color: var(--forge-text-primary, #F1F5F9);
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-        }
-
-        .modal-input::placeholder {
-          color: var(--forge-text-muted, #64748B);
-        }
-
-        .modal-input:focus, .modal-select:focus {
-          border-color: var(--forge-accent-primary, #00D4AA);
-          box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.15);
-        }
-
-        .modal-input {
-          flex: 1;
-          min-width: 220px;
-        }
-
-        .metric-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .metric-row {
-          width: 100%;
-          text-align: left;
-          border: 1px solid var(--forge-border-default, #1E293B);
-          border-radius: var(--forge-radius-md, 6px);
-          background: var(--forge-bg-surface, #111827);
-          padding: 10px 12px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          transition: all 0.15s;
-        }
-
-        .metric-row:hover {
-          background: var(--forge-bg-elevated, #1E293B);
-          border-color: var(--forge-accent-primary, #00D4AA);
-        }
-
-        .metric-row-left {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          min-width: 0;
-        }
-
-        .metric-row-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: var(--forge-radius-md, 6px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .metric-row-text {
-          min-width: 0;
-        }
-
-        .metric-row-title {
-          font-weight: 700;
-          color: var(--forge-text-primary, #F1F5F9);
-          font-size: 14px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .metric-row-sub {
-          color: var(--forge-text-muted, #64748B);
-          font-size: 11px;
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-        }
-
-        .metric-row-right {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          color: var(--forge-text-secondary, #94A3B8);
-        }
-
-        .pill {
-          font-size: 11px;
-          padding: 3px 8px;
-          border-radius: 999px;
-          background: var(--forge-bg-elevated, #1E293B);
-          border: 1px solid var(--forge-border-default, #1E293B);
-          color: var(--forge-text-muted, #64748B);
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
-        }
-
-        @media (max-width: 640px) {
-          .dashboard-header {
-            flex-direction: column;
-            gap: 12px;
-          }
-          .quick-stats-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-
-        /* --- KPI grid readability (handles many columns) --- */
-        .stat-card {
-          height: 100%;
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-        .stat-content {
-          min-width: 0;
-        }
-        .stat-label {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .stat-value {
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          font-size: clamp(20px, 2.2vw, 34px);
-          line-height: 1.05;
-        }
-        .admin-dashboard[data-kpi-cols="6"] .stat-value {
-          font-size: clamp(18px, 1.8vw, 28px);
-        }
-        .admin-dashboard[data-kpi-cols="6"] .stat-icon {
-          width: 42px;
-          height: 42px;
-        }
-        .admin-dashboard.editing .react-resizable-handle {
-          z-index: 30;
-          opacity: 0.85;
-          width: 18px;
-          height: 18px;
-        }
-        .admin-dashboard.editing .react-resizable-handle::after {
-          border-right: 2px solid var(--forge-accent-primary, #00D4AA);
-          border-bottom: 2px solid var(--forge-accent-primary, #00D4AA);
-        }
-        .admin-dashboard.editing .rgl-item {
-          overflow: visible;
-        }
-
-        /* Empty state hint for KPI cards */
-        .stat-value--empty {
-          opacity: 0.4;
-        }
-
-        .stat-empty-hint {
-          margin: 0;
-          font-size: 11px;
-          font-family: var(--forge-font-body, 'IBM Plex Sans', sans-serif);
-          color: var(--forge-text-muted, #64748B);
-          font-style: italic;
-        }
-
-        /* Quick stat empty value */
-        .quick-stat-value--empty {
-          opacity: 0.4;
-          font-style: italic;
-        }
-
-        /* Welcome card for first-time users */
-        .welcome-card {
-          display: flex;
-          gap: 16px;
-          align-items: flex-start;
-          background: var(--forge-bg-surface, #111827);
-          border: 1px solid var(--forge-border-highlight, rgba(0, 212, 170, 0.2));
-          border-radius: var(--forge-radius-lg, 8px);
-          padding: 20px 24px;
-          margin-bottom: 20px;
-          box-shadow: 0 0 24px rgba(0, 212, 170, 0.06);
-        }
-
-        .welcome-card-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: var(--forge-radius-md, 6px);
-          background: var(--forge-accent-primary-subtle, rgba(0, 212, 170, 0.15));
-          color: var(--forge-accent-primary, #00D4AA);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .welcome-card-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .welcome-card-title {
-          margin: 0 0 6px 0;
-          font-size: 18px;
-          font-weight: 700;
-          font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
-          color: var(--forge-text-primary, #F1F5F9);
-        }
-
-        .welcome-card-text {
-          margin: 0 0 14px 0;
-          font-size: 14px;
-          color: var(--forge-text-secondary, #94A3B8);
-          line-height: 1.5;
-        }
-
-        .welcome-card-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        /* Scrollbar styling for dark theme */
-        .modal-body::-webkit-scrollbar {
-          width: 6px;
-        }
-        .modal-body::-webkit-scrollbar-track {
-          background: var(--forge-bg-void, #0A0E17);
-        }
-        .modal-body::-webkit-scrollbar-thumb {
-          background: var(--forge-border-default, #1E293B);
-          border-radius: 3px;
-        }
-        .modal-body::-webkit-scrollbar-thumb:hover {
-          background: var(--forge-text-muted, #64748B);
-        }
-      `}</style>
-    </div>
-  );
-};
-
-function SettingsModal({ language, gridCols = 3, card, metric, onClose, onChange }) {
-  // Scroll containment for Settings modal — smooth easing
-  const settingsOverlayRef = useRef(null);
-
-  useEffect(() => {
-    if (!card) return;
-    document.body.style.overflow = 'hidden';
-    const overlay = settingsOverlayRef.current;
-    if (!overlay) return;
-
-    let targetY = 0;
-    let rafId = null;
-
-    const animate = () => {
-      const body = overlay.querySelector('.modal-body');
-      if (!body) { rafId = null; return; }
-      const diff = targetY - body.scrollTop;
-      if (Math.abs(diff) < 0.5) { body.scrollTop = targetY; rafId = null; return; }
-      body.scrollTop += diff * 0.18;
-      rafId = requestAnimationFrame(animate);
-    };
-
-    const handleWheel = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const body = overlay.querySelector('.modal-body');
-      if (!body) return;
-      let delta = e.deltaY;
-      if (e.deltaMode === 1) delta *= 40;
-      if (e.deltaMode === 2) delta *= body.clientHeight;
-      if (rafId === null) targetY = body.scrollTop;
-      const maxScroll = body.scrollHeight - body.clientHeight;
-      targetY = Math.max(0, Math.min(maxScroll, targetY + delta));
-      if (!rafId) rafId = requestAnimationFrame(animate);
-    };
-
-    overlay.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      overlay.removeEventListener('wheel', handleWheel);
-      if (rafId) cancelAnimationFrame(rafId);
-      document.body.style.overflow = '';
-    };
-  }, [card]);
-
-  if (!card) return null;
-  const supportsDays = !!metric?.supportsDays;
-  const days = supportsDays ? (card.days || 30) : undefined;
-
-  const fieldLabelStyle = {
-    fontSize: 10,
-    fontFamily: 'var(--forge-font-tech, "Space Mono", monospace)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    color: 'var(--forge-text-muted, #64748B)',
-    marginBottom: 6,
-  };
-
-  const colorInputStyle = {
-    width: 48,
-    height: 38,
-    border: '1px solid var(--forge-border-default, #1E293B)',
-    borderRadius: 'var(--forge-radius-md, 6px)',
-    padding: 4,
-    background: 'var(--forge-bg-void, #0A0E17)',
-  };
-
-  return (
-    <div className="modal-overlay" ref={settingsOverlayRef} onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 style={{
-            fontFamily: 'var(--forge-font-heading, "Space Grotesk", sans-serif)',
-            color: 'var(--forge-text-primary, #F1F5F9)'
-          }}>
-            {language === 'cs' ? 'Nastaveni ukazatele' : 'KPI Settings'}
-          </h3>
-          <button className="icon-btn" onClick={onClose}><Icon name="X" size={16} /></button>
-        </div>
-        <div className="modal-body">
-          <div style={{ display: 'grid', gap: 12 }}>
-            <div>
-              <div style={fieldLabelStyle}>
-                {language === 'cs' ? 'Vlastni nazev (volitelne)' : 'Custom title (optional)'}
-              </div>
-              <input
-                className="modal-input"
-                value={card.titleOverride || ''}
-                onChange={(e) => onChange({ titleOverride: e.target.value })}
-                placeholder={language === 'cs' ? 'Nechat automaticky' : 'Leave automatic'}
-              />
+          )}
+
+          {/* Recent orders */}
+          <div className="dash-section">
+            <div className="dash-section-header">
+              <h3>{cs ? 'Posledni objednavky' : 'Recent orders'}</h3>
+              <button
+                className="dash-link-btn"
+                onClick={() => navigate('/admin/orders')}
+              >
+                {cs ? 'Zobrazit vse' : 'View all'}
+                <Icon name="ArrowRight" size={14} />
+              </button>
             </div>
 
-            <div>
-              <div style={fieldLabelStyle}>
-                {language === 'cs' ? 'Barva' : 'Color'}
-              </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="color"
-                  value={card.color || metric?.defaultColor || '#00D4AA'}
-                  onChange={(e) => onChange({ color: e.target.value })}
-                  style={colorInputStyle}
-                />
-                <input
-                  className="modal-input"
-                  value={card.color || ''}
-                  onChange={(e) => onChange({ color: e.target.value })}
-                  placeholder="#00D4AA"
-                  style={{ maxWidth: 220 }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <div style={fieldLabelStyle}>
-                {language === 'cs' ? 'Pozadi karty' : 'Card background'}
-              </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="color"
-                  value={(card.bgColor && card.bgColor.startsWith('#')) ? card.bgColor : '#111827'}
-                  onChange={(e) => onChange({ bgColor: e.target.value })}
-                  style={colorInputStyle}
-                />
-                <input
-                  className="modal-input"
-                  value={card.bgColor || ''}
-                  onChange={(e) => onChange({ bgColor: e.target.value })}
-                  placeholder={language === 'cs' ? 'napr. #111827 nebo prazdne' : 'e.g. #111827 or empty'}
-                  style={{ maxWidth: 220 }}
-                />
+            {recentOrders.length === 0 ? (
+              <div className="dash-empty">
+                <Icon name="Package" size={32} color="var(--forge-text-muted)" />
+                <p>{cs ? 'Zatim zadne objednavky' : 'No orders yet'}</p>
                 <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={() => onChange({ bgColor: '' })}
-                  style={{ padding: '8px 12px' }}
+                  className="dash-btn dash-btn--secondary"
+                  onClick={() => setShowQuickOrder(true)}
                 >
-                  {language === 'cs' ? 'Vycistit' : 'Clear'}
+                  {cs ? 'Vytvorit prvni objednavku' : 'Create first order'}
                 </button>
               </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <ForgeCheckbox
-                checked={!!card.locked}
-                onChange={() => onChange({ locked: !card.locked })}
-                label={language === 'cs' ? 'Zamknout kartu (nelze presouvat ani menit velikost)' : 'Lock card (disable move/resize)'}
-              />
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <div style={fieldLabelStyle}>
-                {language === 'cs' ? 'Velikost karty' : 'Card size'}
-              </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: 1, h: 1 } })}>
-                  1x1
-                </button>
-                <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: Math.min(2, gridCols), h: 1 } })}>
-                  2x1
-                </button>
-                <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: 1, h: 2 } })}>
-                  1x2
-                </button>
-                <button className="btn-secondary" type="button" onClick={() => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: Math.min(2, gridCols), h: 2 } })}>
-                  2x2
-                </button>
-
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginLeft: 6 }}>
-                  <div style={fieldLabelStyle}>{language === 'cs' ? 'Sirka' : 'W'}</div>
-                  <select
-                    className="modal-select"
-                    value={card.layout?.w || 1}
-                    onChange={(e) => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), w: Number(e.target.value) } })}
-                    style={{ width: 90 }}
-                  >
-                    {Array.from({ length: Math.max(1, gridCols) }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-
-                  <div style={fieldLabelStyle}>{language === 'cs' ? 'Vyska' : 'H'}</div>
-                  <select
-                    className="modal-select"
-                    value={card.layout?.h || 1}
-                    onChange={(e) => onChange({ layout: { ...(card.layout || { x: 0, y: 0, w: 1, h: 1 }), h: Number(e.target.value) } })}
-                    style={{ width: 90 }}
-                  >
-                    {[1,2,3,4].map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
+            ) : (
+              <div className="dash-orders-table">
+                <div className="dash-orders-head">
+                  <span className="dash-col-id">#</span>
+                  <span className="dash-col-customer">{cs ? 'Zakaznik' : 'Customer'}</span>
+                  <span className="dash-col-status">{cs ? 'Stav' : 'Status'}</span>
+                  <span className="dash-col-models">{cs ? 'Modely' : 'Models'}</span>
+                  <span className="dash-col-total">{cs ? 'Celkem' : 'Total'}</span>
+                  <span className="dash-col-date">{cs ? 'Datum' : 'Date'}</span>
                 </div>
-              </div>
-
-              <div style={{
-                marginTop: 8,
-                fontSize: 12,
-                color: 'var(--forge-text-muted, #64748B)',
-                fontFamily: 'var(--forge-font-mono, "JetBrains Mono", monospace)'
-              }}>
-                {language === 'cs'
-                  ? 'Tip: velikost muzes zmenit i tazenim za roh karty (v rezimu uprav).'
-                  : 'Tip: you can also resize by dragging the card corner (in edit mode).'}
-              </div>
-            </div>
-
-            {supportsDays && (
-
-              <div>
-                <div style={fieldLabelStyle}>
-                  {language === 'cs' ? 'Casovy rozsah' : 'Time range'}
-                </div>
-                <select
-                  className="modal-select"
-                  value={days}
-                  onChange={(e) => onChange({ days: Number(e.target.value) })}
-                >
-                  <option value={7}>{language === 'cs' ? '7 dni' : '7 days'}</option>
-                  <option value={30}>{language === 'cs' ? '30 dni' : '30 days'}</option>
-                  <option value={90}>{language === 'cs' ? '90 dni' : '90 days'}</option>
-                </select>
+                {recentOrders.map(order => (
+                  <div
+                    key={order.id}
+                    className="dash-orders-row"
+                    onClick={() => navigate('/admin/orders')}
+                  >
+                    <span className="dash-col-id dash-order-num">{order.orderNumber}</span>
+                    <span className="dash-col-customer">{order.customer}</span>
+                    <span className="dash-col-status">
+                      <StatusBadge status={order.status} language={language} />
+                    </span>
+                    <span className="dash-col-models">{order.models}</span>
+                    <span className="dash-col-total dash-mono">{fmtCurrency(order.total, language)}</span>
+                    <span className="dash-col-date dash-muted">
+                      {order.created ? formatRelativeTime(order.created, language) : '---'}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
-            <button className="btn-secondary" onClick={onClose}>{language === 'cs' ? 'Hotovo' : 'Done'}</button>
+          {/* Recent activity */}
+          <div className="dash-section">
+            <div className="dash-section-header">
+              <h3>{cs ? 'Posledni aktivita' : 'Recent activity'}</h3>
+            </div>
+            {recentActivity.length === 0 ? (
+              <p className="dash-empty-text">{cs ? 'Zadna aktivita' : 'No activity'}</p>
+            ) : (
+              <div className="dash-activity-feed">
+                {recentActivity.map(a => (
+                  <div key={a.id} className="dash-activity-item">
+                    <div className={`dash-activity-dot dash-activity-dot--${a.type}`} />
+                    <div className="dash-activity-content">
+                      <p className="dash-activity-text">{a.text}</p>
+                      <span className="dash-activity-meta">
+                        {a.actor} &bull; {a.time}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Sidebar */}
+        <div className="dash-sidebar">
+
+          {/* Quick actions */}
+          <div className="dash-section">
+            <h3 className="dash-section-title">{cs ? 'Rychle akce' : 'Quick actions'}</h3>
+            <div className="dash-quick-actions">
+              <button className="dash-btn dash-btn--primary dash-btn--full" onClick={() => setShowQuickOrder(true)}>
+                <Icon name="Plus" size={16} />
+                {cs ? 'Nova objednavka' : 'New order'}
+              </button>
+              <button className="dash-btn dash-btn--secondary dash-btn--full" onClick={() => navigate('/admin/orders')}>
+                <Icon name="ShoppingCart" size={16} />
+                {cs ? 'Vsechny objednavky' : 'All orders'}
+              </button>
+              <button className="dash-btn dash-btn--secondary dash-btn--full" onClick={() => navigate('/admin/analytics')}>
+                <Icon name="BarChart3" size={16} />
+                {cs ? 'Analytika' : 'Analytics'}
+              </button>
+              <button className="dash-link-btn" onClick={() => setShowOnboarding(true)} style={{ marginTop: 4, justifyContent: 'center' }}>
+                <Icon name="Rocket" size={12} />
+                {cs ? 'Pruvodce nastavenim' : 'Setup wizard'}
+              </button>
+            </div>
+          </div>
+
+          {/* Quick links */}
+          <div className="dash-section">
+            <h3 className="dash-section-title">{cs ? 'Navigace' : 'Navigation'}</h3>
+            <div className="dash-quick-links">
+              {QUICK_LINKS.map(link => (
+                <button
+                  key={link.path}
+                  className="dash-quick-link"
+                  onClick={() => navigate(link.path)}
+                >
+                  <div className="dash-quick-link-icon">
+                    <Icon name={link.icon} size={16} />
+                  </div>
+                  <span>{cs ? link.labelCs : link.labelEn}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Pending actions counter */}
+          {pendingActions.total > 0 && (
+            <div className="dash-section dash-section--pending">
+              <div className="dash-section-header">
+                <div className="dash-section-header-left">
+                  <Icon name="Bell" size={16} color="#FF6B35" />
+                  <h3>{cs ? 'Cekajici akce' : 'Pending actions'}</h3>
+                </div>
+                <span className="dash-badge dash-badge--pending">{pendingActions.total}</span>
+              </div>
+              <div className="dash-pending-list">
+                {pendingActions.newOrders > 0 && (
+                  <div className="dash-pending-item" onClick={() => navigate('/admin/orders')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') navigate('/admin/orders'); }}>
+                    <div className="dash-pending-left">
+                      <Icon name="ShoppingCart" size={14} color="#4DA8DA" />
+                      <span>{cs ? 'Nove objednavky' : 'New orders'}</span>
+                    </div>
+                    <span className="dash-pending-count">{pendingActions.newOrders}</span>
+                  </div>
+                )}
+                {pendingActions.pendingInvoices > 0 && (
+                  <div className="dash-pending-item" onClick={() => navigate('/admin/orders')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') navigate('/admin/orders'); }}>
+                    <div className="dash-pending-left">
+                      <Icon name="Receipt" size={14} color="#F59E0B" />
+                      <span>{cs ? 'Cekajici faktury' : 'Pending invoices'}</span>
+                    </div>
+                    <span className="dash-pending-count">{pendingActions.pendingInvoices}</span>
+                  </div>
+                )}
+                {pendingActions.expiringCoupons > 0 && (
+                  <div className="dash-pending-item" onClick={() => navigate('/admin/pricing')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') navigate('/admin/pricing'); }}>
+                    <div className="dash-pending-left">
+                      <Icon name="Tag" size={14} color="#EF4444" />
+                      <span>{cs ? 'Vyprsi kupony' : 'Expiring coupons'}</span>
+                    </div>
+                    <span className="dash-pending-count">{pendingActions.expiringCoupons}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Revenue sparkline */}
+          <div className="dash-section">
+            <div className="dash-section-header">
+              <h3 className="dash-section-title" style={{ marginBottom: 0 }}>{cs ? 'Trzby (7 dni)' : 'Revenue (7 days)'}</h3>
+              <span className="dash-sparkline-total">{fmtCurrency(revenueSparkline.total7d, language)}</span>
+            </div>
+            <RevenueSparkline data={revenueSparkline} language={language} />
+          </div>
+
+          {/* Popular materials */}
+          {popularMaterials.length > 0 && (
+            <div className="dash-section">
+              <h3 className="dash-section-title">{cs ? 'Nejpouzivanejsi materialy' : 'Popular materials'}</h3>
+              <div className="dash-popular-materials">
+                {popularMaterials.map((mat, i) => (
+                  <div key={mat.name} className="dash-material-row">
+                    <div className="dash-material-rank">{i + 1}.</div>
+                    <div className="dash-material-name">{mat.name}</div>
+                    <div className="dash-material-count">
+                      {mat.count} {cs ? 'obj.' : 'ord.'}
+                    </div>
+                    <div className="dash-material-bar-track">
+                      <div
+                        className="dash-material-bar-fill"
+                        style={{ width: `${Math.round((mat.count / (popularMaterials[0]?.count || 1)) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button className="dash-link-btn" onClick={() => navigate('/admin/parameters')} style={{ marginTop: 10 }}>
+                {cs ? 'Vse materialy' : 'All materials'}
+                <Icon name="ArrowRight" size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* System alerts */}
+          {systemAlerts.length > 0 && (
+            <div className="dash-section">
+              <div className="dash-section-header">
+                <div className="dash-section-header-left">
+                  <Icon name="AlertCircle" size={16} color="#F59E0B" />
+                  <h3 className="dash-section-title" style={{ marginBottom: 0 }}>{cs ? 'Upozorneni' : 'Alerts'}</h3>
+                </div>
+              </div>
+              <div className="dash-alerts-list">
+                {systemAlerts.map((alert, i) => (
+                  <div
+                    key={i}
+                    className={`dash-alert-item dash-alert-item--${alert.type}`}
+                    onClick={() => navigate(alert.action)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter') navigate(alert.action); }}
+                  >
+                    <Icon name={alert.icon} size={14} className="dash-alert-icon" />
+                    <span className="dash-alert-text">{alert.text}</span>
+                    <Icon name="ChevronRight" size={12} className="dash-alert-arrow" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* System status */}
+          <div className="dash-section">
+            <h3 className="dash-section-title">{cs ? 'Stav systemu' : 'System status'}</h3>
+            <div className="dash-status-list">
+              <StatusRow
+                label={cs ? 'Cenik nastaven' : 'Pricing configured'}
+                ok={systemStatus.hasPricing}
+                language={language}
+              />
+              <StatusRow
+                label={cs ? 'Poplatky nastaveny' : 'Fees configured'}
+                ok={systemStatus.hasFees}
+                language={language}
+              />
+              <StatusRow
+                label={cs ? 'Objednavky v systemu' : 'Orders in system'}
+                ok={systemStatus.totalOrders > 0}
+                language={language}
+                value={systemStatus.totalOrders}
+              />
+            </div>
+
+            {/* Branding tips */}
+            {brandingTips.length > 0 && (
+              <div className="dash-branding-tips">
+                <div className="dash-branding-tips-header">
+                  <Icon name="Sparkles" size={14} color="#F59E0B" />
+                  <span>{cs ? 'Doporuceni' : 'Tips'}</span>
+                </div>
+                <ul className="dash-branding-tips-list">
+                  {brandingTips.map((tip, i) => <li key={i}>{tip}</li>)}
+                </ul>
+                <button
+                  className="dash-link-btn"
+                  onClick={() => navigate('/admin/branding')}
+                  style={{ marginTop: 8 }}
+                >
+                  {cs ? 'Otevrit Branding' : 'Open Branding'}
+                  <Icon name="ArrowRight" size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Settings */}
+          <QuickSettings language={language} />
+        </div>
       </div>
+
+      <DataImportWizard
+        open={showImportWizard}
+        onClose={() => {
+          setShowImportWizard(false);
+          handleRefresh();
+        }}
+      />
+
+      <QuickOrderForm
+        open={showQuickOrder}
+        onClose={() => setShowQuickOrder(false)}
+        onCreated={() => {
+          setShowQuickOrder(false);
+          handleRefresh();
+        }}
+      />
+
+      <OnboardingWizard
+        open={showOnboarding}
+        onClose={() => {
+          setShowOnboarding(false);
+          handleRefresh();
+        }}
+      />
+
+      <style>{dashboardStyles}</style>
+    </div>
+  );
+};
+
+/* ── Sub-components ───────────────────────────────────────────────────── */
+
+function SummaryCard({ icon, color, label, value, sub, highlight, onClick }) {
+  return (
+    <div
+      className={`dash-summary-card${highlight ? ' dash-summary-card--highlight' : ''}`}
+      style={{ borderTop: `2px solid ${color}` }}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter') onClick?.(); }}
+    >
+      <div className="dash-summary-card-top">
+        <div className="dash-summary-card-icon" style={{ background: `${color}15` }}>
+          <Icon name={icon} size={20} color={color} />
+        </div>
+        <span className="dash-summary-card-label">{label}</span>
+      </div>
+      <div className="dash-summary-card-value">{value}</div>
+      {sub && <div className="dash-summary-card-sub">{sub}</div>}
     </div>
   );
 }
 
-function labelByLang(obj, lang) {
-  return (obj && (obj[lang] || obj.cs || obj.en)) || '';
+function StatusBadge({ status, language }) {
+  const color = STATUS_COLORS[status] || '#7A8291';
+  const label = getStatusLabel(status, language);
+  return (
+    <span
+      className="dash-status-badge"
+      style={{
+        color,
+        background: `${color}15`,
+        borderColor: `${color}30`,
+      }}
+    >
+      {label}
+    </span>
+  );
 }
+
+function StatusRow({ label, ok, language, value }) {
+  const cs = language === 'cs';
+  return (
+    <div className="dash-status-row">
+      <div className="dash-status-row-left">
+        <div className={`dash-status-indicator ${ok ? 'dash-status-indicator--ok' : 'dash-status-indicator--warn'}`} />
+        <span>{label}</span>
+      </div>
+      <span className="dash-status-row-value">
+        {value !== undefined ? value : (ok ? (cs ? 'Ano' : 'Yes') : (cs ? 'Ne' : 'No'))}
+      </span>
+    </div>
+  );
+}
+
+/* ── Styles ────────────────────────────────────────────────────────────── */
+
+const dashboardStyles = `
+  .admin-dashboard-v2 {
+    max-width: 1400px;
+    padding: 24px;
+    background: var(--forge-bg-void, #0A0E17);
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    gap: 16px;
+  }
+
+  .dash-title {
+    margin: 0 0 4px 0;
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+    color: var(--forge-text-primary, #F1F5F9);
+    letter-spacing: -0.02em;
+  }
+
+  .dash-subtitle {
+    margin: 0;
+    color: var(--forge-text-muted, #7A8291);
+    font-size: 13px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .dash-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  /* Buttons */
+  .dash-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: var(--forge-radius-md, 6px);
+    font-size: 13px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .dash-btn--primary {
+    background: var(--forge-accent-primary, #00D4AA);
+    color: var(--forge-bg-void, #0A0E17);
+  }
+
+  .dash-btn--primary:hover {
+    background: #00E8BB;
+    box-shadow: 0 0 16px rgba(0, 212, 170, 0.25);
+  }
+
+  .dash-btn--secondary {
+    background: var(--forge-bg-surface, #111827);
+    color: var(--forge-text-secondary, #94A3B8);
+    border-color: var(--forge-border-default, #1E293B);
+  }
+
+  .dash-btn--secondary:hover {
+    background: var(--forge-bg-elevated, #1E293B);
+    border-color: var(--forge-accent-primary, #00D4AA);
+    color: var(--forge-text-primary, #F1F5F9);
+  }
+
+  .dash-btn--full {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .dash-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    color: var(--forge-accent-primary, #00D4AA);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .dash-link-btn:hover {
+    color: #00E8BB;
+  }
+
+  /* Summary cards */
+  .dash-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .dash-summary-card {
+    background: var(--forge-bg-surface, #111827);
+    border: 1px solid var(--forge-border-default, #1E293B);
+    border-radius: var(--forge-radius-md, 6px);
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .dash-summary-card:hover {
+    border-color: rgba(0, 212, 170, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .dash-summary-card--highlight {
+    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: 0 0 12px rgba(255, 107, 53, 0.08);
+  }
+
+  .dash-summary-card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .dash-summary-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--forge-radius-md, 6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .dash-summary-card-label {
+    font-size: 11px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--forge-text-muted, #7A8291);
+    font-weight: 500;
+  }
+
+  .dash-summary-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    color: var(--forge-text-primary, #F1F5F9);
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+
+  .dash-summary-card-sub {
+    font-size: 11px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    color: var(--forge-text-muted, #7A8291);
+  }
+
+  /* 2-column layout */
+  .dash-columns {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .dash-main {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  .dash-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Sections */
+  .dash-section {
+    background: var(--forge-bg-surface, #111827);
+    border: 1px solid var(--forge-border-default, #1E293B);
+    border-radius: var(--forge-radius-md, 6px);
+    padding: 20px;
+  }
+
+  .dash-section--warning {
+    border-left: 3px solid #F59E0B;
+  }
+
+  .dash-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .dash-section-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dash-section-header h3,
+  .dash-section-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+    color: var(--forge-text-primary, #F1F5F9);
+  }
+
+  .dash-section-title {
+    margin-bottom: 12px;
+  }
+
+  .dash-badge {
+    font-size: 11px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .dash-badge--warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #F59E0B;
+  }
+
+  /* Attention list */
+  .dash-attention-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dash-attention-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: var(--forge-radius-md, 6px);
+    background: var(--forge-bg-elevated, #0D1117);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .dash-attention-item:hover {
+    background: var(--forge-bg-void, #0A0E17);
+  }
+
+  .dash-attention-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dash-attention-id {
+    font-size: 13px;
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    color: var(--forge-text-primary, #F1F5F9);
+    font-weight: 600;
+  }
+
+  .dash-attention-reason {
+    font-size: 12px;
+    color: #F59E0B;
+    font-family: var(--forge-font-body, 'IBM Plex Sans', sans-serif);
+  }
+
+  /* Orders table */
+  .dash-orders-table {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dash-orders-head {
+    display: grid;
+    grid-template-columns: 80px 1fr 110px 60px 100px 90px;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 10px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--forge-text-muted, #7A8291);
+    border-bottom: 1px solid var(--forge-border-default, #1E293B);
+  }
+
+  .dash-orders-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 110px 60px 100px 90px;
+    gap: 8px;
+    padding: 10px 12px;
+    align-items: center;
+    border-bottom: 1px solid var(--forge-border-default, #1E293B);
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 13px;
+    color: var(--forge-text-secondary, #94A3B8);
+  }
+
+  .dash-orders-row:last-child {
+    border-bottom: none;
+  }
+
+  .dash-orders-row:hover {
+    background: var(--forge-bg-elevated, #1E293B);
+  }
+
+  .dash-order-num {
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    color: var(--forge-accent-primary, #00D4AA);
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .dash-mono {
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    font-weight: 600;
+    color: var(--forge-text-primary, #F1F5F9);
+  }
+
+  .dash-muted {
+    font-size: 11px;
+    color: var(--forge-text-muted, #7A8291);
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+  }
+
+  /* Status badge */
+  .dash-status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* Activity feed */
+  .dash-activity-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .dash-activity-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-radius: var(--forge-radius-md, 6px);
+    transition: background 0.15s;
+  }
+
+  .dash-activity-item:hover {
+    background: var(--forge-bg-elevated, #1E293B);
+  }
+
+  .dash-activity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+
+  .dash-activity-dot--add { background: #00D4AA; }
+  .dash-activity-dot--update { background: #4DA8DA; }
+  .dash-activity-dot--delete { background: #EF4444; }
+
+  .dash-activity-content {
+    min-width: 0;
+  }
+
+  .dash-activity-text {
+    margin: 0 0 2px 0;
+    font-size: 13px;
+    color: var(--forge-text-primary, #F1F5F9);
+    line-height: 1.4;
+  }
+
+  .dash-activity-meta {
+    font-size: 11px;
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    color: var(--forge-text-muted, #7A8291);
+  }
+
+  /* Empty state */
+  .dash-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px;
+    text-align: center;
+  }
+
+  .dash-empty p {
+    margin: 0;
+    color: var(--forge-text-muted, #7A8291);
+    font-size: 14px;
+  }
+
+  .dash-empty-text {
+    color: var(--forge-text-muted, #7A8291);
+    font-size: 14px;
+    margin: 0;
+    font-style: italic;
+  }
+
+  /* Quick actions */
+  .dash-quick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Quick links grid */
+  .dash-quick-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .dash-quick-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--forge-bg-elevated, #0D1117);
+    border: 1px solid var(--forge-border-default, #1E293B);
+    border-radius: var(--forge-radius-md, 6px);
+    color: var(--forge-text-secondary, #94A3B8);
+    font-size: 12px;
+    font-family: var(--forge-font-body, 'IBM Plex Sans', sans-serif);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .dash-quick-link:hover {
+    background: var(--forge-bg-surface, #111827);
+    border-color: var(--forge-accent-primary, #00D4AA);
+    color: var(--forge-text-primary, #F1F5F9);
+  }
+
+  .dash-quick-link-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--forge-radius-sm, 4px);
+    background: rgba(0, 212, 170, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--forge-accent-primary, #00D4AA);
+  }
+
+  /* System status */
+  .dash-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dash-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--forge-text-secondary, #94A3B8);
+  }
+
+  .dash-status-row-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dash-status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .dash-status-indicator--ok {
+    background: #00D4AA;
+  }
+
+  .dash-status-indicator--warn {
+    background: #F59E0B;
+  }
+
+  .dash-status-row-value {
+    font-size: 12px;
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    color: var(--forge-text-primary, #F1F5F9);
+    font-weight: 600;
+  }
+
+  /* Branding tips */
+  .dash-branding-tips {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--forge-border-default, #1E293B);
+  }
+
+  .dash-branding-tips-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #F59E0B;
+    margin-bottom: 8px;
+  }
+
+  .dash-branding-tips-list {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 12px;
+    color: var(--forge-text-secondary, #94A3B8);
+    line-height: 1.6;
+  }
+
+  /* Activity feed scrollbar */
+  .dash-activity-feed::-webkit-scrollbar {
+    width: 4px;
+  }
+  .dash-activity-feed::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .dash-activity-feed::-webkit-scrollbar-thumb {
+    background: var(--forge-border-default, #1E293B);
+    border-radius: 2px;
+  }
+
+  /* Onboarding banner */
+  .dash-onboarding-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, rgba(0, 212, 170, 0.08) 0%, rgba(0, 212, 170, 0.02) 100%);
+    border: 1px solid rgba(0, 212, 170, 0.25);
+    border-radius: var(--forge-radius-md, 6px);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .dash-onboarding-banner:hover {
+    border-color: rgba(0, 212, 170, 0.5);
+    box-shadow: 0 4px 20px rgba(0, 212, 170, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .dash-onboarding-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .dash-onboarding-banner-left strong {
+    display: block;
+    font-size: 14px;
+    font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+    color: var(--forge-text-primary, #F1F5F9);
+    font-weight: 600;
+  }
+
+  .dash-onboarding-banner-sub {
+    display: block;
+    font-size: 12px;
+    color: var(--forge-text-muted, #7A8291);
+    margin-top: 2px;
+  }
+
+  .dash-onboarding-banner-action {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    color: var(--forge-accent-primary, #00D4AA);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .dash-columns {
+      grid-template-columns: 1fr;
+    }
+
+    .dash-sidebar {
+      order: -1;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .dash-summary-cards {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dash-header {
+      flex-direction: column;
+    }
+
+    .dash-orders-head,
+    .dash-orders-row {
+      grid-template-columns: 70px 1fr 90px 80px;
+    }
+
+    .dash-col-models,
+    .dash-col-date {
+      display: none;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .admin-dashboard-v2 {
+      padding: 16px;
+    }
+
+    .dash-summary-cards {
+      grid-template-columns: 1fr;
+    }
+
+    .dash-quick-links {
+      grid-template-columns: 1fr;
+    }
+
+    .dash-summary-card-value {
+      font-size: 22px;
+    }
+  }
+`;
 
 export default AdminDashboard;

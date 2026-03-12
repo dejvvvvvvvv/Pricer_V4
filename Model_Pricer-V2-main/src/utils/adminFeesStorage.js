@@ -12,6 +12,7 @@
 
 import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
 import { generateId } from './generateId';
+import { logSecurityEvent } from './securityAuditLog';
 
 const NS_FEES_V3 = 'fees:v3';
 const SCHEMA_VERSION = 3;
@@ -220,6 +221,11 @@ export function saveFeesConfigV3(data) {
   const normalized = normalizeFeesConfigV3(data);
   const next = { ...normalized, updated_at: nowIso() };
   writeTenantJson(NS_FEES_V3, next);
+  logSecurityEvent({
+    event_type: 'config_change',
+    details: 'Zmena konfigurace poplatku (fees)',
+    severity: 'info',
+  });
   return next;
 }
 

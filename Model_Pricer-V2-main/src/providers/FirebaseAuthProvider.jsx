@@ -19,6 +19,7 @@ import { auth, db } from '../firebase';
 import AuthContext from '../context/AuthContext';
 import { setTenantId, clearTenantId } from '../utils/adminTenantStorage';
 import { ensureTenantInSupabase } from '../lib/supabase/tenantRegistration';
+import { logSecurityEvent } from '../utils/securityAuditLog';
 import { debug } from '@/lib/debug';
 
 const googleProvider = new GoogleAuthProvider();
@@ -206,11 +207,27 @@ export default function FirebaseAuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     setError(null);
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    const user = credential.user;
-    // Optimistic tenant set — onAuthStateChanged will refine from Firestore profile
-    setTenantId(user.uid);
-    return user;
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const user = credential.user;
+      // Optimistic tenant set — onAuthStateChanged will refine from Firestore profile
+      setTenantId(user.uid);
+      logSecurityEvent({
+        event_type: 'login',
+        actor: user.email || user.uid,
+        details: 'Prihlaseni emailem',
+        severity: 'info',
+      });
+      return user;
+    } catch (err) {
+      logSecurityEvent({
+        event_type: 'login_failed',
+        actor: email || 'unknown',
+        details: `Neuspesne prihlaseni: ${err.code || err.message}`,
+        severity: 'warning',
+      });
+      throw err;
+    }
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
@@ -219,6 +236,12 @@ export default function FirebaseAuthProvider({ children }) {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       await ensureGoogleUserProfile(user);
+      logSecurityEvent({
+        event_type: 'login',
+        actor: user.email || user.uid,
+        details: 'Prihlaseni pres Google',
+        severity: 'info',
+      });
       return user;
     } catch (popupErr) {
       const code = popupErr?.code;
@@ -271,6 +294,13 @@ export default function FirebaseAuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    const email = auth.currentUser?.email || 'unknown';
+    logSecurityEvent({
+      event_type: 'logout',
+      actor: email,
+      details: 'Odhlaseni',
+      severity: 'info',
+    });
     await signOut(auth);
     clearTenantId();
     setCurrentUser(null);
@@ -328,6 +358,12 @@ export default function FirebaseAuthProvider({ children }) {
 
     // Now update password
     await updatePassword(auth.currentUser, newPassword);
+    logSecurityEvent({
+      event_type: 'password_change',
+      actor: auth.currentUser.email || auth.currentUser.uid,
+      details: 'Heslo zmeneno',
+      severity: 'warning',
+    });
   }, []);
 
   const value = {

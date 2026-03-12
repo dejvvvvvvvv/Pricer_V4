@@ -20,6 +20,9 @@ import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { loadExpressConfigV1 } from '../../utils/adminExpressStorage';
+import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
 import { themeToCssVars, getDefaultWidgetTheme } from '../../utils/widgetThemeStorage';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 
@@ -232,6 +235,27 @@ const WidgetKalkulacka = ({
 
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfigV3(tenantId));
   const [feesConfig, setFeesConfig] = useState(() => loadFeesConfigV3(tenantId));
+  const [couponsConfig, setCouponsConfig] = useState(() => loadCouponsConfigV1());
+  const [appliedCouponCode, setAppliedCouponCode] = useState('');
+
+  // S09: Express pricing — auto-select default tier
+  const [expressConfig, setExpressConfig] = useState(() => loadExpressConfigV1());
+  const [selectedExpressTierId, setSelectedExpressTierId] = useState(() => {
+    const ec = loadExpressConfigV1();
+    if (!ec?.enabled || !Array.isArray(ec.tiers)) return null;
+    const activeTiers = ec.tiers.filter(t => t.active !== false);
+    const defaultTier = activeTiers.find(t => t.is_default);
+    return defaultTier?.id || activeTiers[0]?.id || null;
+  });
+
+  // S04: Shipping — auto-select first active method
+  const [shippingConfig, setShippingConfig] = useState(() => loadShippingConfigV1());
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(() => {
+    const sc = loadShippingConfigV1();
+    if (!sc?.enabled || !Array.isArray(sc.methods)) return null;
+    const activeMethods = sc.methods.filter(m => m.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    return activeMethods[0]?.id || null;
+  });
 
   const [feeSelections, setFeeSelections] = useState(() => ({
     selectedFeeIds: new Set(),
@@ -252,11 +276,15 @@ const WidgetKalkulacka = ({
         pricingConfig,
         feesConfig,
         feeSelections,
+        expressConfig,
+        selectedExpressTierId,
+        shippingConfig,
+        selectedShippingMethodId,
       });
     } catch {
       return null;
     }
-  }, [isShopifyMode, uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections]);
+  }, [isShopifyMode, uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections, expressConfig, selectedExpressTierId, shippingConfig, selectedShippingMethodId]);
 
   const [availablePresets, setAvailablePresets] = useState([]);
   const [defaultPresetId, setDefaultPresetId] = useState(null);
@@ -375,6 +403,9 @@ const WidgetKalkulacka = ({
       if (!e?.key) return;
       if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3(tenantId));
       if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3(tenantId));
+      if (e.key.includes('coupons:v1')) setCouponsConfig(loadCouponsConfigV1());
+      if (e.key.includes('express:v1')) setExpressConfig(loadExpressConfigV1());
+      if (e.key.includes('shipping:v1')) setShippingConfig(loadShippingConfigV1());
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -663,7 +694,7 @@ const WidgetKalkulacka = ({
     ),
 
     pricing: () => displayFiles.length > 0 ? (
-      <SW elementId="pricing"><PricingCalculator selectedFile={displaySelected || selectedFile} onSlice={handleSliceSelected} totalModels={displayFiles.length} onSliceAll={handleSliceAll} sliceAllLoading={sliceAllProcessing} uploadedFiles={displayFiles} printConfigs={printConfigs} pricingConfig={pricingConfig} feesConfig={feesConfig} feeSelections={feeSelections} theme={effectiveTheme} /></SW>
+      <SW elementId="pricing"><PricingCalculator selectedFile={displaySelected || selectedFile} onSlice={handleSliceSelected} totalModels={displayFiles.length} onSliceAll={handleSliceAll} sliceAllLoading={sliceAllProcessing} uploadedFiles={displayFiles} printConfigs={printConfigs} pricingConfig={pricingConfig} feesConfig={feesConfig} feeSelections={feeSelections} expressConfig={expressConfig} selectedExpressTierId={selectedExpressTierId} onExpressTierChange={setSelectedExpressTierId} shippingConfig={shippingConfig} selectedShippingMethodId={selectedShippingMethodId} onShippingMethodChange={setSelectedShippingMethodId} couponsConfig={couponsConfig} appliedCouponCode={appliedCouponCode} onApplyCoupon={setAppliedCouponCode} onRemoveCoupon={() => setAppliedCouponCode('')} theme={effectiveTheme} /></SW>
     ) : null,
 
     cta: () => (displayFiles.length > 0 && displaySelected) ? (

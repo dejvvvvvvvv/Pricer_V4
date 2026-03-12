@@ -16,7 +16,18 @@ const MUTED = '#7A8291';
 
 const MATERIAL_COLORS = [TEAL, ORANGE, SKY, PURPLE, YELLOW, RED, '#10B981', '#F472B6'];
 
-const CHART_BG = '#0E1015';
+const STATUS_COLORS = {
+  NEW: TEAL,
+  REVIEW: SKY,
+  APPROVED: '#22C55E',
+  PRINTING: ORANGE,
+  POSTPROCESS: PURPLE,
+  READY: YELLOW,
+  SHIPPED: '#06B6D4',
+  DONE: '#10B981',
+  CANCELED: RED,
+};
+
 const CHART_GRID = '#1E2230';
 const CHART_TEXT = '#7A8291';
 
@@ -64,7 +75,7 @@ function exportChartAsPng(containerRef, filename = 'chart.png') {
     canvas.height = img.height * 2;
     const ctx = canvas.getContext('2d');
     ctx.scale(2, 2);
-    ctx.fillStyle = CHART_BG;
+    ctx.fillStyle = '#0E1015';
     ctx.fillRect(0, 0, img.width, img.height);
     ctx.drawImage(img, 0, 0);
     canvas.toBlob((blob) => {
@@ -108,6 +119,16 @@ function generateDemoMaterialPie() {
   ];
 }
 
+function generateDemoStatusPie() {
+  return [
+    { name: 'New', value: 5, status: 'NEW' },
+    { name: 'Printing', value: 8, status: 'PRINTING' },
+    { name: 'Done', value: 12, status: 'DONE' },
+    { name: 'Canceled', value: 2, status: 'CANCELED' },
+    { name: 'Review', value: 3, status: 'REVIEW' },
+  ];
+}
+
 function generateDemoAOV(days = 30) {
   const data = [];
   const now = Date.now();
@@ -123,7 +144,6 @@ function generateDemoAOV(days = 30) {
       aov: Math.round(avg),
     });
   }
-  // compute 7-day moving average
   for (let i = 0; i < data.length; i++) {
     const window = data.slice(Math.max(0, i - 6), i + 1);
     data[i].ma7 = Math.round(window.reduce((s, d) => s + d.aov, 0) / window.length);
@@ -131,26 +151,24 @@ function generateDemoAOV(days = 30) {
   return data;
 }
 
-function generateDemoPeakHours() {
-  const days = ['Po', 'Ut', 'St', 'Ct', 'Pa', 'So', 'Ne'];
-  const grid = [];
-  for (let d = 0; d < 7; d++) {
-    for (let h = 6; h < 24; h++) {
-      let base = 0;
-      if (d < 5) {
-        // weekday
-        if (h >= 9 && h <= 17) base = 3 + Math.floor(Math.random() * 6);
-        else if (h >= 18 && h <= 22) base = 1 + Math.floor(Math.random() * 4);
-        else base = Math.floor(Math.random() * 2);
-      } else {
-        // weekend
-        if (h >= 10 && h <= 20) base = 1 + Math.floor(Math.random() * 3);
-        else base = Math.floor(Math.random() * 1);
-      }
-      grid.push({ day: d, dayLabel: days[d], hour: h, count: base });
-    }
-  }
-  return grid;
+function generateDemoPrintTime() {
+  return [
+    { range: '0-30 min', count: 12 },
+    { range: '30-60 min', count: 18 },
+    { range: '60-120 min', count: 8 },
+    { range: '120-240 min', count: 5 },
+    { range: '240+ min', count: 2 },
+  ];
+}
+
+function generateDemoMaterialBar() {
+  return [
+    { name: 'PLA', count: 18 },
+    { name: 'PETG', count: 12 },
+    { name: 'ABS', count: 7 },
+    { name: 'TPU', count: 4 },
+    { name: 'ASA', count: 3 },
+  ];
 }
 
 function generateDemoFunnel(cs) {
@@ -175,7 +193,6 @@ function processRevenueTrend(sessions, granularity = 'day') {
     if (granularity === 'month') {
       key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     } else if (granularity === 'week') {
-      // ISO week start (Monday)
       const day = d.getDay();
       const diff = d.getDate() - day + (day === 0 ? -6 : 1);
       const monday = new Date(d);
@@ -194,84 +211,6 @@ function processRevenueTrend(sessions, granularity = 'day') {
       label: granularity === 'month' ? date : shortDate(date + 'T00:00:00Z'),
       revenue: Math.round(revenue),
     }));
-}
-
-function processMaterialPie(sessions) {
-  const calc = sessions.filter((s) => s.has_price_shown);
-  if (calc.length === 0) return null;
-
-  const map = new Map();
-  for (const s of calc) {
-    const mat = s.summary?.material || 'Unknown';
-    map.set(mat, (map.get(mat) || 0) + 1);
-  }
-  return [...map.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, value]) => ({ name, value }));
-}
-
-function processAOV(sessions) {
-  const ordered = sessions.filter((s) => s.converted);
-  if (ordered.length === 0) return null;
-
-  const buckets = new Map();
-  for (const s of ordered) {
-    const day = new Date(s.last_event_at).toISOString().slice(0, 10);
-    const arr = buckets.get(day) || [];
-    arr.push(s.summary?.price_total || 0);
-    buckets.set(day, arr);
-  }
-
-  const data = [...buckets.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, prices]) => ({
-      date,
-      label: shortDate(date + 'T00:00:00Z'),
-      aov: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length),
-    }));
-
-  // 7-day moving average
-  for (let i = 0; i < data.length; i++) {
-    const w = data.slice(Math.max(0, i - 6), i + 1);
-    data[i].ma7 = Math.round(w.reduce((s, d) => s + d.aov, 0) / w.length);
-  }
-  return data;
-}
-
-function processPeakHours(sessions) {
-  const days = ['Po', 'Ut', 'St', 'Ct', 'Pa', 'So', 'Ne'];
-  const grid = new Map();
-  // init
-  for (let d = 0; d < 7; d++) {
-    for (let h = 0; h < 24; h++) {
-      grid.set(`${d}-${h}`, 0);
-    }
-  }
-
-  const all = sessions.filter((s) => s.has_price_shown);
-  if (all.length === 0) return null;
-
-  for (const s of all) {
-    const dt = new Date(s.last_event_at);
-    const dayIdx = (dt.getDay() + 6) % 7; // Mon=0
-    const hour = dt.getHours();
-    const key = `${dayIdx}-${hour}`;
-    grid.set(key, (grid.get(key) || 0) + 1);
-  }
-
-  const result = [];
-  for (let d = 0; d < 7; d++) {
-    for (let h = 6; h < 24; h++) {
-      result.push({
-        day: d,
-        dayLabel: days[d],
-        hour: h,
-        count: grid.get(`${d}-${h}`) || 0,
-      });
-    }
-  }
-  return result;
 }
 
 function processFunnel(sessions, cs) {
@@ -295,31 +234,6 @@ function processFunnel(sessions, cs) {
     { step: cs ? 'Oceneno' : 'Quoted', value: quoted },
     { step: cs ? 'Objednano' : 'Ordered', value: ordered },
   ];
-}
-
-function processCustomerStats(sessions, cs) {
-  const ordered = sessions.filter((s) => s.converted);
-  if (ordered.length === 0) return null;
-
-  // group by widget_instance_id as proxy for "customer"
-  const customers = new Map();
-  for (const s of ordered) {
-    const cid = s.widget_instance_id || s.session_id;
-    const arr = customers.get(cid) || [];
-    arr.push(s);
-    customers.set(cid, arr);
-  }
-
-  const totalCustomers = customers.size;
-  const repeatCustomers = [...customers.values()].filter((arr) => arr.length > 1).length;
-  const repeatRate = totalCustomers > 0 ? repeatCustomers / totalCustomers : 0;
-
-  const totalItems = ordered.reduce((sum, s) => {
-    return sum + 1; // each session = 1 order item in analytics
-  }, 0);
-  const avgItems = totalCustomers > 0 ? totalItems / totalCustomers : 0;
-
-  return { totalCustomers, repeatRate, avgItems };
 }
 
 /* ── Chart wrapper with export button ────────────────────────────────── */
@@ -350,6 +264,15 @@ function ChartCard({ title, children, isDemo, exportLabel, chartRef }) {
   );
 }
 
+/* ── Empty state ─────────────────────────────────────────────────────── */
+function EmptyChart({ message }) {
+  return (
+    <div className="ac-empty">
+      {message}
+    </div>
+  );
+}
+
 /* ── Individual chart components ─────────────────────────────────────── */
 
 function RevenueTrendChart({ data, granularity, setGranularity, isDemo, cs }) {
@@ -362,7 +285,7 @@ function RevenueTrendChart({ data, granularity, setGranularity, isDemo, cs }) {
 
   return (
     <ChartCard
-      title={cs ? 'Trend trzeb' : 'Revenue Trend'}
+      title={cs ? 'Trzby v case' : 'Revenue Over Time'}
       isDemo={isDemo}
       exportLabel="revenue-trend"
       chartRef={ref}
@@ -379,69 +302,125 @@ function RevenueTrendChart({ data, granularity, setGranularity, isDemo, cs }) {
           </button>
         ))}
       </div>
-      <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="tealGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={TEAL} stopOpacity={0.35} />
-              <stop offset="95%" stopColor={TEAL} stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
-          <XAxis dataKey="label" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
-          <YAxis tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} tickFormatter={(v) => `${v} Kc`} />
-          <Tooltip
-            contentStyle={darkTooltipStyle}
-            formatter={(v) => [formatKc(v), cs ? 'Trzby' : 'Revenue']}
-            labelFormatter={(l) => l}
-          />
-          <Area type="monotone" dataKey="revenue" stroke={TEAL} fill="url(#tealGradient)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: TEAL }} />
-        </AreaChart>
-      </ResponsiveContainer>
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data o trzbach' : 'No revenue data'} />
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <AreaChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="tealGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={TEAL} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={TEAL} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+            <XAxis dataKey="label" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
+            <YAxis tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} tickFormatter={(v) => `${v} Kc`} />
+            <Tooltip
+              contentStyle={darkTooltipStyle}
+              formatter={(v) => [formatKc(v), cs ? 'Trzby' : 'Revenue']}
+              labelFormatter={(l) => l}
+            />
+            <Area type="monotone" dataKey="revenue" stroke={TEAL} fill="url(#tealGradient)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: TEAL }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
     </ChartCard>
   );
 }
 
-function MaterialPieChart({ data, isDemo, cs }) {
+function OrdersByStatusChart({ data, isDemo, cs }) {
   const ref = useRef(null);
   const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
 
   return (
     <ChartCard
-      title={cs ? 'Popularita materialu' : 'Material Popularity'}
+      title={cs ? 'Objednavky podle stavu' : 'Orders by Status'}
       isDemo={isDemo}
-      exportLabel="material-popularity"
+      exportLabel="orders-by-status"
       chartRef={ref}
     >
-      <ResponsiveContainer width="100%" height={260}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={55}
-            outerRadius={90}
-            paddingAngle={3}
-            dataKey="value"
-            nameKey="name"
-            label={({ name, value }) => `${name} (${Math.round((value / total) * 100)}%)`}
-            labelLine={{ stroke: CHART_TEXT, strokeWidth: 1 }}
-          >
-            {data.map((_, idx) => (
-              <Cell key={idx} fill={MATERIAL_COLORS[idx % MATERIAL_COLORS.length]} />
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadne objednavky' : 'No orders'} />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: '50%' }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {data.map((entry) => (
+                    <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || MUTED} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={darkTooltipStyle}
+                  formatter={(v, name) => [`${v} (${total > 0 ? Math.round((v / total) * 100) : 0}%)`, name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {data.map((entry) => (
+              <div key={entry.status} className="ac-legend-row">
+                <div className="ac-legend-dot" style={{ backgroundColor: STATUS_COLORS[entry.status] || MUTED }} />
+                <span className="ac-legend-name">{entry.name}</span>
+                <span className="ac-legend-value">
+                  {entry.value}
+                  <span className="ac-legend-pct">
+                    ({total > 0 ? Math.round((entry.value / total) * 100) : 0}%)
+                  </span>
+                </span>
+              </div>
             ))}
-          </Pie>
-          <Tooltip
-            contentStyle={darkTooltipStyle}
-            formatter={(v, name) => [`${v}x (${Math.round((v / total) * 100)}%)`, name]}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: 12, color: CHART_TEXT, fontFamily: "'Space Mono', monospace" }}
-            iconType="circle"
-            iconSize={8}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
+function TopMaterialsBarChart({ data, isDemo, cs }) {
+  const ref = useRef(null);
+  const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
+
+  return (
+    <ChartCard
+      title={cs ? 'Nejpouzivanejsi materialy' : 'Most Popular Materials'}
+      isDemo={isDemo}
+      exportLabel="top-materials"
+      chartRef={ref}
+    >
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data o materialech' : 'No material data'} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+          {data.map((item, i) => {
+            const barColor = MATERIAL_COLORS[i % MATERIAL_COLORS.length];
+            const widthPct = Math.max((item.count / maxCount) * 100, 4);
+            return (
+              <div key={item.name} className="ac-bar-row">
+                <div className="ac-bar-label">{item.name}</div>
+                <div className="ac-bar-track">
+                  <div
+                    className="ac-bar-fill"
+                    style={{ width: `${widthPct}%`, backgroundColor: barColor }}
+                  />
+                </div>
+                <div className="ac-bar-count">{item.count}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </ChartCard>
   );
 }
@@ -451,107 +430,88 @@ function AOVChart({ data, isDemo, cs }) {
 
   return (
     <ChartCard
-      title={cs ? 'Prumerna hodnota objednavky' : 'Average Order Value'}
+      title={cs ? 'Prumerna hodnota objednavky' : 'Average Order Value Trend'}
       isDemo={isDemo}
       exportLabel="aov-trend"
       chartRef={ref}
     >
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-          <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
-          <XAxis dataKey="label" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
-          <YAxis tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} tickFormatter={(v) => `${v} Kc`} />
-          <Tooltip
-            contentStyle={darkTooltipStyle}
-            formatter={(v, name) => [formatKc(v), name === 'ma7' ? (cs ? 'Klouzavy prumer (7d)' : 'Moving avg (7d)') : 'AOV']}
-            labelFormatter={(l) => l}
-          />
-          <Line type="monotone" dataKey="aov" stroke={ORANGE} strokeWidth={1.5} dot={false} name="AOV" />
-          <Line type="monotone" dataKey="ma7" stroke={TEAL} strokeWidth={2.5} dot={false} strokeDasharray="6 3" name={cs ? 'MA 7d' : 'MA 7d'} />
-          <Legend
-            wrapperStyle={{ fontSize: 12, color: CHART_TEXT, fontFamily: "'Space Mono', monospace" }}
-            iconType="line"
-            iconSize={12}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data' : 'No data'} />
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+            <XAxis dataKey="label" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
+            <YAxis tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} tickFormatter={(v) => `${v} Kc`} />
+            <Tooltip
+              contentStyle={darkTooltipStyle}
+              formatter={(v, name) => [formatKc(v), name === 'ma7' ? (cs ? 'Klouzavy prumer (7d)' : 'Moving avg (7d)') : 'AOV']}
+              labelFormatter={(l) => l}
+            />
+            <Line type="monotone" dataKey="aov" stroke={ORANGE} strokeWidth={1.5} dot={false} name="AOV" />
+            {data[0]?.ma7 !== undefined && (
+              <Line type="monotone" dataKey="ma7" stroke={TEAL} strokeWidth={2.5} dot={false} strokeDasharray="6 3" name={cs ? 'MA 7d' : 'MA 7d'} />
+            )}
+            <Legend
+              wrapperStyle={{ fontSize: 12, color: CHART_TEXT, fontFamily: "'Space Mono', monospace" }}
+              iconType="line"
+              iconSize={12}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
     </ChartCard>
   );
 }
 
-function PeakHoursChart({ data, isDemo, cs }) {
+function PrintTimeChart({ data, isDemo, cs }) {
   const ref = useRef(null);
-  const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
-
-  const getColor = useCallback((count) => {
-    if (count === 0) return '#161920';
-    const intensity = count / maxCount;
-    if (intensity < 0.25) return 'rgba(0,212,170,0.12)';
-    if (intensity < 0.5) return 'rgba(0,212,170,0.28)';
-    if (intensity < 0.75) return 'rgba(0,212,170,0.50)';
-    return 'rgba(0,212,170,0.80)';
-  }, [maxCount]);
-
-  const hours = [];
-  for (let h = 6; h < 24; h++) hours.push(h);
-  const days = ['Po', 'Ut', 'St', 'Ct', 'Pa', 'So', 'Ne'];
-
-  const gridMap = useMemo(() => {
-    const m = {};
-    for (const d of data) {
-      m[`${d.day}-${d.hour}`] = d.count;
-    }
-    return m;
-  }, [data]);
 
   return (
     <ChartCard
-      title={cs ? 'Spickove hodiny' : 'Peak Hours'}
+      title={cs ? 'Rozlozeni casu tisku' : 'Print Time Distribution'}
       isDemo={isDemo}
-      exportLabel="peak-hours"
+      exportLabel="print-time"
       chartRef={ref}
     >
-      <div className="ac-heatmap" role="img" aria-label={cs ? 'Heatmapa objednavek podle dne a hodiny' : 'Order heatmap by day and hour'}>
-        <div className="ac-heatmap-grid">
-          {/* header row */}
-          <div className="ac-hm-corner" />
-          {hours.map((h) => (
-            <div key={h} className="ac-hm-hlabel">{h}:00</div>
-          ))}
-          {/* data rows */}
-          {days.map((dayLabel, dayIdx) => (
-            <React.Fragment key={dayIdx}>
-              <div className="ac-hm-dlabel">{dayLabel}</div>
-              {hours.map((h) => {
-                const count = gridMap[`${dayIdx}-${h}`] || 0;
-                return (
-                  <div
-                    key={`${dayIdx}-${h}`}
-                    className="ac-hm-cell"
-                    style={{ backgroundColor: getColor(count) }}
-                    title={`${dayLabel} ${h}:00 — ${count} ${cs ? 'kalkulaci' : 'calculations'}`}
-                  />
-                );
-              })}
-            </React.Fragment>
-          ))}
-        </div>
-        <div className="ac-hm-legend">
-          <span className="ac-hm-legend-label">{cs ? 'Mene' : 'Less'}</span>
-          {[0, 0.12, 0.28, 0.5, 0.8].map((op, i) => (
-            <div
-              key={i}
-              className="ac-hm-cell"
-              style={{
-                backgroundColor: op === 0 ? '#161920' : `rgba(0,212,170,${op})`,
-                width: 14,
-                height: 14,
-              }}
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data' : 'No data'} />
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="ptGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={SKY} stopOpacity={0.9} />
+                <stop offset="100%" stopColor={SKY} stopOpacity={0.4} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="range"
+              tick={{ fill: CHART_TEXT, fontSize: 11 }}
+              axisLine={{ stroke: CHART_GRID }}
+              tickLine={false}
             />
-          ))}
-          <span className="ac-hm-legend-label">{cs ? 'Vice' : 'More'}</span>
-        </div>
-      </div>
+            <YAxis
+              tick={{ fill: CHART_TEXT, fontSize: 11 }}
+              axisLine={{ stroke: CHART_GRID }}
+              tickLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={darkTooltipStyle}
+              formatter={(v) => [v, cs ? 'Objednavek' : 'Orders']}
+            />
+            <Bar
+              dataKey="count"
+              name={cs ? 'Objednavek' : 'Orders'}
+              fill="url(#ptGradient)"
+              radius={[4, 4, 0, 0]}
+              barSize={36}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </ChartCard>
   );
 }
@@ -578,100 +538,101 @@ function ConversionFunnelChart({ data, isDemo, cs }) {
       exportLabel="conversion-funnel"
       chartRef={ref}
     >
-      <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={dataWithPct} layout="vertical" margin={{ top: 10, right: 40, left: 10, bottom: 0 }}>
-          <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" horizontal={false} />
-          <XAxis type="number" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
-          <YAxis
-            type="category"
-            dataKey="step"
-            width={120}
-            tick={{ fill: CHART_TEXT, fontSize: 12 }}
-            axisLine={{ stroke: CHART_GRID }}
-            tickLine={false}
-          />
-          <Tooltip
-            contentStyle={darkTooltipStyle}
-            formatter={(v, name, props) => {
-              const pct = props.payload.pct;
-              return [`${v} (${pct}%)`, props.payload.step];
-            }}
-          />
-          <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={28}
-            label={({ x, y, width: w, height: h, value, pct }) => (
-              <text x={x + w + 6} y={y + h / 2 + 4} fill={CHART_TEXT} fontSize={11} fontFamily="'Space Mono', monospace">
-                {pct}%
-              </text>
-            )}
-          >
-            {dataWithPct.map((_, idx) => (
-              <Cell key={idx} fill={barColors[idx % barColors.length]} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      {dataWithPct.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data' : 'No data'} />
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={dataWithPct} layout="vertical" margin={{ top: 10, right: 40, left: 10, bottom: 0 }}>
+            <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
+            <YAxis
+              type="category"
+              dataKey="step"
+              width={120}
+              tick={{ fill: CHART_TEXT, fontSize: 12 }}
+              axisLine={{ stroke: CHART_GRID }}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={darkTooltipStyle}
+              formatter={(v, name, props) => {
+                const pct = props.payload.pct;
+                return [`${v} (${pct}%)`, props.payload.step];
+              }}
+            />
+            <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={28}
+              label={({ x, y, width: w, height: h, value, pct }) => (
+                <text x={x + w + 6} y={y + h / 2 + 4} fill={CHART_TEXT} fontSize={11} fontFamily="'Space Mono', monospace">
+                  {pct}%
+                </text>
+              )}
+            >
+              {dataWithPct.map((_, idx) => (
+                <Cell key={idx} fill={barColors[idx % barColors.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </ChartCard>
-  );
-}
-
-function CustomerStatsCards({ stats, isDemo, cs }) {
-  if (!stats) return null;
-
-  return (
-    <div className="ac-stats-row">
-      <div className="ac-stat-card">
-        {isDemo && <span className="ac-demo-badge ac-demo-badge-sm">DEMO</span>}
-        <div className="ac-stat-label">{cs ? 'Unikatni zakaznici' : 'Unique customers'}</div>
-        <div className="ac-stat-value">{formatNum(stats.totalCustomers)}</div>
-      </div>
-      <div className="ac-stat-card">
-        <div className="ac-stat-label">{cs ? 'Opakujici se zakaznici' : 'Repeat customer rate'}</div>
-        <div className="ac-stat-value">{formatNum(stats.repeatRate * 100, 1)}%</div>
-      </div>
-      <div className="ac-stat-card">
-        <div className="ac-stat-label">{cs ? 'Prumerne polozek / obj.' : 'Avg items / order'}</div>
-        <div className="ac-stat-value">{formatNum(stats.avgItems, 1)}</div>
-      </div>
-    </div>
   );
 }
 
 /* ── Main exported component ─────────────────────────────────────────── */
 
-export default function AnalyticsCharts({ sessions, cs }) {
+export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders }) {
   const [granularity, setGranularity] = React.useState('day');
 
-  // Process real data, fallback to demo
-  const revenueTrendData = useMemo(() => processRevenueTrend(sessions, granularity), [sessions, granularity]);
-  const materialPieData = useMemo(() => processMaterialPie(sessions), [sessions]);
-  const aovData = useMemo(() => processAOV(sessions), [sessions]);
-  const peakHoursData = useMemo(() => processPeakHours(sessions), [sessions]);
+  // Use order-based data if available, otherwise analytics sessions, otherwise demo
+  const revenueData = useMemo(() => {
+    if (hasOrders && orderMetrics?.revenueOverTime?.length > 0) {
+      return orderMetrics.revenueOverTime;
+    }
+    const sessionBased = processRevenueTrend(sessions, granularity);
+    return sessionBased || generateDemoRevenueTrend(30);
+  }, [hasOrders, orderMetrics, sessions, granularity]);
+
+  const revenueIsDemo = !hasOrders && !processRevenueTrend(sessions, granularity);
+
+  const statusData = useMemo(() => {
+    if (hasOrders && orderMetrics?.ordersByStatus?.length > 0) {
+      return orderMetrics.ordersByStatus;
+    }
+    return generateDemoStatusPie();
+  }, [hasOrders, orderMetrics]);
+  const statusIsDemo = !hasOrders;
+
+  const materialsData = useMemo(() => {
+    if (hasOrders && orderMetrics?.topMaterials?.length > 0) {
+      return orderMetrics.topMaterials;
+    }
+    return generateDemoMaterialBar();
+  }, [hasOrders, orderMetrics]);
+  const materialsIsDemo = !hasOrders;
+
+  const aovData = useMemo(() => {
+    if (hasOrders && orderMetrics?.aovOverTime?.length > 0) {
+      return orderMetrics.aovOverTime;
+    }
+    return generateDemoAOV(30);
+  }, [hasOrders, orderMetrics]);
+  const aovIsDemo = !hasOrders;
+
+  const printTimeData = useMemo(() => {
+    if (hasOrders && orderMetrics?.printTimeDistribution?.length > 0) {
+      return orderMetrics.printTimeDistribution;
+    }
+    return generateDemoPrintTime();
+  }, [hasOrders, orderMetrics]);
+  const printTimeIsDemo = !hasOrders;
+
   const funnelData = useMemo(() => processFunnel(sessions, cs), [sessions, cs]);
-  const customerStats = useMemo(() => processCustomerStats(sessions, cs), [sessions, cs]);
-
-  // Determine demo mode per chart
-  const revenueIsDemo = !revenueTrendData;
-  const materialIsDemo = !materialPieData;
-  const aovIsDemo = !aovData;
-  const peakIsDemo = !peakHoursData;
   const funnelIsDemo = !funnelData;
-  const statsIsDemo = !customerStats;
-
-  // Use demo fallback when no real data
-  const revenueData = revenueTrendData || generateDemoRevenueTrend(30);
-  const materialData = materialPieData || generateDemoMaterialPie();
-  const aovChartData = aovData || generateDemoAOV(30);
-  const peakData = peakHoursData || generateDemoPeakHours();
   const funnelChartData = funnelData || generateDemoFunnel(cs);
-  const statsData = customerStats || { totalCustomers: 47, repeatRate: 0.23, avgItems: 1.8 };
 
   return (
     <div className="ac-container">
-      <div className="ac-section-title">
-        {cs ? 'Pokrocile grafy' : 'Advanced Charts'}
-      </div>
-
-      {/* Row 1: Revenue + Material Pie */}
+      {/* Row 1: Revenue + Orders by Status */}
       <div className="ac-grid-2">
         <RevenueTrendChart
           data={revenueData}
@@ -680,47 +641,40 @@ export default function AnalyticsCharts({ sessions, cs }) {
           isDemo={revenueIsDemo}
           cs={cs}
         />
-        <MaterialPieChart
-          data={materialData}
-          isDemo={materialIsDemo}
+        <OrdersByStatusChart
+          data={statusData}
+          isDemo={statusIsDemo}
           cs={cs}
         />
       </div>
 
-      {/* Row 2: AOV + Peak Hours */}
+      {/* Row 2: Top Materials + AOV */}
       <div className="ac-grid-2">
-        <AOVChart data={aovChartData} isDemo={aovIsDemo} cs={cs} />
-        <PeakHoursChart data={peakData} isDemo={peakIsDemo} cs={cs} />
+        <TopMaterialsBarChart
+          data={materialsData}
+          isDemo={materialsIsDemo}
+          cs={cs}
+        />
+        <AOVChart data={aovData} isDemo={aovIsDemo} cs={cs} />
       </div>
 
-      {/* Row 3: Funnel + Customer Stats */}
+      {/* Row 3: Print Time + Funnel */}
       <div className="ac-grid-2">
+        <PrintTimeChart
+          data={printTimeData}
+          isDemo={printTimeIsDemo}
+          cs={cs}
+        />
         <ConversionFunnelChart data={funnelChartData} isDemo={funnelIsDemo} cs={cs} />
-        <ChartCard
-          title={cs ? 'Statistiky zakazniku' : 'Customer Stats'}
-          isDemo={statsIsDemo}
-          exportLabel={null}
-          chartRef={useRef(null)}
-        >
-          <CustomerStatsCards stats={statsData} isDemo={statsIsDemo} cs={cs} />
-        </ChartCard>
       </div>
 
       <style>{`
-        .ac-container { margin-top: 18px; }
-        .ac-section-title {
-          font-size: 15px;
-          font-weight: 700;
-          color: var(--forge-text-primary, #E8ECF1);
-          font-family: var(--forge-font-heading, 'Space Grotesk', system-ui, sans-serif);
-          margin-bottom: 14px;
-          letter-spacing: 0.02em;
-        }
+        .ac-container { }
         .ac-grid-2 {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-bottom: 12px;
+          gap: 14px;
+          margin-bottom: 14px;
         }
         @media (max-width: 900px) {
           .ac-grid-2 { grid-template-columns: 1fr; }
@@ -729,22 +683,21 @@ export default function AnalyticsCharts({ sessions, cs }) {
           border: 1px solid var(--forge-border-default, #1E2230);
           background: var(--forge-bg-surface, #0E1015);
           border-radius: var(--forge-radius-xl, 12px);
-          padding: 14px;
-          box-shadow: var(--forge-shadow-sm);
+          padding: 18px;
         }
         .ac-card-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 10px;
+          margin-bottom: 12px;
         }
         .ac-card-title {
-          font-size: 11px;
+          font-size: 12px;
           color: var(--forge-text-secondary, #9BA3B0);
           font-weight: 600;
           font-family: var(--forge-font-tech, 'Space Mono', monospace);
           text-transform: uppercase;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.06em;
           display: flex;
           align-items: center;
           gap: 8px;
@@ -759,11 +712,6 @@ export default function AnalyticsCharts({ sessions, cs }) {
           background: rgba(255,181,71,0.12);
           color: var(--forge-warning, #FFB547);
           border: 1px solid rgba(255,181,71,0.25);
-        }
-        .ac-demo-badge-sm {
-          position: absolute;
-          top: 8px;
-          right: 8px;
         }
         .ac-export-btn {
           background: transparent;
@@ -807,83 +755,83 @@ export default function AnalyticsCharts({ sessions, cs }) {
           border-color: var(--forge-border-active, #2A3040);
         }
 
-        /* Heatmap */
-        .ac-heatmap { padding: 4px 0; }
-        .ac-heatmap-grid {
-          display: grid;
-          grid-template-columns: 32px repeat(18, 1fr);
-          gap: 2px;
-          max-width: 100%;
-          overflow-x: auto;
-        }
-        .ac-hm-corner { }
-        .ac-hm-hlabel {
-          font-size: 9px;
-          color: var(--forge-text-muted, #7A8291);
-          text-align: center;
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
-          white-space: nowrap;
-          overflow: hidden;
-        }
-        .ac-hm-dlabel {
-          font-size: 10px;
-          color: var(--forge-text-muted, #7A8291);
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+        /* ── Empty state ──────────────────────────────────────────────── */
+        .ac-empty {
           display: flex;
           align-items: center;
-          padding-right: 4px;
-        }
-        .ac-hm-cell {
-          aspect-ratio: 1;
-          border-radius: 2px;
-          min-width: 12px;
-          min-height: 12px;
-          transition: background-color 0.15s ease;
-        }
-        .ac-hm-legend {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          margin-top: 8px;
-          justify-content: flex-end;
-        }
-        .ac-hm-legend-label {
-          font-size: 10px;
+          justify-content: center;
+          height: 200px;
           color: var(--forge-text-muted, #7A8291);
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+          font-size: 13px;
+          font-style: italic;
         }
 
-        /* Customer stats */
-        .ac-stats-row {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
+        /* ── Legend rows (status chart) ───────────────────────────────── */
+        .ac-legend-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+        }
+        .ac-legend-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .ac-legend-name {
+          flex: 1;
+          color: var(--forge-text-secondary, #9CA3AF);
+        }
+        .ac-legend-value {
+          font-family: var(--forge-font-tech);
+          color: var(--forge-text-primary);
+          font-weight: 600;
+          font-size: 11px;
+        }
+        .ac-legend-pct {
+          color: var(--forge-text-muted);
+          font-weight: 400;
+          margin-left: 3px;
+        }
+
+        /* ── Bar chart rows (materials) ──────────────────────────────── */
+        .ac-bar-row {
+          display: flex;
+          align-items: center;
           gap: 10px;
-          padding: 6px 0;
         }
-        @media (max-width: 600px) {
-          .ac-stats-row { grid-template-columns: 1fr; }
+        .ac-bar-label {
+          width: 60px;
+          font-size: 12px;
+          color: var(--forge-text-secondary, #9CA3AF);
+          text-align: right;
+          flex-shrink: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
-        .ac-stat-card {
-          position: relative;
-          border: 1px solid var(--forge-border-default, #1E2230);
-          background: var(--forge-bg-elevated, #161920);
-          border-radius: var(--forge-radius-lg, 8px);
-          padding: 14px;
-          text-align: center;
+        .ac-bar-track {
+          flex: 1;
+          height: 22px;
+          background: var(--forge-bg-elevated, #1A1D24);
+          border-radius: 4px;
+          overflow: hidden;
         }
-        .ac-stat-label {
-          font-size: 10px;
-          color: var(--forge-text-muted, #7A8291);
-          font-family: var(--forge-font-tech, 'Space Mono', monospace);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          margin-bottom: 6px;
+        .ac-bar-fill {
+          height: 100%;
+          border-radius: 4px;
+          transition: width 0.6s ease-out;
+          opacity: 0.85;
         }
-        .ac-stat-value {
-          font-size: 24px;
-          font-weight: 700;
-          color: var(--forge-text-primary, #E8ECF1);
-          font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+        .ac-bar-count {
+          width: 30px;
+          font-size: 12px;
+          font-family: var(--forge-font-tech);
+          color: var(--forge-text-primary);
+          font-weight: 600;
+          text-align: right;
+          flex-shrink: 0;
         }
 
         /* recharts overrides for dark theme */
@@ -893,10 +841,6 @@ export default function AnalyticsCharts({ sessions, cs }) {
         }
         .ac-card .recharts-legend-item-text {
           color: var(--forge-text-secondary, #9BA3B0) !important;
-        }
-        .ac-card .recharts-default-tooltip {
-          background: var(--forge-bg-elevated, #161920) !important;
-          border: 1px solid var(--forge-border-default, #1E2230) !important;
         }
       `}</style>
     </div>

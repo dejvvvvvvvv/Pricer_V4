@@ -323,9 +323,13 @@ Kazdy radek zobrazuje:
 Pri vybrani 1+ fees se zobrazi:
 - Enable / Disable
 - Duplicate
+- Category change (dropdown pro zmenu kategorie hromadne)
 - Delete (s confirm dialogem)
-- MODEL / ORDER segmented buttons
-- Required / Optional segmented buttons
+
+### 8.5 Drag-and-drop (2026-03-12)
+
+Fees lze pretahovat (HTML5 DnD) v ramci kategorii pro zmenu poradi. Kazdy fee radek ma grip handle
+ikonu (GripVertical) a behem pretahovani se zobrazuje vizualni feedback (border highlight, opacity).
 
 ---
 
@@ -355,7 +359,7 @@ Preklady jsou inline (ne v LanguageContext), definovane primo v komponente.
 - **Inline CSS** — ~890 radku CSS v `<style>` tagu na konci komponenty (ne v externim .css souboru).
 - **Inline preklady** — texty nejsou v LanguageContext ale primo v `useMemo` objektu.
 - **Simulator pocita jen 1 fee** — nesimuluji se interakce mezi fees (napr. percent z percent).
-- **Bez drag-and-drop razeni** — fees se zobrazuji v poradi v jakem jsou v poli, bez moznosti manualne radit.
+- ~~**Bez drag-and-drop razeni**~~ — **IMPLEMENTOVANO** (2026-03-12): HTML5 DnD pro prerazovani fees pretazenim v ramci kategorii.
 - **apply_to_selected_models** — flag se uklada, ale kalkulacka ho zatim nepouziva (pripraveno pro budouci integraci).
 - **Conditions nepodporuji OR** — pouze AND logika. Pro OR je nutne vytvorit vice fees.
 - **localStorage limit** — pri velkych poctech fees muze dojit localStorage kapacita (~5-10 MB).

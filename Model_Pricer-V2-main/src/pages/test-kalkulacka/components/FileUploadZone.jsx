@@ -440,6 +440,9 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
     setShowSuccess(true);
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
     successTimerRef.current = setTimeout(() => setShowSuccess(false), 1200);
+    // Announce to screen readers
+    const announcer = document.getElementById('tk-upload-announcer');
+    if (announcer) announcer.textContent = 'Soubor byl uspesne nahran.';
   }, []);
 
   // --- Show validation errors with auto-dismiss ---
@@ -448,6 +451,11 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
     setValidationErrors(errors);
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
     errorTimerRef.current = setTimeout(() => setValidationErrors([]), 6000);
+    // Announce errors to screen readers
+    const announcer = document.getElementById('tk-upload-announcer');
+    if (announcer && errors.length > 0) {
+      announcer.textContent = errors.map(e => e.message).join('. ');
+    }
   }, []);
 
   // --- Paste flash ---
@@ -832,7 +840,24 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
     .join(' ');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} role="region" aria-label="Nahrani souboru">
+      {/* Screen reader announcements */}
+      <div
+        aria-live="assertive"
+        aria-atomic="true"
+        id="tk-upload-announcer"
+        style={{
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          padding: 0,
+          margin: '-1px',
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+          border: 0,
+        }}
+      />
       {/* Upload Zone */}
       <div
         {...getRootProps({
@@ -845,9 +870,10 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         className={zoneClassName}
         style={zoneStyle}
         tabIndex={0}
-        aria-label="Oblast pro nahrání souborů. Podpora drag-and-drop, kliknuti a Ctrl+V."
+        role="button"
+        aria-label="Oblast pro nahrani souboru. Podpora drag-and-drop, kliknuti a Ctrl+V. Povolene formaty: STL, OBJ, 3MF. Maximalni velikost 50 MB."
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} aria-label="Vyber soubory pro nahrani" />
 
         {/* Success overlay */}
         {showSuccess && (
@@ -934,7 +960,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
             <FileTypeIcon type="3mf" />
           </div>
 
-          <Button variant="outline" size="sm" tabIndex={-1}>
+          <Button variant="outline" size="sm" tabIndex={-1} aria-hidden="true">
             <Icon name="FolderOpen" size={16} className="mr-2" />
             Vybrat soubory
           </Button>
@@ -970,8 +996,9 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                     ...forgeStyles.sampleCard,
                     ...(hoveredSample === sample.id ? forgeStyles.sampleCardHover : {}),
                     opacity: generatingSample === sample.id ? 0.6 : 1,
-                    border: 'none',
-                    outline: 'none',
+                    border: '1px solid var(--forge-border-default)',
+                    minHeight: '44px',
+                    minWidth: '44px',
                   }}
                   aria-label={`Nahrat ukazkovy model: ${sample.name} (${sample.description})`}
                 >
@@ -1071,7 +1098,14 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                   {urlDownloading.progress}%
                 </span>
               </div>
-              <div style={forgeStyles.progressBar}>
+              <div
+                style={forgeStyles.progressBar}
+                role="progressbar"
+                aria-valuenow={urlDownloading.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Stahovani ${urlDownloading.name}: ${urlDownloading.progress}%`}
+              >
                 <div
                   className="tk-url-progress-bar"
                   style={{ ...forgeStyles.progressFill, width: `${urlDownloading.progress}%` }}
@@ -1122,11 +1156,18 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                 <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
                   {data.name || 'Nahravani...'}
                 </span>
-                <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }}>
+                <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }} aria-hidden="true">
                   {data.progress}%
                 </span>
               </div>
-              <div style={forgeStyles.progressBar}>
+              <div
+                style={forgeStyles.progressBar}
+                role="progressbar"
+                aria-valuenow={data.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Nahravani ${data.name || 'souboru'}: ${data.progress}%`}
+              >
                 <div style={{ ...forgeStyles.progressFill, width: `${data.progress}%` }} />
               </div>
             </div>
@@ -1141,7 +1182,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
             <h4 style={forgeStyles.sectionLabel}>
               Nahrane soubory ({uploadedFiles.length})
             </h4>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" aria-label="Dalsi moznosti pro nahrane soubory">
               <Icon name="MoreHorizontal" size={16} />
             </Button>
           </div>
@@ -1167,7 +1208,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                       <Icon name="CheckCircle" size={16} />
                       <span>Hotovo</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => onRemoveFile(file?.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => onRemoveFile(file?.id)} aria-label={`Odebrat soubor ${file?.name}`}>
                       <Icon name="X" size={16} />
                     </Button>
                   </div>

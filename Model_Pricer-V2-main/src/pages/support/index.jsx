@@ -14,10 +14,32 @@ const forgePageStyles = {
   minHeight: '100vh',
 };
 
+const inputStyle = {
+  width: '100%',
+  padding: '10px 14px',
+  fontFamily: 'var(--forge-font-body)',
+  fontSize: 'var(--forge-text-base)',
+  color: 'var(--forge-text-primary)',
+  backgroundColor: 'var(--forge-bg-elevated)',
+  border: '1px solid var(--forge-border-active)',
+  borderRadius: 'var(--forge-radius-sm)',
+  outline: 'none',
+  transition: 'border-color 0.15s',
+};
+
 const Support = () => {
   const { t, language } = useLanguage();
   useDocumentTitle('Support');
   const [searchQuery, setSearchQuery] = useState('');
+  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
+
+  const handleContactSubmit = (e) => {
+    e.preventDefault();
+    const { name, email, subject, message } = contactForm;
+    const body = `${language === 'cs' ? 'Jmeno' : 'Name'}: ${name}\n${language === 'cs' ? 'Email' : 'Email'}: ${email}\n\n${message}`;
+    const mailtoUrl = `mailto:support@modelpricer.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
+  };
 
   const faqs = language === 'cs' ? [
     {
@@ -272,38 +294,148 @@ const Support = () => {
         </div>
       </section>
 
-      {/* ========== CONTACT ========== */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
+      {/* ========== CONTACT FORM + INFO ========== */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-20">
         <Reveal>
-          <div
-            className="max-w-2xl mx-auto p-8 sm:p-10 text-center"
-            style={{
-              background: 'var(--forge-bg-surface)',
-              border: '1px solid var(--forge-accent-primary)',
-              borderRadius: 'var(--forge-radius-md)',
-              boxShadow: '0 0 40px rgba(0,212,170,0.08)',
-            }}
-          >
-            <h2
-              className="forge-h3 mb-3"
-              style={{ fontFamily: 'var(--forge-font-heading)' }}
-            >
-              {t('support.contact.title')}
-            </h2>
-            <p className="mb-8" style={{ color: 'var(--forge-text-secondary)' }}>
-              {t('support.contact.subtitle')}
-            </p>
+          <ForgeSectionLabel text={language === 'cs' ? 'KONTAKT' : 'CONTACT'} className="mb-4 block" />
+          <h2 className="forge-h2 mb-10">
+            {t('support.contact.title')}
+          </h2>
+        </Reveal>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
+          {/* Left — Contact form */}
+          <div className="lg:col-span-7">
+            <Reveal delay={0.02}>
+              <form onSubmit={handleContactSubmit} className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div>
+                    <label
+                      htmlFor="contact-name"
+                      style={{
+                        display: 'block',
+                        marginBottom: 6,
+                        fontFamily: 'var(--forge-font-heading)',
+                        fontSize: 'var(--forge-text-sm)',
+                        fontWeight: 500,
+                        color: 'var(--forge-text-secondary)',
+                      }}
+                    >
+                      {language === 'cs' ? 'Jmeno' : 'Name'}
+                    </label>
+                    <input
+                      id="contact-name"
+                      type="text"
+                      required
+                      value={contactForm.name}
+                      onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder={language === 'cs' ? 'Vase jmeno' : 'Your name'}
+                      style={inputStyle}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="contact-email"
+                      style={{
+                        display: 'block',
+                        marginBottom: 6,
+                        fontFamily: 'var(--forge-font-heading)',
+                        fontSize: 'var(--forge-text-sm)',
+                        fontWeight: 500,
+                        color: 'var(--forge-text-secondary)',
+                      }}
+                    >
+                      Email
+                    </label>
+                    <input
+                      id="contact-email"
+                      type="email"
+                      required
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder={language === 'cs' ? 'vas@email.cz' : 'you@email.com'}
+                      style={inputStyle}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="contact-subject"
+                    style={{
+                      display: 'block',
+                      marginBottom: 6,
+                      fontFamily: 'var(--forge-font-heading)',
+                      fontSize: 'var(--forge-text-sm)',
+                      fontWeight: 500,
+                      color: 'var(--forge-text-secondary)',
+                    }}
+                  >
+                    {language === 'cs' ? 'Predmet' : 'Subject'}
+                  </label>
+                  <input
+                    id="contact-subject"
+                    type="text"
+                    required
+                    value={contactForm.subject}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
+                    placeholder={language === 'cs' ? 'O cem chcete napsat?' : 'What is this about?'}
+                    style={inputStyle}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="contact-message"
+                    style={{
+                      display: 'block',
+                      marginBottom: 6,
+                      fontFamily: 'var(--forge-font-heading)',
+                      fontSize: 'var(--forge-text-sm)',
+                      fontWeight: 500,
+                      color: 'var(--forge-text-secondary)',
+                    }}
+                  >
+                    {language === 'cs' ? 'Zprava' : 'Message'}
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    required
+                    rows={5}
+                    value={contactForm.message}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
+                    placeholder={language === 'cs' ? 'Popiste svuj dotaz nebo pozadavek...' : 'Describe your question or request...'}
+                    style={{ ...inputStyle, resize: 'vertical', minHeight: 120 }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
+                  />
+                </div>
+
+                <ForgeButton type="submit" variant="primary" size="lg">
+                  {language === 'cs' ? 'Odeslat zpravu' : 'Send message'}
+                </ForgeButton>
+              </form>
+            </Reveal>
+          </div>
+
+          {/* Right — Contact info cards */}
+          <div className="lg:col-span-5 space-y-5">
+            <Reveal delay={0.06}>
               <div
-                className="p-5 flex items-center gap-4 text-left"
+                className="p-6 flex items-start gap-4"
                 style={{
-                  background: 'var(--forge-bg-elevated)',
+                  background: 'var(--forge-bg-surface)',
                   border: '1px solid var(--forge-border-default)',
-                  borderRadius: 'var(--forge-radius-sm)',
+                  borderRadius: 'var(--forge-radius-md)',
                 }}
               >
-                <div style={{ color: 'var(--forge-accent-primary)' }}>
+                <div className="shrink-0 mt-1" style={{ color: 'var(--forge-accent-primary)' }}>
                   {icons.mail}
                 </div>
                 <div>
@@ -311,6 +443,7 @@ const Support = () => {
                     className="block mb-1"
                     style={{
                       fontFamily: 'var(--forge-font-heading)',
+                      fontSize: 'var(--forge-text-base)',
                       color: 'var(--forge-text-primary)',
                     }}
                   >
@@ -319,18 +452,23 @@ const Support = () => {
                   <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}>
                     support@modelpricer.com
                   </span>
+                  <span className="block mt-1" style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}>
+                    {language === 'cs' ? 'Odpoved do 24 hodin' : 'Response within 24 hours'}
+                  </span>
                 </div>
               </div>
+            </Reveal>
 
+            <Reveal delay={0.08}>
               <div
-                className="p-5 flex items-center gap-4 text-left"
+                className="p-6 flex items-start gap-4"
                 style={{
-                  background: 'var(--forge-bg-elevated)',
+                  background: 'var(--forge-bg-surface)',
                   border: '1px solid var(--forge-border-default)',
-                  borderRadius: 'var(--forge-radius-sm)',
+                  borderRadius: 'var(--forge-radius-md)',
                 }}
               >
-                <div style={{ color: 'var(--forge-accent-primary)' }}>
+                <div className="shrink-0 mt-1" style={{ color: 'var(--forge-accent-primary)' }}>
                   {icons.chat}
                 </div>
                 <div>
@@ -338,19 +476,51 @@ const Support = () => {
                     className="block mb-1"
                     style={{
                       fontFamily: 'var(--forge-font-heading)',
+                      fontSize: 'var(--forge-text-base)',
                       color: 'var(--forge-text-primary)',
                     }}
                   >
                     Live Chat
                   </strong>
                   <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}>
-                    {language === 'cs' ? 'Po-Pá 9:00-17:00' : 'Mon-Fri 9:00-17:00'}
+                    {language === 'cs' ? 'Po-Pa 9:00-17:00 CET' : 'Mon-Fri 9:00-17:00 CET'}
                   </span>
                 </div>
               </div>
-            </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div
+                className="p-6"
+                style={{
+                  background: 'var(--forge-bg-surface)',
+                  border: '1px solid var(--forge-accent-primary)',
+                  borderRadius: 'var(--forge-radius-md)',
+                  boxShadow: '0 0 30px rgba(0,212,170,0.06)',
+                }}
+              >
+                <strong
+                  className="block mb-2"
+                  style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: 'var(--forge-text-base)',
+                    color: 'var(--forge-text-primary)',
+                  }}
+                >
+                  {language === 'cs' ? 'Enterprise podpora' : 'Enterprise support'}
+                </strong>
+                <p style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                  {language === 'cs'
+                    ? 'Potrebujete dedicovany onboarding, SLA nebo integraci na miru?'
+                    : 'Need dedicated onboarding, SLA, or custom integration?'}
+                </p>
+                <ForgeButton to="/pricing" variant="outline" size="sm">
+                  {language === 'cs' ? 'Zobrazit plany' : 'View plans'}
+                </ForgeButton>
+              </div>
+            </Reveal>
           </div>
-        </Reveal>
+        </div>
       </section>
 
       {/* Footer handled by shared Footer.jsx component */}

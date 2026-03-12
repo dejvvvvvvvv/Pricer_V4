@@ -47,6 +47,7 @@ const translations = {
     'nav.demo': 'Demo kalkulačky',
     'nav.pricing': 'Ceník',
     'nav.support': 'Podpora',
+    'nav.track': 'Sledovat objednavku',
     'nav.admin': 'Admin',
     'nav.login': 'Přihlásit se',
     'nav.register': 'Začít zdarma',
@@ -585,17 +586,139 @@ const translations = {
     'admin.volume.noTiers': 'Žádné úrovně slev. Přidejte první.',
 
     // 404 Not Found
-    'notFound.title': 'Stránka nenalezena',
-    'notFound.description': 'Stránka, kterou hledáte, neexistuje nebo byla přesunuta.',
-    'notFound.goHome': 'Zpět na úvod',
-    'notFound.goBack': 'Zpět',
-    'notFound.helpfulLinks': 'Užitečné odkazy',
-    'notFound.link.calculator': 'Kalkulačka',
-    'notFound.link.pricing': 'Ceník',
+    'notFound.title': 'Stranka nenalezena',
+    'notFound.description': 'Stranka, kterou hledate, neexistuje nebo byla presunuta.',
+    'notFound.goHome': 'Zpet na uvod',
+    'notFound.goBack': 'Zpet',
+    'notFound.helpfulLinks': 'Uzitecne odkazy',
+    'notFound.link.calculator': 'Kalkulacka',
+    'notFound.link.pricing': 'Cenik',
     'notFound.link.support': 'Podpora',
+    'notFound.link.admin': 'Administrace',
+    'notFound.requestedUrl': 'Pozadovana adresa',
+    'notFound.subtitle': 'Vypadá to, že jste se ztratili v prostoru',
+    'notFound.searchHint': 'Zkuste jednu z těchto stránek:',
+
+    // Admin Payments / Invoicing
+    'admin.payments': 'Platby',
+    'admin.payments.title': 'Platby a fakturace',
+    'admin.payments.subtitle': 'Spravujte platby a faktury',
+    'admin.payments.invoices': 'Faktury',
+    'admin.payments.invoice': 'Faktura',
+    'admin.payments.invoiceNumber': 'Cislo faktury',
+    'admin.payments.issueDate': 'Datum vystaveni',
+    'admin.payments.dueDate': 'Datum splatnosti',
+    'admin.payments.paid': 'Zaplaceno',
+    'admin.payments.unpaid': 'Nezaplaceno',
+    'admin.payments.overdue': 'Po splatnosti',
+    'admin.payments.amount': 'Castka',
+    'admin.payments.method': 'Zpusob platby',
+    'admin.payments.status': 'Stav',
+    'admin.payments.createInvoice': 'Vytvorit fakturu',
+    'admin.payments.downloadPdf': 'Stahnout PDF',
+    'admin.payments.markPaid': 'Oznacit jako zaplaceno',
+    'admin.payments.refund': 'Vratit platbu',
+
+    // Admin System Health
+    'admin.system': 'Stav systemu',
+    'admin.system.title': 'Stav systemu',
+    'admin.system.subtitle': 'Monitoring a diagnostika',
+    'admin.system.status': 'Stav',
+    'admin.system.uptime': 'Doba bezani',
+    'admin.system.cpu': 'Vytizeni CPU',
+    'admin.system.memory': 'Pamet',
+    'admin.system.disk': 'Disk',
+    'admin.system.healthy': 'V poradku',
+    'admin.system.warning': 'Varovani',
+    'admin.system.critical': 'Kriticke',
+    'admin.system.lastCheck': 'Posledni kontrola',
+    'admin.system.services': 'Sluzby',
+    'admin.system.apiLatency': 'Latence API',
+
+    // Admin Activity Log
+    'admin.activity': 'Log aktivity',
+    'admin.activity.title': 'Log aktivity',
+    'admin.activity.subtitle': 'Historie zmen a udalosti',
+    'admin.activity.user': 'Uzivatel',
+    'admin.activity.action': 'Akce',
+    'admin.activity.timestamp': 'Cas',
+    'admin.activity.details': 'Detaily',
+    'admin.activity.noRecords': 'Zadne zaznamy',
+    'admin.activity.filter': 'Filtrovat',
+
+    // Admin Customers
+    'admin.customers': 'Zakaznici',
+    'admin.customers.title': 'Zakaznici',
+    'admin.customers.subtitle': 'Sprava zakazniku a kontaktu',
+    'admin.customers.name': 'Jmeno',
+    'admin.customers.email': 'Email',
+    'admin.customers.orders': 'Objednavky',
+    'admin.customers.totalSpent': 'Celkova utrata',
+    'admin.customers.lastOrder': 'Posledni objednavka',
+    'admin.customers.addCustomer': 'Pridat zakaznika',
+
+    // Admin Migration
+    'admin.migration': 'Migrace',
+    'admin.migration.title': 'Migrace dat',
+    'admin.migration.subtitle': 'Sprava datovych migraci',
+
+    // Admin Integrations
+    'admin.integrations': 'Integrace',
+    'admin.integrations.title': 'Integrace',
+    'admin.integrations.subtitle': 'Sprava externich integraci a propojeni',
+
+    // Admin Webhooks
+    'admin.webhooks': 'Webhooky',
+    'admin.webhooks.title': 'Webhooky',
+    'admin.webhooks.subtitle': 'Sprava webhook notifikaci',
+    'admin.webhooks.url': 'URL',
+    'admin.webhooks.events': 'Udalosti',
+    'admin.webhooks.active': 'Aktivni',
+    'admin.webhooks.addWebhook': 'Pridat webhook',
+    'admin.webhooks.testWebhook': 'Otestovat',
+    'admin.webhooks.lastTriggered': 'Naposledy spusteno',
+
+    // Admin Model Storage (nav label)
+    'admin.modelStorage': 'Uloziste modelu',
+
+    // Admin Layout UI
+    'admin.sidebar.search': 'Hledat...',
+    'admin.sidebar.noResults': 'Nic nenalezeno',
+    'admin.sidebar.expand': 'Rozbalit sidebar',
+    'admin.sidebar.collapse': 'Sbalit sidebar',
+    'admin.sidebar.pendingKey': 'cekan na dalsi klavesu...',
+
+    // Admin Nav Groups
+    'admin.nav.dashboard': 'Dashboard',
+    'admin.nav.business': 'Obchod',
+    'admin.nav.configuration': 'Konfigurace',
+    'admin.nav.communication': 'Komunikace',
+    'admin.nav.system': 'System',
+
+    // Print Queue
+    'admin.printQueue': 'Fronta tisku',
+    'admin.printQueue.title': 'Fronta tisku',
+    'admin.printQueue.subtitle': 'Sprava tiskovych uloh',
+    'admin.printQueue.queued': 'Ve fronte',
+    'admin.printQueue.printing': 'Tiskne se',
+    'admin.printQueue.completed': 'Dokonceno',
+    'admin.printQueue.failed': 'Selhalo',
+    'admin.printQueue.priority': 'Priorita',
+    'admin.printQueue.estimatedTime': 'Odhadovany cas',
+    'admin.printQueue.cancel': 'Zrusit ulohu',
+
+    // Language Switcher
+    'lang.switch': 'Prepnout jazyk',
+    'lang.cs': 'Cestina',
+    'lang.en': 'English',
 
     // Offline Banner
-    'offlineBanner': 'Jste offline. Některé funkce nemusí fungovat.',
+    'offlineBanner': 'Jste offline. Nekter funkce nemusí fungovat.',
+
+    // PWA Install
+    'pwa.installPrompt': 'Nainstalujte si ModelPricer jako aplikaci',
+    'pwa.installButton': 'Nainstalovat',
+    'pwa.dismiss': 'Zavrít',
   },
   en: {
     // Header
@@ -603,6 +726,7 @@ const translations = {
     'nav.demo': 'Demo Calculator',
     'nav.pricing': 'Pricing',
     'nav.support': 'Support',
+    'nav.track': 'Track Order',
     'nav.admin': 'Admin',
     'nav.login': 'Sign In',
     'nav.register': 'Get Started Free',
@@ -1149,8 +1273,130 @@ const translations = {
     'notFound.link.calculator': 'Calculator',
     'notFound.link.pricing': 'Pricing',
     'notFound.link.support': 'Support',
+    'notFound.link.admin': 'Admin Panel',
+    'notFound.requestedUrl': 'Requested URL',
+    'notFound.subtitle': 'Looks like you got lost in space',
+    'notFound.searchHint': 'Try one of these pages:',
+
+    // Admin Payments / Invoicing
+    'admin.payments': 'Payments',
+    'admin.payments.title': 'Payments & Invoicing',
+    'admin.payments.subtitle': 'Manage payments and invoices',
+    'admin.payments.invoices': 'Invoices',
+    'admin.payments.invoice': 'Invoice',
+    'admin.payments.invoiceNumber': 'Invoice Number',
+    'admin.payments.issueDate': 'Issue Date',
+    'admin.payments.dueDate': 'Due Date',
+    'admin.payments.paid': 'Paid',
+    'admin.payments.unpaid': 'Unpaid',
+    'admin.payments.overdue': 'Overdue',
+    'admin.payments.amount': 'Amount',
+    'admin.payments.method': 'Payment Method',
+    'admin.payments.status': 'Status',
+    'admin.payments.createInvoice': 'Create Invoice',
+    'admin.payments.downloadPdf': 'Download PDF',
+    'admin.payments.markPaid': 'Mark as Paid',
+    'admin.payments.refund': 'Refund',
+
+    // Admin System Health
+    'admin.system': 'System Health',
+    'admin.system.title': 'System Health',
+    'admin.system.subtitle': 'Monitoring and diagnostics',
+    'admin.system.status': 'Status',
+    'admin.system.uptime': 'Uptime',
+    'admin.system.cpu': 'CPU Usage',
+    'admin.system.memory': 'Memory',
+    'admin.system.disk': 'Disk',
+    'admin.system.healthy': 'Healthy',
+    'admin.system.warning': 'Warning',
+    'admin.system.critical': 'Critical',
+    'admin.system.lastCheck': 'Last Check',
+    'admin.system.services': 'Services',
+    'admin.system.apiLatency': 'API Latency',
+
+    // Admin Activity Log
+    'admin.activity': 'Activity Log',
+    'admin.activity.title': 'Activity Log',
+    'admin.activity.subtitle': 'Change and event history',
+    'admin.activity.user': 'User',
+    'admin.activity.action': 'Action',
+    'admin.activity.timestamp': 'Time',
+    'admin.activity.details': 'Details',
+    'admin.activity.noRecords': 'No records',
+    'admin.activity.filter': 'Filter',
+
+    // Admin Customers
+    'admin.customers': 'Customers',
+    'admin.customers.title': 'Customers',
+    'admin.customers.subtitle': 'Customer and contact management',
+    'admin.customers.name': 'Name',
+    'admin.customers.email': 'Email',
+    'admin.customers.orders': 'Orders',
+    'admin.customers.totalSpent': 'Total Spent',
+    'admin.customers.lastOrder': 'Last Order',
+    'admin.customers.addCustomer': 'Add Customer',
+
+    // Admin Migration
+    'admin.migration': 'Migration',
+    'admin.migration.title': 'Data Migration',
+    'admin.migration.subtitle': 'Manage data migrations',
+
+    // Admin Integrations
+    'admin.integrations': 'Integrations',
+    'admin.integrations.title': 'Integrations',
+    'admin.integrations.subtitle': 'Manage external integrations and connections',
+
+    // Admin Webhooks
+    'admin.webhooks': 'Webhooks',
+    'admin.webhooks.title': 'Webhooks',
+    'admin.webhooks.subtitle': 'Manage webhook notifications',
+    'admin.webhooks.url': 'URL',
+    'admin.webhooks.events': 'Events',
+    'admin.webhooks.active': 'Active',
+    'admin.webhooks.addWebhook': 'Add Webhook',
+    'admin.webhooks.testWebhook': 'Test',
+    'admin.webhooks.lastTriggered': 'Last Triggered',
+
+    // Admin Model Storage (nav label)
+    'admin.modelStorage': 'Model Storage',
+
+    // Admin Layout UI
+    'admin.sidebar.search': 'Search...',
+    'admin.sidebar.noResults': 'Nothing found',
+    'admin.sidebar.expand': 'Expand sidebar',
+    'admin.sidebar.collapse': 'Collapse sidebar',
+    'admin.sidebar.pendingKey': 'waiting for next key...',
+
+    // Admin Nav Groups
+    'admin.nav.dashboard': 'Dashboard',
+    'admin.nav.business': 'Business',
+    'admin.nav.configuration': 'Configuration',
+    'admin.nav.communication': 'Communication',
+    'admin.nav.system': 'System',
+
+    // Print Queue
+    'admin.printQueue': 'Print Queue',
+    'admin.printQueue.title': 'Print Queue',
+    'admin.printQueue.subtitle': 'Manage print jobs',
+    'admin.printQueue.queued': 'Queued',
+    'admin.printQueue.printing': 'Printing',
+    'admin.printQueue.completed': 'Completed',
+    'admin.printQueue.failed': 'Failed',
+    'admin.printQueue.priority': 'Priority',
+    'admin.printQueue.estimatedTime': 'Estimated Time',
+    'admin.printQueue.cancel': 'Cancel Job',
+
+    // Language Switcher
+    'lang.switch': 'Switch language',
+    'lang.cs': 'Cestina',
+    'lang.en': 'English',
 
     // Offline Banner
     'offlineBanner': 'You are offline. Some features may not work.',
+
+    // PWA Install
+    'pwa.installPrompt': 'Install ModelPricer as an app',
+    'pwa.installButton': 'Install',
+    'pwa.dismiss': 'Dismiss',
   }
 };

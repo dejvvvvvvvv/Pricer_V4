@@ -4,6 +4,7 @@ import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 
 const PrintConfiguration = ({
   onConfigChange,
@@ -395,14 +396,35 @@ const PrintConfiguration = ({
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Select
-            label="Material"
-            options={materialOptions}
-            value={config?.material || ''}
-            onChange={(value) => handleMaterialChange(value)}
-            searchable
-            disabled={disabled || materialOptions.length <= 1}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {(() => {
+                const matColors = Array.isArray(selectedMaterial?.colors) ? selectedMaterial.colors : [];
+                const selColor = matColors.find((c) => c.id === config?.color) || matColors[0];
+                const hex = selColor?.hex;
+                if (!hex) return null;
+                return (
+                  <div style={{
+                    width: '0.75rem', height: '0.75rem', borderRadius: '50%',
+                    border: '1px solid var(--widget-border, #E5E7EB)', backgroundColor: hex,
+                  }} aria-hidden="true" />
+                );
+              })()}
+              <label className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>Material</label>
+              {selectedMaterial?.price_per_gram != null && (
+                <span style={{ fontSize: '10px', color: 'var(--widget-muted, #6B7280)', marginLeft: 'auto' }}>
+                  od {Number(selectedMaterial.price_per_gram).toFixed(2)} Kc/g
+                </span>
+              )}
+            </div>
+            <Select
+              options={materialOptions}
+              value={config?.material || ''}
+              onChange={(value) => handleMaterialChange(value)}
+              searchable
+              disabled={disabled || materialOptions.length <= 1}
+            />
+          </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>Barva</label>
@@ -507,6 +529,24 @@ const PrintConfiguration = ({
             value={config?.quantity}
             onChange={(e) => handleConfigChange('quantity', parseInt(e?.target?.value) || 1)}
           />
+          {config?.quantity > 1 && (() => {
+            if (!selectedFile || selectedFile.status !== 'completed' || !selectedFile.result || !pricingConfig) return null;
+            try {
+              const singleQuote = calculateOrderQuote({
+                uploadedFiles: [selectedFile],
+                printConfigs: { [selectedFile.id]: { ...config, quantity: 1 } },
+                pricingConfig, feesConfig, feeSelections,
+              });
+              if (singleQuote && Number.isFinite(singleQuote.total) && singleQuote.total > 0) {
+                return (
+                  <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)', marginTop: '-0.5rem' }}>
+                    {new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 2 }).format(singleQuote.total)} / kus
+                  </p>
+                );
+              }
+            } catch { /* pricing not ready */ }
+            return null;
+          })()}
         </div>
       </div>
 

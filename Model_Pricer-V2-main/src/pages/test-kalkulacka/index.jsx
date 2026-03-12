@@ -1,5 +1,5 @@
 // src/pages/test-kalkulacka/index.jsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
@@ -41,9 +41,53 @@ import { useUrlState } from '../../hooks/useUrlState';
 import { useUndoRedo } from '../../hooks/useUndoRedo';
 import ShareConfigButton from './components/ShareConfigButton';
 import UndoRedoButtons from './components/UndoRedoButtons';
+import { SAMPLE_MODELS } from '../../lib/sampleModels';
 import '../../styles/responsive-kalkulacka.css';
 import '../../styles/animations.css';
 import '../../styles/light-theme-kalkulacka.css';
+
+// --- Micro-UX: count-up animation hook for price display ---
+function useCountUp(targetValue, duration = 500) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const rafRef = useRef(null);
+  const startRef = useRef({ value: 0, time: 0 });
+
+  useEffect(() => {
+    const target = Number.isFinite(targetValue) ? targetValue : 0;
+    if (target === displayValue && rafRef.current == null) return;
+
+    const startValue = displayValue;
+    const startTime = performance.now();
+    startRef.current = { value: startValue, time: startTime };
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+    const animate = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = startValue + (target - startValue) * eased;
+      setDisplayValue(current);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        rafRef.current = null;
+      }
+    };
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetValue, duration]);
+
+  return displayValue;
+}
 
 // Default config is used for newly uploaded models (so switching between models does not
 // accidentally reset already-sliced results when a config entry is missing).
@@ -123,13 +167,24 @@ const TestKalkulacka = () => {
     feeTargetsById: {},
   }));
 
-  // S09: Express pricing
+  // S09: Express pricing — auto-select default tier
   const [expressConfig, setExpressConfig] = useState(() => loadExpressConfigV1());
-  const [selectedExpressTierId, setSelectedExpressTierId] = useState(null);
+  const [selectedExpressTierId, setSelectedExpressTierId] = useState(() => {
+    const ec = loadExpressConfigV1();
+    if (!ec?.enabled || !Array.isArray(ec.tiers)) return null;
+    const activeTiers = ec.tiers.filter(t => t.active !== false);
+    const defaultTier = activeTiers.find(t => t.is_default);
+    return defaultTier?.id || activeTiers[0]?.id || null;
+  });
 
-  // S04: Shipping
+  // S04: Shipping — auto-select first active method
   const [shippingConfig, setShippingConfig] = useState(() => loadShippingConfigV1());
-  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(null);
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(() => {
+    const sc = loadShippingConfigV1();
+    if (!sc?.enabled || !Array.isArray(sc.methods)) return null;
+    const activeMethods = sc.methods.filter(m => m.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    return activeMethods[0]?.id || null;
+  });
 
   // S10: Coupons
   const [couponsConfig, setCouponsConfig] = useState(() => loadCouponsConfigV1());
@@ -139,6 +194,58 @@ const TestKalkulacka = () => {
 
   // Slicing progress toasts
   const slicingToasts = useSlicingToasts();
+
+  // Ref for auto-scroll to pricing results after slicing completes
+  const pricingResultsRef = useRef(null);
+  // Track last completed file to trigger auto-scroll only on new completions
+  const lastCompletedCountRef = useRef(0);
+
+  // Compute total price for sticky bar + count-up animation
+  const stickyTotalPrice = useMemo(() => {
+    try {
+      if (uploadedFiles.length === 0) return null;
+      const readyFiles = uploadedFiles.filter(f => f.status === 'completed' && f.result);
+      if (readyFiles.length === 0) return null;
+      const quote = calculateOrderQuote({
+        uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections,
+        expressConfig, selectedExpressTierId,
+        couponsConfig, appliedCouponCode,
+        shippingConfig, selectedShippingMethodId,
+      });
+      return Number.isFinite(quote?.simple?.grandTotal) ? quote.simple.grandTotal
+        : Number.isFinite(quote?.total) ? quote.total : null;
+    } catch {
+      return null;
+    }
+  }, [uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections,
+      expressConfig, selectedExpressTierId, couponsConfig, appliedCouponCode,
+      shippingConfig, selectedShippingMethodId]);
+
+  const animatedPrice = useCountUp(stickyTotalPrice ?? 0, 500);
+
+  // Auto-scroll to pricing results when a model finishes slicing
+  useEffect(() => {
+    const completedCount = uploadedFiles.filter(f => f.status === 'completed').length;
+    if (completedCount > lastCompletedCountRef.current && completedCount > 0) {
+      // A new model just completed — scroll to pricing results
+      setTimeout(() => {
+        pricingResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 200);
+    }
+    lastCompletedCountRef.current = completedCount;
+  }, [uploadedFiles]);
+
+  // Handler: load a sample model
+  const handleLoadSample = useCallback((sampleModel) => {
+    try {
+      const file = sampleModel.generate();
+      handleFilesUploaded({ file });
+    } catch (err) {
+      debug('[test-kalkulacka] Failed to generate sample model:', err);
+    }
+  // handleFilesUploaded is not wrapped in useCallback so we skip it in deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mesh repair panel state
   const [modelGeometry, setModelGeometry] = useState(null);
@@ -843,6 +950,30 @@ const TestKalkulacka = () => {
   const hasFailedModels = uploadedFiles.some(f => f.status === 'failed');
   const hasMultipleModels = uploadedFiles.length > 1;
 
+  // Retry handler for a specific failed model
+  const handleRetryModel = useCallback((modelId) => {
+    const file = uploadedFiles.find(f => f.id === modelId);
+    if (!file?.file || file.status === 'processing') return;
+    updateModelStatus(modelId, { status: 'processing', error: null, errorCategory: null, errorSeverity: null, errorRaw: null });
+    const presetId = selectedPresetIds[modelId] ?? null;
+    sliceModelLocal(file.file, { presetId })
+      .then(res => {
+        const ok = (res?.ok ?? res?.success ?? true);
+        if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
+        updateModelStatus(modelId, { status: 'completed', result: res, error: null });
+      })
+      .catch(err => {
+        const classified = parseSlicerError(err);
+        updateModelStatus(modelId, {
+          status: 'failed',
+          error: classified.userMessage,
+          errorCategory: classified.category,
+          errorSeverity: classified.severity,
+          errorRaw: classified.raw,
+        });
+      });
+  }, [uploadedFiles, selectedPresetIds, updateModelStatus]);
+
   // --- Keyboard shortcuts ---
 
   // Ctrl+Enter: Trigger slicing (same as Generate/Slice button)
@@ -916,6 +1047,8 @@ const TestKalkulacka = () => {
     <div
       ref={themeContainerRef}
       className="min-h-screen"
+      role="main"
+      aria-label="3D model pricing calculator"
       style={{
         backgroundColor: 'var(--forge-bg-void)',
         color: 'var(--forge-text-primary)',
@@ -924,6 +1057,24 @@ const TestKalkulacka = () => {
         position: 'relative',
       }}
     >
+      {/* Screen reader live region for price announcements */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        style={{
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          padding: 0,
+          margin: '-1px',
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+          border: 0,
+        }}
+        id="tk-price-announcer"
+      />
       {/* Theme toggle button */}
       <button
         className="theme-toggle-btn"
@@ -945,6 +1096,8 @@ const TestKalkulacka = () => {
         style={{ display: 'none' }}
         multiple
         accept=".stl,.obj,.3mf"
+        aria-label="Vybrat 3D modely pro nahrani"
+        tabIndex={-1}
       />
 
       <div>
@@ -957,9 +1110,10 @@ const TestKalkulacka = () => {
               <button
                 onClick={() => navigate('/customer-dashboard')}
                 className="transition-colors"
-                style={{ color: 'var(--forge-text-muted)' }}
+                style={{ color: 'var(--forge-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', minHeight: '44px', display: 'inline-flex', alignItems: 'center' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--forge-text-primary)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--forge-text-muted)'}
+                aria-label="Prejit na Dashboard"
               >
                 Dashboard
               </button>
@@ -1000,7 +1154,7 @@ const TestKalkulacka = () => {
             </nav>
 
             <div className="flex items-center justify-between" style={{ flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? '0.75rem' : '0' }}>
-              <div className="tk-stepper" role="navigation" aria-label="Kroky objednávky">
+              <div className="tk-stepper" role="navigation" aria-label="Kroky objednavky" aria-describedby="tk-stepper-progress">
                 {steps.map((step, index) => {
                   const isCompleted = step.id < currentStep || (step.id <= highestStepReached && step.id !== currentStep);
                   const isCurrent = step.id === currentStep;
@@ -1039,7 +1193,6 @@ const TestKalkulacka = () => {
                               : 'var(--forge-text-muted)',
                             cursor: isClickable ? 'pointer' : isFuture ? 'not-allowed' : 'default',
                             opacity: isFuture ? 0.5 : 1,
-                            outline: 'none',
                             padding: 0,
                           }}
                         >
@@ -1147,6 +1300,11 @@ const TestKalkulacka = () => {
                       <div
                         className="flex-1 rounded-full overflow-hidden"
                         style={{ height: '6px', backgroundColor: 'var(--forge-bg-elevated)' }}
+                        role="progressbar"
+                        aria-valuenow={batchProgress.done}
+                        aria-valuemin={0}
+                        aria-valuemax={batchProgress.total}
+                        aria-label={`Davkove zpracovani: ${batchProgress.done} z ${batchProgress.total}`}
                       >
                         <div
                           className="rounded-full transition-all duration-300"
@@ -1176,11 +1334,14 @@ const TestKalkulacka = () => {
               <div style={{ marginBottom: '16px' }}>
                 <button
                   onClick={() => setCurrentStep(3)}
+                  aria-label="Zpet na krok Kontrola a cena"
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
                     background: 'none', border: 'none', cursor: 'pointer',
                     color: 'var(--forge-text-secondary)', fontSize: '14px',
                     fontFamily: 'var(--forge-font-body)',
+                    minHeight: '44px',
+                    minWidth: '44px',
                   }}
                 >
                   <Icon name="ArrowLeft" size={16} />
@@ -1245,10 +1406,77 @@ const TestKalkulacka = () => {
           {/* Main grid — visible on steps 1-3 */}
           {currentStep <= 3 && (
           <div key={`step-${currentStep}`} className="grid grid-cols-1 lg:grid-cols-3 gap-8 tk-main-grid page-fade-in" style={isMobile ? { gap: '1rem' } : undefined}>
-            <div className="lg:col-span-2 space-y-8" style={isMobile ? { gap: '1rem' } : undefined}>
+            <div className="lg:col-span-2 space-y-8" role="region" aria-label="Konfigurace tisku" style={isMobile ? { gap: '1rem' } : undefined}>
               {uploadedFiles.length === 0 && currentStep === 1 && (
                 <div data-tour="upload-zone">
                   <FileUploadZone onFilesUploaded={handleFilesUploaded} />
+                  {/* Enhanced empty state: sample models */}
+                  <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1.25rem',
+                    borderRadius: 'var(--forge-radius-xl)',
+                    border: '1px dashed var(--forge-border-default)',
+                    background: 'var(--forge-bg-elevated)',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <Icon name="Box" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
+                      <span style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        fontFamily: 'var(--forge-font-heading)',
+                        color: 'var(--forge-text-primary)',
+                      }}>
+                        Nemáte model? Vyzkoušejte ukázkový
+                      </span>
+                    </div>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--forge-text-muted)',
+                      marginBottom: '0.75rem',
+                      fontFamily: 'var(--forge-font-body)',
+                    }}>
+                      Načtěte předpřipravený 3D model a prozkoumejte kalkulačku bez vlastního souboru.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {SAMPLE_MODELS.map((sample) => (
+                        <button
+                          key={sample.id}
+                          type="button"
+                          onClick={() => handleLoadSample(sample)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.375rem',
+                            padding: '0.5rem 0.875rem',
+                            borderRadius: 'var(--forge-radius-md)',
+                            border: '1px solid var(--forge-border-default)',
+                            background: 'var(--forge-bg-surface)',
+                            color: 'var(--forge-text-primary)',
+                            fontSize: '12px',
+                            fontFamily: 'var(--forge-font-tech)',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            transition: 'border-color 0.2s, background 0.2s',
+                            minHeight: '36px',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--forge-accent-primary)';
+                            e.currentTarget.style.background = 'var(--forge-bg-elevated)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--forge-border-default)';
+                            e.currentTarget.style.background = 'var(--forge-bg-surface)';
+                          }}
+                          aria-label={`Nacist ukazkovy model: ${sample.name} (${sample.description})`}
+                        >
+                          <Icon name="Box" size={14} style={{ color: 'var(--forge-accent-primary)' }} />
+                          {sample.name}
+                          <span style={{ color: 'var(--forge-text-muted)', fontSize: '11px' }}>({sample.description})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1319,17 +1547,19 @@ const TestKalkulacka = () => {
                       printConfigs={printConfigs}
                       expressConfig={expressConfig}
                       selectedExpressTierId={selectedExpressTierId}
+                      onExpressTierChange={setSelectedExpressTierId}
                       couponsConfig={couponsConfig}
                       appliedCouponCode={appliedCouponCode}
                       shippingConfig={shippingConfig}
                       selectedShippingMethodId={selectedShippingMethodId}
+                      onShippingMethodChange={setSelectedShippingMethodId}
                     />
                   </div>
                 </>
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4" role="region" aria-label="Nahled modelu a cena">
               <ErrorBoundary>
             <div data-tour="model-viewer">
             <ModelViewer
@@ -1434,7 +1664,10 @@ const TestKalkulacka = () => {
                   selectedShippingMethodId={selectedShippingMethodId}
                   couponsConfig={couponsConfig}
                   appliedCouponCode={appliedCouponCode}
+                  onApplyCoupon={setAppliedCouponCode}
+                  onRemoveCoupon={() => setAppliedCouponCode('')}
                   onApplyHistoryConfig={handleApplyHistoryConfig}
+                  getShareableUrl={getShareableUrl}
                 />
                 </div>
               )}

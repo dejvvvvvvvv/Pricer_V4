@@ -530,8 +530,14 @@ export default function OrderConfirmation({ order, onStartNew }) {
   const total = order.totals_snapshot?.total ?? 0;
   const models = order.models || [];
   const customer = order.customer_snapshot || {};
+  const couponSnapshot = order.coupon_snapshot || null;
   const paymentMethod = order.payment_method || null;
   const paymentInfo = order.payment_info || null;
+  const shippingAddress = order.shipping_address || {};
+  const billingAddressSame = order.billing_address_same_as_shipping !== false;
+  const billingAddress = order.billing_address || null;
+  const isCompanyPurchase = order.is_company_purchase || false;
+  const companyInfo = order.company_info || null;
 
   return (
     <div style={forgeStyles.wrapper}>
@@ -597,6 +603,33 @@ export default function OrderConfirmation({ order, onStartNew }) {
           ))}
         </div>
 
+        {couponSnapshot && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.5rem 0',
+            borderBottom: '1px solid var(--forge-border-default)',
+          }}>
+            <span style={{
+              fontSize: 'var(--forge-text-sm)',
+              color: 'var(--forge-accent-primary)',
+              fontFamily: 'var(--forge-font-body)',
+              fontWeight: 500,
+            }}>
+              {t('Sleva', 'Discount')} ({couponSnapshot.code})
+            </span>
+            <span style={{
+              fontSize: 'var(--forge-text-sm)',
+              color: 'var(--forge-accent-primary)',
+              fontFamily: 'var(--forge-font-mono)',
+              fontWeight: 600,
+            }}>
+              - {formatCzk(couponSnapshot.discount)}
+            </span>
+          </div>
+        )}
+
         <div style={forgeStyles.totalRow}>
           <span style={forgeStyles.totalLabel}>{t('Celkem', 'Total')}</span>
           <span style={forgeStyles.totalValue}>{formatCzk(total)}</span>
@@ -631,6 +664,59 @@ export default function OrderConfirmation({ order, onStartNew }) {
           )}
         </div>
       </div>
+
+      {/* Company info */}
+      {isCompanyPurchase && companyInfo && (
+        <div style={forgeStyles.card}>
+          <h3 style={forgeStyles.sectionTitle}>
+            {t('Fakturacni udaje firmy', 'Company Billing Info')}
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div>
+              <span style={forgeStyles.contactLabel}>{t('Nazev firmy', 'Company Name')}:</span>
+              <p style={forgeStyles.contactValue}>{companyInfo.name || '—'}</p>
+            </div>
+            <div>
+              <span style={forgeStyles.contactLabel}>{t('ICO', 'Company ID')}:</span>
+              <p style={forgeStyles.contactValue}>{companyInfo.ico || '—'}</p>
+            </div>
+            {companyInfo.dic && (
+              <div>
+                <span style={forgeStyles.contactLabel}>{t('DIC', 'VAT ID')}:</span>
+                <p style={forgeStyles.contactValue}>{companyInfo.dic}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Shipping address */}
+      {(shippingAddress.street || shippingAddress.city) && (
+        <div style={forgeStyles.card}>
+          <h3 style={forgeStyles.sectionTitle}>
+            {t('Dodaci adresa', 'Shipping Address')}
+          </h3>
+          <p style={forgeStyles.contactValue}>
+            {shippingAddress.street && <>{shippingAddress.street}<br /></>}
+            {shippingAddress.city}{shippingAddress.zip ? `, ${shippingAddress.zip}` : ''}
+            {shippingAddress.country ? <><br />{shippingAddress.country}</> : ''}
+          </p>
+        </div>
+      )}
+
+      {/* Billing address (only if different from shipping) */}
+      {!billingAddressSame && billingAddress && (
+        <div style={forgeStyles.card}>
+          <h3 style={forgeStyles.sectionTitle}>
+            {t('Fakturacni adresa', 'Billing Address')}
+          </h3>
+          <p style={forgeStyles.contactValue}>
+            {billingAddress.street && <>{billingAddress.street}<br /></>}
+            {billingAddress.city}{billingAddress.zip ? `, ${billingAddress.zip}` : ''}
+            {billingAddress.country ? <><br />{billingAddress.country}</> : ''}
+          </p>
+        </div>
+      )}
 
       {/* Action */}
       <div style={forgeStyles.actionCenter}>

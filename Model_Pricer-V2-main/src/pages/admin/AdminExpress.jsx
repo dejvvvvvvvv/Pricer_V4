@@ -11,7 +11,9 @@ import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { loadExpressConfigV1, saveExpressConfigV1 } from '../../utils/adminExpressStorage';
+import { loadExpressConfigV1, saveExpressConfigV1, validateExpressConfigV1 } from '../../utils/adminExpressStorage';
+import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
+import { getHelpText } from './helpTexts';
 
 function safeNum(v, fallback = 0) {
   const n = Number(v);
@@ -113,6 +115,9 @@ export default function AdminExpress() {
       is_default: false,
       sort_order: (config?.tiers?.length || 0),
       active: true,
+      min_order_value: 0,
+      cutoff_time: '',
+      description: '',
     };
     setConfig((prev) => ({ ...prev, tiers: [...(prev.tiers || []), newTier] }));
     setSelectedTierId(id);
@@ -156,8 +161,33 @@ export default function AdminExpress() {
     });
   };
 
+  // Validation errors (computed)
+  const validationErrors = useMemo(() => {
+    if (!config) return [];
+    return validateExpressConfigV1(config);
+  }, [config]);
+
+  const formatValidationError = (err) => {
+    if (err === 'NO_TIERS') return cs ? 'Musi existovat alespon jedna uroven.' : 'At least one tier is required.';
+    if (err === 'EMPTY_NAME') return cs ? 'Nazev urovne nesmi byt prazdny.' : 'Tier name must not be empty.';
+    if (err.startsWith('DUPLICATE_NAME:')) return cs ? `Duplicitni nazev: "${err.split(':')[1]}"` : `Duplicate name: "${err.split(':')[1]}"`;
+    if (err.startsWith('NEGATIVE_SURCHARGE:')) return cs ? `Zaporna prirazka u "${err.split(':')[1]}"` : `Negative surcharge on "${err.split(':')[1]}"`;
+    if (err.startsWith('NEGATIVE_DAYS:')) return cs ? `Zaporny pocet dnu u "${err.split(':')[1]}"` : `Negative days on "${err.split(':')[1]}"`;
+    if (err.startsWith('NEGATIVE_MIN_ORDER:')) return cs ? `Zaporna min. hodnota objednavky u "${err.split(':')[1]}"` : `Negative min order value on "${err.split(':')[1]}"`;
+    if (err.startsWith('INVALID_CUTOFF:')) return cs ? `Neplatny format casu uzaverky u "${err.split(':')[1]}" (pouzijte HH:MM)` : `Invalid cutoff time format on "${err.split(':')[1]}" (use HH:MM)`;
+    return err;
+  };
+
   const handleSave = () => {
     setBanner(null);
+    // Run validation
+    if (validationErrors.length > 0) {
+      setBanner({
+        type: 'error',
+        text: validationErrors.map(formatValidationError).join(' | '),
+      });
+      return;
+    }
     try {
       setSaving(true);
       const saved = saveExpressConfigV1(config);
@@ -203,6 +233,16 @@ export default function AdminExpress() {
 
   const tiers = config?.tiers || [];
 
+  // Per-tier name validation for inline errors
+  const nameErrorForSelected = useMemo(() => {
+    if (!selectedTier) return '';
+    const name = (selectedTier.name || '').trim();
+    if (!name) return cs ? 'Nazev je povinny.' : 'Name is required.';
+    const isDuplicate = tiers.some((t) => t.id !== selectedTier.id && (t.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (isDuplicate) return cs ? 'Nazev je duplicitni.' : 'Name is duplicate.';
+    return '';
+  }, [selectedTier, tiers, cs]);
+
   return (
     <div className="admin-page">
       <div className="admin-header">
@@ -223,7 +263,7 @@ export default function AdminExpress() {
             <Icon name="RotateCcw" size={18} />
             {cs ? 'Reset' : 'Reset'}
           </button>
-          <button className="btn-primary" onClick={handleSave} disabled={!dirty || saving}>
+          <button className="btn-primary" onClick={handleSave} disabled={!dirty || saving || validationErrors.length > 0}>
             <Icon name="Save" size={18} />
             {saving ? ui.saving : ui.save}
           </button>
@@ -234,6 +274,13 @@ export default function AdminExpress() {
         <div className={`banner ${banner.type}`}>
           <Icon name={banner.type === 'error' ? 'XCircle' : 'CheckCircle2'} size={18} />
           <span>{banner.text}</span>
+        </div>
+      )}
+
+      {dirty && validationErrors.length > 0 && !banner && (
+        <div className="banner error">
+          <Icon name="AlertTriangle" size={18} />
+          <span>{validationErrors.map(formatValidationError).join(' | ')}</span>
         </div>
       )}
 
@@ -296,6 +343,16 @@ export default function AdminExpress() {
                           <span className="chip">
                             <Icon name="Clock" size={12} /> {safeNum(tier.delivery_days)} {cs ? 'dni' : 'days'}
                           </span>
+                          {safeNum(tier.min_order_value) > 0 && (
+                            <span className="chip">
+                              <Icon name="ShieldCheck" size={12} /> {cs ? 'Min' : 'Min'} {safeNum(tier.min_order_value)} CZK
+                            </span>
+                          )}
+                          {tier.cutoff_time && (
+                            <span className="chip">
+                              <Icon name="Timer" size={12} /> {tier.cutoff_time}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -333,14 +390,15 @@ export default function AdminExpress() {
                     <div className="field">
                       <label>{cs ? 'Nazev' : 'Name'}</label>
                       <input
-                        className="input"
+                        className={`input${nameErrorForSelected ? ' has-error' : ''}`}
                         value={selectedTier.name}
                         onChange={(e) => updateTier(selectedTier.id, { name: e.target.value })}
                         placeholder={cs ? 'Napr. Express' : 'e.g. Express'}
                       />
+                      {nameErrorForSelected && <div className="help" style={{ color: 'var(--forge-error, #FF4757)' }}>{nameErrorForSelected}</div>}
                     </div>
                     <div className="field">
-                      <label>{cs ? 'Doba doruceni (dny)' : 'Delivery days'}</label>
+                      <label>{cs ? 'Doba doruceni (dny)' : 'Delivery days'} <ForgeHelpIcon text={getHelpText('express_delivery_days', language)} size={14} /></label>
                       <input
                         className="input"
                         type="number"
@@ -352,7 +410,7 @@ export default function AdminExpress() {
                   </div>
                   <div className="grid2" style={{ marginTop: 12 }}>
                     <div className="field">
-                      <label>{cs ? 'Typ prirazky' : 'Surcharge type'}</label>
+                      <label>{cs ? 'Typ prirazky' : 'Surcharge type'} <ForgeHelpIcon text={selectedTier.surcharge_type === 'percent' ? getHelpText('express_surcharge_percent', language) : getHelpText('express_surcharge_fixed', language)} size={14} /></label>
                       <select
                         className="input"
                         value={selectedTier.surcharge_type}
@@ -395,6 +453,60 @@ export default function AdminExpress() {
                 </div>
               </div>
 
+              {/* SECTION: CONDITIONS & RESTRICTIONS */}
+              <div className="admin-card">
+                <div className="card-header">
+                  <div>
+                    <h2>{cs ? 'Podminky a omezeni' : 'Conditions & restrictions'}</h2>
+                    <p className="card-description">{cs ? 'Minimalni hodnota objednavky, uzaverka pro prijem a interni poznamka.' : 'Minimum order value, order cutoff time and internal note.'}</p>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="grid2">
+                    <div className="field">
+                      <label>{cs ? 'Min. hodnota objednavky (CZK)' : 'Min order value (CZK)'}</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={selectedTier.min_order_value}
+                        onChange={(e) => updateTier(selectedTier.id, { min_order_value: safeNum(e.target.value, 0) })}
+                      />
+                      <div className="help">
+                        {cs
+                          ? 'Uroven bude dostupna jen pro objednavky nad touto castkou. 0 = bez omezeni.'
+                          : 'Tier available only for orders above this amount. 0 = no restriction.'}
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>{cs ? 'Uzaverka pro prijem (HH:MM)' : 'Order cutoff time (HH:MM)'}</label>
+                      <input
+                        className="input"
+                        type="time"
+                        value={selectedTier.cutoff_time}
+                        onChange={(e) => updateTier(selectedTier.id, { cutoff_time: e.target.value })}
+                      />
+                      <div className="help">
+                        {cs
+                          ? 'Objednavky po tomto casu budou zpracovany nasledujici pracovni den. Prazdne = bez omezeni.'
+                          : 'Orders placed after this time will be processed next business day. Empty = no restriction.'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="field" style={{ marginTop: 12 }}>
+                    <label>{cs ? 'Interni poznamka' : 'Internal note'}</label>
+                    <textarea
+                      className="input"
+                      rows={2}
+                      value={selectedTier.description}
+                      onChange={(e) => updateTier(selectedTier.id, { description: e.target.value })}
+                      placeholder={cs ? 'Interni poznamka pro admin (zakaznik ji neuvidi)' : 'Internal note for admin (not shown to customers)'}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* SECTION: PREVIEW */}
               <div className="admin-card">
                 <div className="card-header">
@@ -419,6 +531,18 @@ export default function AdminExpress() {
                           <Icon name="Clock" size={14} />
                           {safeNum(tier.delivery_days)} {cs ? 'dni' : 'days'}
                         </div>
+                        {safeNum(tier.min_order_value) > 0 && (
+                          <div className="preview-min-order">
+                            <Icon name="ShieldCheck" size={12} />
+                            {cs ? `Od ${safeNum(tier.min_order_value)} CZK` : `From ${safeNum(tier.min_order_value)} CZK`}
+                          </div>
+                        )}
+                        {tier.cutoff_time && (
+                          <div className="preview-cutoff">
+                            <Icon name="Timer" size={12} />
+                            {cs ? `Objednat do ${tier.cutoff_time}` : `Order by ${tier.cutoff_time}`}
+                          </div>
+                        )}
                         {tier.is_default && <div className="preview-badge">{cs ? 'Doporuceno' : 'Recommended'}</div>}
                       </div>
                     ))}
@@ -432,7 +556,7 @@ export default function AdminExpress() {
           <div className="admin-card">
             <div className="card-header">
               <div>
-                <h2>{cs ? 'Upsell nastaveni' : 'Upsell settings'}</h2>
+                <h2>{cs ? 'Upsell nastaveni' : 'Upsell settings'} <ForgeHelpIcon text={getHelpText('express_upsell', language)} size={14} /></h2>
                 <p className="card-description">{cs ? 'Zobrazit upsell zpravu pri vyberu pomalejsi urovne.' : 'Show upsell message when selecting a slower tier.'}</p>
               </div>
             </div>
@@ -659,6 +783,14 @@ export default function AdminExpress() {
           color: var(--forge-accent-primary); background: rgba(0,212,170,0.08); border-radius: 999px; padding: 3px 8px; display: inline-block;
           font-family: var(--forge-font-tech); letter-spacing: 0.08em;
         }
+        .preview-min-order, .preview-cutoff {
+          font-size: 12px; color: var(--forge-text-muted); margin-top: 4px;
+          display: flex; align-items: center; gap: 4px; justify-content: center;
+          font-family: var(--forge-font-tech);
+        }
+
+        /* Validation inline error */
+        .input.has-error { border-color: var(--forge-error, #FF4757); }
       `}</style>
       <ConfirmDialog />
     </div>

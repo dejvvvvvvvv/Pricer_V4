@@ -1,0 +1,260 @@
+/* ==========================================================================
+   Light Theme Overrides for Admin Panel
+   Scoped via [data-theme="light"] on the AdminLayout root container.
+   Does NOT modify forge-tokens.css — pure CSS variable overrides.
+   Independent from light-theme-kalkulacka.css (calculator light theme).
+   ========================================================================== */
+
+[data-theme="light"] {
+  /* ---- Background ---- */
+  --forge-bg-void: #F4F5F7;
+  --forge-bg-surface: #FFFFFF;
+  --forge-bg-elevated: #F8F9FA;
+  --forge-bg-overlay: #EEF0F2;
+
+  /* ---- Text ---- */
+  --forge-text-primary: #1A1A2E;
+  --forge-text-secondary: #4A5568;
+  --forge-text-muted: #6B7280;
+  --forge-text-decorative: #9CA3AF;
+  --forge-text-disabled: #CBD5E1;
+
+  /* ---- Accents — keep teal/orange vibrant, adjust subtle/ghost for light bg ---- */
+  --forge-accent-primary: #00B894;
+  --forge-accent-primary-h: #00D4AA;
+  --forge-accent-primary-strong: #00B894;
+  --forge-accent-primary-medium: #00A88A;
+  --forge-accent-primary-subtle: rgba(0, 184, 148, 0.10);
+  --forge-accent-primary-ghost: rgba(0, 184, 148, 0.05);
+  --forge-accent-secondary: #E85D2C;
+  --forge-accent-tertiary: #5A52E0;
+
+  /* ---- Semantic ---- */
+  --forge-success: #00B894;
+  --forge-warning: #F0A030;
+  --forge-error: #E53E3E;
+  --forge-info: #3B82F6;
+
+  /* ---- Borders ---- */
+  --forge-border-default: #E2E8F0;
+  --forge-border-active: #CBD5E1;
+  --forge-border-highlight: rgba(0, 184, 148, 0.25);
+  --forge-border-grid: #E2E8F0;
+
+  /* ---- Gradients ---- */
+  --forge-gradient-brand: linear-gradient(135deg, #00B894 0%, #5A52E0 100%);
+  --forge-gradient-glow: radial-gradient(ellipse at center, rgba(0, 184, 148, 0.06) 0%, transparent 70%);
+
+  /* ---- Shadows — lighter for light theme ---- */
+  --forge-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --forge-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --forge-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --forge-shadow-glow: 0 0 20px rgba(0, 184, 148, 0.12);
+
+  /* ---- 3D-print specific ---- */
+  --forge-nozzle-hot: #E8890C;
+  --forge-bed-heated: #E05555;
+}
+
+/* --------------------------------------------------------------------------
+   Transition layer — smooth theme switching (200ms as per spec)
+   -------------------------------------------------------------------------- */
+[data-theme="light"],
+[data-theme="light"] *,
+[data-theme="light"] *::before,
+[data-theme="light"] *::after {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+/* Opt-out transition for elements that should switch instantly */
+[data-theme="light"] canvas,
+[data-theme="light"] .no-theme-transition {
+  transition: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbar — light variant
+   -------------------------------------------------------------------------- */
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--forge-bg-elevated);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* --------------------------------------------------------------------------
+   Input placeholder
+   -------------------------------------------------------------------------- */
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: var(--forge-text-decorative) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Admin sidebar overrides
+   -------------------------------------------------------------------------- */
+
+/* Sidebar active nav item background needs contrast in light mode */
+[data-theme="light"] aside a[style*="rgba(0, 212, 170"] {
+  background-color: rgba(0, 184, 148, 0.08) !important;
+}
+
+/* Cards / panels that use bg-surface or bg-elevated */
+[data-theme="light"] .forge-card,
+[data-theme="light"] [class*="forge-card"] {
+  box-shadow: var(--forge-shadow-sm);
+}
+
+/* --------------------------------------------------------------------------
+   Buttons with inline rgba dark-mode patterns
+   -------------------------------------------------------------------------- */
+[data-theme="light"] button[style*="rgba(255"] {
+  border-color: var(--forge-border-default) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Table overrides for admin tables
+   -------------------------------------------------------------------------- */
+[data-theme="light"] table {
+  border-color: var(--forge-border-default);
+}
+
+[data-theme="light"] th {
+  background-color: var(--forge-bg-elevated);
+  color: var(--forge-text-secondary);
+  border-color: var(--forge-border-default);
+}
+
+[data-theme="light"] td {
+  border-color: var(--forge-border-default);
+}
+
+[data-theme="light"] tr:hover td {
+  background-color: var(--forge-bg-elevated);
+}
+
+/* --------------------------------------------------------------------------
+   Kanban board light overrides
+   -------------------------------------------------------------------------- */
+[data-theme="light"] .kanban-column {
+  background-color: var(--forge-bg-elevated);
+  border-color: var(--forge-border-default);
+}
+
+[data-theme="light"] .kanban-card {
+  background-color: var(--forge-bg-surface);
+  border-color: var(--forge-border-default);
+  box-shadow: var(--forge-shadow-sm);
+}
+
+/* --------------------------------------------------------------------------
+   Charts and graphs — ensure readability
+   -------------------------------------------------------------------------- */
+[data-theme="light"] .recharts-text,
+[data-theme="light"] .recharts-cartesian-axis-tick-value {
+  fill: var(--forge-text-secondary) !important;
+}
+
+[data-theme="light"] .recharts-cartesian-grid line {
+  stroke: var(--forge-border-default) !important;
+}
+
+[data-theme="light"] .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--forge-bg-surface) !important;
+  border-color: var(--forge-border-default) !important;
+  color: var(--forge-text-primary) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Code/monospace blocks
+   -------------------------------------------------------------------------- */
+[data-theme="light"] code,
+[data-theme="light"] pre {
+  background-color: var(--forge-bg-elevated);
+  color: var(--forge-text-primary);
+  border-color: var(--forge-border-default);
+}
+
+/* --------------------------------------------------------------------------
+   Mobile overlay backdrop — lighter in light mode
+   -------------------------------------------------------------------------- */
+[data-theme="light"] .admin-mobile-backdrop {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Badge / pill overrides for light mode
+   -------------------------------------------------------------------------- */
+[data-theme="light"] .forge-badge,
+[data-theme="light"] [class*="badge"] {
+  border-color: var(--forge-border-default);
+}
+
+/* --------------------------------------------------------------------------
+   Select / dropdown overrides
+   -------------------------------------------------------------------------- */
+[data-theme="light"] select {
+  background-color: var(--forge-bg-surface);
+  color: var(--forge-text-primary);
+  border-color: var(--forge-border-default);
+}
+
+[data-theme="light"] select:focus {
+  border-color: var(--forge-accent-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Admin theme toggle button
+   -------------------------------------------------------------------------- */
+.admin-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--forge-border-default);
+  border-radius: var(--forge-radius-sm, 6px);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: var(--forge-font-tech);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--forge-text-secondary);
+  letter-spacing: 0.04em;
+  transition: all 150ms ease-out;
+  height: 30px;
+  outline: none;
+}
+
+.admin-theme-toggle:hover {
+  border-color: var(--forge-accent-primary, #00D4AA);
+  color: var(--forge-accent-primary, #00D4AA);
+}
+
+.admin-theme-toggle:focus-visible {
+  outline: 2px solid var(--forge-accent-primary);
+  outline-offset: 2px;
+}
+
+.admin-theme-toggle:active {
+  transform: scale(0.96);
+}
+
+/* Icon rotation on toggle */
+.admin-theme-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-theme-toggle:hover .admin-theme-toggle-icon {
+  transform: rotate(20deg);
+}

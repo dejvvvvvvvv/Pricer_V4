@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 164 (102-158 + 2x ID 101)
-- **Posledni zaznam:** 158-BK (UPRAVY 2026-03-10, Backend API Docs)
-- **Posledni aktualizace:** 2026-03-11 (Batch 16-17 finalizace — ID 157-158: Admin Footer + Backend API Docs)
+- **Celkem zaznamu:** 165 (102-159 + 2x ID 101)
+- **Posledni zaznam:** 159-AD (UPRAVY 2026-03-12, Session: 5 implementaci)
+- **Posledni aktualizace:** 2026-03-12 (Session S01 — Global Search, Backend API, Onboarding, Share/Export, Batch Ops)
 
 ---
 
@@ -201,6 +201,12 @@
 | **157** | **AL** | **UPRAVY** | **Admin Footer Enhancement — AdminLayout.jsx (250 řádků), verze z AppContext, online status dot, DEV/PROD badge, tenant ID copy button, quick links (Docs/Support/Changelog), tagline, collapsed mode** |
 | **158** | **BK** | **UPRAVY** | **Backend API Docs + Versioning — apiDocs.js router (380 řádků), apiDocRegistry.js (470 řádků), 38 dokumentovaných endpointů, 9 domén, GET /api/docs (JSON), GET /api/docs/html (interactive HTML), v1 URL rewrite, X-API-Version header** |
 
+### 2026-03-12 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **159** | **AD** | **UPRAVY** | **Session 2026-03-12: 5 implementaci z 20 agentu (Global Search v AdminLayout, Backend API 8 endpointu, Onboarding Wizard 5-krokovy, Calculator Share/Export menu, Batch Operations presety+fees), 15 agentu rate-limited** |
+
 ---
 
 ## Navigace
@@ -220,3 +226,4 @@
 | `Historie/2026-03-05/` | 2 zaznamu (Admin Orders kompletni session S01: konverzace + technicke zmeny, 8 souboru) |
 | `Historie/2026-03-09/` | 11 zaznamu (Payment Methods + Checkout integrace + Agents model upgrade + Vitest setup & code quality + Code quality sprint 5x + Code quality sprint final batch 2) |
 | `Historie/2026-03-10/` | 46 zaznamu (Autonomní session: plán + batch1-15 + 4x KONVERZACE + Batch 16-17 UPRAVY + denní přehled; ID 113-158) |
+| `Historie/2026-03-12/` | 1 zaznam (Session S01: 5 implementaci, 15 rate-limited; ID 159) |

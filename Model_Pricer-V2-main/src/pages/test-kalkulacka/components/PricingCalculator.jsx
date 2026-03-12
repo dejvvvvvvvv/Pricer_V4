@@ -8,6 +8,7 @@ import PrintTimeVisualization from './PrintTimeVisualization';
 import FilamentUsageVisualization from './FilamentUsageVisualization';
 import PricingHistory from './PricingHistory';
 import VolumeDiscountChart from './VolumeDiscountChart';
+import PricingShareMenu from './PricingShareMenu';
 import { usePricingHistory } from '../../../hooks/usePricingHistory';
 import '../../../styles/animations.css';
 
@@ -166,7 +167,173 @@ function MiniRow({ label, value, emphasize = false }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontWeight: emphasize ? 600 : 400 }}>
       <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-body)' }}>{label}</span>
       <div style={fg.leader} />
-      <span style={{ fontSize: 'var(--forge-text-sm)', color: emphasize ? 'var(--forge-accent-primary)' : 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{value}</span>
+      <span style={{ fontSize: emphasize ? 'var(--forge-text-base)' : 'var(--forge-text-sm)', color: emphasize ? 'var(--forge-accent-primary)' : 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap', fontWeight: emphasize ? 700 : 400 }}>{value}</span>
+    </div>
+  );
+}
+
+/* ── Inline slicing progress indicator ─────────────────────────────────── */
+const SLICING_STEPS = [
+  { key: 'upload', label: 'Nahrávání modelu', icon: 'Upload' },
+  { key: 'analyze', label: 'Analýza geometrie', icon: 'Search' },
+  { key: 'calculate', label: 'Výpočet ceny', icon: 'Calculator' },
+];
+
+const shimmerCSS = `
+@keyframes tk-pricing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.tk-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.tk-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  animation: tk-shimmer-sweep 1.5s ease-in-out infinite;
+}
+@keyframes tk-shimmer-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+`;
+
+function SlicingProgressInline({ uploadedFiles: files }) {
+  const allFiles = Array.isArray(files) ? files : [];
+  const processing = allFiles.filter((f) => f?.status === 'processing');
+  const pending = allFiles.filter((f) => f?.status === 'pending');
+
+  if (processing.length === 0 && pending.length === 0) return null;
+
+  const activeStep = processing.length > 0 ? 1 : 0;
+
+  return (
+    <div
+      style={{
+        padding: '1rem',
+        borderRadius: 'var(--forge-radius-xl)',
+        border: '1px solid var(--forge-border-default)',
+        background: 'var(--forge-bg-elevated)',
+      }}
+      role="status"
+      aria-label={`Zpracovani modelu: ${processing.length} zpracovavano, ${pending.length} ceka`}
+      aria-live="polite"
+    >
+      <style>{shimmerCSS}</style>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <div
+          style={{
+            width: '0.5rem',
+            height: '0.5rem',
+            borderRadius: '50%',
+            background: 'var(--forge-accent-primary)',
+            animation: 'tk-pricing-pulse 1.5s ease-in-out infinite',
+          }}
+          aria-hidden="true"
+        />
+        <span style={{
+          fontSize: 'var(--forge-text-sm)',
+          fontWeight: 600,
+          color: 'var(--forge-text-primary)',
+          fontFamily: 'var(--forge-font-heading)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}>
+          Zpracovani{processing.length > 0 ? ` (${processing.length})` : ''}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.75rem' }} role="group" aria-label="Postup zpracovani">
+        {SLICING_STEPS.map((step, idx) => (
+          <div key={step.key} aria-label={`${step.label}: ${idx < activeStep ? 'dokonceno' : idx === activeStep ? 'probehajici' : 'cekani'}`} style={{
+            flex: 1,
+            height: '3px',
+            borderRadius: '2px',
+            background: idx < activeStep
+              ? 'var(--forge-accent-primary)'
+              : idx === activeStep
+                ? 'linear-gradient(90deg, var(--forge-accent-primary) 0%, rgba(0, 212, 170, 0.3) 100%)'
+                : 'var(--forge-bg-surface)',
+            transition: 'background 0.3s ease',
+          }} />
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.75rem' }}>
+        {SLICING_STEPS.map((step, idx) => {
+          const isDone = idx < activeStep;
+          const isActive = idx === activeStep;
+          const isFuture = idx > activeStep;
+
+          return (
+            <div key={step.key} style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.25rem',
+              opacity: isFuture ? 0.35 : 1,
+              transition: 'opacity 0.3s',
+            }}>
+              <div style={{
+                width: '1.75rem',
+                height: '1.75rem',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: isDone
+                  ? 'var(--forge-accent-primary)'
+                  : isActive
+                    ? 'rgba(0, 212, 170, 0.15)'
+                    : 'var(--forge-bg-surface)',
+                color: isDone
+                  ? 'var(--forge-bg-void)'
+                  : isActive
+                    ? 'var(--forge-accent-primary)'
+                    : 'var(--forge-text-muted)',
+                border: isActive ? '1px solid var(--forge-accent-primary)' : '1px solid transparent',
+              }}>
+                {isDone ? <Icon name="Check" size={12} /> : <Icon name={step.icon} size={12} />}
+              </div>
+              <span style={{
+                fontSize: '10px',
+                fontFamily: 'var(--forge-font-body)',
+                color: isActive ? 'var(--forge-text-primary)' : 'var(--forge-text-muted)',
+                fontWeight: isActive ? 600 : 400,
+                textAlign: 'center',
+                lineHeight: 1.2,
+              }}>
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Shimmer skeleton for pricing while loading */}
+      <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {[1, 0.7, 0.85].map((w, i) => (
+          <div key={i} className="tk-shimmer" style={{
+            height: '0.75rem',
+            borderRadius: 'var(--forge-radius-sm)',
+            background: 'var(--forge-bg-surface)',
+            width: `${w * 100}%`,
+          }} />
+        ))}
+        <div style={{ paddingTop: '0.5rem', borderTop: '2px solid var(--forge-border-default)' }}>
+          <div className="tk-shimmer" style={{
+            height: '1.5rem',
+            borderRadius: 'var(--forge-radius-sm)',
+            background: 'var(--forge-bg-surface)',
+            width: '50%',
+            marginLeft: 'auto',
+          }} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -188,9 +355,35 @@ export default function PricingCalculator({
   selectedShippingMethodId,
   couponsConfig,
   appliedCouponCode,
+  onApplyCoupon,
+  onRemoveCoupon,
   onApplyHistoryConfig,
+  getShareableUrl,
 }) {
   const [showDeveloper, setShowDeveloper] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
+
+  // Detect invalid coupon: code was applied but engine did not produce a coupon discount
+  const prevAppliedRef = useRef('');
+  useEffect(() => {
+    if (!appliedCouponCode) {
+      setCouponError('');
+      return;
+    }
+    // Only show error after a fresh apply (not on mount with stale code)
+    if (prevAppliedRef.current === appliedCouponCode) return;
+    prevAppliedRef.current = appliedCouponCode;
+
+    if (quote && !quote.coupon) {
+      setCouponError('Neplatn\u00fd k\u00f3d');
+      // Auto-remove the invalid code so the engine is not stuck with it
+      onRemoveCoupon?.();
+    } else if (quote && quote.coupon) {
+      setCouponError('');
+      setCouponInput('');
+    }
+  }, [appliedCouponCode, quote, onRemoveCoupon]);
   const { history, addEntry, clearHistory, compareEntries } = usePricingHistory();
 
   const readyModels = useMemo(() => {
@@ -270,8 +463,18 @@ export default function PricingCalculator({
     );
   }, [quote, quoteState.isPartial, quoteState.error, readyModels, printConfigs, addEntry]);
 
+  // Build print-only model list
+  const printDate = new Date().toLocaleDateString('cs-CZ');
+  const printTime = new Date().toLocaleTimeString('cs-CZ');
+
   return (
-    <Card style={fg.card}>
+    <Card style={fg.card} role="region" aria-label="Cena a souhrn objednavky">
+      {/* Print-only header — visible only when printing */}
+      <div className="print-header" aria-hidden="true">
+        <h1>Cenova kalkulace 3D tisku</h1>
+        <p>Vygenerovano: {printDate} v {printTime}</p>
+      </div>
+
       <CardHeader style={{ paddingBottom: '0.75rem' }}>
         <div className="tk-pricing-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
           <div>
@@ -281,18 +484,12 @@ export default function PricingCalculator({
             </p>
           </div>
           <div className="tk-pricing-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {quote && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.print()}
-                iconName="Printer"
-                iconPosition="left"
-                data-no-print
-              >
-                Tisk
-              </Button>
-            )}
+            <PricingShareMenu
+              getShareableUrl={getShareableUrl}
+              quote={quote}
+              uploadedFiles={uploadedFiles}
+              printConfigs={printConfigs}
+            />
             <Button
               variant="outline"
               size="sm"
@@ -300,8 +497,10 @@ export default function PricingCalculator({
               iconName="Code2"
               iconPosition="left"
               data-no-print
+              aria-pressed={showDeveloper}
+              aria-label={showDeveloper ? 'Prepnout na zakaznicky pohled' : 'Prepnout na developer pohled'}
             >
-              {showDeveloper ? 'Zákaznický' : 'Developer'}
+              {showDeveloper ? 'Zakaznicky' : 'Developer'}
             </Button>
           </div>
         </div>
@@ -363,21 +562,55 @@ export default function PricingCalculator({
           </div>
         )}
         {quoteState.error ? (
-          <div style={fg.errorBox}>
-            <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-error)' }}>Chyba výpočtu ceny</p>
+          <div style={fg.errorBox} role="alert">
+            <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-error)' }}>Chyba vypoctu ceny</p>
             <p style={{ fontSize: 'var(--forge-text-xs)', marginTop: '0.25rem', color: 'var(--forge-error)', wordBreak: 'break-word', fontFamily: 'var(--forge-font-mono)' }}>{quoteState.error}</p>
           </div>
         ) : null}
 
+        {/* Inline slicing progress — shown when models are being processed */}
+        {!quote && <SlicingProgressInline uploadedFiles={uploadedFiles} />}
+
         {/* Main totals */}
-        {quote && (
-          <div className="scale-fade-in" style={fg.summaryCard}>
+        {quote && (() => {
+          // Compute total quantity across all ready models for per-unit price display
+          const displayTotal = Number.isFinite(quote.simple?.grandTotal) ? quote.simple.grandTotal : quote.total;
+          const totalQty = readyModels.reduce((sum, f) => {
+            const q = printConfigs?.[f.id]?.quantity;
+            return sum + (Number.isFinite(Number(q)) ? Math.max(1, Number(q)) : 1);
+          }, 0);
+          const showPerUnit = totalQty > 1 && Number.isFinite(displayTotal) && displayTotal > 0;
+          const perUnitPrice = showPerUnit ? displayTotal / totalQty : null;
+
+          return (
+          <div className="scale-fade-in" style={fg.summaryCard} aria-live="polite" aria-atomic="true">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
-                <p style={fg.totalLabel}>
-                  {quoteState.isPartial ? `Průběžně (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'CELKEM'}
+                <p style={fg.totalLabel} id="tk-total-label">
+                  {quoteState.isPartial ? `Prubezne (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'CELKEM'}
                 </p>
-                <p style={{ ...fg.totalValue, color: quoteState.isPartial ? 'var(--forge-text-muted)' : 'var(--forge-accent-primary)' }}>{formatCzk(quote.total)}</p>
+                <p
+                  aria-labelledby="tk-total-label"
+                  style={{
+                    fontSize: '2rem',
+                    fontWeight: 800,
+                    fontFamily: 'var(--forge-font-mono)',
+                    letterSpacing: '-0.03em',
+                    color: quoteState.isPartial ? 'var(--forge-text-muted)' : 'var(--forge-accent-primary)',
+                    lineHeight: 1.1,
+                    textShadow: quoteState.isPartial ? 'none' : '0 0 20px rgba(0, 212, 170, 0.15)',
+                  }}
+                >{formatCzk(displayTotal)}</p>
+                {showPerUnit && (
+                  <p style={{
+                    fontSize: 'var(--forge-text-sm)',
+                    color: 'var(--forge-text-secondary)',
+                    fontFamily: 'var(--forge-font-mono)',
+                    marginTop: '0.25rem',
+                  }}>
+                    {formatCzk(perUnitPrice)} / kus ({totalQty} ks)
+                  </p>
+                )}
                 {(quote.flags?.min_order_total_applied || quote.flags?.clamped_to_zero) && (
                   <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {quote.flags?.min_order_total_applied && (
@@ -415,8 +648,176 @@ export default function PricingCalculator({
                   </div>
                 )}
                 <MiniRow label="Markup" value={formatSignedCzk(quote.simple.markup)} />
+
+                {/* Express surcharge line */}
+                {quote.flags?.express_applied && quote.express && (
+                  <MiniRow
+                    label={`Express (${quote.express.tierId || ''})`}
+                    value={`+ ${formatCzk(quote.express.surchargeTotal)}`}
+                  />
+                )}
+
+                {/* Shipping cost line */}
+                {quote.shipping && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    padding: '0.375rem 0.5rem',
+                    borderRadius: 'var(--forge-radius-md)',
+                    background: quote.shipping.freeShippingApplied ? 'rgba(0, 212, 170, 0.06)' : 'transparent',
+                    border: quote.shipping.freeShippingApplied ? '1px solid rgba(0, 212, 170, 0.2)' : 'none',
+                  }}>
+                    <span style={{
+                      fontSize: 'var(--forge-text-sm)',
+                      color: quote.shipping.freeShippingApplied ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
+                      fontFamily: 'var(--forge-font-body)',
+                    }}>
+                      {quote.shipping.name || 'Doprava'}
+                    </span>
+                    <span style={{
+                      fontSize: 'var(--forge-text-sm)',
+                      fontFamily: 'var(--forge-font-mono)',
+                      fontWeight: 500,
+                      color: quote.shipping.freeShippingApplied ? 'var(--forge-accent-primary)' : 'var(--forge-text-primary)',
+                    }}>
+                      {quote.shipping.freeShippingApplied ? 'Zdarma' : `+ ${formatCzk(quote.shipping.cost)}`}
+                    </span>
+                  </div>
+                )}
+
+                {/* Coupon discount line */}
+                {quote.coupon && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    padding: '0.375rem 0.5rem',
+                    borderRadius: 'var(--forge-radius-md)',
+                    background: 'rgba(0, 212, 170, 0.06)',
+                    border: '1px solid rgba(0, 212, 170, 0.2)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
+                      <Icon name="Check" size={14} style={{ color: 'var(--forge-accent-primary)', flexShrink: 0 }} />
+                      <span style={{
+                        fontSize: 'var(--forge-text-sm)',
+                        color: 'var(--forge-accent-primary)',
+                        fontFamily: 'var(--forge-font-body)',
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        Sleva ({quote.coupon.code})
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: 'var(--forge-text-sm)',
+                        color: 'var(--forge-accent-primary)',
+                        fontFamily: 'var(--forge-font-mono)',
+                        fontWeight: 600,
+                      }}>
+                        - {formatCzk(quote.coupon.discount)}
+                      </span>
+                      {onRemoveCoupon && (
+                        <button
+                          type="button"
+                          onClick={onRemoveCoupon}
+                          aria-label="Odebrat kupon"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '0.125rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: 'var(--forge-text-muted)',
+                          }}
+                        >
+                          <Icon name="X" size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Coupon input field */}
+                {!quote.coupon && couponsConfig?.enabled && onApplyCoupon && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }} data-no-print>
+                    <div style={{ display: 'flex', gap: '0.375rem' }}>
+                      <input
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => { setCouponInput(e.target.value); setCouponError(''); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const code = couponInput.trim();
+                            if (!code) return;
+                            onApplyCoupon(code);
+                            setCouponError('');
+                          }
+                        }}
+                        placeholder="Slevov\u00fd k\u00f3d"
+                        aria-label="Slevov\u00fd k\u00f3d"
+                        style={{
+                          flex: 1,
+                          padding: '0.375rem 0.625rem',
+                          fontSize: 'var(--forge-text-sm)',
+                          fontFamily: 'var(--forge-font-mono)',
+                          color: 'var(--forge-text-primary)',
+                          background: 'var(--forge-bg-elevated)',
+                          border: couponError
+                            ? '1px solid var(--forge-error, #FF4757)'
+                            : '1px solid var(--forge-border-default)',
+                          borderRadius: 'var(--forge-radius-md)',
+                          outline: 'none',
+                          transition: 'border-color 0.15s',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          minWidth: 0,
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const code = couponInput.trim();
+                          if (!code) return;
+                          onApplyCoupon(code);
+                          setCouponError('');
+                        }}
+                        disabled={!couponInput.trim()}
+                        style={{ flexShrink: 0 }}
+                      >
+                        Uplatnit
+                      </Button>
+                    </div>
+                    {couponError && (
+                      <p
+                        role="alert"
+                        style={{
+                          fontSize: 'var(--forge-text-xs)',
+                          color: 'var(--forge-error, #FF4757)',
+                          fontFamily: 'var(--forge-font-body)',
+                          margin: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        <Icon name="X" size={12} />
+                        {couponError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div style={fg.totalRow} />
-                <MiniRow label="Celkem" value={formatCzk(quote.total)} emphasize />
+                <MiniRow label="Celkem" value={formatCzk(displayTotal)} emphasize />
               </div>
 
               {/* Donut chart — price breakdown visualization */}
@@ -440,7 +841,8 @@ export default function PricingCalculator({
               />
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Pricing history panel */}
         <PricingHistory
@@ -470,6 +872,11 @@ export default function PricingCalculator({
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }}>{formatCzk(m.totals.subtotalAfterPerModelRounding)}</p>
+                      {m.quantity > 1 && Number.isFinite(m.totals.subtotalAfterPerModelRounding) && (
+                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
+                          {formatCzk(m.totals.subtotalAfterPerModelRounding / m.quantity)} / kus
+                        </p>
+                      )}
                       {m.flags?.min_price_per_model_applied && (
                         <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>min. za model</p>
                       )}
@@ -705,6 +1112,12 @@ export default function PricingCalculator({
           </div>
         )}
       </CardContent>
+
+      {/* Print-only footer */}
+      <div className="print-footer" aria-hidden="true">
+        <p>Tento dokument byl vygenerovan automaticky. Ceny jsou orientacni a mohou se lisit.</p>
+        <p>{printDate} {printTime}</p>
+      </div>
     </Card>
   );
 }
