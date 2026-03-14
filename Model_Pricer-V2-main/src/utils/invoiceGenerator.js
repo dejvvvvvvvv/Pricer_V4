@@ -16,10 +16,10 @@ function round2(n) {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
-function formatMoney(amount) {
+function formatMoney(amount, currency = 'Kč') {
   const n = round2(amount);
   // Czech locale: space as thousands separator, comma for decimals
-  return n.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kc';
+  return n.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0' + currency;
 }
 
 export function formatInvoiceDate(isoOrDate) {
@@ -61,6 +61,7 @@ export function generateInvoiceNumber(orderId) {
  * @param {string} [options.bankAccount] - Bank account number
  * @param {string} [options.iban] - IBAN
  * @param {string} [options.footerNote] - Additional footer note
+ * @param {string} [options.currency] - Currency symbol/code to display, e.g. 'Kč', 'EUR', 'USD'. Defaults to 'Kč'.
  * @returns {string} Complete HTML document string
  */
 export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options = {}) {
@@ -73,6 +74,7 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
     bankAccount = '',
     iban = '',
     footerNote = '',
+    currency = 'Kč',
   } = options;
 
   const company = companyConfig || {};
@@ -100,10 +102,10 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
           ${qty}
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#1f2937;text-align:right;font-variant-numeric:tabular-nums;">
-          ${formatMoney(unitPrice)}
+          ${formatMoney(unitPrice, currency)}
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#1f2937;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">
-          ${formatMoney(lineTotal)}
+          ${formatMoney(lineTotal, currency)}
         </td>
       </tr>`;
   });
@@ -117,7 +119,7 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
         ${escHtml(f.label || f.name || 'Poplatek')}
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">
-        ${formatMoney(f.amount)}
+        ${formatMoney(f.amount, currency)}
       </td>
     </tr>`);
 
@@ -137,7 +139,7 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
 
   // Logo HTML
   const logoHtml = showLogo && logoUrl
-    ? `<img src="${escAttr(logoUrl)}" alt="Logo" style="max-height:60px;max-width:200px;object-fit:contain;" />`
+    ? `<img src="${escAttr(safeUrl(logoUrl))}" alt="Logo" style="max-height:60px;max-width:200px;object-fit:contain;" />`
     : '';
 
   return `<!DOCTYPE html>
@@ -228,12 +230,12 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
       ${shippingTotal > 0 ? `
       <tr>
         <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Doprava</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(shippingTotal)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(shippingTotal, currency)}</td>
       </tr>` : ''}
       ${minOrderDelta > 0 ? `
       <tr>
         <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Dorovnani min. objednavky</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(minOrderDelta)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(minOrderDelta, currency)}</td>
       </tr>` : ''}
     </tbody>
   </table>
@@ -243,16 +245,16 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
     <div style="width:280px;">
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#4b5563;">
         <span>Zaklad</span>
-        <span style="font-variant-numeric:tabular-nums;">${formatMoney(subtotal)}</span>
+        <span style="font-variant-numeric:tabular-nums;">${formatMoney(subtotal, currency)}</span>
       </div>
       ${hasVat ? `
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#4b5563;">
         <span>DPH ${escHtml(vatRate)} %</span>
-        <span style="font-variant-numeric:tabular-nums;">${formatMoney(vatAmount)}</span>
+        <span style="font-variant-numeric:tabular-nums;">${formatMoney(vatAmount, currency)}</span>
       </div>` : ''}
       <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:18px;font-weight:800;color:#111827;border-top:2px solid #111827;margin-top:4px;">
         <span>Celkem</span>
-        <span style="font-variant-numeric:tabular-nums;">${formatMoney(grandTotal)}</span>
+        <span style="font-variant-numeric:tabular-nums;">${formatMoney(grandTotal, currency)}</span>
       </div>
     </div>
   </div>
@@ -282,6 +284,13 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
 }
 
 // ── HTML escaping ──
+
+// Blocks javascript:, data: and vbscript: URL schemes to prevent XSS via src/href attributes.
+function safeUrl(url) {
+  if (!url) return '';
+  if (/^\s*(javascript|data|vbscript)\s*:/i.test(String(url).trim())) return '';
+  return url;
+}
 
 function escHtml(str) {
   if (!str) return '';

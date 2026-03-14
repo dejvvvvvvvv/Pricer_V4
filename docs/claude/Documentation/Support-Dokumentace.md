@@ -327,11 +327,17 @@ Vsechna data jsou definovana inline v komponente.
 
 ### Hardcoded texty (language === 'cs' ? ... : ...)
 
-| Text (CS) | Text (EN) | Radek | Poznamka |
-|-----------|-----------|-------|----------|
-| Casto kladene otazky | Frequently Asked Questions | 243 | Mohl by byt `t()` klic |
-| Zadne vysledky pro hledany vyraz. | No results found for your search. | 248 | Mohl by byt `t()` klic |
-| Po-Pa 9:00-17:00 | Mon-Fri 9:00-17:00 | 345 | Mohl by byt `t()` klic |
+Vsechny zbyvajici hardcoded ternary vyrazy byly prevedeny na t() klice (2026-03-14).
+
+Nove klice pridane do LanguageContext:
+- `support.faq.title`, `support.faq.noResults`, `support.faq.categories`
+- `support.contact.label`, `support.contact.name`, `support.contact.namePlaceholder`
+- `support.contact.emailPlaceholder`, `support.contact.subject`, `support.contact.subjectPlaceholder`
+- `support.contact.message`, `support.contact.messagePlaceholder`
+- `support.contact.send`, `support.contact.successMsg`, `support.contact.errorMsg`
+- `support.contact.emailReply`, `support.contact.liveChat`
+- `support.contact.enterprise`, `support.contact.enterpriseDesc`, `support.contact.viewPlans`
+- `support.resources.soon`
 
 ### Hardcoded texty (bez prekladu -- pouze anglicky)
 

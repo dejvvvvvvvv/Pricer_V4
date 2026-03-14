@@ -578,3 +578,14 @@ samostatnych komponent pro lepsi udrzitelnost.
 
 Capabilities sekce ma 4 inline SVG ikony (po 5-8 radku kazda) primo v JSX.
 Mohly by byt extrahovany do komponent nebo nahrazeny lucide-react ikonami.
+
+---
+
+## 18. Posledni zmeny
+
+### 2026-03-14 -- i18n konverze zbyvajicich hardcoded stringu
+
+Zbyvajici hardcoded ternary vyrazy nahrazeny t():
+- Trust strip label: novy klic `home.trust.strip`
+- Plan CTA texty: nove klice `home.plan.starter.cta`, `home.plan.pro.cta`, `home.plan.enterprise.cta`
+- Enterprise cena: novy klic `home.plan.enterprise.price`

@@ -28,6 +28,16 @@
 const STDERR_PATTERNS = [
   // --- File / geometry issues ---
   {
+    // Unsupported format must come before the generic "error reading file" rule
+    // because PrusaSlicer prints this without an "error" prefix.
+    pattern: /(?:unsupported\s+(?:file\s+)?format|unknown\s+(?:file\s+)?extension|cannot\s+(?:handle|process)\s+.*format)/i,
+    errorCode: "MP_UNSUPPORTED_FORMAT",
+    message: "The uploaded file format is not supported by PrusaSlicer. Use STL, OBJ, 3MF, or AMF.",
+    httpStatus: 400,
+    category: "invalid_input",
+    hint: "Re-export the model as STL or 3MF from your CAD application.",
+  },
+  {
     pattern: /(?:error|failed)\s*(?:while|:)?\s*(?:reading|opening|loading|parsing)\s+(?:the\s+)?(?:file|model|mesh|input)/i,
     errorCode: "MP_INVALID_MODEL",
     message: "The uploaded model file could not be read. It may be corrupted or in an unsupported format.",
@@ -142,9 +152,16 @@ export function classifySlicerError({ error = null, stderr = "", exitCode = null
       };
     }
 
-    // Timeout
-    if (error.message?.includes("timed out")) {
-      const timeoutMatch = error.message.match(/(\d+)ms/);
+    // Timeout — check killed/signal flags first (set by Node child_process timeout),
+    // then fall back to message string for wrappers that surface it differently.
+    const isTimeout =
+      error.killed === true ||
+      error.signal === "SIGKILL" ||
+      error.signal === "SIGTERM" ||
+      error.message?.includes("timed out") ||
+      error.message?.includes("timeout");
+    if (isTimeout) {
+      const timeoutMatch = error.message?.match(/(\d+)ms/);
       const seconds = timeoutMatch ? Math.round(Number(timeoutMatch[1]) / 1000) : "unknown";
       return {
         errorCode: "MP_SLICER_TIMEOUT",

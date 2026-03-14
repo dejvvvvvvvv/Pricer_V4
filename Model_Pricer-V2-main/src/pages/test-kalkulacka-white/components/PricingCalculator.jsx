@@ -3,6 +3,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import Icon from '../../../components/ui/Icon';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 function formatCzk(amount) {
   const n = Number.isFinite(amount) ? amount : 0;
@@ -74,7 +75,13 @@ export default function PricingCalculator({
   selectedShippingMethodId,
   couponsConfig,
   appliedCouponCode,
+  onExpressTierChange,
+  onShippingMethodChange,
+  onApplyCoupon,
+  onRemoveCoupon,
 }) {
+  const { language } = useLanguage();
+  const t = (cs, en) => (language === 'en' ? en : cs);
   const [showDeveloper, setShowDeveloper] = useState(false);
 
   const readyModels = useMemo(() => {
@@ -206,6 +213,107 @@ export default function PricingCalculator({
           </div>
         ) : null}
 
+        {/* Express tier selector */}
+        {expressConfig?.enabled && Array.isArray(expressConfig?.tiers) && expressConfig.tiers.filter(tier => tier.active !== false).length > 0 && (
+          <div className="p-3 rounded-lg border border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Icon name="Zap" size={14} className="text-muted-foreground" />
+              <p className="text-sm font-semibold">{t('Rychlost doruceni', 'Delivery Speed')}</p>
+            </div>
+            <div className="space-y-1.5">
+              {expressConfig.tiers
+                .filter(tier => tier.active !== false)
+                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                .map(tier => {
+                  const isSelected = tier.id === selectedExpressTierId;
+                  const surchargeLabel = tier.surcharge_value > 0
+                    ? (tier.surcharge_type === 'percent' ? `+${tier.surcharge_value}%` : `+${tier.surcharge_value} ${t('Kc', 'CZK')}`)
+                    : t('V cene', 'Included');
+                  return (
+                    <button
+                      key={tier.id}
+                      type="button"
+                      onClick={() => onExpressTierChange?.(tier.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md border text-left transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                          : 'border-border hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? 'border-primary' : 'border-muted-foreground/40'
+                      }`}>
+                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium">{tier.name}</span>
+                        {tier.delivery_days > 0 && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {tier.delivery_days} {t('dni', 'days')}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-semibold ${tier.surcharge_value > 0 ? 'text-orange-500' : 'text-green-600'}`}>
+                        {surchargeLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* Shipping method selector */}
+        {shippingConfig?.enabled && Array.isArray(shippingConfig?.methods) && shippingConfig.methods.filter(m => m.active !== false).length > 0 && (
+          <div className="p-3 rounded-lg border border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Icon name="Truck" size={14} className="text-muted-foreground" />
+              <p className="text-sm font-semibold">{t('Doprava', 'Shipping')}</p>
+            </div>
+            <div className="space-y-1.5">
+              {shippingConfig.methods
+                .filter(m => m.active !== false)
+                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                .map(method => {
+                  const isSelected = method.id === selectedShippingMethodId;
+                  const price = method.price || 0;
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => onShippingMethodChange?.(method.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md border text-left transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                          : 'border-border hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? 'border-primary' : 'border-muted-foreground/40'
+                      }`}>
+                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </div>
+                      <Icon name={method.type === 'PICKUP' ? 'MapPin' : 'Truck'} size={14} className="text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium">{method.name}</span>
+                        {(method.delivery_days_min > 0 || method.delivery_days_max > 0) && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {method.delivery_days_min === method.delivery_days_max
+                              ? `${method.delivery_days_min} ${t('dni', 'days')}`
+                              : `${method.delivery_days_min}-${method.delivery_days_max} ${t('dni', 'days')}`}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-semibold ${price === 0 ? 'text-green-600' : ''}`}>
+                        {price === 0 ? t('Zdarma', 'Free') : `${price} ${t('Kc', 'CZK')}`}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
         {/* Main totals */}
         {quote && (
           <div className="p-4 rounded-xl border border-border bg-background/40">
@@ -214,7 +322,7 @@ export default function PricingCalculator({
                 <p className="text-xs text-muted-foreground">
                   {quoteState.isPartial ? `Průběžně (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'Celkem'}
                 </p>
-                <p className={`text-2xl font-bold tracking-tight ${quoteState.isPartial ? 'text-muted-foreground' : ''}`}>{formatCzk(quote.total)}</p>
+                <p className={`text-2xl font-bold tracking-tight ${quoteState.isPartial ? 'text-muted-foreground' : ''}`}>{formatCzk(Number.isFinite(quote?.grandTotal) ? quote.grandTotal : quote.total)}</p>
                 {(quote.flags?.min_order_total_applied || quote.flags?.clamped_to_zero) && (
                   <div className="mt-2 space-y-1">
                     {quote.flags?.min_order_total_applied && (
@@ -253,7 +361,10 @@ export default function PricingCalculator({
                 )}
                 <MiniRow label="Markup" value={formatSignedCzk(quote.simple.markup)} />
                 <div className="pt-2 border-t border-border" />
-                <MiniRow label="Celkem" value={formatCzk(quote.total)} emphasize />
+                {Number.isFinite(quote?.totals?.shippingCost) && quote.totals.shippingCost > 0 && (
+                  <MiniRow label="Doprava" value={formatCzk(quote.totals.shippingCost)} />
+                )}
+                <MiniRow label="Celkem" value={formatCzk(Number.isFinite(quote?.grandTotal) ? quote.grandTotal : quote.total)} emphasize />
               </div>
             </div>
           </div>
@@ -361,6 +472,10 @@ export default function PricingCalculator({
                 <MiniRow label="markupAmount" value={formatSignedCzk(quote.totals.markupAmount)} />
                 <MiniRow label="totalAfterMarkup" value={formatCzk(quote.totals.totalAfterMarkup)} />
                 <MiniRow label="totalRounded" value={formatCzk(quote.totals.totalRounded)} />
+                {Number.isFinite(quote.totals.shippingCost) && (
+                  <MiniRow label="shippingCost" value={formatCzk(quote.totals.shippingCost)} />
+                )}
+                <MiniRow label="grandTotal" value={formatCzk(quote.grandTotal)} emphasize />
               </div>
             </details>
 

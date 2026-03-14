@@ -9,6 +9,7 @@
  *   />
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { debug } from '@/lib/debug';
 import Icon from '../../../../components/AppIcon';
 import {
   loadTags,
@@ -158,19 +159,29 @@ export default function OrderTagSelector({ orderId, onTagsChange, compact = fals
   const handleCreateTag = useCallback(() => {
     const label = newTagLabel.trim();
     if (!label) return;
-    const newTag = createTag(label, newTagColor);
-    setAllTags(loadTags());
-    handleAddTag(newTag.id);
-    setNewTagLabel('');
-    setNewTagColor('#5B8DEF');
-    setShowCreateForm(false);
+    try {
+      const newTag = createTag(label, newTagColor);
+      setAllTags(loadTags());
+      handleAddTag(newTag.id);
+      setNewTagLabel('');
+      setNewTagColor('#5B8DEF');
+      setShowCreateForm(false);
+    } catch (e) {
+      debug('[OrderTagSelector] Failed to create tag', e);
+    }
   }, [newTagLabel, newTagColor, handleAddTag]);
 
   const handleDeleteCustomTag = useCallback((tagId) => {
-    deleteTag(tagId);
-    setAllTags(loadTags());
-    setOrderTagIds(getOrderTags(orderId));
-    onTagsChange?.(getOrderTags(orderId));
+    try {
+      deleteTag(tagId);
+      setAllTags(loadTags());
+      // Read once and reuse to avoid double storage call
+      const updated = getOrderTags(orderId);
+      setOrderTagIds(updated);
+      onTagsChange?.(updated);
+    } catch (e) {
+      debug('[OrderTagSelector] Failed to delete tag', e);
+    }
   }, [orderId, onTagsChange]);
 
   const resolvedTags = orderTagIds

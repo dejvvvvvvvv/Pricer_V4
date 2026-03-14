@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useLanguage } from '@/contexts/LanguageContext';
+import React, { useState, useEffect, useCallback, useRef, useContext } from 'react';
+import { LanguageContext } from '@/contexts/LanguageContext';
 
 /**
  * Subtle, dismissible banner shown when the browser fires the
@@ -8,9 +8,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
  * - Only shows once per session (sessionStorage guard).
  * - Positioned at the top of the viewport, below any fixed header.
  * - Styled with Forge dark theme tokens.
+ *
+ * NOTE: This component is rendered outside LanguageProvider in App.jsx,
+ * so we use useContext directly with a fallback instead of useLanguage().
  */
 export default function PwaInstallBanner() {
-  const { t } = useLanguage();
+  const langCtx = useContext(LanguageContext);
+  const t = (cs, en) => (langCtx?.language === 'en' ? en : cs);
   const [visible, setVisible] = useState(false);
   const deferredPromptRef = useRef(null);
 
@@ -85,7 +89,7 @@ export default function PwaInstallBanner() {
         <path d="M2 14h12" />
       </svg>
 
-      <span>{t('pwa.installPrompt')}</span>
+      <span>{t('Nainstalovat aplikaci pro rychlejší přístup', 'Install app for faster access')}</span>
 
       <button
         onClick={handleInstall}
@@ -100,9 +104,9 @@ export default function PwaInstallBanner() {
           cursor: 'pointer',
           whiteSpace: 'nowrap',
         }}
-        aria-label={t('pwa.installButton')}
+        aria-label={t('Nainstalovat', 'Install')}
       >
-        {t('pwa.installButton')}
+        {t('Nainstalovat', 'Install')}
       </button>
 
       <button
@@ -118,7 +122,7 @@ export default function PwaInstallBanner() {
           cursor: 'pointer',
           borderRadius: '4px',
         }}
-        aria-label={t('pwa.dismiss')}
+        aria-label={t('Zavřít', 'Dismiss')}
       >
         <svg
           width="14"

@@ -1,5 +1,5 @@
 // components/ui/Select.jsx - Shadcn style Select
-import React, { useState } from "react";
+import React, { useState, useId } from "react";
 import { ChevronDown, Check, Search, X } from "lucide-react";
 import { cn } from "../../utils/cn";
 import Button from "./Button";
@@ -30,7 +30,8 @@ const Select = React.forwardRef(({
     const [searchTerm, setSearchTerm] = useState("");
 
     // Generate unique ID if not provided
-    const selectId = id || `select-${Math.random()?.toString(36)?.substr(2, 9)}`;
+    const generatedId = useId();
+    const selectId = id || `select-${generatedId}`;
 
     // Filter options based on search
     const filteredOptions = searchable && searchTerm

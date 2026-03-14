@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import useStorageBrowser from '../../hooks/useStorageBrowser';
 import FolderTreePanel from './components/storage/FolderTreePanel';
 import FileListPanel from './components/storage/FileListPanel';
@@ -8,8 +9,10 @@ import PreviewPanel from './components/storage/PreviewPanel';
 import BreadcrumbBar from './components/storage/BreadcrumbBar';
 import FileToolbar from './components/storage/FileToolbar';
 import { downloadFile, createZip, getDownloadUrl } from '../../services/storageApi';
+import { debug } from '../../lib/debug';
 
 export default function AdminModelStorage() {
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPath = searchParams.get('path') || '';
 
@@ -104,16 +107,24 @@ export default function AdminModelStorage() {
       a.click();
       document.body.removeChild(a);
     } catch (e) {
-      console.error('Download failed:', e);
+      debug('Download failed:', e);
     }
   }, []);
 
   const handleDeleteSelected = useCallback(async () => {
+    const count = selection.size ?? selection.length ?? 0;
+    const ok = await confirm({
+      title: 'Smazat soubory',
+      message: `Opravdu smazat ${count} vybrany${count === 1 ? '' : 'ch'} soubor${count === 1 ? '' : 'u'}? Tato akce je nevratna.`,
+      confirmLabel: 'Smazat',
+      destructive: true,
+    });
+    if (!ok) return;
     for (const path of selection) {
       await doDelete(path);
     }
     setSelectedItem(null);
-  }, [selection, doDelete]);
+  }, [selection, doDelete, confirm]);
 
   const handleDownloadSelected = useCallback(async () => {
     const paths = Array.from(selection);
@@ -123,7 +134,7 @@ export default function AdminModelStorage() {
       try {
         await createZip(paths);
       } catch (e) {
-        console.error('ZIP download failed:', e);
+        debug('ZIP download failed:', e);
       }
     }
   }, [selection, handleDownload]);
@@ -140,6 +151,7 @@ export default function AdminModelStorage() {
 
   return (
     <div>
+      <ConfirmDialog />
       {/* Page header */}
       <div style={{
         display: 'flex',
@@ -305,9 +317,17 @@ export default function AdminModelStorage() {
               icon="Trash2"
               label="Delete"
               danger
-              onClick={() => {
-                doDelete(contextMenu.item.path);
+              onClick={async () => {
+                const itemName = contextMenu.item.name || contextMenu.item.path;
                 handleCloseContextMenu();
+                const ok = await confirm({
+                  title: 'Smazat soubor',
+                  message: `Opravdu smazat "${itemName}"? Tato akce je nevratna.`,
+                  confirmLabel: 'Smazat',
+                  destructive: true,
+                });
+                if (!ok) return;
+                doDelete(contextMenu.item.path);
                 setSelectedItem(null);
               }}
             />

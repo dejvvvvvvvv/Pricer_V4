@@ -10,6 +10,7 @@
 // - Free shipping threshold configuration
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { debug } from '@/lib/debug';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
@@ -22,17 +23,13 @@ import {
 } from '../../utils/adminShippingStorage';
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
 import { getHelpText } from './helpTexts';
-
-function safeNum(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
+import { safeNum } from '@/utils/formatters';
 
 function createId(prefix = 'ship') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
   } catch { /* fallback below */ }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 const SHIPPING_TYPES = [
@@ -52,8 +49,7 @@ function weightLabel(g) {
 }
 
 export default function AdminShipping() {
-  const { language } = useLanguage();
-  const cs = language === 'cs';
+  const { language, t } = useLanguage();
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
@@ -65,17 +61,21 @@ export default function AdminShipping() {
   const [savedSnapshot, setSavedSnapshot] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
     try {
       const cfg = loadShippingConfigV1();
+      if (!isMounted) return;
       setConfig(cfg);
       setSavedSnapshot(JSON.stringify(cfg));
       if (cfg.methods?.length) setSelectedMethodId(cfg.methods[0].id);
       setLoading(false);
     } catch (e) {
-      console.error('[AdminShipping] Failed to init', e);
+      debug('[AdminShipping] Failed to init', e);
+      if (!isMounted) return;
+      setBanner({ type: 'error', text: t('admin.shipping.loadError', 'Failed to load config.') });
       setLoading(false);
-      setBanner({ type: 'error', text: cs ? 'Nepodarilo se nacist konfiguraci.' : 'Failed to load config.' });
     }
+    return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -113,7 +113,7 @@ export default function AdminShipping() {
     const id = createId('ship');
     const newMethod = {
       id,
-      name: cs ? 'Nova doprava' : 'New shipping',
+      name: t('admin.shipping.newMethodName', 'New shipping'),
       type: 'FIXED',
       price: 0,
       price_per_kg: 0,
@@ -129,13 +129,13 @@ export default function AdminShipping() {
     setSelectedMethodId(id);
     setActiveTab(TABS.BASIC);
     setBanner(null);
-  }, [config, cs]);
+  }, [config, t]);
 
   const removeMethod = useCallback(async (id) => {
     const ok = await confirm({
-      title: cs ? 'Smazat metodu' : 'Delete method',
-      message: cs ? 'Smazat tuto metodu dopravy?' : 'Delete this shipping method?',
-      confirmLabel: cs ? 'Smazat' : 'Delete',
+      title: t('admin.shipping.deleteMethodTitle', 'Delete method'),
+      message: t('admin.shipping.deleteMethodMsg', 'Delete this shipping method?'),
+      confirmLabel: t('admin.shipping.delete', 'Delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -144,7 +144,7 @@ export default function AdminShipping() {
       methods: (prev.methods || []).filter((m) => m.id !== id),
     }));
     if (selectedMethodId === id) setSelectedMethodId(null);
-  }, [confirm, cs, selectedMethodId]);
+  }, [confirm, t, selectedMethodId]);
 
   const moveMethod = useCallback((methodId, direction) => {
     setConfig((prev) => {
@@ -189,18 +189,18 @@ export default function AdminShipping() {
   // Zone CRUD
   const addCustomZone = useCallback(() => {
     const id = createId('zone');
-    const newZone = { id, name: cs ? 'Vlastni zona' : 'Custom zone', name_en: 'Custom zone', active: true };
+    const newZone = { id, name: t('admin.shipping.customZone', 'Custom zone'), name_en: 'Custom zone', active: true };
     setConfig((prev) => ({
       ...prev,
       custom_zones: [...(prev.custom_zones || []), newZone],
     }));
-  }, [cs]);
+  }, [t]);
 
   const removeCustomZone = useCallback(async (zoneId) => {
     const ok = await confirm({
-      title: cs ? 'Smazat zonu' : 'Delete zone',
-      message: cs ? 'Smazat tuto prepravni zonu?' : 'Delete this shipping zone?',
-      confirmLabel: cs ? 'Smazat' : 'Delete',
+      title: t('admin.shipping.deleteZoneTitle', 'Delete zone'),
+      message: t('admin.shipping.deleteZoneMsg', 'Delete this shipping zone?'),
+      confirmLabel: t('admin.shipping.delete', 'Delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -213,7 +213,13 @@ export default function AdminShipping() {
         zone_pricing: (m.zone_pricing || []).filter(zp => zp.zone_id !== zoneId),
       })),
     }));
-  }, [confirm, cs]);
+    // If user is on the zones tab while editing a method, reset to basic tab
+    // so they do not see stale zone-pricing rows for the removed zone.
+    setActiveTab(TABS.BASIC);
+    // Reset selectedMethodId to itself to force re-derivation of selectedMethod
+    // from the updated config (guards against stale closure in derived useMemo).
+    setSelectedMethodId((prev) => prev);
+  }, [confirm, t]);
 
   const updateZone = useCallback((zoneId, patch, isCustom) => {
     setConfig((prev) => {
@@ -251,25 +257,29 @@ export default function AdminShipping() {
   // Save / Reset
   const handleSave = useCallback(() => {
     setBanner(null);
-    try {
-      setSaving(true);
-      const saved = saveShippingConfigV1(config);
-      setConfig(saved);
-      setSavedSnapshot(JSON.stringify(saved));
-      setSaving(false);
-      setBanner({ type: 'success', text: cs ? 'Ulozeno' : 'Saved' });
-    } catch (e) {
-      console.error('[AdminShipping] Save failed', e);
-      setSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
-    }
-  }, [config, cs]);
+    setSaving(true);
+    // Use setTimeout so React flushes the saving=true render before the
+    // synchronous localStorage write completes and saving is reset.
+    setTimeout(() => {
+      try {
+        const saved = saveShippingConfigV1(config);
+        setConfig(saved);
+        setSavedSnapshot(JSON.stringify(saved));
+        setSaving(false);
+        setBanner({ type: 'success', text: t('admin.shipping.saved', 'Saved') });
+      } catch (e) {
+        debug('[AdminShipping] Save failed', e);
+        setSaving(false);
+        setBanner({ type: 'error', text: t('admin.shipping.saveFailed', 'Save failed.') });
+      }
+    }, 0);
+  }, [config, t]);
 
   const handleReset = useCallback(async () => {
     const ok = await confirm({
-      title: cs ? 'Zahodit zmeny' : 'Discard changes',
-      message: cs ? 'Zahodit zmeny?' : 'Discard changes?',
-      confirmLabel: cs ? 'Zahodit' : 'Discard',
+      title: t('admin.shipping.discardTitle', 'Discard changes'),
+      message: t('admin.shipping.discardMsg', 'Discard changes?'),
+      confirmLabel: t('admin.shipping.discard', 'Discard'),
       destructive: true,
     });
     if (!ok) return;
@@ -278,11 +288,11 @@ export default function AdminShipping() {
       setConfig(cfg);
       setSavedSnapshot(JSON.stringify(cfg));
       if (cfg.methods?.length) setSelectedMethodId(cfg.methods[0].id);
-      setBanner({ type: 'success', text: cs ? 'Obnoveno.' : 'Reset done.' });
+      setBanner({ type: 'success', text: t('admin.shipping.resetDone', 'Reset done.') });
     } catch (e) {
-      setBanner({ type: 'error', text: cs ? 'Reset selhal.' : 'Reset failed.' });
+      setBanner({ type: 'error', text: t('admin.shipping.resetFailed', 'Reset failed.') });
     }
-  }, [confirm, cs]);
+  }, [confirm, t]);
 
   // --- RENDER ---
   if (loading) {
@@ -303,21 +313,19 @@ export default function AdminShipping() {
       {/* HEADER */}
       <div className="admin-header">
         <div>
-          <h1>{cs ? 'Doprava' : 'Shipping'}</h1>
+          <h1>{t('admin.shipping.title', 'Shipping')}</h1>
           <p className="subtitle">
-            {cs
-              ? 'Spravuj zpusoby dopravy, prepravni zony, cenove tiery podle hmotnosti a prah pro dopravu zdarma.'
-              : 'Manage shipping methods, zones, weight-based pricing tiers and free shipping threshold.'}
+            {t('admin.shipping.pageSubtitle', 'Manage shipping methods, zones, weight-based pricing tiers and free shipping threshold.')}
           </p>
         </div>
         <div className="header-actions">
           <div className={`status-pill ${dirty ? 'dirty' : 'clean'}`}>
             <Icon name={dirty ? 'AlertCircle' : 'CheckCircle2'} size={16} />
-            <span>{dirty ? (cs ? 'Neulozene zmeny' : 'Unsaved changes') : (cs ? 'Ulozeno' : 'Saved')}</span>
+            <span>{dirty ? t('admin.shipping.unsavedChanges', 'Unsaved changes') : t('admin.shipping.saved', 'Saved')}</span>
           </div>
           <button className="btn-secondary" onClick={addMethod}>
             <Icon name="Plus" size={18} />
-            {cs ? 'Nova metoda' : 'New method'}
+            {t('admin.shipping.newMethod', 'New method')}
           </button>
           <button className="btn-secondary" onClick={handleReset} disabled={!dirty}>
             <Icon name="RotateCcw" size={18} />
@@ -325,7 +333,7 @@ export default function AdminShipping() {
           </button>
           <button className="btn-primary" onClick={handleSave} disabled={!dirty || saving}>
             <Icon name="Save" size={18} />
-            {saving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit' : 'Save')}
+            {saving ? t('admin.shipping.saving', 'Saving...') : t('admin.shipping.save', 'Save')}
           </button>
         </div>
       </div>
@@ -344,13 +352,13 @@ export default function AdminShipping() {
           <div className="shipping-panel">
             <div className="panel-header">
               <div className="panel-title">
-                <h2>{cs ? 'Metody dopravy' : 'Shipping methods'}</h2>
+                <h2>{t('admin.shipping.shippingMethods', 'Shipping methods')}</h2>
                 <span className="muted">{methods.length}</span>
               </div>
               <ForgeCheckbox
                 checked={config?.enabled !== false}
                 onChange={(e) => updateConfig({ enabled: e.target.checked })}
-                label={cs ? 'Doprava zapnuta' : 'Shipping enabled'}
+                label={t('admin.shipping.shippingEnabled', 'Shipping enabled')}
                 style={{ marginTop: 8 }}
               />
             </div>
@@ -359,8 +367,16 @@ export default function AdminShipping() {
               {methods.length === 0 ? (
                 <div className="empty-state">
                   <Icon name="Package" size={44} />
-                  <h3>{cs ? 'Zadne metody dopravy' : 'No shipping methods'}</h3>
-                  <p>{cs ? 'Klikni na "Nova metoda".' : 'Click "New method".'}</p>
+                  <h3>{t('admin.shipping.noMethods', 'No shipping methods configured')}</h3>
+                  <p>{t('admin.shipping.noMethodsHint', 'Add your first shipping method to get started.')}</p>
+                  <button
+                    className="btn-secondary"
+                    style={{ marginTop: 12 }}
+                    onClick={addMethod}
+                  >
+                    <Icon name="Plus" size={16} />
+                    {t('admin.shipping.addFirstMethod', 'Add first method')}
+                  </button>
                 </div>
               ) : (
                 <div className="method-list">
@@ -380,13 +396,13 @@ export default function AdminShipping() {
                               <span className="name-text">{method.name}</span>
                             </div>
                             <div className="method-actions">
-                              <button className="icon-btn" title={cs ? 'Nahoru' : 'Up'} onClick={(e) => { e.stopPropagation(); moveMethod(method.id, -1); }} disabled={idx === 0}>
+                              <button className="icon-btn" title={t('admin.shipping.moveUp', 'Up')} onClick={(e) => { e.stopPropagation(); moveMethod(method.id, -1); }} disabled={idx === 0}>
                                 <Icon name="ChevronUp" size={14} />
                               </button>
-                              <button className="icon-btn" title={cs ? 'Dolu' : 'Down'} onClick={(e) => { e.stopPropagation(); moveMethod(method.id, 1); }} disabled={idx === methods.length - 1}>
+                              <button className="icon-btn" title={t('admin.shipping.moveDown', 'Down')} onClick={(e) => { e.stopPropagation(); moveMethod(method.id, 1); }} disabled={idx === methods.length - 1}>
                                 <Icon name="ChevronDown" size={14} />
                               </button>
-                              <button className="icon-btn" title={cs ? 'Smazat' : 'Delete'} onClick={(e) => { e.stopPropagation(); removeMethod(method.id); }}>
+                              <button className="icon-btn" title={t('admin.shipping.delete', 'Delete')} onClick={(e) => { e.stopPropagation(); removeMethod(method.id); }}>
                                 <Icon name="Trash2" size={14} />
                               </button>
                             </div>
@@ -394,11 +410,11 @@ export default function AdminShipping() {
                           <div className="method-row-bottom">
                             <span className="chip">
                               <Icon name={typeLabel?.icon || 'Package'} size={12} />
-                              {typeLabel ? (cs ? typeLabel.label_cs : typeLabel.label_en) : method.type}
+                              {typeLabel ? (language === 'cs' ? typeLabel.label_cs : typeLabel.label_en) : method.type}
                             </span>
                             {method.type === 'FIXED' && <span className="chip">{safeNum(method.price).toFixed(0)} CZK</span>}
-                            {method.type === 'PICKUP' && <span className="chip">{cs ? 'Zdarma' : 'Free'}</span>}
-                            {method.type === 'WEIGHT_BASED' && <span className="chip">{(method.weight_tiers || []).length} {cs ? 'tieru' : 'tiers'}</span>}
+                            {method.type === 'PICKUP' && <span className="chip">{t('admin.shipping.free', 'Free')}</span>}
+                            {method.type === 'WEIGHT_BASED' && <span className="chip">{(method.weight_tiers || []).length} {t('admin.shipping.tiers', 'tiers')}</span>}
                             {method.type === 'CUSTOM' && <span className="chip">{safeNum(method.price).toFixed(0)} CZK</span>}
                             {safeNum(method.price_per_kg) > 0 && (
                               <span className="chip">+{safeNum(method.price_per_kg)} CZK/kg</span>
@@ -406,13 +422,13 @@ export default function AdminShipping() {
                             {(method.delivery_days_min > 0 || method.delivery_days_max > 0) && (
                               <span className="chip">
                                 <Icon name="Clock" size={12} />
-                                {method.delivery_days_min}–{method.delivery_days_max} {cs ? 'dni' : 'days'}
+                                {method.delivery_days_min}–{method.delivery_days_max} {t('admin.shipping.days', 'days')}
                               </span>
                             )}
                             {(method.zone_pricing || []).length > 0 && (
                               <span className="chip">
                                 <Icon name="Globe" size={12} />
-                                {(method.zone_pricing || []).length} {cs ? 'zon' : 'zones'}
+                                {(method.zone_pricing || []).length} {t('admin.shipping.zones', 'zones')}
                               </span>
                             )}
                           </div>
@@ -429,8 +445,8 @@ export default function AdminShipping() {
           <div className="admin-card">
             <div className="card-header">
               <div>
-                <h2>{cs ? 'Doprava zdarma' : 'Free shipping'} <ForgeHelpIcon text={getHelpText('shipping_free_threshold', language)} size={14} /></h2>
-                <p className="card-description">{cs ? 'Nastav minimalni castku objednavky pro dopravu zdarma.' : 'Set minimum order amount for free shipping.'}</p>
+                <h2>{t('admin.shipping.freeShipping', 'Free shipping')} <ForgeHelpIcon text={getHelpText('shipping_free_threshold', language)} size={14} /></h2>
+                <p className="card-description">{t('admin.shipping.freeShippingHint', 'Set minimum order amount for free shipping.')}</p>
               </div>
             </div>
             <div className="card-body">
@@ -438,12 +454,12 @@ export default function AdminShipping() {
                 <ForgeCheckbox
                   checked={config?.free_shipping_enabled === true}
                   onChange={(e) => updateConfig({ free_shipping_enabled: e.target.checked })}
-                  label={cs ? 'Doprava zdarma zapnuta' : 'Free shipping enabled'}
+                  label={t('admin.shipping.freeShippingEnabled', 'Free shipping enabled')}
                 />
               </div>
               {config?.free_shipping_enabled && (
                 <div className="field" style={{ marginTop: 12, maxWidth: 300 }}>
-                  <label>{cs ? 'Minimalni castka objednavky (CZK)' : 'Minimum order amount (CZK)'}</label>
+                  <label>{t('admin.shipping.minOrderAmount', 'Minimum order amount (CZK)')}</label>
                   <input
                     className="input"
                     type="number"
@@ -452,14 +468,14 @@ export default function AdminShipping() {
                     value={config?.free_shipping_threshold || 0}
                     onChange={(e) => updateConfig({ free_shipping_threshold: safeNum(e.target.value, 0) })}
                   />
-                  <div className="help">{cs ? 'Objednavky nad tuto castku budou mit dopravu zdarma.' : 'Orders above this amount get free shipping.'}</div>
+                  <div className="help">{t('admin.shipping.minOrderHint', 'Orders above this amount get free shipping.')}</div>
                 </div>
               )}
               {config?.free_shipping_enabled && safeNum(config?.free_shipping_threshold) > 0 && (
                 <div className="free-shipping-preview">
                   <Icon name="Truck" size={16} />
                   <span>
-                    {cs
+                    {language === 'cs'
                       ? `Doprava zdarma od ${safeNum(config.free_shipping_threshold).toLocaleString('cs-CZ')} CZK`
                       : `Free shipping from ${safeNum(config.free_shipping_threshold).toLocaleString('en-US')} CZK`}
                   </span>
@@ -472,12 +488,12 @@ export default function AdminShipping() {
           <div className="admin-card">
             <div className="card-header">
               <div>
-                <h2>{cs ? 'Prepravni zony' : 'Shipping zones'} <ForgeHelpIcon text={getHelpText('shipping_zones', language)} size={14} /></h2>
-                <p className="card-description">{cs ? 'Definuj zony pro ruzne ceny dopravy.' : 'Define zones for different shipping prices.'}</p>
+                <h2>{t('admin.shipping.shippingZones', 'Shipping zones')} <ForgeHelpIcon text={getHelpText('shipping_zones', language)} size={14} /></h2>
+                <p className="card-description">{t('admin.shipping.zonesHint', 'Define zones for different shipping prices.')}</p>
               </div>
               <button className="btn-secondary btn-sm" onClick={addCustomZone}>
                 <Icon name="Plus" size={14} />
-                {cs ? 'Vlastni zona' : 'Custom zone'}
+                {t('admin.shipping.customZone', 'Custom zone')}
               </button>
             </div>
             <div className="card-body">
@@ -491,7 +507,7 @@ export default function AdminShipping() {
                         onChange={(e) => updateZone(zone.id, { active: e.target.checked }, false)}
                       />
                       <Icon name="Globe" size={16} style={{ color: 'var(--forge-text-muted)' }} />
-                      <span className="zone-name">{cs ? zone.name : zone.name_en}</span>
+                      <span className="zone-name">{language === 'cs' ? zone.name : zone.name_en}</span>
                       <span className="zone-badge">{zone.id}</span>
                     </div>
                   </div>
@@ -509,10 +525,10 @@ export default function AdminShipping() {
                         className="input input-inline"
                         value={zone.name}
                         onChange={(e) => updateZone(zone.id, { name: e.target.value, name_en: e.target.value }, true)}
-                        placeholder={cs ? 'Nazev zony' : 'Zone name'}
+                        placeholder={t('admin.shipping.zoneName', 'Zone name')}
                       />
-                      <span className="zone-badge custom">{cs ? 'Vlastni' : 'Custom'}</span>
-                      <button className="icon-btn icon-btn-sm" onClick={() => removeCustomZone(zone.id)} title={cs ? 'Smazat' : 'Delete'}>
+                      <span className="zone-badge custom">{t('admin.shipping.customBadge', 'Custom')}</span>
+                      <button className="icon-btn icon-btn-sm" onClick={() => removeCustomZone(zone.id)} title={t('admin.shipping.delete', 'Delete')}>
                         <Icon name="X" size={12} />
                       </button>
                     </div>
@@ -530,8 +546,8 @@ export default function AdminShipping() {
               <div className="card-body" style={{ padding: 16 }}>
                 <div className="empty-editor">
                   <Icon name="MousePointer2" size={44} />
-                  <h3>{cs ? 'Editor metody' : 'Method editor'}</h3>
-                  <p>{cs ? 'Vyber metodu vlevo.' : 'Select a method on the left.'}</p>
+                  <h3>{t('admin.shipping.methodEditor', 'Method editor')}</h3>
+                  <p>{t('admin.shipping.selectMethod', 'Select a method on the left.')}</p>
                 </div>
               </div>
             </div>
@@ -544,7 +560,7 @@ export default function AdminShipping() {
                   onClick={() => setActiveTab(TABS.BASIC)}
                 >
                   <Icon name="Settings" size={14} />
-                  {cs ? 'Zakladni' : 'Basic'}
+                  {t('admin.shipping.basicTab', 'Basic')}
                 </button>
                 {selectedMethod.type === 'WEIGHT_BASED' && (
                   <button
@@ -552,7 +568,7 @@ export default function AdminShipping() {
                     onClick={() => setActiveTab(TABS.WEIGHT)}
                   >
                     <Icon name="Scale" size={14} />
-                    {cs ? 'Hmotnost' : 'Weight'}
+                    {t('admin.shipping.weightTab', 'Weight')}
                   </button>
                 )}
                 <button
@@ -560,7 +576,7 @@ export default function AdminShipping() {
                   onClick={() => setActiveTab(TABS.ZONES)}
                 >
                   <Icon name="Globe" size={14} />
-                  {cs ? 'Zony' : 'Zones'}
+                  {t('admin.shipping.zonesTab', 'Zones')}
                 </button>
               </div>
 
@@ -569,23 +585,23 @@ export default function AdminShipping() {
                 <div className="admin-card">
                   <div className="card-header">
                     <div>
-                      <h2>{cs ? 'Zakladni nastaveni' : 'Basic settings'}</h2>
-                      <p className="card-description">{cs ? 'Nazev, typ, cena a doba doruceni.' : 'Name, type, price and delivery time.'}</p>
+                      <h2>{t('admin.shipping.basicSettings', 'Basic settings')}</h2>
+                      <p className="card-description">{t('admin.shipping.basicSettingsHint', 'Name, type, price and delivery time.')}</p>
                     </div>
                   </div>
                   <div className="card-body">
                     <div className="grid2">
                       <div className="field">
-                        <label>{cs ? 'Nazev' : 'Name'}</label>
+                        <label>{t('admin.shipping.methodName', 'Name')}</label>
                         <input
                           className="input"
                           value={selectedMethod.name}
                           onChange={(e) => updateMethod(selectedMethod.id, { name: e.target.value })}
-                          placeholder={cs ? 'Napr. Ceska posta' : 'e.g. Standard Shipping'}
+                          placeholder={t('admin.shipping.namePlaceholder', 'e.g. Standard Shipping')}
                         />
                       </div>
                       <div className="field">
-                        <label>{cs ? 'Typ' : 'Type'}</label>
+                        <label>{t('admin.shipping.methodType', 'Type')}</label>
                         <select
                           className="input"
                           value={selectedMethod.type}
@@ -608,7 +624,7 @@ export default function AdminShipping() {
                           }}
                         >
                           {SHIPPING_TYPES.map((o) => (
-                            <option key={o.value} value={o.value}>{cs ? o.label_cs : o.label_en}</option>
+                            <option key={o.value} value={o.value}>{language === 'cs' ? o.label_cs : o.label_en}</option>
                           ))}
                         </select>
                       </div>
@@ -617,7 +633,7 @@ export default function AdminShipping() {
                     {(selectedMethod.type === 'FIXED' || selectedMethod.type === 'CUSTOM') && (
                       <div className="grid2" style={{ marginTop: 12 }}>
                         <div className="field">
-                          <label>{cs ? 'Zakladni cena (CZK)' : 'Base price (CZK)'}</label>
+                          <label>{t('admin.shipping.basePrice', 'Base price (CZK)')}</label>
                           <input
                             className="input"
                             type="number"
@@ -628,7 +644,7 @@ export default function AdminShipping() {
                           />
                         </div>
                         <div className="field">
-                          <label>{cs ? 'Priplatek za kg (CZK/kg)' : 'Surcharge per kg (CZK/kg)'} <ForgeHelpIcon text={getHelpText('shipping_price_per_kg', language)} size={14} /></label>
+                          <label>{t('admin.shipping.pricePerKg', 'Surcharge per kg (CZK/kg)')} <ForgeHelpIcon text={getHelpText('shipping_price_per_kg', language)} size={14} /></label>
                           <input
                             className="input"
                             type="number"
@@ -637,14 +653,14 @@ export default function AdminShipping() {
                             value={selectedMethod.price_per_kg || 0}
                             onChange={(e) => updateMethod(selectedMethod.id, { price_per_kg: safeNum(e.target.value, 0) })}
                           />
-                          <div className="help">{cs ? '0 = zadny priplatek za hmotnost' : '0 = no weight surcharge'}</div>
+                          <div className="help">{t('admin.shipping.pricePerKgHelp', '0 = no weight surcharge')}</div>
                         </div>
                       </div>
                     )}
 
                     <div className="grid2" style={{ marginTop: 12 }}>
                       <div className="field">
-                        <label>{cs ? 'Doba doruceni MIN (dny)' : 'Delivery days MIN'}</label>
+                        <label>{t('admin.shipping.deliveryMin', 'Delivery days MIN')}</label>
                         <input
                           className="input"
                           type="number"
@@ -654,7 +670,7 @@ export default function AdminShipping() {
                         />
                       </div>
                       <div className="field">
-                        <label>{cs ? 'Doba doruceni MAX (dny)' : 'Delivery days MAX'}</label>
+                        <label>{t('admin.shipping.deliveryMax', 'Delivery days MAX')}</label>
                         <input
                           className="input"
                           type="number"
@@ -666,13 +682,13 @@ export default function AdminShipping() {
                     </div>
 
                     <div className="field" style={{ marginTop: 12 }}>
-                      <label>{cs ? 'Popis' : 'Description'}</label>
+                      <label>{t('admin.shipping.description', 'Description')}</label>
                       <textarea
                         className="input"
                         rows={2}
                         value={selectedMethod.description}
                         onChange={(e) => updateMethod(selectedMethod.id, { description: e.target.value })}
-                        placeholder={cs ? 'Kratky popis pro zakaznika...' : 'Short description for customer...'}
+                        placeholder={t('admin.shipping.descriptionPlaceholder', 'Short description for customer...')}
                       />
                     </div>
 
@@ -680,7 +696,7 @@ export default function AdminShipping() {
                       <ForgeCheckbox
                         checked={selectedMethod.active}
                         onChange={(e) => updateMethod(selectedMethod.id, { active: e.target.checked })}
-                        label={cs ? 'Aktivni' : 'Active'}
+                        label={t('admin.shipping.active', 'Active')}
                       />
                     </div>
 
@@ -688,19 +704,19 @@ export default function AdminShipping() {
                     <div className="price-summary">
                       <Icon name="Info" size={14} />
                       <span>
-                        {selectedMethod.type === 'PICKUP' && (cs ? 'Osobni odber — zdarma' : 'Personal pickup — free')}
+                        {selectedMethod.type === 'PICKUP' && t('admin.shipping.pickup', 'Personal pickup — free')}
                         {selectedMethod.type === 'FIXED' && (
-                          cs
+                          language === 'cs'
                             ? `Zakladni: ${safeNum(selectedMethod.price)} CZK${safeNum(selectedMethod.price_per_kg) > 0 ? ` + ${safeNum(selectedMethod.price_per_kg)} CZK/kg` : ''}`
                             : `Base: ${safeNum(selectedMethod.price)} CZK${safeNum(selectedMethod.price_per_kg) > 0 ? ` + ${safeNum(selectedMethod.price_per_kg)} CZK/kg` : ''}`
                         )}
                         {selectedMethod.type === 'WEIGHT_BASED' && (
-                          cs
+                          language === 'cs'
                             ? `Cena dle hmotnosti — ${(selectedMethod.weight_tiers || []).length} tieru`
                             : `Price by weight — ${(selectedMethod.weight_tiers || []).length} tiers`
                         )}
                         {selectedMethod.type === 'CUSTOM' && (
-                          cs
+                          language === 'cs'
                             ? `Vlastni: ${safeNum(selectedMethod.price)} CZK${safeNum(selectedMethod.price_per_kg) > 0 ? ` + ${safeNum(selectedMethod.price_per_kg)} CZK/kg` : ''}`
                             : `Custom: ${safeNum(selectedMethod.price)} CZK${safeNum(selectedMethod.price_per_kg) > 0 ? ` + ${safeNum(selectedMethod.price_per_kg)} CZK/kg` : ''}`
                         )}
@@ -715,23 +731,21 @@ export default function AdminShipping() {
                 <div className="admin-card">
                   <div className="card-header">
                     <div>
-                      <h2>{cs ? 'Hmotnostni tiery' : 'Weight tiers'} <ForgeHelpIcon text={getHelpText('shipping_weight_tiers', language)} size={14} /></h2>
+                      <h2>{t('admin.shipping.weightTiersTitle', 'Weight tiers')} <ForgeHelpIcon text={getHelpText('shipping_weight_tiers', language)} size={14} /></h2>
                       <p className="card-description">
-                        {cs
-                          ? 'Definuj cenove tiery podle hmotnosti zasilky. Cena se pouzije pro zasilky az do dane hmotnosti.'
-                          : 'Define price tiers by parcel weight. Price applies to parcels up to the given weight.'}
+                        {t('admin.shipping.weightTiersHint', 'Define price tiers by parcel weight. Price applies to parcels up to the given weight.')}
                       </p>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {(selectedMethod.weight_tiers || []).length === 0 && (
                         <button className="btn-secondary btn-sm" onClick={seedDefaultWeightTiers}>
                           <Icon name="Zap" size={14} />
-                          {cs ? 'Prednastavit' : 'Use defaults'}
+                          {t('admin.shipping.useDefaults', 'Use defaults')}
                         </button>
                       )}
                       <button className="btn-secondary btn-sm" onClick={addWeightTier}>
                         <Icon name="Plus" size={14} />
-                        {cs ? 'Pridat tier' : 'Add tier'}
+                        {t('admin.shipping.addTier', 'Add tier')}
                       </button>
                     </div>
                   </div>
@@ -739,15 +753,15 @@ export default function AdminShipping() {
                     {(selectedMethod.weight_tiers || []).length === 0 ? (
                       <div className="empty-state" style={{ padding: 24 }}>
                         <Icon name="Scale" size={36} />
-                        <h3>{cs ? 'Zadne tiery' : 'No tiers'}</h3>
-                        <p>{cs ? 'Pridej aspon jeden tier nebo pouzij prednastavene.' : 'Add at least one tier or use defaults.'}</p>
+                        <h3>{t('admin.shipping.noTiers', 'No tiers')}</h3>
+                        <p>{t('admin.shipping.noTiersHint', 'Add at least one tier or use defaults.')}</p>
                       </div>
                     ) : (
                       <div className="weight-table">
                         <div className="weight-header">
-                          <span>{cs ? 'Rozsah' : 'Range'}</span>
-                          <span>{cs ? 'Max hmotnost (g)' : 'Max weight (g)'}</span>
-                          <span>{cs ? 'Cena (CZK)' : 'Price (CZK)'}</span>
+                          <span>{t('admin.shipping.weightRange', 'Range')}</span>
+                          <span>{t('admin.shipping.maxWeight', 'Max weight (g)')}</span>
+                          <span>{t('admin.shipping.tierPrice', 'Price (CZK)')}</span>
                           <span></span>
                         </div>
                         {(selectedMethod.weight_tiers || []).map((wt, idx) => {
@@ -772,7 +786,7 @@ export default function AdminShipping() {
                                 value={wt.price}
                                 onChange={(e) => updateWeightTier(idx, { price: safeNum(e.target.value, 0) })}
                               />
-                              <button className="icon-btn icon-btn-sm" onClick={() => removeWeightTier(idx)} title={cs ? 'Smazat' : 'Remove'}>
+                              <button className="icon-btn icon-btn-sm" onClick={() => removeWeightTier(idx)} title={t('admin.shipping.remove', 'Remove')}>
                                 <Icon name="X" size={14} />
                               </button>
                             </div>
@@ -783,7 +797,7 @@ export default function AdminShipping() {
 
                     {/* Optional price per kg surcharge */}
                     <div className="field" style={{ marginTop: 16, maxWidth: 300 }}>
-                      <label>{cs ? 'Dodatkovy priplatek za kg (CZK/kg)' : 'Additional surcharge per kg (CZK/kg)'}</label>
+                      <label>{t('admin.shipping.additionalPerKg', 'Additional surcharge per kg (CZK/kg)')}</label>
                       <input
                         className="input"
                         type="number"
@@ -792,7 +806,7 @@ export default function AdminShipping() {
                         value={selectedMethod.price_per_kg || 0}
                         onChange={(e) => updateMethod(selectedMethod.id, { price_per_kg: safeNum(e.target.value, 0) })}
                       />
-                      <div className="help">{cs ? '0 = bez dodatecneho priplatku. Pricita se k cene tieru.' : '0 = no additional surcharge. Added on top of tier price.'}</div>
+                      <div className="help">{t('admin.shipping.additionalPerKgHelp', '0 = no additional surcharge. Added on top of tier price.')}</div>
                     </div>
                   </div>
                 </div>
@@ -803,9 +817,9 @@ export default function AdminShipping() {
                 <div className="admin-card">
                   <div className="card-header">
                     <div>
-                      <h2>{cs ? 'Cenove odlisnosti dle zon' : 'Zone pricing overrides'}</h2>
+                      <h2>{t('admin.shipping.zonePricing', 'Zone pricing overrides')}</h2>
                       <p className="card-description">
-                        {cs
+                        {language === 'cs'
                           ? `Nastav odlisne ceny pro metodu "${selectedMethod.name}" v jednotlivych zonach. Prazdne = pouzije se zakladni cena.`
                           : `Set price overrides for "${selectedMethod.name}" in each zone. Empty = base price is used.`}
                       </p>
@@ -815,16 +829,16 @@ export default function AdminShipping() {
                     {allZones.filter(z => z.active).length === 0 ? (
                       <div className="empty-state" style={{ padding: 24 }}>
                         <Icon name="Globe" size={36} />
-                        <h3>{cs ? 'Zadne aktivni zony' : 'No active zones'}</h3>
-                        <p>{cs ? 'Aktivuj zony v panelu vlevo.' : 'Activate zones in the left panel.'}</p>
+                        <h3>{t('admin.shipping.noActiveZones', 'No active zones')}</h3>
+                        <p>{t('admin.shipping.noActiveZonesHint', 'Activate zones in the left panel.')}</p>
                       </div>
                     ) : (
                       <div className="zone-pricing-table">
                         <div className="zone-pricing-header">
-                          <span>{cs ? 'Zona' : 'Zone'}</span>
-                          <span>{cs ? 'Cena (CZK)' : 'Price (CZK)'}</span>
+                          <span>{t('admin.shipping.zoneCol', 'Zone')}</span>
+                          <span>{t('admin.shipping.priceCol', 'Price (CZK)')}</span>
                           {(selectedMethod.type === 'FIXED' || selectedMethod.type === 'CUSTOM') && (
-                            <span>{cs ? 'CZK/kg' : 'CZK/kg'}</span>
+                            <span>CZK/kg</span>
                           )}
                         </div>
                         {allZones.filter(z => z.active).map((zone) => {
@@ -834,8 +848,8 @@ export default function AdminShipping() {
                             <div key={zone.id} className="zone-pricing-row">
                               <div className="zone-pricing-name">
                                 <span className="zone-badge">{zone.id}</span>
-                                <span>{cs ? zone.name : zone.name_en}</span>
-                                {isDefault && <span className="zone-default-tag">{cs ? 'zaklad' : 'default'}</span>}
+                                <span>{language === 'cs' ? zone.name : zone.name_en}</span>
+                                {isDefault && <span className="zone-default-tag">{t('admin.shipping.zoneDefault', 'default')}</span>}
                               </div>
                               <div className="field-inline">
                                 <input
@@ -871,9 +885,7 @@ export default function AdminShipping() {
                           );
                         })}
                         <div className="help" style={{ marginTop: 8 }}>
-                          {cs
-                            ? 'Prazdne pole = pouzije se zakladni cena metody. Vyplnene pole prepisuji zakladni cenu pro danou zonu.'
-                            : 'Empty field = base method price is used. Filled fields override the base price for that zone.'}
+                          {t('admin.shipping.zonePricingHelp', 'Empty field = base method price is used. Filled fields override the base price for that zone.')}
                         </div>
                       </div>
                     )}

@@ -24,7 +24,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
-import { getTenantId } from '@/utils/adminTenantStorage';
+import { getTenantId, readTenantJson } from '@/utils/adminTenantStorage';
 import { getBranding } from '@/utils/adminBrandingWidgetStorage';
 import { themeToCssVars } from '@/utils/widgetThemeStorage';
 
@@ -80,12 +80,7 @@ export default function BuilderPage() {
   // Phase 6.1: First-run onboarding overlay
   // ---------------------------------------------------------------------------
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    const key = `modelpricer:${tenantId}:builder:onboarding_complete`;
-    try {
-      return localStorage.getItem(key) !== 'true';
-    } catch {
-      return false;
-    }
+    return readTenantJson('builder:onboarding_complete', null) !== true;
   });
 
   // ---------------------------------------------------------------------------

@@ -1,6 +1,19 @@
 // Admin Layout — FORGE Dark Theme with collapsible sidebar & grouped navigation
+//
+// SECURITY TODO: Role enforcement is CLIENT-SIDE ONLY. All nav items are rendered
+// for every authenticated user regardless of their role. The ROLE_PERMISSIONS matrix
+// in AdminTeamAccess.jsx defines per-role access levels but is NOT enforced here.
+//
+// Before production, implement:
+//   1) A useUserRole() hook that fetches the current user's role from backend/auth
+//   2) Filter ADMIN_NAV items below based on ROLE_PERMISSIONS[userRole][item.requiredPermission]
+//   3) Add a <RoleGuard> wrapper or check in <Outlet> to block access to restricted pages
+//   4) Server-side middleware MUST also enforce roles — client-side checks are bypassable
+//
+// Nav items below include a `requiredPermission` field (matching ROLE_PERMISSIONS keys)
+// to facilitate future enforcement. Items without it default to 'dashboard' (everyone).
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useApp } from '../../contexts/AppContext';
@@ -14,26 +27,28 @@ import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
 import { useAdminShortcuts } from '../../hooks/useAdminShortcuts';
 import { useAuth } from '../../context/AuthContext';
 import { readCompanyData } from '../../utils/adminCompanyStorage';
+import { migrateLegacyBrandingWidgetKeys } from '../../utils/adminBrandingWidgetStorage';
 import { loadOrders } from '../../utils/adminOrdersStorage';
 import { useAdminTheme } from '../../hooks/useAdminTheme';
 import '../../styles/light-theme-admin.css';
 
-// Storage key for sidebar preferences
-const SIDEBAR_STORAGE_KEY = 'modelpricer:admin:sidebar';
-
-/** Read persisted sidebar state from localStorage */
+/** Read persisted sidebar state from localStorage (tenant-scoped) */
 function loadSidebarState() {
   try {
-    const raw = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    const tenantId = getTenantId() || 'default';
+    const key = `modelpricer:${tenantId}:admin:sidebar`;
+    const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return null;
 }
 
-/** Persist sidebar state to localStorage */
+/** Persist sidebar state to localStorage (tenant-scoped) */
 function saveSidebarState(state) {
   try {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(state));
+    const tenantId = getTenantId() || 'default';
+    const key = `modelpricer:${tenantId}:admin:sidebar`;
+    localStorage.setItem(key, JSON.stringify(state));
   } catch { /* ignore */ }
 }
 
@@ -46,7 +61,7 @@ const ADMIN_NAV = [
     groupKey: 'admin.nav.dashboard',
     groupIcon: 'Home',
     items: [
-      { path: '/admin', label: 'Dashboard', labelKey: 'admin.dashboard', icon: 'LayoutDashboard', exact: true },
+      { path: '/admin', label: 'Dashboard', labelKey: 'admin.dashboard', icon: 'LayoutDashboard', exact: true, requiredPermission: 'dashboard' },
     ],
   },
   {
@@ -54,10 +69,10 @@ const ADMIN_NAV = [
     groupKey: 'admin.nav.business',
     groupIcon: 'Briefcase',
     items: [
-      { path: '/admin/orders', label: 'Orders', labelKey: 'admin.orders', icon: 'ShoppingCart', badge: 'orders' },
-      { path: '/admin/payments', label: 'Payments', labelKey: 'admin.payments', icon: 'CreditCard' },
-      { path: '/admin/customers', label: 'Customers', labelKey: 'admin.customers', icon: 'Users' },
-      { path: '/admin/analytics', label: 'Analytics', labelKey: 'admin.analytics', icon: 'BarChart3' },
+      { path: '/admin/orders', label: 'Orders', labelKey: 'admin.orders', icon: 'ShoppingCart', badge: 'orders', requiredPermission: 'orders' },
+      { path: '/admin/payments', label: 'Payments', labelKey: 'admin.payments', icon: 'CreditCard', requiredPermission: 'billing' },
+      { path: '/admin/customers', label: 'Customers', labelKey: 'admin.customers', icon: 'UserCircle', requiredPermission: 'orders' },
+      { path: '/admin/analytics', label: 'Analytics', labelKey: 'admin.analytics', icon: 'BarChart3', requiredPermission: 'dashboard' },
     ],
   },
   {
@@ -65,13 +80,13 @@ const ADMIN_NAV = [
     groupKey: 'admin.nav.configuration',
     groupIcon: 'Sliders',
     items: [
-      { path: '/admin/pricing', label: 'Pricing', labelKey: 'admin.pricing', icon: 'Calculator' },
-      { path: '/admin/parameters', label: 'Materials & Params', labelKey: 'admin.parameters', icon: 'Settings2' },
-      { path: '/admin/fees', label: 'Fees', labelKey: 'admin.fees', icon: 'Receipt' },
-      { path: '/admin/presets', label: 'Presets', labelKey: 'admin.presets', icon: 'Sliders' },
-      { path: '/admin/express', label: 'Express', labelKey: 'admin.express', icon: 'Zap' },
-      { path: '/admin/shipping', label: 'Shipping', labelKey: 'admin.shipping', icon: 'Truck' },
-      { path: '/admin/coupons', label: 'Coupons', labelKey: 'admin.coupons', icon: 'Tag' },
+      { path: '/admin/pricing', label: 'Pricing', labelKey: 'admin.pricing', icon: 'Calculator', requiredPermission: 'pricing' },
+      { path: '/admin/parameters', label: 'Materials & Params', labelKey: 'admin.parameters', icon: 'Settings2', requiredPermission: 'parameters' },
+      { path: '/admin/fees', label: 'Fees', labelKey: 'admin.fees', icon: 'Receipt', requiredPermission: 'fees' },
+      { path: '/admin/presets', label: 'Presets', labelKey: 'admin.presets', icon: 'Sliders', requiredPermission: 'presets' },
+      { path: '/admin/express', label: 'Express', labelKey: 'admin.express', icon: 'Zap', requiredPermission: 'pricing' },
+      { path: '/admin/shipping', label: 'Shipping', labelKey: 'admin.shipping', icon: 'Truck', requiredPermission: 'orders' },
+      { path: '/admin/coupons', label: 'Coupons', labelKey: 'admin.coupons', icon: 'Tag', requiredPermission: 'pricing' },
     ],
   },
   {
@@ -79,8 +94,8 @@ const ADMIN_NAV = [
     groupKey: 'admin.nav.communication',
     groupIcon: 'MessageSquare',
     items: [
-      { path: '/admin/emails', label: 'Emails', labelKey: 'admin.emails', icon: 'Mail' },
-      { path: '/admin/webhooks', label: 'Webhooks', labelKey: 'admin.webhooks', icon: 'Webhook' },
+      { path: '/admin/emails', label: 'Emails', labelKey: 'admin.emails', icon: 'Mail', requiredPermission: 'orders' },
+      { path: '/admin/webhooks', label: 'Webhooks', labelKey: 'admin.webhooks', icon: 'Webhook', requiredPermission: 'audit' },
     ],
   },
   {
@@ -88,15 +103,15 @@ const ADMIN_NAV = [
     groupKey: 'admin.nav.system',
     groupIcon: 'Settings',
     items: [
-      { path: '/admin/branding', label: 'Branding', labelKey: 'admin.branding', icon: 'Palette' },
-      { path: '/admin/widget', label: 'Widget', labelKey: 'admin.widget', icon: 'Code2' },
-      { path: '/admin/team', label: 'Team', labelKey: 'admin.teamAccess', icon: 'Users' },
-      { path: '/admin/model-storage', label: 'Model Storage', labelKey: 'admin.modelStorage', icon: 'HardDrive' },
-      { path: '/admin/system', label: 'System Health', labelKey: 'admin.system', icon: 'HeartPulse', badge: 'health' },
-      { path: '/admin/activity', label: 'Activity Log', labelKey: 'admin.activity', icon: 'ClipboardList' },
-      { path: '/admin/migration', label: 'Migration', labelKey: 'admin.migration', icon: 'Database' },
-      { path: '/admin/integrations', label: 'Integrations', labelKey: 'admin.integrations', icon: 'Plug' },
-      { path: '/admin/settings', label: 'Settings', labelKey: 'admin.settings', icon: 'Settings' },
+      { path: '/admin/branding', label: 'Branding', labelKey: 'admin.branding', icon: 'Palette', requiredPermission: 'branding' },
+      { path: '/admin/widget', label: 'Widget', labelKey: 'admin.widget', icon: 'Code2', requiredPermission: 'widget' },
+      { path: '/admin/team', label: 'Team', labelKey: 'admin.teamAccess', icon: 'Users', requiredPermission: 'team' },
+      { path: '/admin/model-storage', label: 'Model Storage', labelKey: 'admin.modelStorage', icon: 'HardDrive', requiredPermission: 'dashboard' },
+      { path: '/admin/system', label: 'System Health', labelKey: 'admin.system', icon: 'HeartPulse', requiredPermission: 'audit' },
+      { path: '/admin/activity', label: 'Activity Log', labelKey: 'admin.activity', icon: 'ClipboardList', requiredPermission: 'audit' },
+      { path: '/admin/migration', label: 'Migration', labelKey: 'admin.migration', icon: 'Database', requiredPermission: 'audit' },
+      { path: '/admin/integrations', label: 'Integrations', labelKey: 'admin.integrations', icon: 'Plug', requiredPermission: 'widget' },
+      { path: '/admin/settings', label: 'Settings', labelKey: 'admin.settings', icon: 'Settings', requiredPermission: 'team' },
     ],
   },
 ];
@@ -157,22 +172,20 @@ const AdminLayout = () => {
   const commandPaletteRef = useRef(null);
   const { theme: adminTheme, toggleTheme: toggleAdminTheme, isDark: isAdminDark } = useAdminTheme(adminRootRef);
 
-  // Auth — wrapped in try/catch for resilience
-  let authUser = null;
-  let authLogout = null;
-  try {
-    const auth = useAuth();
-    authUser = auth.currentUser;
-    authLogout = auth.logout;
-  } catch {
-    // AuthProvider not available — graceful fallback
-  }
+  // Auth — must be called unconditionally at top level (React hook rules)
+  const { currentUser: authUser, logout: authLogout, loading: authLoading } = useAuth();
 
   const tenantId = useMemo(() => {
     try { return getTenantId(); } catch { return ''; }
   }, []);
   const truncatedTenantId = tenantId ? (tenantId.length > 12 ? tenantId.slice(0, 12) + '...' : tenantId) : '';
   const isDev = import.meta.env.DEV;
+
+  // One-time migration of legacy branding/widget/plan_features keys to modern namespace.
+  // Safe to run every mount — skips keys that are already migrated.
+  useEffect(() => {
+    if (tenantId) migrateLegacyBrandingWidgetKeys(tenantId);
+  }, [tenantId]);
 
   // Company name from branding storage
   const companyName = useMemo(() => {
@@ -183,7 +196,7 @@ const AdminLayout = () => {
   }, []);
 
   // Badge counts
-  const [badgeCounts, setBadgeCounts] = useState({ orders: 0, health: 0 });
+  const [badgeCounts, setBadgeCounts] = useState({ orders: 0 });
   useEffect(() => {
     const count = getPendingOrderCount();
     setBadgeCounts((prev) => ({ ...prev, orders: count }));
@@ -974,9 +987,9 @@ const AdminLayout = () => {
             fontSize: '10px',
           }}>
             {[
-              { label: 'Docs', href: '/support', icon: 'BookOpen' },
-              { label: 'Support', href: '/support', icon: 'LifeBuoy' },
-              { label: 'Changelog', href: '/support', icon: 'FileText' },
+              { label: t('admin.footer.docs'), href: '/support', icon: 'BookOpen' },
+              { label: t('admin.footer.support'), href: '/support', icon: 'LifeBuoy' },
+              { label: t('admin.footer.changelog'), href: '/support', icon: 'FileText' },
             ].map((link, i) => (
               <React.Fragment key={link.label}>
                 {i > 0 && <span style={{ opacity: 0.3 }}>|</span>}
@@ -1060,6 +1073,24 @@ const AdminLayout = () => {
     </>
   );
 
+  // Auth guard — redirect unauthenticated users to login
+  if (authLoading) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '100vh', backgroundColor: 'var(--forge-bg-void)',
+        color: 'var(--forge-text-muted, #7A8291)',
+        fontFamily: 'var(--forge-font-heading)',
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <div ref={adminRootRef} style={{
       display: 'flex',
@@ -1068,7 +1099,7 @@ const AdminLayout = () => {
     }}>
       {/* Desktop/Tablet Sidebar */}
       {!isMobile && (
-        <aside ref={sidebarRef} style={{
+        <aside ref={sidebarRef} aria-label="Admin navigation" style={{
           width: sidebarWidth,
           minWidth: sidebarWidth,
           backgroundColor: 'var(--forge-bg-surface)',
@@ -1105,7 +1136,7 @@ const AdminLayout = () => {
             onClick={() => setMobileDrawerOpen(false)}
           />
           {/* Drawer panel */}
-          <aside style={{
+          <aside aria-label="Admin navigation" style={{
             position: 'absolute',
             left: 0,
             top: 0,

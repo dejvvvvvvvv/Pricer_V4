@@ -20,6 +20,7 @@ import { ForgeConfirmDialog, useConfirmDialog } from '../../components/ui/forge/
 import Icon from '../../components/AppIcon';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
 import {
   loadSettings,
   saveSettings,
@@ -35,7 +36,7 @@ import {
   DATE_DISPLAY_OPTIONS,
   DEFAULT_VIEW_OPTIONS,
 } from '../../utils/adminSettingsStorage';
-import { writeTenantJson, getTenantId, readTenantJson } from '../../utils/adminTenantStorage';
+import { writeTenantJson, readTenantJson, deleteTenantJson, clearAllTenantData } from '../../utils/adminTenantStorage';
 
 // ---------------------------------------------------------------------------
 // Styles (inline, consistent with other admin pages)
@@ -154,6 +155,24 @@ const toastStyle = {
   gap: '8px',
 };
 
+const errorToastStyle = {
+  position: 'fixed',
+  bottom: '24px',
+  right: '24px',
+  padding: '12px 20px',
+  borderRadius: 'var(--forge-radius-sm, 6px)',
+  backgroundColor: 'var(--forge-error, #EF4444)',
+  color: '#fff',
+  fontFamily: 'var(--forge-font-body, Inter, sans-serif)',
+  fontSize: '13px',
+  fontWeight: 600,
+  zIndex: 9999,
+  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -161,10 +180,18 @@ const toastStyle = {
 export default function AdminSettings() {
   useDocumentTitle('Nastaveni | Admin');
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [settings, setSettings] = useState(() => loadSettings());
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [dirty, setDirty] = useState(false);
+
+  // Timer ref for saved toast cleanup
+  const savedTimerRef = React.useRef(null);
+  React.useEffect(() => {
+    return () => clearTimeout(savedTimerRef.current);
+  }, []);
 
   // Confirm dialogs
   const clearOrdersDialog = useConfirmDialog();
@@ -179,10 +206,18 @@ export default function AdminSettings() {
 
   // Save
   const handleSave = useCallback(() => {
-    saveSettings(settings);
-    setDirty(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaveError(null);
+    try {
+      saveSettings(settings);
+      setDirty(false);
+      setSaved(true);
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(e?.message || (typeof e === 'string' ? e : 'Nepodarilo se ulozit nastaveni.'));
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaveError(null), 4000);
+    }
   }, [settings]);
 
   // Desktop notification permission
@@ -196,42 +231,33 @@ export default function AdminSettings() {
 
   // Data management actions
   const handleClearOrders = useCallback(() => {
-    const tenantId = getTenantId();
     writeTenantJson('orders:v1', []);
     writeTenantJson('orders:activity:v1', []);
     clearOrdersDialog.close();
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
   }, [clearOrdersDialog]);
 
   const handleResetPricing = useCallback(() => {
     // Remove pricing config — next load will seed defaults
-    const tenantId = getTenantId();
-    const key = `modelpricer:${tenantId}:pricing:v3`;
-    try { window.localStorage.removeItem(key); } catch { /* ok */ }
+    deleteTenantJson('pricing:v3');
     resetPricingDialog.close();
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
   }, [resetPricingDialog]);
 
   const handleFactoryReset = useCallback(() => {
-    const tenantId = getTenantId();
-    const prefix = `modelpricer:${tenantId}:`;
-    try {
-      const keys = [];
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && k.startsWith(prefix)) keys.push(k);
-      }
-      keys.forEach((k) => window.localStorage.removeItem(k));
-    } catch { /* ok */ }
+    clearAllTenantData();
     factoryResetDialog.close();
     // Reset settings to defaults after factory reset
     const defaults = resetSettings();
     setSettings(defaults);
     setDirty(false);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
   }, [factoryResetDialog]);
 
   // Order number preview
@@ -247,8 +273,8 @@ export default function AdminSettings() {
   return (
     <div style={{ maxWidth: '900px' }}>
       <ForgePageHeader
-        title="Nastaveni"
-        breadcrumb="ADMIN / NASTAVENI"
+        title={t('admin.settings.title', 'Nastaveni')}
+        breadcrumb={t('admin.settings.breadcrumb', 'ADMIN / NASTAVENI')}
         actions={
           <button
             style={{ ...saveBtnStyle, opacity: dirty ? 1 : 0.5 }}
@@ -256,7 +282,7 @@ export default function AdminSettings() {
             disabled={!dirty}
           >
             <Icon name="Save" size={16} />
-            Ulozit zmeny
+            {t('admin.settings.saveBtn', 'Ulozit zmeny')}
           </button>
         }
       />
@@ -265,35 +291,35 @@ export default function AdminSettings() {
       <div style={cardStyle}>
         <div style={cardTitleStyle}>
           <Icon name="Globe" size={18} style={{ color: 'var(--forge-accent-primary)' }} />
-          Obecne nastaveni
+          {t('admin.settings.generalTitle', 'Obecne nastaveni')}
         </div>
         <div style={gridStyle}>
           <ForgeSelect
-            label="Vychozi mena"
+            label={t('admin.settings.currency', 'Vychozi mena')}
             value={settings.currency}
             onChange={(e) => update('currency', e.target.value)}
             options={CURRENCY_OPTIONS}
           />
           <ForgeSelect
-            label="Vychozi jazyk"
+            label={t('admin.settings.language', 'Vychozi jazyk')}
             value={settings.language}
             onChange={(e) => update('language', e.target.value)}
             options={LANGUAGE_OPTIONS}
           />
           <ForgeSelect
-            label="Casova zona"
+            label={t('admin.settings.timezone', 'Casova zona')}
             value={settings.timezone}
             onChange={(e) => update('timezone', e.target.value)}
             options={TIMEZONE_OPTIONS}
           />
           <ForgeSelect
-            label="Format datumu"
+            label={t('admin.settings.dateFormat', 'Format datumu')}
             value={settings.dateFormat}
             onChange={(e) => update('dateFormat', e.target.value)}
             options={DATE_FORMAT_OPTIONS}
           />
           <ForgeSelect
-            label="Oddelovac desetinnych mist"
+            label={t('admin.settings.decimalSeparator', 'Oddelovac desetinnych mist')}
             value={settings.decimalSeparator}
             onChange={(e) => update('decimalSeparator', e.target.value)}
             options={DECIMAL_SEPARATOR_OPTIONS}
@@ -305,13 +331,13 @@ export default function AdminSettings() {
       <div style={cardStyle}>
         <div style={cardTitleStyle}>
           <Icon name="ShoppingCart" size={18} style={{ color: 'var(--forge-accent-secondary, #FF6B35)' }} />
-          Nastaveni objednavek
+          {t('admin.settings.ordersTitle', 'Nastaveni objednavek')}
         </div>
 
         <div style={rowStyle}>
           <div>
-            <div style={rowLabelStyle}>Automaticke cislovani objednavek</div>
-            <div style={rowDescStyle}>Pridelovat cisla objednavkam automaticky</div>
+            <div style={rowLabelStyle}>{t('admin.settings.orderAutoNumber', 'Automaticke cislovani objednavek')}</div>
+            <div style={rowDescStyle}>{t('admin.settings.orderAutoNumberDesc', 'Pridelovat cisla objednavkam automaticky')}</div>
           </div>
           <ForgeToggle
             checked={settings.orderAutoNumber}
@@ -322,13 +348,13 @@ export default function AdminSettings() {
         {settings.orderAutoNumber && (
           <div style={{ ...gridStyle, marginTop: '16px' }}>
             <ForgeInput
-              label="Prefix cisla objednavky"
+              label={t('admin.settings.orderPrefix', 'Prefix cisla objednavky')}
               value={settings.orderNumberPrefix}
               onChange={(e) => update('orderNumberPrefix', e.target.value)}
               placeholder="ORD"
             />
             <ForgeInput
-              label="Format cisla"
+              label={t('admin.settings.orderFormat', 'Format cisla')}
               value={settings.orderNumberFormat}
               onChange={(e) => update('orderNumberFormat', e.target.value)}
               placeholder="{PREFIX}-{YYYY}-{NNNN}"
@@ -343,7 +369,7 @@ export default function AdminSettings() {
                 color: 'var(--forge-text-muted, #7A8291)',
                 marginBottom: '6px',
               }}>
-                Nahled
+                {t('admin.settings.orderPreview', 'Nahled')}
               </div>
               <div style={{
                 height: '40px',
@@ -365,13 +391,13 @@ export default function AdminSettings() {
 
         <div style={{ ...gridStyle, marginTop: '16px' }}>
           <ForgeSelect
-            label="Vychozi stav nove objednavky"
+            label={t('admin.settings.orderStatus', 'Vychozi stav nove objednavky')}
             value={settings.orderDefaultStatus}
             onChange={(e) => update('orderDefaultStatus', e.target.value)}
             options={ORDER_STATUS_OPTIONS}
           />
           <ForgeInput
-            label="Auto-archivace po (dny)"
+            label={t('admin.settings.autoArchive', 'Auto-archivace po (dny)')}
             type="number"
             value={settings.orderAutoArchiveDays}
             onChange={(e) => update('orderAutoArchiveDays', parseInt(e.target.value, 10) || 0)}
@@ -384,13 +410,13 @@ export default function AdminSettings() {
       <div style={cardStyle}>
         <div style={cardTitleStyle}>
           <Icon name="Bell" size={18} style={{ color: '#F59E0B' }} />
-          Notifikace
+          {t('admin.settings.notificationsTitle', 'Notifikace')}
         </div>
 
         <div style={rowStyle}>
           <div>
-            <div style={rowLabelStyle}>Emailove notifikace</div>
-            <div style={rowDescStyle}>Zasilat emailova oznameni pri zmene stavu objednavek</div>
+            <div style={rowLabelStyle}>{t('admin.settings.emailNotif', 'Emailove notifikace')}</div>
+            <div style={rowDescStyle}>{t('admin.settings.emailNotifDesc', 'Zasilat emailova oznameni pri zmene stavu objednavek')}</div>
           </div>
           <ForgeToggle
             checked={settings.emailNotifications}
@@ -400,8 +426,8 @@ export default function AdminSettings() {
 
         <div style={rowStyle}>
           <div>
-            <div style={rowLabelStyle}>Zvukove notifikace</div>
-            <div style={rowDescStyle}>Prehravat zvuk pri novych udalostech</div>
+            <div style={rowLabelStyle}>{t('admin.settings.soundNotif', 'Zvukove notifikace')}</div>
+            <div style={rowDescStyle}>{t('admin.settings.soundNotifDesc', 'Prehravat zvuk pri novych udalostech')}</div>
           </div>
           <ForgeToggle
             checked={settings.soundNotifications}
@@ -411,11 +437,11 @@ export default function AdminSettings() {
 
         <div style={{ ...rowStyle, borderBottom: 'none' }}>
           <div>
-            <div style={rowLabelStyle}>Desktopove notifikace</div>
+            <div style={rowLabelStyle}>{t('admin.settings.desktopNotif', 'Desktopove notifikace')}</div>
             <div style={rowDescStyle}>
               {typeof Notification !== 'undefined' && Notification.permission === 'granted'
-                ? 'Povoleno v prohlizeci'
-                : 'Vyzaduje povoleni v prohlizeci'}
+                ? t('admin.settings.desktopGranted', 'Povoleno v prohlizeci')
+                : t('admin.settings.desktopRequest', 'Vyzaduje povoleni v prohlizeci')}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -424,7 +450,7 @@ export default function AdminSettings() {
                 style={{ ...linkBtnStyle, fontSize: '12px', padding: '6px 12px' }}
                 onClick={requestDesktopPermission}
               >
-                Povolit
+                {t('admin.settings.desktopAllow', 'Povolit')}
               </button>
             )}
             <ForgeToggle
@@ -440,24 +466,24 @@ export default function AdminSettings() {
       <div style={cardStyle}>
         <div style={cardTitleStyle}>
           <Icon name="Monitor" size={18} style={{ color: '#8B5CF6' }} />
-          Zobrazeni
+          {t('admin.settings.displayTitle', 'Zobrazeni')}
         </div>
 
         <div style={gridStyle}>
           <ForgeSelect
-            label="Vychozi stranka po prihlaseni"
+            label={t('admin.settings.defaultView', 'Vychozi stranka po prihlaseni')}
             value={settings.defaultAdminView}
             onChange={(e) => update('defaultAdminView', e.target.value)}
             options={DEFAULT_VIEW_OPTIONS}
           />
           <ForgeSelect
-            label="Polozek na stranku v tabulkach"
+            label={t('admin.settings.itemsPerPage', 'Polozek na stranku v tabulkach')}
             value={settings.itemsPerPage}
             onChange={(e) => update('itemsPerPage', parseInt(e.target.value, 10))}
             options={ITEMS_PER_PAGE_OPTIONS}
           />
           <ForgeSelect
-            label="Zobrazeni datumu"
+            label={t('admin.settings.dateDisplay', 'Zobrazeni datumu')}
             value={settings.dateDisplayFormat}
             onChange={(e) => update('dateDisplayFormat', e.target.value)}
             options={DATE_DISPLAY_OPTIONS}
@@ -466,8 +492,8 @@ export default function AdminSettings() {
 
         <div style={{ ...rowStyle, marginTop: '16px', borderBottom: 'none' }}>
           <div>
-            <div style={rowLabelStyle}>Kompaktni rezim</div>
-            <div style={rowDescStyle}>Zobrazit hustejsi UI s mensimi mezerami</div>
+            <div style={rowLabelStyle}>{t('admin.settings.compactMode', 'Kompaktni rezim')}</div>
+            <div style={rowDescStyle}>{t('admin.settings.compactModeDesc', 'Zobrazit hustejsi UI s mensimi mezerami')}</div>
           </div>
           <ForgeToggle
             checked={settings.compactMode}
@@ -480,15 +506,15 @@ export default function AdminSettings() {
       <div style={{ ...cardStyle, borderColor: 'var(--forge-border-active, #2A2E35)' }}>
         <div style={cardTitleStyle}>
           <Icon name="Database" size={18} style={{ color: 'var(--forge-error, #EF4444)' }} />
-          Sprava dat
+          {t('admin.settings.dataTitle', 'Sprava dat')}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Clear orders */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
             <div>
-              <div style={rowLabelStyle}>Smazat vsechny objednavky</div>
-              <div style={rowDescStyle}>Trvale odstrani vsechny objednavky a jejich historii</div>
+              <div style={rowLabelStyle}>{t('admin.settings.clearOrders', 'Smazat vsechny objednavky')}</div>
+              <div style={rowDescStyle}>{t('admin.settings.clearOrdersDesc', 'Trvale odstrani vsechny objednavky a jejich historii')}</div>
             </div>
             <button
               style={dangerBtnStyle}
@@ -497,15 +523,15 @@ export default function AdminSettings() {
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               <Icon name="Trash2" size={14} />
-              Smazat objednavky
+              {t('admin.settings.clearOrdersBtn', 'Smazat objednavky')}
             </button>
           </div>
 
           {/* Reset pricing */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
             <div>
-              <div style={rowLabelStyle}>Obnovit vychozi cenik</div>
-              <div style={rowDescStyle}>Resetuje cenovou konfiguraci na vychozi hodnoty</div>
+              <div style={rowLabelStyle}>{t('admin.settings.resetPricing', 'Obnovit vychozi cenik')}</div>
+              <div style={rowDescStyle}>{t('admin.settings.resetPricingDesc', 'Resetuje cenovou konfiguraci na vychozi hodnoty')}</div>
             </div>
             <button
               style={dangerBtnStyle}
@@ -514,7 +540,7 @@ export default function AdminSettings() {
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               <Icon name="RotateCcw" size={14} />
-              Reset ceniku
+              {t('admin.settings.resetPricingBtn', 'Reset ceniku')}
             </button>
           </div>
 
@@ -528,10 +554,10 @@ export default function AdminSettings() {
           }}>
             <div>
               <div style={{ ...rowLabelStyle, color: 'var(--forge-error, #EF4444)' }}>
-                Tovarni reset
+                {t('admin.settings.factoryReset', 'Tovarni reset')}
               </div>
               <div style={rowDescStyle}>
-                Smaze VSECHNA data tohoto tenantu — objednavky, cenik, branding, presety, vse
+                {t('admin.settings.factoryResetDesc', 'Smaze VSECHNA data tohoto tenantu — objednavky, cenik, branding, presety, vse')}
               </div>
             </div>
             <button
@@ -541,15 +567,15 @@ export default function AdminSettings() {
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               <Icon name="AlertTriangle" size={14} />
-              Tovarni reset
+              {t('admin.settings.factoryReset', 'Tovarni reset')}
             </button>
           </div>
 
           {/* Backup link */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', marginTop: '4px' }}>
             <div>
-              <div style={rowLabelStyle}>Zaloha a obnova</div>
-              <div style={rowDescStyle}>Exportovat/importovat konfiguraci jako JSON</div>
+              <div style={rowLabelStyle}>{t('admin.settings.backup', 'Zaloha a obnova')}</div>
+              <div style={rowDescStyle}>{t('admin.settings.backupDesc', 'Exportovat/importovat konfiguraci jako JSON')}</div>
             </div>
             <button
               style={linkBtnStyle}
@@ -558,7 +584,7 @@ export default function AdminSettings() {
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-default)'; }}
             >
               <Icon name="Download" size={14} />
-              System Health
+              {t('admin.settings.backupBtn', 'System Health')}
             </button>
           </div>
         </div>
@@ -569,9 +595,9 @@ export default function AdminSettings() {
         isOpen={clearOrdersDialog.isOpen}
         onClose={clearOrdersDialog.close}
         onConfirm={handleClearOrders}
-        title="Smazat vsechny objednavky?"
-        message="Tato akce trvale smaze vsechny objednavky a jejich historii aktivit. Tuto operaci nelze vzit zpet."
-        confirmLabel="Ano, smazat vse"
+        title={t('admin.settings.clearOrdersDialogTitle', 'Smazat vsechny objednavky?')}
+        message={t('admin.settings.clearOrdersDialogMsg', 'Tato akce trvale smaze vsechny objednavky a jejich historii aktivit. Tuto operaci nelze vzit zpet.')}
+        confirmLabel={t('admin.settings.clearOrdersConfirm', 'Ano, smazat vse')}
         variant="danger"
       />
 
@@ -579,9 +605,9 @@ export default function AdminSettings() {
         isOpen={resetPricingDialog.isOpen}
         onClose={resetPricingDialog.close}
         onConfirm={handleResetPricing}
-        title="Obnovit vychozi cenik?"
-        message="Cenova konfigurace bude nahrazena vychozimi hodnotami. Aktualni nastaveni bude ztraceno."
-        confirmLabel="Ano, resetovat"
+        title={t('admin.settings.resetPricingDialogTitle', 'Obnovit vychozi cenik?')}
+        message={t('admin.settings.resetPricingDialogMsg', 'Cenova konfigurace bude nahrazena vychozimi hodnotami. Aktualni nastaveni bude ztraceno.')}
+        confirmLabel={t('admin.settings.resetPricingConfirm', 'Ano, resetovat')}
         variant="danger"
       />
 
@@ -589,9 +615,9 @@ export default function AdminSettings() {
         isOpen={factoryResetDialog.isOpen}
         onClose={factoryResetDialog.close}
         onConfirm={handleFactoryReset}
-        title="Tovarni reset — smazat VSECHNA data?"
-        message="Toto smaze VSECHNA data tenantu vcetne objednavek, ceniku, brandingu, presetu a vsech nastaveni. Tuto akci NELZE vratit. Pred pokracovanim doporucujeme provest zalohu v System Health."
-        confirmLabel="Rozumim, smazat vse"
+        title={t('admin.settings.factoryDialogTitle', 'Tovarni reset — smazat VSECHNA data?')}
+        message={t('admin.settings.factoryDialogMsg', 'Toto smaze VSECHNA data tenantu vcetne objednavek, ceniku, brandingu, presetu a vsech nastaveni. Tuto akci NELZE vratit. Pred pokracovanim doporucujeme provest zalohu v System Health.')}
+        confirmLabel={t('admin.settings.factoryConfirm', 'Rozumim, smazat vse')}
         variant="danger"
       />
 
@@ -599,7 +625,15 @@ export default function AdminSettings() {
       {saved && (
         <div style={toastStyle}>
           <Icon name="Check" size={16} />
-          Nastaveni ulozeno
+          {t('admin.settings.savedToast', 'Nastaveni ulozeno')}
+        </div>
+      )}
+
+      {/* ─── Error toast ───────────────────────────────────────────────── */}
+      {saveError && (
+        <div style={errorToastStyle}>
+          <Icon name="AlertTriangle" size={16} />
+          {saveError}
         </div>
       )}
     </div>

@@ -64,7 +64,7 @@ export function saveTags(tags) {
  */
 export function createTag(label, color) {
   const tags = loadTags();
-  const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const id = `custom_${crypto.randomUUID()}`;
   const newTag = { id, label, color, icon: 'Tag', predefined: false };
   tags.push(newTag);
   saveTags(tags);

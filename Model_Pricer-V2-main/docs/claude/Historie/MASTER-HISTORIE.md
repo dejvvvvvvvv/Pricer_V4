@@ -204,6 +204,16 @@
 
 ---
 
+## 2026-03-13
+
+### S25: Security Fixes Waves 4-7
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **160-SEC** | 2026-03-13 | UPRAVY | SEC | Security Fixes Waves 4-7 — Prototype Pollution, localStorage Abstraction, window.confirm, SVG, Info Disclosure | 27 | Wave 4: sanitizeJson.js (new) + safeJsonParse (4 files); Wave 5: deleteTenantJson/clearAllTenantData helpers + 4 files refactored; Wave 6: AdminCoupons validation + 7x window.confirm → ForgeConfirmDialog + 8 files hardcoded user_id fixed + localStorage tenant scoping; Wave 7: SVG sanitization + AdminBranding upload handling + env info removal |
+
+---
+
 ## Navi & Links
 
 - **ID-REGISTRY:** `docs/claude/Historie/ID-REGISTRY.md` — seznam zkratek + globalni pocitadlo

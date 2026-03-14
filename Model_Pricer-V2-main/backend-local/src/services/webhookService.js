@@ -29,6 +29,59 @@ const VALID_EVENTS = [
   "slice.failed",
 ];
 
+/**
+ * Check if a URL points to a private/internal network address (SSRF protection).
+ * Blocks localhost, RFC 1918 private ranges, link-local, and non-http(s) schemes.
+ *
+ * @param {string} urlString
+ * @returns {boolean} true if the URL is private/blocked
+ */
+function isPrivateUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    const hostname = url.hostname;
+
+    // Block non-http(s) schemes
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return true;
+    }
+
+    // Block localhost variants
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0" ||
+      hostname.endsWith(".localhost")
+    ) {
+      return true;
+    }
+
+    // Block private IPv4 ranges (RFC 1918 + link-local + 0.0.0.0/8)
+    const parts = hostname.split(".").map(Number);
+    if (parts.length === 4 && parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)) {
+      if (parts[0] === 10) return true; // 10.0.0.0/8
+      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
+      if (parts[0] === 192 && parts[1] === 168) return true; // 192.168.0.0/16
+      if (parts[0] === 169 && parts[1] === 254) return true; // 169.254.0.0/16 link-local
+      if (parts[0] === 0) return true; // 0.0.0.0/8
+      if (parts[0] === 127) return true; // 127.0.0.0/8 (full loopback range)
+    }
+
+    // Block IPv6 loopback and private (bracketed in URLs)
+    if (hostname.startsWith("[")) {
+      const ipv6 = hostname.slice(1, -1).toLowerCase();
+      if (ipv6 === "::1" || ipv6.startsWith("fe80") || ipv6.startsWith("fc") || ipv6.startsWith("fd")) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return true; // Invalid URL = block
+  }
+}
+
 /** Retry delays in milliseconds (exponential backoff). */
 const RETRY_DELAYS = [1_000, 5_000, 25_000];
 
@@ -98,6 +151,15 @@ function signPayload(payload, secret) {
  * @param {Object} body - The full event payload object
  */
 async function deliverWithRetry(webhook, body) {
+  // SSRF protection — re-validate URL before every delivery (URL could have been
+  // stored before the check was added, or config could have been tampered with)
+  if (isPrivateUrl(webhook.url)) {
+    console.error(
+      `[webhook] SSRF blocked: refusing to deliver ${body.event} to private URL ${webhook.url}`
+    );
+    return;
+  }
+
   const payloadStr = JSON.stringify(body);
   const signature = signPayload(payloadStr, webhook.secret);
 
@@ -171,6 +233,11 @@ export async function registerWebhook(workspaceRoot, tenantId, url, events, secr
     }
   } catch {
     return { ok: false, error: "Invalid URL" };
+  }
+
+  // SSRF protection — block private/internal network URLs
+  if (isPrivateUrl(url)) {
+    return { ok: false, error: "Webhook URL must not point to private or internal network addresses" };
   }
 
   // Validate events
@@ -301,6 +368,11 @@ export async function sendTestEvent(workspaceRoot, tenantId, webhookId) {
   const webhook = configs.find((w) => w.id === webhookId);
   if (!webhook) {
     return { ok: false, error: "Webhook not found" };
+  }
+
+  // SSRF protection — block private/internal URLs
+  if (isPrivateUrl(webhook.url)) {
+    return { ok: false, error: "Webhook URL must not point to private or internal network addresses" };
   }
 
   const body = {

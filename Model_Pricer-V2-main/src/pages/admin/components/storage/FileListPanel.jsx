@@ -1,13 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import Icon from '../../../../components/AppIcon';
 import { getPreviewUrl } from '../../../../services/storageApi';
-
-function formatSize(bytes) {
-  if (!bytes) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { formatSize } from '../../../../utils/formatters';
 
 function formatDate(iso) {
   if (!iso) return '-';
@@ -427,6 +421,7 @@ function GridCard({ item, isSelected, isTrash, onClick, onContextMenu, onSelect,
             }}
             onError={(e) => {
               e.target.style.display = 'none';
+              // SAFE: static SVG fallback, no user input interpolated
               e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7A8291" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>';
             }}
           />

@@ -1,5 +1,6 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 // Props: { methods, selectedMethodId, onSelectMethod, orderTotal, freeShippingThreshold, freeShippingEnabled, disabled }
 
@@ -7,6 +8,9 @@ export default function ShippingSelector({
   methods = [], selectedMethodId, onSelectMethod,
   orderTotal = 0, freeShippingThreshold = 0, freeShippingEnabled = false, disabled = false
 }) {
+  const { language } = useLanguage();
+  const t = (cs, en) => (language === 'en' ? en : cs);
+
   const activeMethods = methods.filter(m => m.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
   if (activeMethods.length === 0) return null;
@@ -56,21 +60,21 @@ export default function ShippingSelector({
     <div style={cardStyle}>
       <h3 style={headingStyle}>
         <Icon name="Truck" size={18} style={{ color: 'var(--forge-text-muted)' }} />
-        Shipping
+        {t('Doprava', 'Shipping')}
       </h3>
 
       {/* Free shipping progress bar */}
       {freeShippingEnabled && freeShippingThreshold > 0 && !qualifiesForFree && (
         <div style={progressBoxStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--forge-accent-primary)', marginBottom: '6px' }}>
-            <span>Free shipping progress</span>
+            <span>{t('Postup k doprave zdarma', 'Free shipping progress')}</span>
             <span style={{ fontFamily: 'var(--forge-font-mono)', fontWeight: 600 }}>{Math.round(progressToFree)}%</span>
           </div>
           <div style={{ height: '4px', backgroundColor: 'var(--forge-bg-elevated)', borderRadius: '2px', overflow: 'hidden' }}>
             <div style={{ height: '100%', backgroundColor: 'var(--forge-accent-primary)', borderRadius: '2px', transition: 'width 300ms ease-out', width: `${progressToFree}%` }} />
           </div>
           <p style={{ fontSize: '11px', color: 'var(--forge-text-muted)', marginTop: '6px', fontFamily: 'var(--forge-font-body)' }}>
-            Add <span style={{ fontFamily: 'var(--forge-font-mono)', fontWeight: 600, color: 'var(--forge-accent-primary)' }}>{remaining.toFixed(0)} CZK</span> more for free shipping!
+            {t('Pridejte', 'Add')} <span style={{ fontFamily: 'var(--forge-font-mono)', fontWeight: 600, color: 'var(--forge-accent-primary)' }}>{remaining.toFixed(0)} {t('Kc', 'CZK')}</span> {t('pro dopravu zdarma!', 'more for free shipping!')}
           </p>
         </div>
       )}
@@ -78,7 +82,7 @@ export default function ShippingSelector({
       {qualifiesForFree && (
         <div style={successBoxStyle}>
           <Icon name="Check" size={16} style={{ color: 'var(--forge-success)' }} />
-          <span style={{ fontSize: '13px', color: 'var(--forge-success)', fontWeight: 500, fontFamily: 'var(--forge-font-body)' }}>You qualify for free shipping!</span>
+          <span style={{ fontSize: '13px', color: 'var(--forge-success)', fontWeight: 500, fontFamily: 'var(--forge-font-body)' }}>{t('Mate narok na dopravu zdarma!', 'You qualify for free shipping!')}</span>
         </div>
       )}
 
@@ -127,8 +131,8 @@ export default function ShippingSelector({
                 {(method.delivery_days_min > 0 || method.delivery_days_max > 0) && (
                   <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)', marginTop: '2px' }}>
                     {method.delivery_days_min === method.delivery_days_max
-                      ? `${method.delivery_days_min} days`
-                      : `${method.delivery_days_min}-${method.delivery_days_max} days`}
+                      ? `${method.delivery_days_min} ${t('dni', 'days')}`
+                      : `${method.delivery_days_min}-${method.delivery_days_max} ${t('dni', 'days')}`}
                   </div>
                 )}
               </div>
@@ -137,7 +141,7 @@ export default function ShippingSelector({
                 fontFamily: 'var(--forge-font-mono)',
                 color: price === 0 ? 'var(--forge-success)' : 'var(--forge-text-primary)',
               }}>
-                {price === 0 ? 'Free' : `${price} CZK`}
+                {price === 0 ? t('Zdarma', 'Free') : `${price} ${t('Kc', 'CZK')}`}
               </span>
             </button>
           );

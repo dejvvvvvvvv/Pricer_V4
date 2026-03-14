@@ -11,7 +11,7 @@
  * { enabledTypes: { order, slicing, config, storage, info, error }, soundEnabled }
  */
 
-import { getTenantId } from './adminTenantStorage';
+import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
 import { debug } from '@/lib/debug';
 
 const NAMESPACE = 'notifications';
@@ -20,22 +20,6 @@ const MAX_NOTIFICATIONS = 50;
 
 /** Custom event name dispatched after any write to notifications storage. */
 export const NOTIFICATION_UPDATED_EVENT = 'notification-storage-updated';
-
-function buildKey(tenantId) {
-  return `modelpricer:${tenantId}:${NAMESPACE}`;
-}
-
-function buildPrefsKey(tenantId) {
-  return `modelpricer:${tenantId}:${PREFS_NAMESPACE}`;
-}
-
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && !!window.localStorage;
-  } catch {
-    return false;
-  }
-}
 
 /** Dispatch update event so NotificationCenter can react without polling. */
 function dispatchUpdate() {
@@ -65,32 +49,19 @@ const DEFAULT_PREFS = {
  * Read notification preferences (merged with defaults).
  */
 export function getNotificationPrefs(tenantIdOverride) {
-  if (!canUseLocalStorage()) return { ...DEFAULT_PREFS };
-  const tenantId = tenantIdOverride || getTenantId();
-  try {
-    const raw = window.localStorage.getItem(buildPrefsKey(tenantId));
-    if (!raw) return { ...DEFAULT_PREFS, enabledTypes: { ...DEFAULT_PREFS.enabledTypes } };
-    const parsed = JSON.parse(raw);
-    return {
-      enabledTypes: { ...DEFAULT_PREFS.enabledTypes, ...(parsed.enabledTypes || {}) },
-      soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : DEFAULT_PREFS.soundEnabled,
-    };
-  } catch {
-    return { ...DEFAULT_PREFS, enabledTypes: { ...DEFAULT_PREFS.enabledTypes } };
-  }
+  const parsed = readTenantJson(PREFS_NAMESPACE, null, tenantIdOverride);
+  if (!parsed) return { ...DEFAULT_PREFS, enabledTypes: { ...DEFAULT_PREFS.enabledTypes } };
+  return {
+    enabledTypes: { ...DEFAULT_PREFS.enabledTypes, ...(parsed.enabledTypes || {}) },
+    soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : DEFAULT_PREFS.soundEnabled,
+  };
 }
 
 /**
  * Save notification preferences.
  */
 export function saveNotificationPrefs(prefs, tenantIdOverride) {
-  if (!canUseLocalStorage()) return;
-  const tenantId = tenantIdOverride || getTenantId();
-  try {
-    window.localStorage.setItem(buildPrefsKey(tenantId), JSON.stringify(prefs));
-  } catch (e) {
-    debug('[adminNotificationStorage] Failed to write prefs:', e);
-  }
+  writeTenantJson(PREFS_NAMESPACE, prefs, tenantIdOverride);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,34 +106,16 @@ export function playNotificationSound() {
  * Read all notifications (newest first).
  */
 export function getNotifications(tenantIdOverride) {
-  if (!canUseLocalStorage()) return [];
-  const tenantId = tenantIdOverride || getTenantId();
-  try {
-    const raw = window.localStorage.getItem(buildKey(tenantId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    debug('[adminNotificationStorage] Failed to read:', e);
-    return [];
-  }
+  const data = readTenantJson(NAMESPACE, [], tenantIdOverride);
+  return Array.isArray(data) ? data : [];
 }
 
 /**
  * Write notifications array to storage and dispatch update event.
  */
 function writeNotifications(notifications, tenantIdOverride) {
-  if (!canUseLocalStorage()) return;
-  const tenantId = tenantIdOverride || getTenantId();
-  try {
-    window.localStorage.setItem(
-      buildKey(tenantId),
-      JSON.stringify(notifications)
-    );
-    dispatchUpdate();
-  } catch (e) {
-    debug('[adminNotificationStorage] Failed to write:', e);
-  }
+  writeTenantJson(NAMESPACE, notifications, tenantIdOverride);
+  dispatchUpdate();
 }
 
 /**
@@ -184,7 +137,7 @@ export function addNotification(data, tenantIdOverride) {
 
   const notifications = getNotifications(tenantIdOverride);
   const newNotif = {
-    id: crypto.randomUUID ? crypto.randomUUID() : `n-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    id: crypto.randomUUID(),
     type,
     title: data.title || '',
     description: data.description || '',

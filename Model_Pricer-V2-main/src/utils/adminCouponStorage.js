@@ -135,13 +135,13 @@ export function normalizeCouponsConfigV1(input) {
   };
 }
 
-export function loadCouponsConfigV1() {
-  const stored = readTenantJson(NS_COUPONS_V1, null);
+export function loadCouponsConfigV1(tenantIdOverride) {
+  const stored = readTenantJson(NS_COUPONS_V1, null, tenantIdOverride);
   if (stored && typeof stored === 'object') {
     return normalizeCouponsConfigV1(stored);
   }
   const seeded = normalizeCouponsConfigV1(getDefaultCouponsConfigV1());
-  writeTenantJson(NS_COUPONS_V1, seeded);
+  writeTenantJson(NS_COUPONS_V1, seeded, tenantIdOverride);
   return seeded;
 }
 
@@ -297,11 +297,9 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I,O,0,1 to avoid co
  * @param {number} [length] - Random part length (default 4)
  */
 export function generateCouponCode(prefix = '', length = 4) {
-  let random = '';
-  for (let i = 0; i < length; i++) {
-    const idx = Math.floor(Math.random() * CODE_CHARS.length);
-    random += CODE_CHARS[idx];
-  }
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  const random = Array.from(array, b => CODE_CHARS[b % CODE_CHARS.length]).join('');
   return prefix ? `${prefix.toUpperCase()}-${random}` : random;
 }
 

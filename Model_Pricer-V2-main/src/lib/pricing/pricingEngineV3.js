@@ -137,12 +137,21 @@ function getModelMetrics(file) {
   };
 }
 
-function getMaterialPricePerGram(pricingConfig, materialKey) {
+function getMaterialPricePerGram(pricingConfig, materialKey, colorKey) {
   const mats = Array.isArray(pricingConfig?.materials) ? pricingConfig.materials : [];
   const key = normStrLower(materialKey);
 
   const m = mats.find((x) => normStrLower(x?.key) === key) || mats.find((x) => x?.enabled && normStrLower(x?.key) === key);
-  if (m && Number.isFinite(Number(m.price_per_gram))) return safeNum(m.price_per_gram, 0);
+  if (m) {
+    // Check per-color price override
+    if (colorKey && Array.isArray(m.colors)) {
+      const color = m.colors.find((c) => c.id === colorKey || c.name === colorKey);
+      if (color && Number.isFinite(Number(color.price_per_gram)) && Number(color.price_per_gram) > 0) {
+        return safeNum(color.price_per_gram, 0);
+      }
+    }
+    if (Number.isFinite(Number(m.price_per_gram))) return safeNum(m.price_per_gram, 0);
+  }
 
   const legacy = pricingConfig?.materialPrices && typeof pricingConfig.materialPrices === 'object' ? pricingConfig.materialPrices : null;
   if (legacy && Object.prototype.hasOwnProperty.call(legacy, key)) return safeNum(legacy[key], 0);
@@ -293,8 +302,9 @@ function calcBase({ file, cfg, pricingConfig }) {
 
   const quantity = Math.max(1, Math.floor(clampMin0(cfg?.quantity || 1)));
   const materialKey = normStrLower(cfg?.material || cfg?.materialKey || pricingConfig?.default_material_key || 'pla');
+  const colorKey = cfg?.color || null;
 
-  const pricePerGram = clampMin0(getMaterialPricePerGram(pricingConfig, materialKey));
+  const pricePerGram = clampMin0(getMaterialPricePerGram(pricingConfig, materialKey, colorKey));
   const ratePerHour = clampMin0(pricingConfig?.rate_per_hour);
 
   const rawMinutes = metrics.estimatedTimeSeconds > 0 ? Math.ceil(metrics.estimatedTimeSeconds / 60) : 0;
@@ -525,6 +535,31 @@ export function calculateOrderQuote({
         continue;
       }
 
+      // per_cm3 needs volume data. If volume is zero/unavailable, skip fee.
+      if (String(fee.type) === 'per_cm3' && !(ctx?.volumeCm3 > 0)) {
+        feeRows.push({
+          id: fee.id,
+          name: fee.name,
+          scope: fee.scope,
+          type: fee.type,
+          value: safeNum(fee.value, 0),
+          required: !!fee.required,
+          selectable: !!fee.selectable,
+          selected: !!selectedFeeIds?.has?.(fee.id),
+          applied: false,
+          amount: 0,
+          reason: {
+            apply,
+            match,
+            targetOk,
+            targets,
+            volume_unavailable: true,
+            conditions: cond.details,
+          },
+        });
+        continue;
+      }
+
       const charge = getChargeBasis(fee);
       const unit = feeTypeUnitAmount(fee, ctx, base);
 
@@ -635,7 +670,10 @@ export function calculateOrderQuote({
       perModelRounded = rounded;
     }
 
-    modelTotalsById[id] = perModelRounded;
+    // Guard: per-model total must not be negative (large negative discount fees could push it below 0).
+    // The order-level final clamp exists too, but negative per-model values corrupt volume discount
+    // and express surcharge calculations that operate on modelTotalsById.
+    modelTotalsById[id] = Math.max(0, perModelRounded);
 
     modelResults.push({
       id,
@@ -683,7 +721,9 @@ export function calculateOrderQuote({
     const tier = ec.tiers.find(t => t && t.id === selectedExpressTierId && t.active !== false);
     if (tier) {
       const surchargeType = String(tier.surcharge_type || 'percent');
-      const surchargeValue = safeNum(tier.surcharge_value, 0);
+      // Guard: cap percent surcharge at 10 000 % (100x) to prevent absurd totals from bad admin input.
+      const surchargeValueRaw = safeNum(tier.surcharge_value, 0);
+      const surchargeValue = surchargeType === 'percent' ? Math.min(surchargeValueRaw, 10000) : surchargeValueRaw;
 
       for (const model of modelResults) {
         const modelTotal = safeNum(modelTotalsById[model.id], 0);
@@ -793,17 +833,22 @@ export function calculateOrderQuote({
         continue;
       }
 
-      const originalPerPiece = model.totals.subtotalAfterPerModelRounding / safeNum(model.quantity, 1);
+      // Use modelTotalsById (already clamped to >= 0) as the base for discount, not the raw
+      // subtotalAfterPerModelRounding which can be negative if discount fees exceed base price.
+      const modelQty = safeNum(model.quantity, 1);
+      const modelClamped = safeNum(modelTotalsById[model.id], 0);
+      const originalPerPiece = modelQty > 0 ? modelClamped / modelQty : 0;
       let discountedPerPiece = originalPerPiece;
       let savings = 0;
 
       if (mode === 'percent') {
         const pct = safeNum(matchingTier.value, 0);
         discountedPerPiece = originalPerPiece * (1 - pct / 100);
-        savings = (originalPerPiece - discountedPerPiece) * safeNum(model.quantity, 1);
+        // Guard: savings must be >= 0 (percent discount cannot increase the price).
+        savings = Math.max(0, (originalPerPiece - discountedPerPiece) * modelQty);
       } else if (mode === 'fixed_price') {
         discountedPerPiece = safeNum(matchingTier.value, originalPerPiece);
-        savings = Math.max(0, (originalPerPiece - discountedPerPiece) * safeNum(model.quantity, 1));
+        savings = Math.max(0, (originalPerPiece - discountedPerPiece) * modelQty);
       }
 
       volumeDiscountTotal += savings;
@@ -849,6 +894,7 @@ export function calculateOrderQuote({
       material: normStr(cfg?.material || m.base.materialKey),
       quality_preset: normStr(cfg?.quality),
       support_enabled: !!cfg?.supports,
+      supports_enabled: !!cfg?.supports, // alias for condition key consistency
       infill_percent: safeNum(cfg?.infill, 0),
     };
 
@@ -968,6 +1014,36 @@ for (const fee of fees) {
             targets,
             surface_unavailable: true,
             surface_unavailable_models: missingSurfaceModels,
+            models: matchDebug,
+          },
+        });
+        continue;
+      }
+    }
+
+    // per_cm3 needs volume data. If all models in subset have zero/unavailable volume, skip fee.
+    if (String(fee.type) === 'per_cm3') {
+      const missingVolumeModels = subsetIds.filter((id) => !(modelBaseById[id]?.volumeCm3 > 0));
+      if (missingVolumeModels.length > 0) {
+        orderFeeRows.push({
+          id: fee.id,
+          name: fee.name,
+          scope: fee.scope,
+          type: fee.type,
+          value: safeNum(fee.value, 0),
+          required: !!fee.required,
+          selectable: !!fee.selectable,
+          selected: !!selectedFeeIds?.has?.(fee.id),
+          applied: false,
+          amount: 0,
+          subset: subsetIds,
+          subset_key: key,
+          reason: {
+            apply,
+            hasSubset,
+            targets,
+            volume_unavailable: true,
+            volume_unavailable_models: missingVolumeModels,
             models: matchDebug,
           },
         });

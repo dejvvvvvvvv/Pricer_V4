@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import LoginForm from './components/LoginForm';
+import '../../styles/animations.css';
 
 const pageStyle = {
   minHeight: '100vh',
@@ -34,6 +35,51 @@ export default function Login() {
   // Already logged in — redirect
   if (!loading && currentUser) {
     return <Navigate to={from} replace />;
+  }
+
+  // Show a minimal loading state while checking auth (prevents flash of login form)
+  if (loading) {
+    return (
+      <div style={pageStyle}>
+        <div style={containerStyle}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <div style={{
+              width: '200px',
+              height: '28px',
+              borderRadius: 'var(--forge-radius-sm)',
+              backgroundColor: 'var(--forge-bg-elevated)',
+              margin: '0 auto 12px',
+              animation: 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            }} />
+            <div style={{
+              width: '280px',
+              height: '16px',
+              borderRadius: 'var(--forge-radius-sm)',
+              backgroundColor: 'var(--forge-bg-elevated)',
+              margin: '0 auto',
+              animation: 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              animationDelay: '0.2s',
+            }} />
+          </div>
+          <div style={{
+            ...cardStyle,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                height: '44px',
+                borderRadius: 'var(--forge-radius-sm)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                animation: 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                animationDelay: `${i * 0.15}s`,
+              }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import AnalyticsCharts from './components/AnalyticsCharts';
 import {
@@ -14,6 +16,7 @@ import {
 } from '../../utils/adminAnalyticsStorage';
 import { loadOrders, computeOrderTotals, extractOrderMaterials } from '../../utils/adminOrdersStorage';
 import { exportJSON, downloadFile } from '../../utils/exportData';
+import { formatDateTime } from '../../utils/formatters';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   generateRevenueReport,
@@ -58,14 +61,6 @@ function isoStartOfToday() {
   return d.toISOString();
 }
 
-function formatDateTime(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString();
-  } catch {
-    return iso;
-  }
-}
 
 function formatNumber(n, digits = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return '-';
@@ -316,107 +311,97 @@ function formatShortDate(dateStr) {
 /* ── Main Component ──────────────────────────────────────────────────── */
 
 export default function AdminAnalytics() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const cs = language === 'cs';
+  const { confirm, ConfirmDialogPortal } = useConfirmDialog();
+  const { user: authUser } = useAuth();
 
   const ui = useMemo(() => ({
-    title: cs ? 'Analytika' : 'Analytics',
-    subtitle: cs ? 'Prehled trzeb, objednavek a aktivity.' : 'Revenue, orders and activity overview.',
-    refresh: cs ? 'Obnovit' : 'Refresh',
-    resetDemo: cs ? 'Reset demo dat' : 'Reset demo data',
+    title: t('admin.analytics.title', 'Analytics'),
+    subtitle: t('admin.analytics.subtitle', 'Revenue, orders and activity overview.'),
+    refresh: t('admin.analytics.refresh', 'Refresh'),
+    resetDemo: t('admin.analytics.resetDemo', 'Reset demo data'),
     // Period labels
-    today: cs ? 'Dnes' : 'Today',
-    thisWeek: cs ? 'Tento tyden' : 'This week',
-    thisMonth: cs ? 'Tento mesic' : 'This month',
-    thisYear: cs ? 'Tento rok' : 'This year',
-    allTime: cs ? 'Vse' : 'All time',
+    today: t('admin.analytics.period.today', 'Today'),
+    thisWeek: t('admin.analytics.period.thisWeek', 'This week'),
+    thisMonth: t('admin.analytics.period.thisMonth', 'This month'),
+    thisYear: t('admin.analytics.period.thisYear', 'This year'),
+    allTime: t('admin.analytics.period.allTime', 'All time'),
     // Tab labels
-    tabCharts: cs ? 'Grafy' : 'Charts',
-    tabOverview: cs ? 'Detailni prehled' : 'Detailed Overview',
-    tabCalculations: cs ? 'Kalkulace' : 'Calculations',
-    tabOrders: cs ? 'Objednavky' : 'Orders',
-    tabLost: cs ? 'Ztracene' : 'Lost',
-    tabExports: cs ? 'Exporty' : 'Exports',
+    tabCharts: t('admin.analytics.tab.charts', 'Charts'),
+    tabOverview: t('admin.analytics.tab.overview', 'Detailed Overview'),
+    tabCalculations: t('admin.analytics.tab.calculations', 'Calculations'),
+    tabOrders: t('admin.analytics.tab.orders', 'Orders'),
+    tabLost: t('admin.analytics.tab.lost', 'Lost'),
+    tabExports: t('admin.analytics.tab.exports', 'Exports'),
     // Summary cards
-    totalRevenue: cs ? 'Celkove trzby' : 'Total Revenue',
-    totalOrders: cs ? 'Celkem objednavek' : 'Total Orders',
-    avgOrder: cs ? 'Prumerna objednavka' : 'Avg Order Value',
-    activeOrdersLabel: cs ? 'Aktivni objednavky' : 'Active Orders',
-    vsPrev: cs ? 'vs predchozi obdobi' : 'vs previous period',
-    noOrders: cs ? 'Zatim zadne objednavky' : 'No orders yet',
-    noOrdersHint: cs
-      ? 'Objednavky se objevi az budou vytvoreny pres kalkulacku nebo admin panel.'
-      : 'Orders will appear once created via the calculator or admin panel.',
+    totalRevenue: t('admin.analytics.summary.totalRevenue', 'Total Revenue'),
+    totalOrders: t('admin.analytics.summary.totalOrders', 'Total Orders'),
+    avgOrder: t('admin.analytics.summary.avgOrder', 'Avg Order Value'),
+    activeOrdersLabel: t('admin.analytics.summary.activeOrders', 'Active Orders'),
+    vsPrev: t('admin.analytics.summary.vsPrev', 'vs previous period'),
+    noOrders: t('admin.analytics.empty.title', 'No orders yet'),
+    noOrdersHint: t('admin.analytics.empty.hint', 'Orders will appear once created via the calculator or admin panel.'),
     // Overview tab
-    calculations: cs ? 'Kalkulace' : 'Calculations',
-    orders: cs ? 'Objednavky' : 'Orders',
-    conversion: cs ? 'Konverze' : 'Conversion',
-    conversionSub: cs ? 'objednavky / kalkulace' : 'orders / calculations',
-    avgPrice: cs ? 'Prumerna cena' : 'Average price',
-    avgTime: cs ? 'Prumerny cas' : 'Average time',
-    avgWeight: cs ? 'Prumerna hmotnost' : 'Average weight',
-    noData: cs ? 'Zadna data' : 'No data',
-    date: cs ? 'Datum' : 'Date',
-    count: cs ? 'Pocet' : 'Count',
-    calcsPerDay: cs ? 'Kalkulace / den' : 'Calculations / day',
-    ordersPerDay: cs ? 'Objednavky / den' : 'Orders / day',
-    topMaterials: cs ? 'Top materialy' : 'Top materials',
-    topPresets: cs ? 'Top presety' : 'Top presets',
-    topFees: cs ? 'Top poplatky (fees)' : 'Top fees',
-    chosen: cs ? 'Zvoleno' : 'Chosen',
-    material: cs ? 'Material' : 'Material',
+    calculations: t('admin.analytics.overview.calculations', 'Calculations'),
+    orders: t('admin.analytics.overview.orders', 'Orders'),
+    conversion: t('admin.analytics.overview.conversion', 'Conversion'),
+    conversionSub: t('admin.analytics.overview.conversionSub', 'orders / calculations'),
+    avgPrice: t('admin.analytics.overview.avgPrice', 'Average price'),
+    avgTime: t('admin.analytics.overview.avgTime', 'Average time'),
+    avgWeight: t('admin.analytics.overview.avgWeight', 'Average weight'),
+    noData: t('admin.analytics.overview.noData', 'No data'),
+    date: t('admin.analytics.overview.date', 'Date'),
+    count: t('admin.analytics.overview.count', 'Count'),
+    calcsPerDay: t('admin.analytics.overview.calcsPerDay', 'Calculations / day'),
+    ordersPerDay: t('admin.analytics.overview.ordersPerDay', 'Orders / day'),
+    topMaterials: t('admin.analytics.overview.topMaterials', 'Top materials'),
+    topPresets: t('admin.analytics.overview.topPresets', 'Top presets'),
+    topFees: t('admin.analytics.overview.topFees', 'Top fees'),
+    chosen: t('admin.analytics.overview.chosen', 'Chosen'),
+    material: t('admin.analytics.overview.material', 'Material'),
     preset: 'Preset',
     // Calculations tab
-    searchPlaceholder: cs ? 'Hledej session / soubor / material / preset' : 'Search session / file / material / preset',
-    onlyFailed: cs ? 'Jen neuspesne' : 'Only failed',
-    calcSessions: cs ? 'Kalkulacni sessions' : 'Calculation sessions',
-    file: cs ? 'Soubor' : 'File',
-    time: cs ? 'Cas' : 'Time',
-    weight: cs ? 'Hmotnost' : 'Weight',
-    price: cs ? 'Cena' : 'Price',
-    converted: cs ? 'Konvertovano' : 'Converted',
+    searchPlaceholder: t('admin.analytics.calcs.searchPlaceholder', 'Search session / file / material / preset'),
+    onlyFailed: t('admin.analytics.calcs.onlyFailed', 'Only failed'),
+    calcSessions: t('admin.analytics.calcs.sessions', 'Calculation sessions'),
+    file: t('admin.analytics.calcs.file', 'File'),
+    time: t('admin.analytics.calcs.time', 'Time'),
+    weight: t('admin.analytics.calcs.weight', 'Weight'),
+    price: t('admin.analytics.calcs.price', 'Price'),
+    converted: t('admin.analytics.calcs.converted', 'Converted'),
     status: 'Status',
-    detail: cs ? 'Detail' : 'Detail',
-    noCalcs: cs ? 'Zadne kalkulace v tomto obdobi' : 'No calculations in this period',
+    detail: t('admin.analytics.calcs.detail', 'Detail'),
+    noCalcs: t('admin.analytics.calcs.noData', 'No calculations in this period'),
     // Orders sub-tab
-    revenue: cs ? 'Odhadovane trzby' : 'Est. revenue',
-    avgOrderValue: cs ? 'Prumerna objednavka' : 'Avg order value',
-    note: cs ? 'Poznamka' : 'Note',
-    ordersNote: cs
-      ? 'Ve Variante A je objednavka odvozena z eventu ORDER_CREATED nebo ADD_TO_CART_CLICKED. Pozdeji (Varianta B) se to propoji s realnymi objednavkami (Orders modul) a webhooky z e-shopu.'
-      : 'In Variant A, an order is derived from ORDER_CREATED or ADD_TO_CART_CLICKED events. Later (Variant B) this will connect to real orders (Orders module) and e-shop webhooks.',
+    revenue: t('admin.analytics.orders.revenue', 'Est. revenue'),
+    avgOrderValue: t('admin.analytics.orders.avgOrderValue', 'Avg order value'),
+    note: t('admin.analytics.orders.note', 'Note'),
+    ordersNote: t('admin.analytics.orders.noteText', 'In Variant A, an order is derived from ORDER_CREATED or ADD_TO_CART_CLICKED events.'),
     // Lost tab
-    lostTitle: cs
-      ? 'Ztracene kalkulace (PRICE_SHOWN bez konverze, > 30 min)'
-      : 'Lost calculations (PRICE_SHOWN without conversion, > 30 min)',
-    lastActivity: cs ? 'Posledni aktivita' : 'Last activity',
-    dropOff: cs ? 'Misto opusteni' : 'Drop-off',
-    noLost: cs ? 'Zadne ztracene kalkulace' : 'No lost calculations',
+    lostTitle: t('admin.analytics.lost.title', 'Lost calculations (PRICE_SHOWN without conversion, > 30 min)'),
+    lastActivity: t('admin.analytics.lost.lastActivity', 'Last activity'),
+    dropOff: t('admin.analytics.lost.dropOff', 'Drop-off'),
+    noLost: t('admin.analytics.lost.noData', 'No lost calculations'),
     // Exports
-    csvExport: 'CSV export',
-    exportType: cs ? 'Typ exportu' : 'Export type',
-    exportCalcs: cs ? 'Kalkulace' : 'Calculations',
-    exportLost: cs ? 'Ztracene kalkulace' : 'Lost calculations',
-    exportOverview: cs ? 'Shrnuti prehledu' : 'Overview summary',
-    generate: cs ? 'Generovat & Stahnout CSV' : 'Generate & Download CSV',
-    generateJson: cs ? 'Stahnout JSON' : 'Download JSON',
-    exportNote: cs
-      ? 'Export se v demo rezimu generuje synchronne z localStorage. Vytvoreni exportu se zapisuje do Audit logu (G).'
-      : 'Export is generated synchronously from localStorage in demo mode. Export creation is logged to Audit log (G).',
+    csvExport: t('admin.analytics.exports.csvExport', 'CSV export'),
+    exportType: t('admin.analytics.exports.exportType', 'Export type'),
+    exportCalcs: t('admin.analytics.exports.calculations', 'Calculations'),
+    exportLost: t('admin.analytics.exports.lost', 'Lost calculations'),
+    exportOverview: t('admin.analytics.exports.overview', 'Overview summary'),
+    generate: t('admin.analytics.exports.generate', 'Generate & Download CSV'),
+    generateJson: t('admin.analytics.exports.generateJson', 'Download JSON'),
+    exportNote: t('admin.analytics.exports.note', 'Export is generated synchronously from localStorage in demo mode.'),
     // Session detail
-    sessionDetail: cs ? 'Detail session' : 'Session detail',
-    summary: cs ? 'Shrnuti' : 'Summary',
-    timeline: cs ? 'Casova osa' : 'Timeline',
-    lastEvent: cs ? 'Posledni event' : 'Last event',
-    printTime: cs ? 'Cas tisku' : 'Print time',
-    noMetadata: cs ? '(bez metadat)' : '(no metadata)',
-    hint: cs
-      ? 'Tip: Pro demo data se pouziva simulace (localStorage).'
-      : 'Tip: Demo data uses localStorage simulation.',
-    confirmClear: cs
-      ? 'Opravdu chces smazat vsechna analytics demo data?'
-      : 'Really delete all analytics demo data?',
-  }), [cs]);
+    sessionDetail: t('admin.analytics.session.detail', 'Session detail'),
+    summary: t('admin.analytics.session.summary', 'Summary'),
+    timeline: t('admin.analytics.session.timeline', 'Timeline'),
+    lastEvent: t('admin.analytics.session.lastEvent', 'Last event'),
+    printTime: t('admin.analytics.calcs.printTime', 'Print time'),
+    noMetadata: t('admin.analytics.session.noMetadata', '(no metadata)'),
+    hint: t('admin.analytics.overview.hint', 'Tip: Demo data uses localStorage simulation.'),
+    confirmClear: t('admin.analytics.confirmClear', 'Really delete all analytics demo data?'),
+  }), [t]);
 
   const [tab, setTab] = useState('charts');
   const [period, setPeriod] = useState('30');
@@ -488,8 +473,12 @@ export default function AdminAnalytics() {
     setRefreshKey((k) => k + 1);
   }
 
-  function handleClear() {
-    if (!window.confirm(ui.confirmClear)) return;
+  async function handleClear() {
+    const ok = await confirm({
+      title: t('admin.analytics.confirmClearTitle', 'Clear data'),
+      message: ui.confirmClear,
+    });
+    if (!ok) return;
     clearAnalyticsAll();
     setSelectedSessionId(null);
     forceRefresh();
@@ -498,7 +487,7 @@ export default function AdminAnalytics() {
   function handleExport() {
     const { filename, csv } = generateCsv({ type: exportType, fromISO, toISO });
     logExportToAudit({
-      actor: { email: 'demo@modelpricer.local', role: 'admin' },
+      actor: { email: authUser?.email || 'unknown', role: authUser?.role || 'admin' },
       type: exportType,
       fromISO,
       toISO,
@@ -521,7 +510,7 @@ export default function AdminAnalytics() {
       filename = 'analytics_overview';
     }
     logExportToAudit({
-      actor: { email: 'demo@modelpricer.local', role: 'admin' },
+      actor: { email: authUser?.email || 'unknown', role: authUser?.role || 'admin' },
       type: `${exportType}_json`,
       fromISO,
       toISO,
@@ -650,7 +639,7 @@ export default function AdminAnalytics() {
             <div className="aa-summary-label">{ui.activeOrdersLabel}</div>
             <div className="aa-summary-value">{formatNumber(orderMetrics.activeOrders)}</div>
             <div className="aa-summary-sub">
-              {cs ? 'rozpracovane objednavky' : 'in progress'}
+              {t('admin.analytics.summary.inProgress', 'in progress')}
             </div>
           </div>
         </div>
@@ -669,7 +658,7 @@ export default function AdminAnalytics() {
         <TabButton active={tab === 'orders'} onClick={() => setTab('orders')}>{ui.tabOrders}</TabButton>
         <TabButton active={tab === 'lost'} onClick={() => setTab('lost')}>{ui.tabLost}</TabButton>
         <TabButton active={tab === 'exports'} onClick={() => setTab('exports')}>{ui.tabExports}</TabButton>
-        <TabButton active={tab === 'reports'} onClick={() => setTab('reports')}>{cs ? 'Reporty' : 'Reports'}</TabButton>
+        <TabButton active={tab === 'reports'} onClick={() => setTab('reports')}>{t('admin.analytics.tab.reports', 'Reports')}</TabButton>
       </div>
 
       {/* ── Tab: Charts (DEFAULT) ───────────────────────────────────────── */}
@@ -821,11 +810,11 @@ export default function AdminAnalytics() {
               <table className="aa-table">
                 <thead>
                   <tr>
-                    <th>{ui.time}</th>
+                    <th>{ui.date}</th>
                     <th>{ui.file}</th>
                     <th>{ui.material}</th>
                     <th>{ui.preset}</th>
-                    <th style={{ textAlign: 'right' }}>{ui.time}</th>
+                    <th style={{ textAlign: 'right' }}>{ui.printTime}</th>
                     <th style={{ textAlign: 'right' }}>{ui.weight}</th>
                     <th style={{ textAlign: 'right' }}>{ui.price}</th>
                     <th style={{ textAlign: 'center' }}>{ui.converted}</th>
@@ -963,12 +952,10 @@ export default function AdminAnalytics() {
           {autoReports.length > 0 && (
             <div className="aa-card" style={{ marginBottom: 14, borderColor: 'var(--forge-accent-primary)' }}>
               <div className="aa-card-title" style={{ color: 'var(--forge-accent-primary)' }}>
-                {cs ? 'Automaticky vygenerovane reporty' : 'Auto-generated reports'}
+                {t('admin.analytics.reports.autoTitle', 'Auto-generated reports')}
               </div>
               <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--forge-text-secondary)' }}>
-                {cs
-                  ? `${autoReports.length} planovany(ch) report(u) bylo automaticky vygenerovano za predchozi mesic.`
-                  : `${autoReports.length} scheduled report(s) were auto-generated for the previous month.`}
+                {t('admin.analytics.reports.autoDesc', '{count} scheduled report(s) were auto-generated for the previous month.').replace('{count}', autoReports.length)}
               </p>
               {autoReports.map((r, i) => (
                 <button
@@ -986,10 +973,10 @@ export default function AdminAnalytics() {
 
           {/* Report configuration */}
           <div className="aa-card" style={{ marginBottom: 14 }}>
-            <div className="aa-card-title">{cs ? 'Generovani reportu' : 'Generate Report'}</div>
+            <div className="aa-card-title">{t('admin.analytics.reports.generateTitle', 'Generate Report')}</div>
             <div className="aa-rpt-config">
               <div>
-                <label className="aa-field-label">{cs ? 'Typ reportu' : 'Report type'}</label>
+                <label className="aa-field-label">{t('admin.analytics.reports.reportType', 'Report type')}</label>
                 <select
                   className="aa-select"
                   value={reportType}
@@ -1001,7 +988,7 @@ export default function AdminAnalytics() {
                 </select>
               </div>
               <div>
-                <label className="aa-field-label">{cs ? 'Od' : 'From'}</label>
+                <label className="aa-field-label">{t('admin.analytics.reports.from', 'From')}</label>
                 <input
                   type="date"
                   className="aa-input"
@@ -1011,7 +998,7 @@ export default function AdminAnalytics() {
                 />
               </div>
               <div>
-                <label className="aa-field-label">{cs ? 'Do' : 'To'}</label>
+                <label className="aa-field-label">{t('admin.analytics.reports.to', 'To')}</label>
                 <input
                   type="date"
                   className="aa-input"
@@ -1022,7 +1009,7 @@ export default function AdminAnalytics() {
               </div>
               <div style={{ alignSelf: 'flex-end' }}>
                 <button type="button" className="aa-btn aa-btn-primary" onClick={handleGenerateReport}>
-                  {cs ? 'Generovat report' : 'Generate report'}
+                  {t('admin.analytics.reports.generate', 'Generate report')}
                 </button>
               </div>
             </div>
@@ -1038,10 +1025,10 @@ export default function AdminAnalytics() {
                 <div className="aa-card-title" style={{ marginBottom: 0 }}>{generatedReport.title}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button type="button" className="aa-btn" onClick={handleDownloadCSV}>
-                    {cs ? 'Stahnout CSV' : 'Download CSV'}
+                    {t('admin.analytics.reports.downloadCsv', 'Download CSV')}
                   </button>
                   <button type="button" className="aa-btn" onClick={handleDownloadPDF}>
-                    {cs ? 'Tisknout / PDF' : 'Print / PDF'}
+                    {t('admin.analytics.reports.printPdf', 'Print / PDF')}
                   </button>
                 </div>
               </div>
@@ -1051,19 +1038,19 @@ export default function AdminAnalytics() {
                 <>
                   <div className="aa-stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Celkove trzby' : 'Total revenue'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.revenue.totalRevenue', 'Total revenue')}</div>
                       <div className="aa-stat-value">{formatKc(generatedReport.summary.totalRevenue)}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Objednavek' : 'Orders'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.revenue.orders', 'Orders')}</div>
                       <div className="aa-stat-value">{formatNumber(generatedReport.summary.totalOrders)}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Prum. denne' : 'Avg daily'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.revenue.avgDaily', 'Avg daily')}</div>
                       <div className="aa-stat-value">{formatKc(generatedReport.summary.avgDailyRevenue)}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Prum. objednavka' : 'Avg order'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.revenue.avgOrder', 'Avg order')}</div>
                       <div className="aa-stat-value">{formatKc(generatedReport.summary.avgOrderValue)}</div>
                     </div>
                   </div>
@@ -1071,15 +1058,15 @@ export default function AdminAnalytics() {
                     <table className="aa-table">
                       <thead>
                         <tr>
-                          <th>{cs ? 'Datum' : 'Date'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Trzby' : 'Revenue'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Objednavky' : 'Orders'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Prum. hodnota' : 'Avg value'}</th>
+                          <th>{t('admin.analytics.revenue.colDate', 'Date')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.revenue.colRevenue', 'Revenue')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.revenue.colOrders', 'Orders')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.revenue.colAvgValue', 'Avg value')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {generatedReport.daily.length === 0 ? (
-                          <tr><td colSpan={4} className="aa-muted">{cs ? 'Zadna data' : 'No data'}</td></tr>
+                          <tr><td colSpan={4} className="aa-muted">{t('admin.analytics.revenue.noData', 'No data')}</td></tr>
                         ) : (
                           generatedReport.daily.map((d) => (
                             <tr key={d.date}>
@@ -1101,15 +1088,15 @@ export default function AdminAnalytics() {
                 <>
                   <div className="aa-stat-grid aa-stat-grid-3">
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Materialu' : 'Materials'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.material.count', 'Materials')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.totalMaterials}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Objednavek' : 'Orders'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.material.orders', 'Orders')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.totalOrders}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Nejpouzivanejsi' : 'Most used'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.material.mostUsed', 'Most used')}</div>
                       <div className="aa-stat-value" style={{ fontSize: 16 }}>{generatedReport.summary.mostUsed?.name || '-'}</div>
                     </div>
                   </div>
@@ -1117,16 +1104,16 @@ export default function AdminAnalytics() {
                     <table className="aa-table">
                       <thead>
                         <tr>
-                          <th>{cs ? 'Material' : 'Material'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Objednavek' : 'Orders'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Trzby' : 'Revenue'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Hmotnost' : 'Weight'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Podil' : 'Share'}</th>
+                          <th>{t('admin.analytics.material.colMaterial', 'Material')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.material.colOrders', 'Orders')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.material.colRevenue', 'Revenue')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.material.colWeight', 'Weight')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.material.colShare', 'Share')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {generatedReport.materials.length === 0 ? (
-                          <tr><td colSpan={5} className="aa-muted">{cs ? 'Zadna data' : 'No data'}</td></tr>
+                          <tr><td colSpan={5} className="aa-muted">{t('admin.analytics.material.noData', 'No data')}</td></tr>
                         ) : (
                           generatedReport.materials.map((m) => (
                             <tr key={m.name}>
@@ -1149,23 +1136,23 @@ export default function AdminAnalytics() {
                 <>
                   <div className="aa-stat-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Zakazniku' : 'Customers'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.customer.count', 'Customers')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.totalCustomers}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Novych' : 'New'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.customer.new', 'New')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.newCustomers}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Vracejicich se' : 'Returning'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.customer.returning', 'Returning')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.returningCustomers}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Celkove trzby' : 'Total revenue'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.customer.totalRevenue', 'Total revenue')}</div>
                       <div className="aa-stat-value">{formatKc(generatedReport.summary.totalRevenue)}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Prum. objednavka' : 'Avg order'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.customer.avgOrder', 'Avg order')}</div>
                       <div className="aa-stat-value">{formatKc(generatedReport.summary.avgOrderValue)}</div>
                     </div>
                   </div>
@@ -1173,16 +1160,16 @@ export default function AdminAnalytics() {
                     <table className="aa-table">
                       <thead>
                         <tr>
-                          <th>{cs ? 'Zakaznik' : 'Customer'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Objednavek' : 'Orders'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Trzby' : 'Revenue'}</th>
-                          <th style={{ textAlign: 'right' }}>{cs ? 'Prum. hodnota' : 'Avg value'}</th>
-                          <th>{cs ? 'Vracejici se' : 'Returning'}</th>
+                          <th>{t('admin.analytics.customer.colCustomer', 'Customer')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.customer.colOrders', 'Orders')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.customer.colRevenue', 'Revenue')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('admin.analytics.customer.colAvgValue', 'Avg value')}</th>
+                          <th>{t('admin.analytics.customer.colReturning', 'Returning')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {generatedReport.customers.length === 0 ? (
-                          <tr><td colSpan={5} className="aa-muted">{cs ? 'Zadna data' : 'No data'}</td></tr>
+                          <tr><td colSpan={5} className="aa-muted">{t('admin.analytics.customer.noData', 'No data')}</td></tr>
                         ) : (
                           generatedReport.customers.map((c) => (
                             <tr key={c.name}>
@@ -1192,7 +1179,7 @@ export default function AdminAnalytics() {
                               <td style={{ textAlign: 'right' }}>{formatKc(c.avgOrderValue)}</td>
                               <td>
                                 <span className={`aa-pill ${c.isReturning ? 'ok' : ''}`}>
-                                  {c.isReturning ? (cs ? 'Ano' : 'Yes') : (cs ? 'Ne' : 'No')}
+                                  {c.isReturning ? t('admin.analytics.customer.yes', 'Yes') : t('admin.analytics.customer.no', 'No')}
                                 </span>
                               </td>
                             </tr>
@@ -1209,37 +1196,37 @@ export default function AdminAnalytics() {
                 <>
                   <div className="aa-stat-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Celkem' : 'Total'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.orderStatus.total', 'Total')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.totalOrders}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Dokonceno' : 'Completed'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.orderStatus.completed', 'Completed')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.completedOrders}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Zruseno' : 'Canceled'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.orderStatus.canceled', 'Canceled')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.canceledOrders}</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Mira dokonceni' : 'Completion rate'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.orderStatus.completionRate', 'Completion rate')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.completionRate}%</div>
                     </div>
                     <div className="aa-stat-card">
-                      <div className="aa-stat-label">{cs ? 'Mira zruseni' : 'Cancel rate'}</div>
+                      <div className="aa-stat-label">{t('admin.analytics.orderStatus.cancelRate', 'Cancel rate')}</div>
                       <div className="aa-stat-value">{generatedReport.summary.cancelRate}%</div>
                     </div>
                   </div>
 
                   <div className="aa-grid-2" style={{ marginTop: 12 }}>
                     <div className="aa-card">
-                      <div className="aa-card-title">{cs ? 'Konverzni trychtyr' : 'Conversion funnel'}</div>
+                      <div className="aa-card-title">{t('admin.analytics.orderStatus.funnel', 'Conversion funnel')}</div>
                       <div className="aa-table-wrap">
                         <table className="aa-table">
                           <thead>
                             <tr>
                               <th>Status</th>
-                              <th style={{ textAlign: 'right' }}>{cs ? 'Pocet' : 'Count'}</th>
-                              <th style={{ textAlign: 'right' }}>{cs ? 'Podil' : 'Share'}</th>
+                              <th style={{ textAlign: 'right' }}>{t('admin.analytics.orderStatus.colCount', 'Count')}</th>
+                              <th style={{ textAlign: 'right' }}>{t('admin.analytics.orderStatus.colShare', 'Share')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1256,19 +1243,19 @@ export default function AdminAnalytics() {
                     </div>
 
                     <div className="aa-card">
-                      <div className="aa-card-title">{cs ? 'Prumerna doba zpracovani' : 'Avg processing time'}</div>
+                      <div className="aa-card-title">{t('admin.analytics.orderStatus.avgProcessing', 'Avg processing time')}</div>
                       <div className="aa-table-wrap">
                         <table className="aa-table">
                           <thead>
                             <tr>
                               <th>Status</th>
-                              <th style={{ textAlign: 'right' }}>{cs ? 'Prum. doba' : 'Avg time'}</th>
-                              <th style={{ textAlign: 'right' }}>{cs ? 'Vzorku' : 'Samples'}</th>
+                              <th style={{ textAlign: 'right' }}>{t('admin.analytics.orderStatus.colAvgTime', 'Avg time')}</th>
+                              <th style={{ textAlign: 'right' }}>{t('admin.analytics.orderStatus.colSamples', 'Samples')}</th>
                             </tr>
                           </thead>
                           <tbody>
                             {generatedReport.avgProcessingTimes.filter((t) => t.sampleCount > 0).length === 0 ? (
-                              <tr><td colSpan={3} className="aa-muted">{cs ? 'Nedostatek dat' : 'Insufficient data'}</td></tr>
+                              <tr><td colSpan={3} className="aa-muted">{t('admin.analytics.orderStatus.insufficient', 'Insufficient data')}</td></tr>
                             ) : (
                               generatedReport.avgProcessingTimes
                                 .filter((t) => t.sampleCount > 0)
@@ -1293,11 +1280,9 @@ export default function AdminAnalytics() {
           {/* Scheduled reports & history */}
           <div className="aa-grid-2">
             <div className="aa-card">
-              <div className="aa-card-title">{cs ? 'Planovane mesicni reporty' : 'Scheduled monthly reports'}</div>
+              <div className="aa-card-title">{t('admin.analytics.reports.scheduledTitle', 'Scheduled monthly reports')}</div>
               <p className="aa-muted" style={{ fontSize: 12, margin: '0 0 12px' }}>
-                {cs
-                  ? 'Oznacene reporty se automaticky vygeneruji pri prvni navsteve po konci mesice.'
-                  : 'Checked reports auto-generate on first visit after month-end.'}
+                {t('admin.analytics.reports.scheduledDesc', 'Checked reports auto-generate on first visit after month-end.')}
               </p>
               {REPORT_TYPES.map((rt) => {
                 const isScheduled = scheduledReports.some((s) => s.reportType === rt.id && s.enabled);
@@ -1315,20 +1300,20 @@ export default function AdminAnalytics() {
             </div>
 
             <div className="aa-card">
-              <div className="aa-card-title">{cs ? 'Historie reportu' : 'Report history'}</div>
+              <div className="aa-card-title">{t('admin.analytics.reports.historyTitle', 'Report history')}</div>
               <div className="aa-table-wrap">
                 <table className="aa-table">
                   <thead>
                     <tr>
-                      <th>{cs ? 'Datum' : 'Date'}</th>
-                      <th>{cs ? 'Typ' : 'Type'}</th>
-                      <th>{cs ? 'Obdobi' : 'Period'}</th>
-                      <th>{cs ? 'Auto' : 'Auto'}</th>
+                      <th>{t('admin.analytics.reports.colDate', 'Date')}</th>
+                      <th>{t('admin.analytics.reports.colType', 'Type')}</th>
+                      <th>{t('admin.analytics.reports.colPeriod', 'Period')}</th>
+                      <th>{t('admin.analytics.reports.colAuto', 'Auto')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportHistory.length === 0 ? (
-                      <tr><td colSpan={4} className="aa-muted">{cs ? 'Zatim zadne reporty' : 'No reports yet'}</td></tr>
+                      <tr><td colSpan={4} className="aa-muted">{t('admin.analytics.reports.noHistory', 'No reports yet')}</td></tr>
                     ) : (
                       reportHistory.slice(0, 10).map((rh, i) => (
                         <tr key={i}>
@@ -1339,7 +1324,7 @@ export default function AdminAnalytics() {
                           </td>
                           <td>
                             {rh.autoGenerated && (
-                              <span className="aa-pill ok">{cs ? 'Auto' : 'Auto'}</span>
+                              <span className="aa-pill ok">{t('admin.analytics.reports.colAuto', 'Auto')}</span>
                             )}
                           </td>
                         </tr>
@@ -1885,6 +1870,7 @@ export default function AdminAnalytics() {
           .aa-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
+      {ConfirmDialogPortal}
     </div>
   );
 }

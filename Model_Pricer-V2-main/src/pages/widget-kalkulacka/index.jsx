@@ -20,15 +20,17 @@ import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
-import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponStorage';
 import { loadExpressConfigV1 } from '../../utils/adminExpressStorage';
 import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
 import { themeToCssVars, getDefaultWidgetTheme } from '../../utils/widgetThemeStorage';
+import { getBranding } from '../../utils/adminBrandingWidgetStorage';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 
 /**
  * Get target origin for postMessage.
- * Uses document.referrer when embedded in iframe, falls back to '*' for direct access.
+ * Uses document.referrer when embedded in iframe, falls back to window.location.origin.
+ * Never falls back to '*' to avoid cross-origin security risks.
  */
 function getTargetOrigin() {
   try {
@@ -38,7 +40,7 @@ function getTargetOrigin() {
   } catch {
     // Invalid referrer URL
   }
-  return '*';
+  return window.location.origin;
 }
 
 // Default config is used for newly uploaded models
@@ -75,9 +77,9 @@ const StyleableWrapper = ({
     position: 'relative',
     cursor: 'pointer',
     outline: isSelected
-      ? '2px solid #3B82F6'
+      ? '2px solid var(--forge-accent-teal, #00D4AA)'
       : isHovered
-        ? '2px dashed rgba(59, 130, 246, 0.5)'
+        ? '2px dashed var(--forge-accent-teal-subtle, rgba(0, 212, 170, 0.5))'
         : '2px solid transparent',
     outlineOffset: '2px',
     borderRadius: '4px',
@@ -167,6 +169,7 @@ const BatchProgressBar = ({ sliceAllProcessing, batchProgress }) => {
     <div
       role="status"
       aria-live="polite"
+      aria-atomic="true"
       aria-label={`Zpracovavam ${done} z ${total} modelu`}
       style={{
         padding: '12px 16px',
@@ -235,13 +238,14 @@ const WidgetKalkulacka = ({
 
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfigV3(tenantId));
   const [feesConfig, setFeesConfig] = useState(() => loadFeesConfigV3(tenantId));
-  const [couponsConfig, setCouponsConfig] = useState(() => loadCouponsConfigV1());
+  const [branding, setBranding] = useState(() => getBranding(tenantId));
+  const [couponsConfig, setCouponsConfig] = useState(() => loadCouponsConfigV1(tenantId));
   const [appliedCouponCode, setAppliedCouponCode] = useState('');
 
   // S09: Express pricing — auto-select default tier
-  const [expressConfig, setExpressConfig] = useState(() => loadExpressConfigV1());
+  const [expressConfig, setExpressConfig] = useState(() => loadExpressConfigV1(tenantId));
   const [selectedExpressTierId, setSelectedExpressTierId] = useState(() => {
-    const ec = loadExpressConfigV1();
+    const ec = loadExpressConfigV1(tenantId);
     if (!ec?.enabled || !Array.isArray(ec.tiers)) return null;
     const activeTiers = ec.tiers.filter(t => t.active !== false);
     const defaultTier = activeTiers.find(t => t.is_default);
@@ -249,9 +253,9 @@ const WidgetKalkulacka = ({
   });
 
   // S04: Shipping — auto-select first active method
-  const [shippingConfig, setShippingConfig] = useState(() => loadShippingConfigV1());
+  const [shippingConfig, setShippingConfig] = useState(() => loadShippingConfigV1(tenantId));
   const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(() => {
-    const sc = loadShippingConfigV1();
+    const sc = loadShippingConfigV1(tenantId);
     if (!sc?.enabled || !Array.isArray(sc.methods)) return null;
     const activeMethods = sc.methods.filter(m => m.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     return activeMethods[0]?.id || null;
@@ -325,14 +329,22 @@ const WidgetKalkulacka = ({
 
   useEffect(() => {
     if (!embedded || typeof window === 'undefined') return;
+    let rafId = null;
     const sendResize = () => {
-      const height = document.documentElement.scrollHeight;
-      window.parent.postMessage({ type: 'MODELPRICER_RESIZE', publicWidgetId, height }, getTargetOrigin());
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const height = document.documentElement.scrollHeight;
+        window.parent.postMessage({ type: 'MODELPRICER_RESIZE', publicWidgetId, height }, getTargetOrigin());
+        rafId = null;
+      });
     };
     sendResize();
     const observer = new ResizeObserver(sendResize);
     observer.observe(document.body);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [embedded, publicWidgetId]);
 
   useEffect(() => {
@@ -403,9 +415,10 @@ const WidgetKalkulacka = ({
       if (!e?.key) return;
       if (e.key.includes('pricing:v3')) setPricingConfig(loadPricingConfigV3(tenantId));
       if (e.key.includes('fees:v3')) setFeesConfig(loadFeesConfigV3(tenantId));
-      if (e.key.includes('coupons:v1')) setCouponsConfig(loadCouponsConfigV1());
-      if (e.key.includes('express:v1')) setExpressConfig(loadExpressConfigV1());
-      if (e.key.includes('shipping:v1')) setShippingConfig(loadShippingConfigV1());
+      if (e.key.includes('coupons:v1')) setCouponsConfig(loadCouponsConfigV1(tenantId));
+      if (e.key.includes('express:v1')) setExpressConfig(loadExpressConfigV1(tenantId));
+      if (e.key.includes('shipping:v1')) setShippingConfig(loadShippingConfigV1(tenantId));
+      if (e.key.includes('branding')) setBranding(getBranding(tenantId));
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -576,7 +589,7 @@ const WidgetKalkulacka = ({
     const fileToProcess = uploadedItem.file instanceof File ? uploadedItem.file : uploadedItem;
     if (!(fileToProcess instanceof File)) return;
     if (!uploadedFiles.some(file => file.name === fileToProcess.name)) {
-      const newId = Date.now() + Math.random();
+      const newId = crypto.randomUUID();
       setUploadedFiles(prev => [...prev, { id: newId, name: fileToProcess.name, size: fileToProcess.size, type: fileToProcess.type, file: fileToProcess, uploadedAt: new Date(), status: 'pending', result: null, error: null }]);
       setPrintConfigs(prev => (prev[newId] ? prev : ({ ...prev, [newId]: { ...DEFAULT_PRINT_CONFIG } })));
     }
@@ -668,7 +681,16 @@ const WidgetKalkulacka = ({
 
   const sectionRenderers = {
     header: () => (showHeader === true || !embedded) ? (
-      <SW elementId="header"><WidgetHeader title={effectiveTheme.textHeaderTitle || 'Kalkulacka 3D tisku'} tagline={effectiveTheme.textHeaderTagline} taglineVisible={effectiveTheme.headerTaglineVisible} alignment={effectiveTheme.headerAlignment} builderMode={builderMode} elementId="header" onElementSelect={onElementSelect} /></SW>
+      <SW elementId="header"><WidgetHeader
+        title={effectiveTheme.textHeaderTitle || branding?.businessName || 'Kalkulacka 3D tisku'}
+        tagline={effectiveTheme.textHeaderTagline || (branding?.showTagline ? branding?.tagline : null)}
+        taglineVisible={effectiveTheme.headerTaglineVisible}
+        alignment={effectiveTheme.headerAlignment}
+        logo={branding?.showLogo ? branding?.logo : null}
+        builderMode={builderMode}
+        elementId="header"
+        onElementSelect={onElementSelect}
+      /></SW>
     ) : null,
 
     steps: () => (
@@ -734,40 +756,50 @@ const WidgetKalkulacka = ({
   const customBlockElements = elementOrder.filter(id => id.startsWith('cb_'));
 
   return (
-    <div ref={containerRef} className="widget-kalkulacka min-h-screen" style={{ backgroundColor: 'var(--widget-bg, #FFFFFF)', fontFamily: 'var(--widget-font, Inter, system-ui, sans-serif)' }}>
-      <input type="file" ref={fileInputRef} onChange={(e) => { Array.from(e.target.files || []).forEach(file => handleFilesUploaded({ file })); }} style={{ display: 'none' }} multiple accept=".stl,.obj,.3mf" />
+    <div ref={containerRef} className="widget-kalkulacka" style={{ backgroundColor: 'var(--widget-bg, #FFFFFF)', fontFamily: 'var(--widget-font, Inter, system-ui, sans-serif)' }}>
+      {/* Responsive layout rules scoped to the widget container */}
+      <style>{`
+        .widget-kalkulacka .wk-inner { padding: var(--widget-global-padding, 24px); }
+        .widget-kalkulacka .wk-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+        @media (min-width: 640px) {
+          .widget-kalkulacka .wk-grid { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
+        }
+        .widget-kalkulacka .wk-left { min-width: 0; }
+        .widget-kalkulacka .wk-right { min-width: 0; }
+      `}</style>
+      <input type="file" ref={fileInputRef} onChange={(e) => { Array.from(e.target.files || []).forEach(file => handleFilesUploaded({ file })); }} style={{ display: 'none' }} multiple accept=".stl,.obj,.3mf" aria-label="Upload 3D model files" tabIndex={-1} />
 
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="wk-inner" style={{ maxWidth: '72rem', margin: '0 auto' }}>
         {topElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="wk-grid">
+          <div className="wk-left space-y-6">
             {leftElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
             {customBlockElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
           </div>
 
-          <div className="space-y-4">
+          <div className="wk-right space-y-4">
             {rightElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
 
             {isShopifyMode && shopifyQuoteResult && displayFiles.length > 0 && (
-              <SW elementId="shopify-cart"><ShopifyCartButton quoteResult={shopifyQuoteResult} shopifyConfig={shopifyConfig} uploadedFiles={displayFiles} embedded={embedded} publicWidgetId={publicWidgetId} disabled={builderMode} /></SW>
+              <SW elementId="shopify-cart"><ShopifyCartButton quoteResult={shopifyQuoteResult} shopifyConfig={shopifyConfig} uploadedFiles={displayFiles} embedded={embedded} publicWidgetId={publicWidgetId} disabled={builderMode} tenantId={tenantId} /></SW>
             )}
 
             {displayFiles.length > 0 && (
               <SW elementId="filelist">
                 <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--widget-card, #F9FAFB)', border: '1px solid var(--widget-border, #E5E7EB)', borderRadius: 'var(--widget-radius, 12px)' }}>
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold" style={{ color: 'var(--widget-header, #1F2937)' }}>Nahrane modely</h3>
-                    {!builderMode && (<Button variant="ghost" size="icon" onClick={handleAddModelClick}><Icon name="Plus" size={16} /></Button>)}
+                    <h2 className="font-semibold" style={{ color: 'var(--widget-header, #1F2937)' }}>Nahrane modely</h2>
+                    {!builderMode && (<Button variant="ghost" size="icon" onClick={handleAddModelClick} aria-label="Add model"><Icon name="Plus" size={16} aria-hidden="true" /></Button>)}
                   </div>
                   <div className="flex flex-col gap-2">
                     {displayFiles.map((file) => (
                       <Button key={file.id} variant={displaySelected && displaySelected.id === file.id ? 'default' : 'outline'} size="sm" onClick={() => !builderMode && setSelectedFileId(file.id)} className="w-full justify-start text-left h-auto py-2 px-3" title={statusTooltips[file.status] || 'Neznamy stav'}>
                         <div className="flex items-center gap-2 w-full">
-                          {file.status === 'processing' && (<Icon name="Loader" size={14} className="animate-spin flex-shrink-0" />)}
-                          {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0" />}
-                          {file.status === 'completed' && (<Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" />)}
-                          {file.status === 'failed' && (<Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" />)}
+                          {file.status === 'processing' && (<Icon name="Loader" size={14} className="animate-spin flex-shrink-0" aria-label="Processing" role="img" title="Processing" />)}
+                          {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0" aria-label="Queued" role="img" title="Queued" />}
+                          {file.status === 'completed' && (<Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" aria-label="Ready" role="img" title="Ready" />)}
+                          {file.status === 'failed' && (<Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" aria-label="Error" role="img" title="Error" />)}
                           <span className="truncate flex-grow text-left">{file.name}</span>
                         </div>
                       </Button>

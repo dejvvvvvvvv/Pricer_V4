@@ -42,16 +42,21 @@ export function validateShopifyConfig(config) {
     errors.push('Invalid shop domain format (expected: myshop.myshopify.com)');
   }
 
-  const token = (config.storefront_access_token || '').trim();
-  if (!token) {
-    errors.push('Storefront Access Token is required');
-  } else if (token.length < 10) {
-    errors.push('Storefront Access Token seems too short');
-  }
-
   const mode = config.checkout_mode;
   if (mode && mode !== 'cart_permalink' && mode !== 'storefront_api') {
     errors.push('Invalid checkout mode (expected: cart_permalink or storefront_api)');
+  }
+
+  // Storefront Access Token is only required for Storefront API mode.
+  // Cart permalink mode works without a token (zero API calls, URL-only).
+  const needsToken = !mode || mode === 'storefront_api';
+  const token = (config.storefront_access_token || '').trim();
+  if (needsToken) {
+    if (!token) {
+      errors.push('Storefront Access Token is required for Storefront API mode');
+    } else if (token.length < 10) {
+      errors.push('Storefront Access Token seems too short');
+    }
   }
 
   return { valid: errors.length === 0, errors };

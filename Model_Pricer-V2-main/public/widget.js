@@ -1,7 +1,7 @@
 /**
  * ModelPricer Widget Loader (Phase 2.4 + Shopify Integration)
  * - Finds containers with: data-modelpricer-widget="PUBLIC_ID" (or legacy data-widget)
- * - Injects an iframe that points to: /widget/embed/PUBLIC_ID
+ * - Injects an iframe that points to: /w/PUBLIC_ID
  * - Auto-resizes iframe height via postMessage from the iframe page
  * - Shopify cart integration: handles checkout URL redirects and cart data events
  *
@@ -65,14 +65,14 @@
     var embedSrc = container.getAttribute('data-embed-src') || '';
     if (embedSrc) {
       try {
-        // allow relative: "/widget/embed/..."
+        // allow relative: "/w/..."
         if (embedSrc.charAt(0) === '/') return baseOrigin + embedSrc;
         return new URL(embedSrc, window.location.href).toString();
       } catch (e) {
         // ignore
       }
     }
-    return baseOrigin + '/widget/embed/' + encodeURIComponent(publicId);
+    return baseOrigin + '/w/' + encodeURIComponent(publicId);
   }
 
   function createIframe(container, publicId) {
@@ -189,15 +189,19 @@
     var data = event && event.data;
     if (!data || typeof data !== 'object') return;
 
-    // Basic origin check: accept only messages from the iframe origin (our baseOrigin)
-    if (event.origin && baseOrigin && event.origin !== baseOrigin) {
+    // Strict origin check: reject any message whose origin does not exactly match
+    // the resolved baseOrigin. Also reject when baseOrigin could not be resolved
+    // (empty string) to avoid silently accepting messages from all origins.
+    if (!baseOrigin || !event.origin || event.origin !== baseOrigin) {
       return;
     }
 
     var type = data.type;
 
     // ─── Existing: Widget height resize ──────────────────
-    if (type === 'MODELPRICER_WIDGET_HEIGHT') {
+    // Accepts both MODELPRICER_RESIZE (sent by widget-kalkulacka) and
+    // MODELPRICER_WIDGET_HEIGHT (legacy alias) for backwards compatibility.
+    if (type === 'MODELPRICER_RESIZE' || type === 'MODELPRICER_WIDGET_HEIGHT') {
       var publicId = String(data.publicId || '').trim();
       var height = safeParseInt(data.height, 0);
 
@@ -221,14 +225,19 @@
         return;
       }
 
+      // Sanitize event detail fields: coerce types, trim strings, cap lengths.
+      var safePublicWidgetId = typeof data.publicWidgetId === 'string' ? data.publicWidgetId.trim().slice(0, 128) : '';
+      var safeCartId = typeof data.cartId === 'string' ? data.cartId.trim().slice(0, 256) : '';
+      var safeLineCount = typeof data.lineCount === 'number' && isFinite(data.lineCount) ? Math.max(0, Math.floor(data.lineCount)) : 0;
+
       // Dispatch custom event for parent page integration
       try {
         var evt = new CustomEvent('modelpricer:shopify:checkout', {
           detail: {
-            publicWidgetId: data.publicWidgetId || '',
+            publicWidgetId: safePublicWidgetId,
             checkoutUrl: checkoutUrl,
-            cartId: data.cartId || '',
-            lineCount: data.lineCount || 0,
+            cartId: safeCartId,
+            lineCount: safeLineCount,
           },
         });
         document.dispatchEvent(evt);
@@ -248,14 +257,20 @@
 
     // ─── Shopify: Cart data (no redirect) ────────────────
     if (type === 'MODELPRICER_ADD_TO_SHOPIFY_CART') {
+      // Sanitize event detail fields.
+      var cartPublicWidgetId = typeof data.publicWidgetId === 'string' ? data.publicWidgetId.trim().slice(0, 128) : '';
+      var cartLines = Array.isArray(data.shopifyLines) ? data.shopifyLines : [];
+      var cartTotal = typeof data.total === 'number' && isFinite(data.total) ? data.total : 0;
+      var cartCurrency = typeof data.currency === 'string' ? data.currency.trim().slice(0, 8).toUpperCase() : 'CZK';
+
       // Dispatch custom event
       try {
         var cartEvt = new CustomEvent('modelpricer:shopify:cart', {
           detail: {
-            publicWidgetId: data.publicWidgetId || '',
-            shopifyLines: data.shopifyLines || [],
-            total: data.total || 0,
-            currency: data.currency || 'CZK',
+            publicWidgetId: cartPublicWidgetId,
+            shopifyLines: cartLines,
+            total: cartTotal,
+            currency: cartCurrency,
           },
         });
         document.dispatchEvent(cartEvt);
@@ -272,10 +287,11 @@
 
     // ─── Price calculated event ──────────────────────────
     if (type === 'MODELPRICER_QUOTE_CREATED') {
+      var quotePublicWidgetId = typeof data.publicWidgetId === 'string' ? data.publicWidgetId.trim().slice(0, 128) : '';
       try {
         var priceEvt = new CustomEvent('modelpricer:price:calculated', {
           detail: {
-            publicWidgetId: data.publicWidgetId || '',
+            publicWidgetId: quotePublicWidgetId,
             quote: data.quote || null,
           },
         });

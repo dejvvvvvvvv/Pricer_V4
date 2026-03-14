@@ -75,6 +75,14 @@ const WidgetPublicPage = () => {
       return;
     }
 
+    // Validate publicWidgetId format: only alphanumeric, hyphens, underscores, max 128 chars.
+    // This prevents passing malformed or oversized strings to storage lookups.
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(publicWidgetId)) {
+      setError('Neplatne ID widgetu');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -102,15 +110,25 @@ const WidgetPublicPage = () => {
       const hasWhitelist = domains.some((d) => d.isActive);
 
       if (hasWhitelist) {
-        const isAllowed = isDomainAllowedByWhitelist(referrerOrigin, domains);
+        // Localhost / 127.0.0.1 are always allowed (dev environments).
+        const isLocalDev = ['localhost', '127.0.0.1'].includes(referrerOrigin);
 
-        // For localhost/127.0.0.1, allow for dev
-        const isLocalDev = ['localhost', '127.0.0.1', ''].includes(referrerOrigin);
+        if (!isLocalDev) {
+          // When referrer is absent ('') the embedding page may have suppressed it
+          // with referrerpolicy="no-referrer". We cannot verify the origin, so we
+          // must block — otherwise the whitelist provides no protection at all.
+          if (!referrerOrigin) {
+            setError('Neoveritelna zdrojova domena — referrer byl potlacen');
+            setLoading(false);
+            return;
+          }
 
-        if (!isAllowed && !isLocalDev) {
-          setError(`Domena "${referrerOrigin}" neni povolena pro tento widget`);
-          setLoading(false);
-          return;
+          const isAllowed = isDomainAllowedByWhitelist(referrerOrigin, domains);
+          if (!isAllowed) {
+            setError(`Domena "${referrerOrigin}" neni povolena pro tento widget`);
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -188,32 +206,53 @@ const WidgetPublicPage = () => {
     return <WidgetSkeleton />;
   }
 
-  // Error state
+  // Error state — compact so it fits inside an iframe without dead whitespace
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-6 text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-8 h-8 text-red-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          padding: '32px 16px',
+          backgroundColor: '#F9FAFB',
+          minHeight: '200px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '440px',
+            width: '100%',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+            padding: '24px',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              backgroundColor: '#FEE2E2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
+            <svg width="24" height="24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+          <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', margin: '0 0 8px' }}>
             Widget neni dostupny
           </h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <p className="text-xs text-gray-400">
-            Widget ID: {publicWidgetId || 'neuvedeno'}
+          <p style={{ fontSize: '0.875rem', color: '#4B5563', margin: '0 0 12px' }}>{error}</p>
+          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: 0 }}>
+            ID: {publicWidgetId || 'neuvedeno'}
           </p>
         </div>
       </div>

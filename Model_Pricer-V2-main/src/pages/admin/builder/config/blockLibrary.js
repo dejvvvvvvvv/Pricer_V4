@@ -107,7 +107,7 @@ export function createCustomBlock(blockType, position) {
   if (!def) return null;
 
   return {
-    id: `cb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `cb_${crypto.randomUUID()}`,
     type: blockType,
     position,
     props: { ...def.defaultProps },

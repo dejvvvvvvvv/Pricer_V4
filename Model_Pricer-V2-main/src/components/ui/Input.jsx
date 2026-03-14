@@ -44,7 +44,7 @@ const Input = React.forwardRef(({
                 {...props}
             />
             {error && (
-                <p className="mt-1 text-sm text-destructive">
+                <p className="mt-1 text-sm text-destructive" role="alert">
                     {error}
                 </p>
             )}

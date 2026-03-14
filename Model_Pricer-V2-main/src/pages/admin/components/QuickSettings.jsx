@@ -7,8 +7,10 @@ import ForgeSlider from '../../../components/ui/forge/ForgeSlider';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { loadPricingConfigV3, savePricingConfigV3 } from '../../../utils/adminPricingStorage';
 import { loadFeesConfigV3, saveFeesConfigV3 } from '../../../utils/adminFeesStorage';
+import { getTenantId } from '../../../utils/adminTenantStorage';
 
 const DEBOUNCE_MS = 600;
+const getCollapsedKey = () => `modelpricer:${getTenantId() || 'default'}:ui:quicksettings:collapsed`;
 
 /**
  * QuickSettings — collapsible panel on AdminDashboard for rapid config adjustments.
@@ -22,7 +24,7 @@ export default function QuickSettings({ language = 'cs' }) {
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
-      return localStorage.getItem('mp:quicksettings:collapsed') === '1';
+      return localStorage.getItem(getCollapsedKey()) === '1';
     } catch {
       return false;
     }
@@ -90,7 +92,7 @@ export default function QuickSettings({ language = 'cs' }) {
     setCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem('mp:quicksettings:collapsed', next ? '1' : '0');
+        localStorage.setItem(getCollapsedKey(), next ? '1' : '0');
       } catch {
         // ignore
       }

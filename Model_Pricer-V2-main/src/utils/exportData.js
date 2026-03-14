@@ -40,8 +40,12 @@ export function toCSV(data, columns) {
  * @returns {string} Escaped CSV field
  */
 function escapeCSVField(value) {
-  const str = String(value ?? '');
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+  let str = String(value ?? '');
+  // Prevent formula injection in spreadsheet apps (Excel, Google Sheets, LibreOffice)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;

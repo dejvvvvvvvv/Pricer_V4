@@ -350,7 +350,7 @@ const s = {
     justifyContent: 'center',
     gap: '8px',
     padding: '32px 16px',
-    color: '#6b7280',
+    color: 'var(--forge-text-muted)',
     fontSize: '13px',
     background: '#f9fafb',
   },
@@ -643,7 +643,7 @@ const WidgetEmbedTab = ({ widget }) => {
                       : '200px',
                   }}
                   title="Widget nahled"
-                  sandbox="allow-scripts allow-same-origin allow-forms"
+                  sandbox="allow-scripts allow-forms allow-same-origin"
                   loading="lazy"
                 />
               ) : (

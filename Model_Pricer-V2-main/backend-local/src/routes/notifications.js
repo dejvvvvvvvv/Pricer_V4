@@ -12,8 +12,10 @@
  */
 
 import { Router } from "express";
+import { logInfo } from "../util/logger.js";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { ensureDir } from "../util/fsSafe.js";
 import { validate } from "../middleware/validate.js";
 
@@ -200,7 +202,7 @@ export function createNotificationsRouter({ workspaceRoot, getTenantIdFromReq })
 
       await writePreferences(tenantId, current);
 
-      console.log(
+      logInfo(
         `[notifications] Updated preferences for tenant ${tenantId}: ${updatedChannels.join(", ")}`
       );
 
@@ -242,10 +244,10 @@ export function createNotificationsRouter({ workspaceRoot, getTenantIdFromReq })
       }
 
       const testMessage = message || `Test notification from ModelPricer at ${new Date().toISOString()}`;
-      const testId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const testId = `test-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
       // Log the test notification (this is where actual delivery would happen)
-      console.log(
+      logInfo(
         `[notifications] TEST notification sent — tenant: ${tenantId}, channel: ${channel}, ` +
         `id: ${testId}, message: "${testMessage}"`
       );

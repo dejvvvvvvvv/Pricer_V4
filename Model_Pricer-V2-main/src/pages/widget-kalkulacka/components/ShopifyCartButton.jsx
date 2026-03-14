@@ -21,13 +21,14 @@ const ShopifyCartButton = ({
   publicWidgetId = null,
   disabled = false,
   onCheckoutUrl,
+  tenantId = undefined,
 }) => {
   const [status, setStatus] = useState('idle'); // idle | loading | success | error | warning
   const [errorMsg, setErrorMsg] = useState('');
   const [unmappedModels, setUnmappedModels] = useState([]);
   const [checkoutUrl, setCheckoutUrl] = useState('');
 
-  const handleClick = useCallback(async () => {
+  const handleClick = useCallback(async (allowPartial = false) => {
     if (!quoteResult || !shopifyConfig) return;
 
     setStatus('loading');
@@ -45,10 +46,11 @@ const ShopifyCartButton = ({
         feeVariantId: shopifyConfig.fee_variant_id || '',
         uploadedFiles,
         currency: shopifyConfig.currency || 'CZK',
+        tenantId,
       });
 
-      // Check for unmapped models
-      if (mapped.unmappedModels.length > 0 && mapped.lineItems.length === 0) {
+      // Check for unmapped models — only block if user has NOT confirmed proceeding
+      if (!allowPartial && mapped.unmappedModels.length > 0 && mapped.lineItems.length === 0) {
         setUnmappedModels(mapped.unmappedModels);
         setStatus('warning');
         return;
@@ -138,7 +140,13 @@ const ShopifyCartButton = ({
       // PostMessage for iframe context
       if (embedded && publicWidgetId) {
         try {
-          const targetOrigin = document.referrer ? new URL(document.referrer).origin : '*';
+          // Use referrer origin when available; fall back to own origin (never '*').
+          // widget.js on the parent enforces strict origin matching so '*' would
+          // be silently rejected there anyway, and it leaks data to any listener.
+          let targetOrigin = window.location.origin;
+          if (document.referrer) {
+            try { targetOrigin = new URL(document.referrer).origin; } catch { /* keep own origin */ }
+          }
           window.parent.postMessage({
             type: 'MODELPRICER_SHOPIFY_CHECKOUT_URL',
             publicWidgetId,
@@ -161,7 +169,7 @@ const ShopifyCartButton = ({
       setErrorMsg(err.message || 'Unknown error');
       setStatus('error');
     }
-  }, [quoteResult, shopifyConfig, uploadedFiles, embedded, publicWidgetId, onCheckoutUrl]);
+  }, [quoteResult, shopifyConfig, uploadedFiles, embedded, publicWidgetId, onCheckoutUrl, tenantId]);
 
   const handleRetry = useCallback(() => {
     setStatus('idle');
@@ -170,10 +178,9 @@ const ShopifyCartButton = ({
   }, []);
 
   const handleProceedWithUnmapped = useCallback(() => {
-    setUnmappedModels([]);
-    setStatus('idle');
-    // Re-trigger — user acknowledged unmapped models
-    handleClick();
+    // Pass allowPartial=true so the warning gate is skipped even when some models
+    // have no variant mapping. State will be reset inside handleClick.
+    handleClick(true);
   }, [handleClick]);
 
   // ─── Styles (CSS vars for widget theming) ──────────────

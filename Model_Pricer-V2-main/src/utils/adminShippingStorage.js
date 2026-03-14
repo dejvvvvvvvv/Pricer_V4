@@ -146,15 +146,15 @@ export function normalizeShippingConfigV1(input) {
   };
 }
 
-export function loadShippingConfigV1() {
-  const stored = readTenantJson(NS_SHIPPING_V1, null);
+export function loadShippingConfigV1(tenantIdOverride) {
+  const stored = readTenantJson(NS_SHIPPING_V1, null, tenantIdOverride);
   if (stored && typeof stored === 'object') {
     return normalizeShippingConfigV1(stored);
   }
 
   // No existing data — seed defaults and persist so the tenant key exists.
   const seeded = normalizeShippingConfigV1(getDefaultShippingConfigV1());
-  writeTenantJson(NS_SHIPPING_V1, seeded);
+  writeTenantJson(NS_SHIPPING_V1, seeded, tenantIdOverride);
   return seeded;
 }
 

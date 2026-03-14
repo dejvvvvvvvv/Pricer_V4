@@ -28,88 +28,56 @@ const Pricing = () => {
       name: t('pricing.plan.starter'),
       price: language === 'cs' ? '499 Kč' : '$20',
       period: t('pricing.monthly'),
-      ctaText: language === 'cs' ? 'Vyzkoušet Starter' : 'Try Starter',
+      ctaText: t('pricing.plan.starter.cta'),
       ctaTo: '/register',
       recommended: false,
-      features: language === 'cs'
-        ? [
-            'Až 100 kalkulací měsíčně',
-            'Základní branding (barvy, logo)',
-            '1 widget na web',
-            'Email podpora',
-            'Uložení modelů 2 GB',
-          ]
-        : [
-            'Up to 100 calculations / month',
-            'Basic branding (colors, logo)',
-            '1 widget on your site',
-            'Email support',
-            '2 GB model storage',
-          ],
+      features: [
+        t('pricing.starter.f1'),
+        t('pricing.starter.f2'),
+        t('pricing.starter.f3'),
+        t('pricing.starter.f4'),
+        t('pricing.starter.f5'),
+      ],
     },
     {
       name: t('pricing.plan.professional'),
       price: language === 'cs' ? '1 999 Kč' : '$80',
       period: t('pricing.monthly'),
-      ctaText: language === 'cs' ? 'Začít s Professional' : 'Start Professional',
+      ctaText: t('pricing.plan.professional.cta'),
       ctaTo: '/register',
       recommended: true,
-      features: language === 'cs'
-        ? [
-            'Neomezené kalkulace',
-            'Plný branding + vlastní doména',
-            'Neomezené widgety',
-            'Widget builder',
-            'Pokročilé poplatky a pravidla',
-            'Prioritní podpora',
-          ]
-        : [
-            'Unlimited calculations',
-            'Full branding + custom domain',
-            'Unlimited widgets',
-            'Widget builder',
-            'Advanced fees & rules',
-            'Priority support',
-          ],
+      features: [
+        t('pricing.pro.f1'),
+        t('pricing.pro.f2'),
+        t('pricing.pro.f3'),
+        t('pricing.pro.f4'),
+        t('pricing.pro.f5'),
+        t('pricing.pro.f6'),
+      ],
     },
     {
       name: t('pricing.plan.enterprise'),
-      price: language === 'cs' ? 'Na míru' : 'Custom',
+      price: t('pricing.plan.enterprise.price'),
       period: t('pricing.custom'),
-      ctaText: language === 'cs' ? 'Kontaktovat nás' : 'Contact Us',
+      ctaText: t('pricing.plan.enterprise.cta'),
       ctaTo: '/support',
       recommended: false,
-      features: language === 'cs'
-        ? [
-            'Vše z Professional',
-            'White-label řešení',
-            'SLA a dedikovaná podpora',
-            'Neomezení uživatelé',
-            'Custom integrace (API / e-shop)',
-            'Možnost on-premise',
-          ]
-        : [
-            'Everything from Professional',
-            'White-label solution',
-            'SLA + dedicated support',
-            'Unlimited users',
-            'Custom integrations (API / e-shop)',
-            'Optional on-premise',
-          ],
+      features: [
+        t('pricing.enterprise.f1'),
+        t('pricing.enterprise.f2'),
+        t('pricing.enterprise.f3'),
+        t('pricing.enterprise.f4'),
+        t('pricing.enterprise.f5'),
+        t('pricing.enterprise.f6'),
+      ],
     },
   ];
 
-  const kpis = language === 'cs'
-    ? [
-        { value: '8s', title: 'k ceně', desc: 'Průměrně během pár sekund po nahrání modelu.' },
-        { value: '60%', title: 'méně ruční práce', desc: 'Zákazník vidí cenu hned – bez e-mailů tam a zpět.' },
-        { value: '24/7', title: 'automatizace', desc: 'Kalkulace běží nonstop, i když zrovna netiskneš.' },
-      ]
-    : [
-        { value: '8s', title: 'to a quote', desc: 'Typically within seconds after upload.' },
-        { value: '60%', title: 'less manual quoting', desc: 'Customers get a price instantly – no email ping-pong.' },
-        { value: '24/7', title: 'automation', desc: 'Quoting runs nonstop, even when you\'re away.' },
-      ];
+  const kpis = [
+    { value: '8s', title: t('pricing.kpi.toQuote'), desc: t('pricing.kpi.toQuoteDesc') },
+    { value: '60%', title: t('pricing.kpi.lessManual'), desc: t('pricing.kpi.lessManualDesc') },
+    { value: '24/7', title: t('pricing.kpi.automation'), desc: t('pricing.kpi.automationDesc') },
+  ];
 
   return (
     <div className="forge-grain" style={forgePageStyles}>
@@ -184,17 +152,15 @@ const Pricing = () => {
       <section className="forge-skewed-bg py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
           <Reveal>
-            <ForgeSectionLabel text="PLANS" className="mb-4 block text-center" />
+            <ForgeSectionLabel text={t('pricing.plans.label')} className="mb-4 block text-center" />
             <h2 className="forge-h2 text-center mb-4">
-              {language === 'cs' ? 'Plány pro každou tiskárnu' : 'Plans for every shop'}
+              {t('pricing.plans.title')}
             </h2>
             <p
               className="text-center mb-12 mx-auto"
               style={{ color: 'var(--forge-text-secondary)', maxWidth: 480 }}
             >
-              {language === 'cs'
-                ? 'Začni zdarma a škáluj podle počtu kalkulací, brandingu a integrací.'
-                : 'Start free and scale by usage, branding, and integrations.'}
+              {t('pricing.plans.subtitle')}
             </p>
           </Reveal>
 
@@ -234,16 +200,14 @@ const Pricing = () => {
                     color: 'var(--forge-text-primary)',
                   }}
                 >
-                  {language === 'cs' ? 'Roční sleva + individuální pilot' : 'Annual discount + pilot options'}
+                  {t('pricing.annual.title')}
                 </span>
                 <span style={{ color: 'var(--forge-text-secondary)', fontSize: 'var(--forge-text-sm)' }}>
-                  {language === 'cs'
-                    ? 'Chceš delší test nebo plán pro firmu? Napiš nám.'
-                    : 'Need a longer test or a rollout plan? Contact us.'}
+                  {t('pricing.annual.desc')}
                 </span>
               </div>
               <ForgeButton to="/support" variant="outline" size="sm">
-                {language === 'cs' ? 'Kontaktovat podporu' : 'Contact support'}
+                {t('pricing.annual.cta')}
               </ForgeButton>
             </div>
           </Reveal>
@@ -255,12 +219,10 @@ const Pricing = () => {
         <Reveal>
           <ForgeSectionLabel text="FAQ" className="mb-4 block" />
           <h2 className="forge-h2 mb-2">
-            {language === 'cs' ? 'Často kladené otázky' : 'Frequently Asked Questions'}
+            {t('pricing.faq.title')}
           </h2>
           <p className="mb-8" style={{ color: 'var(--forge-text-secondary)' }}>
-            {language === 'cs'
-              ? 'Krátké odpovědi na nejčastější otázky před startem.'
-              : 'Quick answers to the most common questions.'}
+            {t('pricing.faq.subtitle')}
           </p>
         </Reveal>
 
@@ -268,10 +230,14 @@ const Pricing = () => {
           {/* Left sidebar — tabs + CTAs */}
           <div className="lg:col-span-4">
             <Reveal delay={0.02}>
-              <div className="space-y-1 mb-8">
+              <div className="space-y-1 mb-8" role="tablist" aria-label={t('pricing.faq.categories')}>
                 {faqCategories.map((cat, i) => (
                   <button
                     key={i}
+                    role="tab"
+                    aria-selected={activeTab === i}
+                    aria-controls={`faq-panel-${i}`}
+                    id={`faq-tab-${i}`}
                     onClick={() => setActiveTab(i)}
                     className="w-full text-left px-4 py-3 rounded-[var(--forge-radius-sm)] forge-transition-micro"
                     style={{
@@ -290,17 +256,22 @@ const Pricing = () => {
 
               <div className="space-y-3">
                 <ForgeButton to="/register" variant="primary" fullWidth>
-                  {language === 'cs' ? 'Začít zdarma' : 'Start free'}
+                  {t('pricing.faq.startFree')}
                 </ForgeButton>
                 <ForgeButton to="/support" variant="outline" fullWidth>
-                  {language === 'cs' ? 'Napsat podporu' : 'Contact support'}
+                  {t('pricing.faq.contactSupport')}
                 </ForgeButton>
               </div>
             </Reveal>
           </div>
 
           {/* Right — FAQ accordion */}
-          <div className="lg:col-span-8">
+          <div
+            className="lg:col-span-8"
+            role="tabpanel"
+            id={`faq-panel-${activeTab}`}
+            aria-labelledby={`faq-tab-${activeTab}`}
+          >
             {faqCategories[activeTab] && (
               <ForgeFaqAccordion
                 items={faqCategories[activeTab].items}
@@ -327,23 +298,19 @@ const Pricing = () => {
                 className="forge-h3 mb-2"
                 style={{ fontFamily: 'var(--forge-font-heading)' }}
               >
-                {language === 'cs'
-                  ? 'Chceš plán na míru nebo integraci do e-shopu?'
-                  : 'Need a custom plan or e-shop integration?'}
+                {t('pricing.cta.title')}
               </h3>
               <p style={{ color: 'var(--forge-text-secondary)' }}>
-                {language === 'cs'
-                  ? 'Napiš nám, co potřebuješ – pošleme doporučení a další kroky.'
-                  : 'Tell us what you need and we\'ll propose the best next steps.'}
+                {t('pricing.cta.desc')}
               </p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 shrink-0">
               <ForgeButton to="/support" variant="primary" size="lg">
-                {language === 'cs' ? 'Kontaktovat' : 'Contact'}
+                {t('pricing.cta.contact')}
               </ForgeButton>
               <ForgeButton to="/test-kalkulacka" variant="outline" size="lg">
-                {language === 'cs' ? 'Vyzkoušet demo' : 'Try demo'}
+                {t('pricing.cta.demo')}
               </ForgeButton>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import ForgeSlider from '../../../components/ui/forge/ForgeSlider';
 import ForgeToggle from '../../../components/ui/forge/ForgeToggle';
@@ -78,6 +78,8 @@ export default function PresetInlineEditor({
   const [saving, setSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
   const [validating, setValidating] = useState(false);
+  // Track last successfully saved draft so hasChanges resets after save
+  const savedDraftRef = useRef(initialDraft);
 
   const updateField = useCallback((field, value) => {
     setDraft(prev => ({ ...prev, [field]: value }));
@@ -103,8 +105,8 @@ export default function PresetInlineEditor({
   };
 
   const hasChanges = useMemo(() => {
-    return JSON.stringify(draft) !== JSON.stringify(initialDraft);
-  }, [draft, initialDraft]);
+    return JSON.stringify(draft) !== JSON.stringify(savedDraftRef.current);
+  }, [draft]);
 
   const handleValidateAndSave = async () => {
     setSaving(true);
@@ -161,6 +163,9 @@ export default function PresetInlineEditor({
     // Save
     try {
       await onSave(preset.id, draft);
+      // Sync saved reference so hasChanges returns false after successful save
+      savedDraftRef.current = JSON.parse(JSON.stringify(draft));
+      setValidationErrors([]);
     } catch (e) {
       setValidationErrors([String(e?.message || 'Save failed')]);
     }

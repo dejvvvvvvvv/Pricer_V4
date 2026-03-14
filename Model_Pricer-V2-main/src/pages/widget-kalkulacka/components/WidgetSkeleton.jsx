@@ -16,6 +16,16 @@ const SHIMMER_KEYFRAMES = `
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+.widget-skeleton-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 24px;
+}
+@media (max-width: 600px) {
+  .widget-skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+}
 `;
 
 const WidgetSkeleton = () => {
@@ -109,14 +119,8 @@ const WidgetSkeleton = () => {
         ))}
       </div>
 
-      {/* Main content grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: '24px',
-        }}
-      >
+      {/* Main content grid - collapses to single column below 600px */}
+      <div className="widget-skeleton-grid">
         {/* Left column: upload zone */}
         <div>
           {/* Upload rectangle - large dashed border area */}

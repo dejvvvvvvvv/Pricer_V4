@@ -911,7 +911,7 @@ useEffect(() => {
 Widget a public embed komunikuji s rodicovskou strankou pres `window.parent.postMessage`.
 Vsechny zpravy maji `publicWidgetId` pro identifikaci widgetu.
 
-**Target origin**: Z `document.referrer` pokud existuje (bezpecnejsi nez `'*'`), jinak fallback na `'*'`.
+**Target origin**: Z `document.referrer` pokud existuje. Fallback je `window.location.origin` (NIKDY `'*'`).
 
 | Zprava | Smer | Kdy | Data | Ucel |
 |--------|------|-----|------|------|
@@ -1447,8 +1447,9 @@ Embed kod vklada widget do iframe:
     pri nahrodni vice souboru v jedne milisekunde (nizke riziko).
 
 14. **Referrer-Policy: no-referrer** -- pokud rodic nastavi tuto policy,
-    `document.referrer` bude prazdny a domain whitelist neprobehne korektne.
-    Zaroven postMessage pujde na `'*'`.
+    `document.referrer` bude prazdny. Kdyz je aktivni domain whitelist a referrer chybi,
+    widget nyni vraci chybu "Neoveritelna zdrojova domena" (bylo opraveno 2026-03-13).
+    PostMessage fallback target je `window.location.origin` (nikdy `'*'`).
 
 ---
 
@@ -1458,3 +1459,13 @@ Widget Builder V2: 460 radku (BuilderPage.jsx), 486 radku (useBuilderState.js), 
 Session 2026-02-26: PostMessage protokol (6 typu), Security (iframe sandbox, origin validation),
 Loading states (WidgetSkeleton), Batch progress (BatchProgressBar), Accessibility (ARIA roles),
 StyleableWrapper extraction, Cross-tenant pricing fix (tenantId prop), Default theme (Forge teal #00D4AA).*
+
+### Security opravy 2026-03-13 (postMessage security review)
+
+| Soubor | Problem | Oprava |
+|--------|---------|--------|
+| `public/widget.js` | Origin check byl bypassovatelny kdyz `baseOrigin` byl prazdny retezec (podminka `event.origin && baseOrigin` se zkratila) | Zmeneno na `!baseOrigin \|\| !event.origin \|\| event.origin !== baseOrigin` — zamita zpravy i kdyz baseOrigin chybi |
+| `public/widget.js` | `data.publicWidgetId`, `data.cartId`, `data.lineCount`, `data.currency` z postMessage dat predavany do CustomEvent bez sanitizace | Pridana sanitizace: `typeof` check, `.trim().slice(0, N)`, `Number` coerce, `Math.floor` |
+| `public/widget.js` | `data.lineCount \|\| 0` neprinutil cislo — mohla byt libovolna truthy hodnota | `typeof data.lineCount === 'number' && isFinite(...) ? Math.floor(...) : 0` |
+| `WidgetPublicPage.jsx` | `publicWidgetId` z URL params predavan primo do storage lookup bez format validace | Pridana regex validace `/^[A-Za-z0-9_-]{1,128}$/` pred lookup |
+| `WidgetPublicPage.jsx` | Domain whitelist bypass: kdyz embeddujici stranka potlacila referrer (`referrerpolicy="no-referrer"`), `referrerOrigin` byl `''` a podminka `[..., ''].includes(referrerOrigin)` to povolila bez kontroly | Prazdny referrer je nyni explicite blokovan kdyz je whitelist aktivni (`Neoveritelna zdrojova domena`). Localhost check zachovan pro dev. |

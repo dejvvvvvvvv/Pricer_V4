@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { debug } from '@/lib/debug';
 
 import { getWidgets, updateWidget } from '@/utils/adminBrandingWidgetStorage';
 import { getDefaultWidgetTheme } from '@/utils/widgetThemeStorage';
@@ -244,7 +245,7 @@ export default function useBuilderState(widgetId, tenantId) {
       }
       return { ok: true };
     } catch (err) {
-      console.error('[useBuilderState] save failed:', err);
+      debug('[useBuilderState] save failed:', err);
       return { ok: false, error: err.message || 'Ulozeni se nezdarilo' };
     } finally {
       setSaving(false);
@@ -360,7 +361,7 @@ export default function useBuilderState(widgetId, tenantId) {
             2000,
           );
         } catch (err) {
-          console.error('[useBuilderState] auto-save failed:', err);
+          debug('[useBuilderState] auto-save failed:', err);
           setAutoSaveStatus('idle');
         } finally {
           isSavingRef.current = false;
@@ -416,7 +417,7 @@ export default function useBuilderState(widgetId, tenantId) {
               2000,
             );
           } catch (err) {
-            console.error('[useBuilderState] manual save failed:', err);
+            debug('[useBuilderState] manual save failed:', err);
             setAutoSaveStatus('idle');
           } finally {
             isSavingRef.current = false;

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
+import { debug } from '../../lib/debug';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -42,6 +44,9 @@ import { getHelpText, getLearnMore } from './helpTexts';
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
+// Sanitize a string for use inside an HTML comment — prevents comment breakout via --> sequences.
+const safeComment = (s) => String(s || '').replace(/-{2,}/g, '-').replace(/>/g, '');
+
 const isValidHex = (val) => /^#([0-9a-fA-F]{6})$/.test(String(val || '').trim());
 
 const toNullableHex = (val) => {
@@ -67,6 +72,7 @@ const AdminWidget = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const { copyToClipboard: copyText } = useCopyToClipboard();
+  const { confirm, ConfirmDialogPortal } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
 
@@ -250,24 +256,24 @@ const AdminWidget = () => {
     if (!editor) return errors;
 
     if (!editor.name || String(editor.name).trim().length < 2) {
-      errors.name = 'Zadej nazev (min. 2 znaky).';
+      errors.name = t('admin.widget.page.nameValidation', 'Enter a name (min. 2 characters).');
     }
 
     if (editor.primaryColorOverride && !isValidHex(editor.primaryColorOverride)) {
-      errors.primaryColorOverride = 'Barva musi byt ve formatu #RRGGBB.';
+      errors.primaryColorOverride = t('admin.widget.page.colorValidation', 'Color must be in #RRGGBB format.');
     }
 
     if (editor.widthMode === 'fixed') {
       const v = Number(editor.widthPx);
       if (!Number.isFinite(v) || v <= 0) {
-        errors.widthPx = 'Zadej sirku > 0.';
+        errors.widthPx = t('admin.widget.page.widthValidation', 'Enter width > 0.');
       }
     }
 
     if ((editor.heightMode || 'auto') === 'fixed') {
       const v = Number(editor.heightPx);
       if (!Number.isFinite(v) || v <= 0) {
-        errors.heightPx = 'Zadej vysku > 0.';
+        errors.heightPx = t('admin.widget.page.heightValidation', 'Enter height > 0.');
       }
     }
 
@@ -282,10 +288,13 @@ const AdminWidget = () => {
 
   /* ---- CRUD callbacks ---- */
 
-  const selectWidget = (id) => {
+  const selectWidget = async (id) => {
     if (id === selectedId) return;
     if (isDirty) {
-      const ok = window.confirm('Mas neulozene zmeny. Opravdu chces prepnout widget bez ulozeni?');
+      const ok = await confirm({
+        title: t('admin.widget.page.unsavedTitle', 'Unsaved changes'),
+        message: t('admin.widget.page.unsavedMessage', 'You have unsaved changes. Really switch widget without saving?'),
+      });
       if (!ok) return;
     }
     setSelectedId(id);
@@ -299,7 +308,7 @@ const AdminWidget = () => {
   const onSave = async () => {
     if (!editor) return;
     if (Object.keys(errors).length > 0) {
-      showError('Oprav chyby ve formulari.');
+      showError(t('admin.widget.page.formError', 'Fix form errors.'));
       return;
     }
 
@@ -322,11 +331,11 @@ const AdminWidget = () => {
       };
 
       updateWidget(getTenantId(), editor.id, payload);
-      showSuccess('Ulozeno');
+      showSuccess(t('admin.widget.page.saveSuccess', 'Saved'));
       refresh();
     } catch (e) {
-      console.error(e);
-      showError('Ulozeni se nezdarilo.');
+      debug('[AdminWidget] Save widget failed', e);
+      showError(t('admin.widget.page.saveError', 'Save failed.'));
     } finally {
       setSaving(false);
     }
@@ -335,9 +344,12 @@ const AdminWidget = () => {
   // Keep onSave ref in sync for Ctrl+S handler
   onSaveRef.current = onSave;
 
-  const onResetEditor = () => {
+  const onResetEditor = async () => {
     if (!editorBase) return;
-    const ok = window.confirm('Vratit neulozene zmeny do posledniho ulozeneho stavu?');
+    const ok = await confirm({
+      title: t('admin.widget.page.discardTitle', 'Discard changes'),
+      message: t('admin.widget.page.discardMessage', 'Revert unsaved changes to last saved state?'),
+    });
     if (!ok) return;
     setEditor(deepClone(editorBase));
   };
@@ -353,11 +365,11 @@ const AdminWidget = () => {
     try {
       const name = String(createName || '').trim();
       if (name.length < 2) {
-        setCreateError('Zadej nazev (min. 2 znaky).');
+        setCreateError(t('admin.widget.page.nameValidation', 'Enter a name (min. 2 characters).'));
         return;
       }
       if (!canCreateMore) {
-        showError(`Limit tarifu: max. ${maxWidgets} widget(y).`);
+        showError(t('admin.widget.page.planLimitError', 'Plan limit: max. {max} widget(s).').replace('{max}', maxWidgets));
         return;
       }
 
@@ -367,7 +379,7 @@ const AdminWidget = () => {
       });
 
       setCreateOpen(false);
-      showSuccess('Widget vytvoren');
+      showSuccess(t('admin.widget.page.createSuccess', 'Widget created'));
 
       const w = getWidgets(getTenantId());
       setWidgets(w);
@@ -377,60 +389,63 @@ const AdminWidget = () => {
       setDomains(getWidgetDomains(getTenantId(), widget.id));
       setActiveTab('config');
     } catch (e) {
-      console.error(e);
-      showError('Nelze vytvorit widget (limit tarifu nebo chyba).');
+      debug('[AdminWidget] Create widget failed', e);
+      showError(t('admin.widget.page.createError', 'Cannot create widget (plan limit or error).'));
     }
   };
 
   const onDuplicate = (id) => {
     try {
       if (!canCreateMore) {
-        showError(`Limit tarifu: max. ${maxWidgets} widget(y).`);
+        showError(t('admin.widget.page.planLimitError', 'Plan limit: max. {max} widget(s).').replace('{max}', maxWidgets));
         return;
       }
       const dupe = duplicateWidget(getTenantId(), id);
-      showSuccess('Zduplikovano');
+      showSuccess(t('admin.widget.page.duplicateSuccess', 'Duplicated'));
       const w = getWidgets(getTenantId());
       setWidgets(w);
       setSelectedId(dupe.id);
     } catch (e) {
-      console.error(e);
-      showError('Duplikace se nezdarila.');
+      debug('[AdminWidget] Duplicate widget failed', e);
+      showError(t('admin.widget.page.duplicateError', 'Duplication failed.'));
     }
   };
 
   const onToggleEnabled = (id) => {
     try {
       toggleWidgetStatus(getTenantId(), id);
-      showSuccess('Zmeneno');
+      showSuccess(t('admin.widget.page.toggleSuccess', 'Changed'));
       refresh();
     } catch (e) {
-      console.error(e);
-      showError('Zmena stavu se nezdarila.');
+      debug('[AdminWidget] Toggle widget status failed', e);
+      showError(t('admin.widget.page.toggleError', 'Status change failed.'));
     }
   };
 
   const onDelete = (id) => {
     try {
       deleteWidget(getTenantId(), id);
-      showSuccess('Smazano');
+      showSuccess(t('admin.widget.page.deleteSuccess', 'Deleted'));
       refresh();
     } catch (e) {
-      console.error(e);
-      showError('Smazani se nezdarilo.');
+      debug('[AdminWidget] Delete widget failed', e);
+      showError(t('admin.widget.page.deleteError', 'Delete failed.'));
     }
   };
 
   const onCopyEmbed = async (widget) => {
     const origin = window.location.origin;
+    // Use the widget.js script-tag pattern so auto-resize, Shopify integration
+    // and event callbacks work correctly. A raw <iframe> would bypass widget.js.
     const code =
-      `<!-- ModelPricer Widget: ${widget.name || widget.publicId} -->\n` +
-      `<iframe\n  src="${origin}/w/${widget.publicId}"\n  style="width: 100%; border: none; min-height: 600px;"\n  title="3D Print Calculator"\n  allow="clipboard-write"\n></iframe>`;
+      `<!-- ModelPricer Widget: ${safeComment(widget.name || widget.publicId)} -->\n` +
+      `<div data-modelpricer-widget="${widget.publicId}"></div>\n` +
+      `<script src="${origin}/widget.js" async></script>`;
     const ok = await copyText(code);
     if (ok) {
-      showSuccess('Embed kod zkopirovany');
+      showSuccess(t('admin.widget.page.copySuccess', 'Embed code copied'));
     } else {
-      showError('Nelze kopirovat do schranky.');
+      showError(t('admin.widget.page.copyError', 'Cannot copy to clipboard.'));
     }
   };
 
@@ -443,12 +458,12 @@ const AdminWidget = () => {
     const res = validateDomainInput(candidate);
 
     if (!res.ok) {
-      throw new Error(res.error || 'Neplatna domena');
+      throw new Error(res.error || t('admin.widget.page.domainInvalid', 'Invalid domain'));
     }
 
     addWidgetDomain(getTenantId(), editor.id, res.host || candidate, allowSubdomains);
     setDomains(getWidgetDomains(getTenantId(), editor.id));
-    showSuccess('Domena pridana');
+    showSuccess(t('admin.widget.page.domainAdded', 'Domain added'));
   };
 
   const onToggleDomain = (domainId, enabled) => {
@@ -456,23 +471,26 @@ const AdminWidget = () => {
       toggleWidgetDomain(getTenantId(), editor.id, domainId, enabled);
       setDomains(getWidgetDomains(getTenantId(), editor.id));
     } catch (e) {
-      console.error(e);
-      showError('Zmena domeny se nezdarila.');
+      debug('[AdminWidget] Toggle domain failed', e);
+      showError(t('admin.widget.page.domainToggleError', 'Domain toggle failed.'));
     }
   };
 
-  const onDeleteDomain = (domainId) => {
+  const onDeleteDomain = async (domainId) => {
     const d = domains.find((x) => x.id === domainId);
-    const ok = window.confirm(`Smazat domenu ${d?.domain || ''}?`);
+    const ok = await confirm({
+      title: t('admin.widget.page.deleteDomainTitle', 'Delete domain'),
+      message: `${t('admin.widget.page.deleteDomainTitle', 'Delete domain')} ${d?.domain || ''}?`,
+    });
     if (!ok) return;
 
     try {
       deleteWidgetDomain(getTenantId(), editor.id, domainId);
       setDomains(getWidgetDomains(getTenantId(), editor.id));
-      showSuccess('Domena smazana');
+      showSuccess(t('admin.widget.page.domainDeleted', 'Domain deleted'));
     } catch (e) {
-      console.error(e);
-      showError('Smazani domeny se nezdarilo.');
+      debug('[AdminWidget] Delete domain failed', e);
+      showError(t('admin.widget.page.domainDeleteError', 'Domain delete failed.'));
     }
   };
 
@@ -536,9 +554,9 @@ const AdminWidget = () => {
       {/* Top bar */}
       <div className="aw-topbar">
         <div>
-          <h1 className="aw-heading">Widget Code</h1>
+          <h1 className="aw-heading">{t('admin.widget.page.heading', 'Widget Code')}</h1>
           <p className="aw-subtitle">
-            Sprava widget instanci, embed kod a whitelist domen
+            {t('admin.widget.page.subtitle', 'Manage widget instances, embed code and domain whitelist')}
           </p>
         </div>
         <div className="aw-topbar-actions">
@@ -549,7 +567,7 @@ const AdminWidget = () => {
           </div>
           <button className="aw-btn aw-btn-primary" onClick={onCreate} disabled={!canCreateMore}>
             <Icon name="Plus" size={18} />
-            Vytvorit widget
+            {t('admin.widget.page.createBtn', 'Create Widget')}
           </button>
         </div>
       </div>
@@ -559,15 +577,15 @@ const AdminWidget = () => {
         <div className="aw-dirty-banner">
           <div className="aw-dirty-left">
             <Icon name="AlertTriangle" size={18} />
-            <span>Neulozene zmeny v konfiguraci widgetu.</span>
+            <span>{t('admin.widget.page.dirtyBanner', 'Unsaved changes in widget configuration.')}</span>
           </div>
           <div className="aw-dirty-actions">
             <button className="aw-btn aw-btn-secondary" onClick={onResetEditor}>
-              Zahodit
+              {t('admin.widget.page.discard', 'Discard')}
             </button>
             <button className="aw-btn aw-btn-primary" onClick={onSave} disabled={!canSave}>
               <Icon name="Save" size={16} />
-              Ulozit
+              {t('admin.widget.page.save', 'Save')}
             </button>
           </div>
         </div>
@@ -581,8 +599,8 @@ const AdminWidget = () => {
             <div className="aw-limit-box">
               <Icon name="Lock" size={16} />
               <div>
-                <strong>Limit tarifu</strong>
-                <div className="aw-muted">Max. {maxWidgets} widget(y).</div>
+                <strong>{t('admin.widget.page.planLimit', 'Plan limit')}</strong>
+                <div className="aw-muted">{t('admin.widget.page.planLimitDesc', 'Max. {max} widget(s).').replace('{max}', maxWidgets)}</div>
               </div>
             </div>
           ) : null}
@@ -593,7 +611,7 @@ const AdminWidget = () => {
               const isSelected = w.id === selectedId;
               const barColor = isActive
                 ? (w.primaryColorOverride || '#00D4AA')
-                : '#4a5568';
+                : 'var(--forge-text-muted)';
 
               return (
                 <div
@@ -613,7 +631,7 @@ const AdminWidget = () => {
                       <span
                         className={`aw-badge ${isActive ? 'aw-badge-active' : 'aw-badge-inactive'}`}
                       >
-                        {isActive ? 'Aktivni' : 'Neaktivni'}
+                        {isActive ? t('admin.widget.page.statusActive', 'Active') : t('admin.widget.page.statusInactive', 'Inactive')}
                       </span>
                     </div>
 
@@ -625,21 +643,21 @@ const AdminWidget = () => {
                     >
                       <button
                         className="aw-icon-btn"
-                        title="Otevrit Builder"
+                        title={t('admin.widget.page.openBuilder', 'Open Builder')}
                         onClick={() => navigate(`/admin/widget/builder/${w.id}`)}
                       >
                         <Icon name="Palette" size={15} />
                       </button>
                       <button
                         className="aw-icon-btn"
-                        title="Kopirovat embed"
+                        title={t('admin.widget.page.copyEmbed', 'Copy embed')}
                         onClick={() => onCopyEmbed(w)}
                       >
                         <Icon name="Copy" size={15} />
                       </button>
                       <button
                         className="aw-icon-btn"
-                        title="Duplikovat"
+                        title={t('admin.widget.page.duplicateWidget', 'Duplicate')}
                         onClick={() => onDuplicate(w.id)}
                         disabled={!canCreateMore}
                       >
@@ -647,7 +665,7 @@ const AdminWidget = () => {
                       </button>
                       <button
                         className="aw-icon-btn aw-icon-btn-danger"
-                        title="Smazat"
+                        title={t('admin.widget.page.deleteWidget', 'Delete')}
                         onClick={() => onDelete(w.id)}
                       >
                         <Icon name="Trash2" size={15} />
@@ -662,9 +680,9 @@ const AdminWidget = () => {
               <div className="aw-empty-state">
                 <Icon name="Box" size={24} />
                 <div>
-                  <div style={{ fontWeight: 700 }}>Zatim zadny widget</div>
+                  <div style={{ fontWeight: 700 }}>{t('admin.widget.page.emptyTitle', 'No widgets yet')}</div>
                   <div className="aw-muted">
-                    Vytvorte si prvni widget a zkopirujte embed kod.
+                    {t('admin.widget.page.emptyDesc', 'Create your first widget and copy the embed code.')}
                   </div>
                 </div>
               </div>
@@ -677,12 +695,12 @@ const AdminWidget = () => {
           {!selectedWidget ? (
             <div className="aw-empty-detail">
               <Icon name="MousePointerClick" size={24} />
-              <span>Vyberte widget vlevo</span>
+              <span>{t('admin.widget.page.selectHint', 'Select a widget on the left')}</span>
             </div>
           ) : (
             <>
               {/* Tab bar */}
-              <div className="aw-tabs" role="tablist" aria-label="Widget konfigurace">
+              <div className="aw-tabs" role="tablist" aria-label={t('admin.widget.page.tabsAriaLabel', 'Widget configuration')}>
                 {TABS.map((tab, idx) => (
                   <button
                     key={tab.id}
@@ -725,7 +743,7 @@ const AdminWidget = () => {
                       onClick={onResetEditor}
                       disabled={!isDirty}
                     >
-                      Reset
+                      {t('admin.widget.page.reset', 'Reset')}
                     </button>
                     <button
                       className="aw-btn aw-btn-primary"
@@ -733,7 +751,7 @@ const AdminWidget = () => {
                       disabled={!canSave}
                     >
                       <Icon name="Save" size={16} />
-                      Ulozit
+                      {t('admin.widget.page.save', 'Save')}
                     </button>
                   </div>
                 </div>
@@ -760,7 +778,7 @@ const AdminWidget = () => {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <ForgeHelpIcon text={getHelpText('widget_embed_code', 'cs')} position="right" size={16} />
-                      <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>Napoveda k embed kodu</span>
+                      <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>{t('admin.widget.page.embedHelpLabel', 'Embed code help')}</span>
                     </div>
                     <WidgetEmbedTab widget={selectedWidget} />
                   </div>
@@ -774,7 +792,7 @@ const AdminWidget = () => {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <ForgeHelpIcon text={getHelpText('widget_domain_whitelist', 'cs')} learnMore={getLearnMore('widget_domain_whitelist')} position="right" size={16} />
-                      <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>Napoveda k domain whitelistu</span>
+                      <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>{t('admin.widget.page.domainsHelpLabel', 'Domain whitelist help')}</span>
                     </div>
                     <WidgetDomainsTab
                       domains={domains}
@@ -814,7 +832,7 @@ const AdminWidget = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="aw-modal-header">
-              <div className="aw-modal-title" id="aw-create-modal-title">Vytvorit novy widget</div>
+              <div className="aw-modal-title" id="aw-create-modal-title">{t('admin.widget.page.createModalTitle', 'Create new widget')}</div>
               <button className="aw-icon-btn" onClick={() => setCreateOpen(false)}>
                 <Icon name="X" size={16} />
               </button>
@@ -822,26 +840,26 @@ const AdminWidget = () => {
 
             <div className="aw-modal-body">
               <div className="aw-form-row">
-                <label className="aw-label">Nazev</label>
+                <label className="aw-label">{t('admin.widget.page.createNameLabel', 'Name')}</label>
                 <input
                   className={`aw-input${createError ? ' aw-input-error' : ''}`}
                   value={createName}
                   onChange={(e) => { const v = e.target.value; setCreateName(v); if (v.trim().length >= 2) setCreateError(''); }}
-                  placeholder="Napr. Homepage"
+                  placeholder={t('admin.widget.page.createNamePlaceholder', 'e.g. Homepage')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') confirmCreate();
                   }}
                   autoFocus
                 />
                 {createError && (
-                  <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>
+                  <div role="alert" style={{ color: 'var(--forge-error)', fontSize: 12, marginTop: 4 }}>
                     {createError}
                   </div>
                 )}
               </div>
 
               <div className="aw-form-row">
-                <label className="aw-label">Typ</label>
+                <label className="aw-label">{t('admin.widget.page.createTypeLabel', 'Type')}</label>
                 <select
                   className="aw-input"
                   value={createType}
@@ -855,11 +873,11 @@ const AdminWidget = () => {
 
             <div className="aw-modal-footer">
               <button className="aw-btn aw-btn-secondary" onClick={() => setCreateOpen(false)}>
-                Zrusit
+                {t('admin.widget.page.createCancelBtn', 'Cancel')}
               </button>
               <button className="aw-btn aw-btn-primary" onClick={confirmCreate}>
                 <Icon name="Plus" size={16} />
-                Vytvorit
+                {t('admin.widget.page.createConfirmBtn', 'Create')}
               </button>
             </div>
           </div>
@@ -1959,6 +1977,7 @@ const AdminWidget = () => {
           .aw-delete-confirm { flex-direction: column; align-items: flex-start; }
         }
       `}</style>
+      {ConfirmDialogPortal}
     </div>
   );
 };

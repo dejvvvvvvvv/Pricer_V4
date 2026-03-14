@@ -6,7 +6,6 @@ import {
 
 /* ── Forge-compatible colors ──────────────────────────────────────────── */
 const TEAL = '#00D4AA';
-const TEAL_DARK = '#007A63';
 const ORANGE = '#FF6B35';
 const SKY = '#4DA8DA';
 const PURPLE = '#6C63FF';
@@ -33,10 +32,10 @@ const CHART_TEXT = '#7A8291';
 
 /* ── Dark theme tooltip ──────────────────────────────────────────────── */
 const darkTooltipStyle = {
-  backgroundColor: '#161920',
-  border: '1px solid #1E2230',
+  backgroundColor: 'var(--forge-bg-elevated)',
+  border: '1px solid var(--forge-border-default)',
   borderRadius: 8,
-  color: '#E8ECF1',
+  color: 'var(--forge-text-primary)',
   fontSize: 13,
   fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
 };
@@ -93,7 +92,7 @@ function exportChartAsPng(containerRef, filename = 'chart.png') {
   img.src = url;
 }
 
-/* ── Demo data generators ────────────────────────────────────────────── */
+/* ── Demo data generators — DEMO: mock data only, all Math.random() calls below are for chart demo ── */
 function generateDemoRevenueTrend(days = 30) {
   const data = [];
   const now = Date.now();

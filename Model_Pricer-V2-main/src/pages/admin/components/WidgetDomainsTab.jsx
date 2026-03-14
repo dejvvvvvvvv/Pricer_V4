@@ -94,7 +94,7 @@ const WidgetDomainsTab = ({
           onChange={(e) => setAllowSubdomains(e.target.checked)}
           label="Povolit subdomeny"
         />
-        <button className="aw-btn aw-btn-primary" onClick={handleAdd}>
+        <button type="button" className="aw-btn aw-btn-primary" onClick={handleAdd}>
           <Icon name="Plus" size={16} />
           Pridat
         </button>
@@ -128,6 +128,7 @@ const WidgetDomainsTab = ({
                 onChange={(e) => onToggleDomain(d.id, e.target.checked)}
               />
               <button
+                type="button"
                 className="aw-icon-btn aw-icon-btn-danger"
                 title="Smazat domenu"
                 onClick={() => onDeleteDomain(d.id)}

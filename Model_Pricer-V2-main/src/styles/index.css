@@ -6,6 +6,8 @@ body {
   margin: 0;
   padding: 0;
   font-family: Inter;
+  background-color: var(--forge-bg-void, #08090C);
+  color: var(--forge-text-primary, #E8ECF1);
 }
 
 * {
@@ -38,7 +40,7 @@ html.lenis {
    ========================================================================== */
 
 *:focus-visible {
-  outline: 2px solid var(--forge-accent-primary, #00D4AA);
+  outline: 2px solid var(--forge-accent-teal, #14b8a6);
   outline-offset: 2px;
 }
 
@@ -50,7 +52,7 @@ button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--forge-accent-primary, #00D4AA);
+  outline: 2px solid var(--forge-accent-teal, #14b8a6);
   outline-offset: 2px;
   border-radius: var(--forge-radius-sm, 4px);
 }
@@ -58,12 +60,12 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--forge-accent-primary, #00D4AA);
+  outline: 2px solid var(--forge-accent-teal, #14b8a6);
   outline-offset: 0;
 }
 
 .forge-card:focus-within {
-  border-color: var(--forge-accent-primary, #00D4AA);
+  border-color: var(--forge-accent-teal, #14b8a6);
 }
 
 /* ==========================================================================
@@ -187,5 +189,20 @@ textarea:focus-visible {
   /* Print margin */
   @page {
     margin: 1.5cm;
+  }
+}
+
+/* ==========================================================================
+   Reduced Motion — global safety net for users who prefer no animations.
+   Supplements per-class rules in animations.css.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

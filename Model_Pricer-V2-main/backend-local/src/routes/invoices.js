@@ -11,10 +11,42 @@
  */
 
 import { Router } from "express";
+import { logInfo } from "../util/logger.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { validate } from "../middleware/validate.js";
 import { getOrder } from "../ordersStore.js";
+
+/**
+ * Assert that a resolved path stays within the given base directory.
+ * Throws a 400 error if a path traversal is detected.
+ *
+ * @param {string} resolvedPath
+ * @param {string} base
+ */
+function assertInWorkspace(resolvedPath, base) {
+  const abs = path.resolve(resolvedPath);
+  const absBase = path.resolve(base);
+  if (!abs.startsWith(absBase + path.sep) && abs !== absBase) {
+    const err = new Error("Path traversal detected");
+    err.status = 400;
+    throw err;
+  }
+}
+
+/**
+ * Validate that an orderId contains no path traversal characters.
+ * Rejects values containing '..', '/', or '\'.
+ *
+ * @param {string} orderId
+ */
+function validateOrderId(orderId) {
+  if (!orderId || typeof orderId !== "string" || /[/\\]/.test(orderId) || orderId.includes("..")) {
+    const err = new Error("Invalid order ID");
+    err.status = 400;
+    throw err;
+  }
+}
 
 // ── Validation Schemas ──
 
@@ -45,16 +77,24 @@ export function createInvoicesRouter({ workspaceRoot, getTenantIdFromReq }) {
 
   /**
    * Get invoice directory path for a tenant.
+   * Guards against path traversal via tenantId.
    */
   function invoiceDir(tenantId) {
-    return path.join(workspaceRoot, "invoices", tenantId);
+    const dir = path.join(workspaceRoot, "invoices", tenantId);
+    assertInWorkspace(dir, path.join(workspaceRoot, "invoices"));
+    return dir;
   }
 
   /**
    * Get invoice file path for an order.
+   * Guards against path traversal via orderId.
    */
   function invoicePath(tenantId, orderId) {
-    return path.join(invoiceDir(tenantId), `${orderId}.json`);
+    validateOrderId(orderId);
+    const dir = invoiceDir(tenantId);
+    const filePath = path.join(dir, `${orderId}.json`);
+    assertInWorkspace(filePath, dir);
+    return filePath;
   }
 
   // ───────────────────────────────────────────────────
@@ -131,7 +171,7 @@ export function createInvoicesRouter({ workspaceRoot, getTenantIdFromReq }) {
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(invoicePath(tenantId, orderId), JSON.stringify(invoice, null, 2), "utf8");
 
-      console.log(`[invoices] Generated invoice ${invoiceNumber} for order ${orderId} (tenant ${tenantId})`);
+      logInfo(`[invoices] Generated invoice ${invoiceNumber} for order ${orderId} (tenant ${tenantId})`);
       return res.status(201).json({ ok: true, data: invoice });
     } catch (e) {
       return fail(res, 500, "MP_INVOICE_GENERATE_FAILED", String(e?.message || e));

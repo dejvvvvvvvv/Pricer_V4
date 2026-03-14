@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import Icon from '../../../../components/AppIcon';
+import { useAuth } from '../../../../context/AuthContext';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { loadOrders, saveOrders, nowIso, round2 } from '../../../../utils/adminOrdersStorage';
 import { logActivity } from '../../../../utils/adminActivityLog';
@@ -35,7 +36,7 @@ function validateForm(customer, models, cs) {
   }
   if (!customer.email.trim()) {
     errors.push(cs ? 'Email zakaznika je povinny' : 'Customer email is required');
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) {
+  } else if (customer.email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customer.email.trim())) {
     errors.push(cs ? 'Neplatny format emailu' : 'Invalid email format');
   }
   if (models.length === 0) {
@@ -55,6 +56,8 @@ function validateForm(customer, models, cs) {
 /* ── Main Component ─────────────────────────────────────────────────── */
 
 export default function QuickOrderForm({ open, onClose, onCreated }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const { language } = useLanguage();
   const cs = language === 'cs';
 
@@ -180,7 +183,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
           {
             id: generateId('note'),
             text: notes.trim(),
-            author: 'admin',
+            author: currentUser,
             created_at: now,
           },
         ] : [],
@@ -188,7 +191,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
         activity: [
           {
             action: 'ORDER_CREATED',
-            actor: 'admin',
+            actor: currentUser,
             timestamp: now,
             details: cs ? 'Objednavka vytvorena rucne' : 'Order created manually',
           },
@@ -206,7 +209,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
         action: `ORDER_CREATED: ${orderNumber}`,
         category: 'order',
         details: `${customer.name} (${customer.email}), ${models.length} model(s), ${totals.total} Kc`,
-        user: 'admin',
+        user: currentUser,
       });
 
       setSuccess({ id: orderId, orderNumber });
@@ -301,6 +304,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder={cs ? 'Jan Novak' : 'John Doe'}
+                    maxLength={200}
                   />
                 </div>
                 <div className="qof-field">
@@ -311,6 +315,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     placeholder="jan@firma.cz"
+                    maxLength={254}
                   />
                 </div>
                 <div className="qof-field qof-field--narrow">
@@ -321,6 +326,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="+420 ..."
+                    maxLength={30}
                   />
                 </div>
               </div>
@@ -455,6 +461,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder={cs ? 'Poznamky k objednavce...' : 'Order notes...'}
+                    maxLength={2000}
                   />
                 </div>
               </div>

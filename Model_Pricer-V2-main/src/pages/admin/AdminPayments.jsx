@@ -12,12 +12,12 @@ import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getPaymentConfig, savePaymentConfig } from '../../utils/adminPaymentStorage';
+import { debug } from '../../lib/debug';
 
 const DUE_DAYS_OPTIONS = [7, 14, 21, 30];
 
 export default function AdminPayments() {
-  const { language } = useLanguage();
-  const cs = language === 'cs';
+  const { t } = useLanguage();
 
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
@@ -34,9 +34,9 @@ export default function AdminPayments() {
       setSavedSnapshot(JSON.stringify(cfg));
       setLoading(false);
     } catch (e) {
-      console.error('[AdminPayments] Failed to init', e);
+      debug('[AdminPayments] Failed to init', e);
       setLoading(false);
-      setBanner({ type: 'error', text: cs ? 'Nepodarilo se nacist konfiguraci.' : 'Failed to load config.' });
+      setBanner({ type: 'error', text: t('admin.payments.failedLoad') });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -47,15 +47,13 @@ export default function AdminPayments() {
   }, [config, savedSnapshot]);
 
   const ui = useMemo(() => ({
-    title: cs ? 'Platebni metody' : 'Payment Methods',
-    subtitle: cs
-      ? 'Nastaveni platby na ucet a kartou pro vase zakazniky.'
-      : 'Configure bank transfer and card payment options for your customers.',
-    save: cs ? 'Ulozit' : 'Save',
-    saving: cs ? 'Ukladam...' : 'Saving...',
-    saved: cs ? 'Ulozeno' : 'Saved',
-    unsaved: cs ? 'Neulozene zmeny' : 'Unsaved changes',
-  }), [cs]);
+    title: t('admin.payments.title'),
+    subtitle: t('admin.payments.subtitle'),
+    save: t('admin.payments.save'),
+    saving: t('admin.payments.saving'),
+    saved: t('admin.payments.saved'),
+    unsaved: t('admin.payments.unsaved'),
+  }), [t]);
 
   const updateBankTransfer = (patch) => {
     setConfig((prev) => ({
@@ -90,21 +88,20 @@ export default function AdminPayments() {
       setSavedSnapshot(JSON.stringify(saved));
       setSaving(false);
       setBanner({ type: 'success', text: ui.saved });
+      setTimeout(() => setBanner(null), 3000);
     } catch (e) {
-      console.error('[AdminPayments] Save failed', e);
+      debug('[AdminPayments] Save failed', e);
       setSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
+      setBanner({ type: 'error', text: t('admin.payments.saveFailed') });
     }
   };
 
   const handleReset = async () => {
     const ok = await confirm({
-      title: cs ? 'Zahodit zmeny' : 'Discard Changes',
-      message: cs
-        ? 'Opravdu chcete zahodit vsechny neulozene zmeny a nacist posledni ulozenou konfiguraci?'
-        : 'Are you sure you want to discard all unsaved changes and reload the last saved configuration?',
-      confirmLabel: cs ? 'Zahodit' : 'Discard',
-      cancelLabel: cs ? 'Zrusit' : 'Cancel',
+      title: t('admin.payments.discardTitle'),
+      message: t('admin.payments.discardMsg'),
+      confirmLabel: t('admin.payments.discardConfirm'),
+      cancelLabel: t('admin.payments.discardCancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -112,9 +109,10 @@ export default function AdminPayments() {
       const cfg = getPaymentConfig();
       setConfig(cfg);
       setSavedSnapshot(JSON.stringify(cfg));
-      setBanner({ type: 'success', text: cs ? 'Obnoveno.' : 'Reset done.' });
+      setBanner({ type: 'success', text: t('admin.payments.resetDone') });
+      setTimeout(() => setBanner(null), 3000);
     } catch (e) {
-      setBanner({ type: 'error', text: cs ? 'Reset selhal.' : 'Reset failed.' });
+      setBanner({ type: 'error', text: t('admin.payments.resetFailed') });
     }
   };
 
@@ -125,7 +123,7 @@ export default function AdminPayments() {
           <div className="card-body" style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="Loader2" size={18} />
-              <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
+              <span>{t('admin.payments.loading')}</span>
             </div>
           </div>
         </div>
@@ -139,7 +137,7 @@ export default function AdminPayments() {
 
   const vsPreview = vs.mode === 'auto'
     ? `${vs.prefix || ''}${vs.next_value || 70001}`
-    : (cs ? '(cislo objednavky)' : '(order number)');
+    : t('admin.payments.vsOrderPreview');
 
   return (
     <div className="admin-page">
@@ -155,7 +153,7 @@ export default function AdminPayments() {
           </div>
           <button className="btn-secondary" onClick={handleReset} disabled={!dirty}>
             <Icon name="RotateCcw" size={18} />
-            {cs ? 'Reset' : 'Reset'}
+            {t('admin.payments.reset')}
           </button>
           <button className="btn-primary" onClick={handleSave} disabled={!dirty || saving}>
             <Icon name="Save" size={18} />
@@ -177,31 +175,29 @@ export default function AdminPayments() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Icon name="Building2" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
             <div>
-              <h2>{cs ? 'Platba na ucet' : 'Bank Transfer'}</h2>
+              <h2>{t('admin.payments.bankTransferTitle')}</h2>
               <p className="card-description">
-                {cs
-                  ? 'Nastaveni bankovniho prevodu pro zakazniky.'
-                  : 'Bank transfer settings for customers.'}
+                {t('admin.payments.bankTransferDesc')}
               </p>
             </div>
           </div>
           <ForgeCheckbox
             checked={bt.enabled}
             onChange={(e) => updateBankTransfer({ enabled: e.target.checked })}
-            label={<span style={{ fontWeight: 600, fontSize: 13 }}>{bt.enabled ? (cs ? 'Zapnuto' : 'Enabled') : (cs ? 'Vypnuto' : 'Disabled')}</span>}
+            label={<span style={{ fontWeight: 600, fontSize: 13 }}>{bt.enabled ? t('admin.payments.enabled') : t('admin.payments.disabled')}</span>}
           />
         </div>
         <div className="card-body">
           {!bt.enabled ? (
             <div className="info-box">
               <Icon name="Info" size={16} />
-              <span>{cs ? 'Zapnete pro povoleni platby bankovnim prevodem.' : 'Enable to allow bank transfer payments.'}</span>
+              <span>{t('admin.payments.bankDisabledHint')}</span>
             </div>
           ) : (
             <>
               <div className="grid2">
                 <div className="field">
-                  <label>{cs ? 'Cislo uctu' : 'Account Number'}</label>
+                  <label>{t('admin.payments.accountNumber')}</label>
                   <input
                     className="input"
                     value={bt.account_number || ''}
@@ -230,37 +226,37 @@ export default function AdminPayments() {
                   />
                 </div>
                 <div className="field">
-                  <label>{cs ? 'Nazev banky' : 'Bank Name'}</label>
+                  <label>{t('admin.payments.bankName')}</label>
                   <input
                     className="input"
                     value={bt.bank_name || ''}
                     onChange={(e) => updateBankTransfer({ bank_name: e.target.value })}
-                    placeholder={cs ? 'Ceska sporitelna' : 'Bank name'}
+                    placeholder={t('admin.payments.bankName')}
                   />
                 </div>
               </div>
               <div className="grid2" style={{ marginTop: 12 }}>
                 <div className="field">
-                  <label>{cs ? 'Splatnost (dny)' : 'Due Days'}</label>
+                  <label>{t('admin.payments.dueDays')}</label>
                   <select
                     className="input"
                     value={bt.due_days || 14}
                     onChange={(e) => updateBankTransfer({ due_days: Number(e.target.value) })}
                   >
                     {DUE_DAYS_OPTIONS.map((d) => (
-                      <option key={d} value={d}>{d} {cs ? 'dni' : 'days'}</option>
+                      <option key={d} value={d}>{d} {t('admin.payments.dueDaysSuffix')}</option>
                     ))}
                   </select>
                 </div>
               </div>
               <div className="field" style={{ marginTop: 12 }}>
-                <label>{cs ? 'Pokyny k platbe' : 'Payment Instructions'}</label>
+                <label>{t('admin.payments.paymentInstructions')}</label>
                 <textarea
                   className="input textarea"
                   rows={3}
                   value={bt.payment_instructions || ''}
                   onChange={(e) => updateBankTransfer({ payment_instructions: e.target.value })}
-                  placeholder={cs ? 'Vlastni text zobrazeny zakaznikovi...' : 'Custom text shown to customer...'}
+                  placeholder={t('admin.payments.paymentInstructionsPlaceholder')}
                 />
               </div>
 
@@ -269,7 +265,7 @@ export default function AdminPayments() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <Icon name="Hash" size={16} style={{ color: 'var(--forge-accent-primary)' }} />
                   <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}>
-                    {cs ? 'Variabilni symbol' : 'Variable Symbol'}
+                    {t('admin.payments.variableSymbol')}
                   </h3>
                 </div>
 
@@ -282,7 +278,7 @@ export default function AdminPayments() {
                       checked={vs.mode === 'auto'}
                       onChange={() => updateVariableSymbol({ mode: 'auto' })}
                     />
-                    <span>{cs ? 'Auto-increment' : 'Auto-increment'}</span>
+                    <span>{t('admin.payments.vsAutoMode')}</span>
                   </label>
                   <label className="radio-label">
                     <input
@@ -292,14 +288,14 @@ export default function AdminPayments() {
                       checked={vs.mode === 'order_number'}
                       onChange={() => updateVariableSymbol({ mode: 'order_number' })}
                     />
-                    <span>{cs ? 'Pouzit cislo objednavky' : 'Use order number'}</span>
+                    <span>{t('admin.payments.vsOrderMode')}</span>
                   </label>
                 </div>
 
                 {vs.mode === 'auto' && (
                   <div className="grid2" style={{ marginTop: 12 }}>
                     <div className="field">
-                      <label>{cs ? 'Dalsi hodnota' : 'Next Value'}</label>
+                      <label>{t('admin.payments.vsNextValue')}</label>
                       <input
                         className="input"
                         type="number"
@@ -309,12 +305,12 @@ export default function AdminPayments() {
                       />
                     </div>
                     <div className="field">
-                      <label>{cs ? 'Prefix' : 'Prefix'}</label>
+                      <label>{t('admin.payments.vsPrefix')}</label>
                       <input
                         className="input"
                         value={vs.prefix || ''}
                         onChange={(e) => updateVariableSymbol({ prefix: e.target.value })}
-                        placeholder={cs ? 'Napr. 20' : 'e.g. 20'}
+                        placeholder={t('admin.payments.vsPrefixPlaceholder')}
                       />
                     </div>
                   </div>
@@ -323,7 +319,7 @@ export default function AdminPayments() {
                 <div className="vs-preview">
                   <Icon name="Info" size={14} />
                   <span>
-                    {cs ? 'Dalsi VS: ' : 'Next VS: '}
+                    {t('admin.payments.vsNextLabel')}
                     <strong>{vsPreview}</strong>
                   </span>
                 </div>
@@ -339,41 +335,37 @@ export default function AdminPayments() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Icon name="CreditCard" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
             <div>
-              <h2>{cs ? 'Platba kartou' : 'Card Payment'}</h2>
+              <h2>{t('admin.payments.cardPaymentTitle')}</h2>
               <p className="card-description">
-                {cs
-                  ? 'Online platba kartou pres Stripe.'
-                  : 'Online card payment via Stripe.'}
+                {t('admin.payments.cardPaymentDesc')}
               </p>
             </div>
           </div>
           <ForgeCheckbox
             checked={cp.enabled}
             onChange={(e) => updateCardPayment({ enabled: e.target.checked })}
-            label={<span style={{ fontWeight: 600, fontSize: 13 }}>{cp.enabled ? (cs ? 'Zapnuto' : 'Enabled') : (cs ? 'Vypnuto' : 'Disabled')}</span>}
+            label={<span style={{ fontWeight: 600, fontSize: 13 }}>{cp.enabled ? t('admin.payments.enabled') : t('admin.payments.disabled')}</span>}
           />
         </div>
         <div className="card-body">
           {!cp.enabled ? (
             <div className="info-box">
               <Icon name="Info" size={16} />
-              <span>{cs ? 'Zapnete pro povoleni platby kartou.' : 'Enable to allow customers to pay by card.'}</span>
+              <span>{t('admin.payments.cardDisabledHint')}</span>
             </div>
           ) : (
             <>
               <div className="info-box info-box-accent">
                 <Icon name="Info" size={16} />
                 <span>
-                  {cs
-                    ? 'Platba kartou vyzaduje Stripe integraci. Nastavte v '
-                    : 'Card payment requires Stripe integration. Configure in '}
+                  {t('admin.payments.cardStripeInfo')}
                   <a href="/admin/integrations" style={{ color: 'var(--forge-accent-primary)', fontWeight: 600 }}>
-                    {cs ? 'Nastaveni \u2192 Integrace' : 'Settings \u2192 Integrations'}
+                    {t('admin.payments.settingsIntegrations')}
                   </a>.
                 </span>
               </div>
               <div className="field" style={{ marginTop: 12 }}>
-                <label>{cs ? 'Provider' : 'Provider'}</label>
+                <label>{t('admin.payments.provider')}</label>
                 <div className="provider-badge">
                   <Icon name="CreditCard" size={14} />
                   <span>Stripe</span>

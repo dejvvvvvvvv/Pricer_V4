@@ -17,12 +17,14 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import Icon from '../../components/AppIcon';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useLanguage } from '../../contexts/LanguageContext';
 import {
   getActivities,
   clearOldActivities,
   VALID_CATEGORIES,
 } from '../../utils/adminActivityLog';
 import { exportCSV, exportJSON } from '../../utils/exportData';
+import { formatRelativeTime } from '../../utils/formatters';
 
 const PAGE_SIZE = 25;
 const AUTO_REFRESH_INTERVAL = 30000;
@@ -80,23 +82,6 @@ function formatFullTimestamp(ts) {
   }
 }
 
-function formatRelativeTime(ts) {
-  const now = Date.now();
-  const diff = now - ts;
-  if (diff < 0) return 'prave ted';
-
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'prave ted';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `pred ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `pred ${hours} hod`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return 'vcera';
-  if (days < 7) return `pred ${days} dny`;
-  if (days < 30) return `pred ${Math.floor(days / 7)} tydny`;
-  return `pred ${Math.floor(days / 30)} mesici`;
-}
 
 function parseDateInput(val, endOfDay = false) {
   if (!val) return null;
@@ -214,6 +199,7 @@ function getPageNumbers(current, total) {
 
 export default function AdminActivityLog() {
   useDocumentTitle('Admin - Activity Log');
+  const { t } = useLanguage();
 
   // Filters
   const [activeActionTypes, setActiveActionTypes] = useState(
@@ -276,6 +262,11 @@ export default function AdminActivityLog() {
   }, [allActivities, activeActionTypes, actorFilter]);
 
   // Track new entries for highlight animation
+  const newIdsTimerRef = useRef(null);
+  useEffect(() => {
+    return () => clearTimeout(newIdsTimerRef.current);
+  }, []);
+
   useEffect(() => {
     const currentIds = new Set(activities.map((a) => a.id));
     if (prevIdsRef.current.size > 0) {
@@ -287,10 +278,17 @@ export default function AdminActivityLog() {
       }
       if (fresh.size > 0) {
         setNewIds(fresh);
-        setTimeout(() => setNewIds(new Set()), 3000);
+        clearTimeout(newIdsTimerRef.current);
+        newIdsTimerRef.current = setTimeout(() => setNewIds(new Set()), 3000);
       }
     }
-    prevIdsRef.current = currentIds;
+    // Limit prevIdsRef size to prevent unbounded growth
+    if (currentIds.size > 1000) {
+      const ids = [...currentIds];
+      prevIdsRef.current = new Set(ids.slice(ids.length - 1000));
+    } else {
+      prevIdsRef.current = currentIds;
+    }
   }, [activities]);
 
   // Statistics
@@ -326,13 +324,19 @@ export default function AdminActivityLog() {
   }, [pageActivities]);
 
   // Handlers
+  const clearResultTimerRef = useRef(null);
+  useEffect(() => {
+    return () => clearTimeout(clearResultTimerRef.current);
+  }, []);
+
   const handleClearOld = useCallback(() => {
     const removed = clearOldActivities(30);
     setClearResult(removed);
     setShowClearConfirm(false);
     setRefreshKey((k) => k + 1);
     setPage(0);
-    setTimeout(() => setClearResult(null), 4000);
+    clearTimeout(clearResultTimerRef.current);
+    clearResultTimerRef.current = setTimeout(() => setClearResult(null), 4000);
   }, []);
 
   const handleExportCSV = useCallback(() => {
@@ -430,7 +434,7 @@ export default function AdminActivityLog() {
           : 'transparent',
     color:
       variant === 'danger'
-        ? '#EF4444'
+        ? 'var(--forge-error)'
         : variant === 'primary'
           ? 'var(--forge-bg-void)'
           : 'var(--forge-text-secondary)',
@@ -474,14 +478,13 @@ export default function AdminActivityLog() {
               style={{
                 ...btnStyle('ghost'),
                 backgroundColor: autoRefresh ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
-                color: autoRefresh ? '#10B981' : 'var(--forge-text-secondary)',
+                color: autoRefresh ? 'var(--forge-success)' : 'var(--forge-text-secondary)',
                 borderColor: autoRefresh ? 'rgba(16, 185, 129, 0.3)' : 'var(--forge-border-default)',
               }}
               onClick={() => setAutoRefresh((v) => !v)}
-              title={autoRefresh ? 'Automaticke obnoveni zapnuto (30s)' : 'Zapnout automaticke obnoveni'}
             >
               <Icon name="RefreshCw" size={15} style={autoRefresh ? { animation: 'spin 2s linear infinite' } : undefined} />
-              {autoRefresh ? 'Auto ON' : 'Auto OFF'}
+              {autoRefresh ? t('admin.activity.autoOn') : t('admin.activity.autoOff')}
             </button>
 
             {/* Export dropdown */}
@@ -491,10 +494,9 @@ export default function AdminActivityLog() {
                 style={btnStyle('ghost')}
                 onClick={() => setShowExportMenu((v) => !v)}
                 disabled={activities.length === 0}
-                title="Export"
               >
                 <Icon name="Download" size={15} />
-                Export
+                {t('admin.activity.export')}
                 <Icon name="ChevronDown" size={12} />
               </button>
               {showExportMenu && (
@@ -534,7 +536,7 @@ export default function AdminActivityLog() {
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
                     <Icon name="FileText" size={14} />
-                    Export CSV
+                    {t('admin.activity.exportCsv')}
                   </button>
                   <button
                     type="button"
@@ -557,7 +559,7 @@ export default function AdminActivityLog() {
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
                     <Icon name="Braces" size={14} />
-                    Export JSON
+                    {t('admin.activity.exportJson')}
                   </button>
                 </div>
               )}
@@ -567,10 +569,9 @@ export default function AdminActivityLog() {
               type="button"
               style={btnStyle('danger')}
               onClick={() => setShowClearConfirm(true)}
-              title="Vymazat aktivity starsi nez 30 dni"
             >
               <Icon name="Trash2" size={15} />
-              Vymazat stare
+              {t('admin.activity.clearOld')}
             </button>
           </div>
         }
@@ -595,7 +596,7 @@ export default function AdminActivityLog() {
           padding: '12px 16px',
           borderRadius: 'var(--forge-radius-sm)',
           backgroundColor: 'rgba(16, 185, 129, 0.12)',
-          color: '#10B981',
+          color: 'var(--forge-success)',
           fontSize: '13px',
           fontFamily: 'var(--forge-font-body)',
           display: 'flex',
@@ -604,7 +605,7 @@ export default function AdminActivityLog() {
         }}>
           <Icon name="CheckCircle2" size={16} />
           {clearResult === 0
-            ? 'Zadne stare zaznamy k vymazani.'
+            ? t('admin.activity.clearedNone')
             : `Vymazano ${clearResult} zaznamu.`}
         </div>
       )}
@@ -644,7 +645,7 @@ export default function AdminActivityLog() {
               color: 'var(--forge-text-primary)',
               margin: '0 0 12px',
             }}>
-              Potvrdit vymazani
+              {t('admin.activity.confirmTitle')}
             </h3>
             <p style={{
               fontFamily: 'var(--forge-font-body)',
@@ -653,7 +654,7 @@ export default function AdminActivityLog() {
               margin: '0 0 20px',
               lineHeight: 1.5,
             }}>
-              Opravdu chcete vymazat vsechny zaznamy starsi nez 30 dni? Tuto akci nelze vratit zpet.
+              {t('admin.activity.confirmDesc')}
             </p>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button
@@ -661,7 +662,7 @@ export default function AdminActivityLog() {
                 style={btnStyle('ghost')}
                 onClick={() => setShowClearConfirm(false)}
               >
-                Zrusit
+                {t('admin.activity.confirmCancel')}
               </button>
               <button
                 type="button"
@@ -669,7 +670,7 @@ export default function AdminActivityLog() {
                 onClick={handleClearOld}
               >
                 <Icon name="Trash2" size={14} />
-                Vymazat
+                {t('admin.activity.confirmDelete')}
               </button>
             </div>
           </div>
@@ -700,7 +701,7 @@ export default function AdminActivityLog() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#3B82F6',
+              color: 'var(--forge-info)',
             }}>
               <Icon name="Activity" size={14} />
             </div>
@@ -711,7 +712,7 @@ export default function AdminActivityLog() {
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
             }}>
-              Dnesni aktivita
+              {t('admin.activity.todayActivity')}
             </span>
           </div>
           <div style={{
@@ -740,7 +741,7 @@ export default function AdminActivityLog() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#8B5CF6',
+              color: 'var(--forge-text-secondary)',
             }}>
               <Icon name="User" size={14} />
             </div>
@@ -751,7 +752,7 @@ export default function AdminActivityLog() {
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
             }}>
-              Nejaktivnejsi uzivatel
+              {t('admin.activity.mostActiveUser')}
             </span>
           </div>
           <div style={{
@@ -793,7 +794,7 @@ export default function AdminActivityLog() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#F59E0B',
+              color: 'var(--forge-warning)',
             }}>
               <Icon name="BarChart3" size={14} />
             </div>
@@ -804,7 +805,7 @@ export default function AdminActivityLog() {
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
             }}>
-              Nejcastejsi typ
+              {t('admin.activity.mostCommonType')}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -857,10 +858,10 @@ export default function AdminActivityLog() {
               alignItems: 'center',
               justifyContent: 'center',
               color: stats.trendDirection === 'up'
-                ? '#10B981'
+                ? 'var(--forge-success)'
                 : stats.trendDirection === 'down'
-                  ? '#EF4444'
-                  : '#7A8291',
+                  ? 'var(--forge-error)'
+                  : 'var(--forge-text-muted)',
             }}>
               <Icon
                 name={stats.trendDirection === 'up' ? 'TrendingUp' : stats.trendDirection === 'down' ? 'TrendingDown' : 'Minus'}
@@ -874,7 +875,7 @@ export default function AdminActivityLog() {
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
             }}>
-              Trend oproti vcerejsku
+              {t('admin.activity.trendVsYesterday')}
             </span>
           </div>
           <div style={{
@@ -882,14 +883,14 @@ export default function AdminActivityLog() {
             fontSize: '16px',
             fontWeight: 600,
             color: stats.trendDirection === 'up'
-              ? '#10B981'
+              ? 'var(--forge-success)'
               : stats.trendDirection === 'down'
-                ? '#EF4444'
+                ? 'var(--forge-error)'
                 : 'var(--forge-text-primary)',
           }}>
             {stats.trendDirection === 'up' && `+${stats.trendPercent}%`}
             {stats.trendDirection === 'down' && `-${stats.trendPercent}%`}
-            {stats.trendDirection === 'same' && 'Beze zmeny'}
+            {stats.trendDirection === 'same' && t('admin.activity.trendSame')}
           </div>
         </div>
       </div>
@@ -919,7 +920,7 @@ export default function AdminActivityLog() {
             onClick={() => setShowActionTypeFilter((v) => !v)}
           >
             <Icon name="Filter" size={14} />
-            Typ akce
+            {t('admin.activity.actionTypeFilter')}
             {activeActionTypes.size < Object.keys(ACTION_TYPE_META).length && (
               <span style={{
                 display: 'inline-flex',
@@ -1005,7 +1006,7 @@ export default function AdminActivityLog() {
           />
           <input
             type="text"
-            placeholder="Hledat v popisu..."
+            placeholder={t('admin.activity.searchPlaceholder')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             style={{ ...inputStyle, width: '100%', paddingLeft: '32px' }}
@@ -1028,7 +1029,7 @@ export default function AdminActivityLog() {
           />
           <input
             type="text"
-            placeholder="Uzivatel..."
+            placeholder={t('admin.activity.userPlaceholder')}
             value={actorFilter}
             onChange={(e) => { setActorFilter(e.target.value); setPage(0); }}
             style={{ ...inputStyle, width: '100%', paddingLeft: '32px' }}
@@ -1068,10 +1069,9 @@ export default function AdminActivityLog() {
             type="button"
             style={{ ...btnStyle('ghost'), padding: '8px 12px' }}
             onClick={handleResetFilters}
-            title="Resetovat filtry"
           >
             <Icon name="X" size={14} />
-            Reset
+            {t('admin.activity.resetFilters')}
           </button>
         )}
       </div>
@@ -1102,13 +1102,13 @@ export default function AdminActivityLog() {
             gap: '6px',
             fontSize: '11px',
             fontFamily: 'var(--forge-font-tech)',
-            color: '#10B981',
+            color: 'var(--forge-success)',
           }}>
             <div style={{
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: '#10B981',
+              backgroundColor: 'var(--forge-success)',
               animation: 'pulse 2s infinite',
             }} />
             Auto-refresh aktivni

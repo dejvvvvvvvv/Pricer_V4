@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson, getTenantId } from '../../../utils/adminTenantStorage';
@@ -244,13 +244,27 @@ export default function OnboardingWizard({ open, onClose }) {
   // Widget
   const [copied, setCopied] = useState(false);
 
+  // Timer refs for cleanup
+  const feedbackTimerRef = useRef(null);
+  const finishTimerRef = useRef(null);
+  const copiedTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(feedbackTimerRef.current);
+      clearTimeout(finishTimerRef.current);
+      clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
+
   const refreshCompletion = useCallback(() => {
     setCompletion(detectStepCompletion());
   }, []);
 
   const showFeedback = useCallback((msg) => {
     setFeedback(msg);
-    setTimeout(() => setFeedback(null), 2000);
+    clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 2000);
   }, []);
 
   /* ── Save handlers ──────────────────────────────────────────────────── */
@@ -338,7 +352,8 @@ export default function OnboardingWizard({ open, onClose }) {
     markOnboardingCompleted();
     triggerConfetti({ particleCount: 200 });
     playSuccessSound();
-    setTimeout(() => {
+    clearTimeout(finishTimerRef.current);
+    finishTimerRef.current = setTimeout(() => {
       onClose?.();
     }, 2500);
   }, [onClose]);
@@ -357,7 +372,8 @@ export default function OnboardingWizard({ open, onClose }) {
     navigator.clipboard.writeText(embedCode).then(() => {
       setCopied(true);
       handleMarkWidgetDone();
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
     }).catch(() => {});
   }, [embedCode, handleMarkWidgetDone]);
 

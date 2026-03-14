@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../../../components/AppIcon';
+import { useAuth } from '../../../context/AuthContext';
 import { exportCSV, exportJSON, downloadFile } from '../../../utils/exportData';
 import {
   ORDER_STATUSES,
@@ -13,6 +14,7 @@ import {
 } from '../../../utils/adminOrdersStorage';
 import { generateOrderSummaryHTML, generatePackingSlipHTML } from '../../../utils/orderExportGenerator';
 import { readCompanyData } from '../../../utils/adminCompanyStorage';
+import { sanitizeHtmlAllowBasic } from '@/utils/sanitizeHtml';
 import {
   EMAIL_TEMPLATE_TYPES,
   loadEmailTemplates,
@@ -411,6 +413,8 @@ export function BulkActionsBar({
   onBulkDelete,
   onOrdersUpdate,
 }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const [statusModal, setStatusModal] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
   const [statusNote, setStatusNote] = useState('');
@@ -437,6 +441,7 @@ export function BulkActionsBar({
   const selectedOrders = orders.filter((o) => selectedIds.has(o.id));
 
   // --- Batch status change with progress ---
+  // TODO: Replace simulation (setTimeout) with real API call when backend is available
   const handleBatchStatusChange = () => {
     if (!statusDraft) return;
     setStatusModal(false);
@@ -453,7 +458,7 @@ export function BulkActionsBar({
           if (!selectedIds.has(o.id) || o.status === statusDraft) return o;
           const activity = [
             {
-              timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE',
+              timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE',
               payload: { from: o.status, to: statusDraft, bulk: true, note: statusNote || undefined },
             },
             ...(o.activity || []),
@@ -471,7 +476,7 @@ export function BulkActionsBar({
 
         for (const o of toChange) {
           appendOrderActivity(o.id, {
-            timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE',
+            timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE',
             payload: { from: o.status, to: statusDraft, bulk: true },
           });
         }
@@ -494,7 +499,7 @@ export function BulkActionsBar({
       if (!selectedIds.has(o.id)) return o;
       const activity = [
         {
-          timestamp: nowIso(), user_id: 'admin', type: 'ASSIGNED',
+          timestamp: nowIso(), user_id: currentUser, type: 'ASSIGNED',
           payload: { assigned_to: assignTo, assigned_name: member?.name || assignTo, bulk: true },
         },
         ...(o.activity || []),
@@ -528,7 +533,7 @@ export function BulkActionsBar({
       if (existingTags.includes(selectedTag)) return o;
       const activity = [
         {
-          timestamp: nowIso(), user_id: 'admin', type: 'TAG_ADDED',
+          timestamp: nowIso(), user_id: currentUser, type: 'TAG_ADDED',
           payload: { tag: selectedTag, label: tag?.label || selectedTag, bulk: true },
         },
         ...(o.activity || []),
@@ -566,14 +571,14 @@ export function BulkActionsBar({
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1f2937; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.5; }
     @media print { body { padding: 20px; } .no-print { display: none !important; } }
     table { width: 100%; border-collapse: collapse; }
-    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; margin-bottom: 6px; }
+    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--forge-text-secondary, #9BA3B0); margin-bottom: 6px; }
     .th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; border-bottom: 2px solid #e5e7eb; background: #f9fafb; }
     .th-center { text-align: center; }
     .td { padding: 10px 12px; font-size: 13px; color: #1f2937; border-bottom: 1px solid #e5e7eb; }
     .td-muted { color: #4b5563; }
     .td-center { text-align: center; }
     .td-bold { font-weight: 600; }
-    .checkbox { display: inline-block; width: 16px; height: 16px; border: 2px solid #9ca3af; border-radius: 3px; vertical-align: middle; margin-right: 8px; }
+    .checkbox { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--forge-text-secondary, #9BA3B0); border-radius: 3px; vertical-align: middle; margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -586,6 +591,7 @@ export function BulkActionsBar({
 
   // --- Batch invoices ---
   const handleBatchInvoices = () => {
+    if (selectedOrders.length === 0) return;
     const company = readCompanyData();
     setInvoiceProgress({ open: true, current: 0, total: selectedOrders.length });
     let idx = 0;
@@ -605,7 +611,7 @@ export function BulkActionsBar({
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1f2937; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.5; }
     @media print { body { padding: 20px; } }
     table { width: 100%; border-collapse: collapse; }
-    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; margin-bottom: 6px; }
+    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--forge-text-secondary, #9BA3B0); margin-bottom: 6px; }
     .th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; border-bottom: 2px solid #e5e7eb; background: #f9fafb; }
     .th-right { text-align: right; }
     .th-center { text-align: center; }
@@ -675,6 +681,7 @@ export function BulkActionsBar({
     setEmailPreview(rendered);
   };
 
+  // TODO: Replace simulation (setTimeout + addEmailLogEntry with status:'sent') with real API call when backend is available
   const handleBatchEmail = () => {
     if (!emailTemplate) return;
     setEmailModal(false);
@@ -683,6 +690,7 @@ export function BulkActionsBar({
     if (!tpl) return;
 
     const recipients = selectedOrders.filter((o) => o.customer_snapshot?.email);
+    if (recipients.length === 0) return;
     setEmailProgress({ open: true, current: 0, total: recipients.length });
     let idx = 0;
 
@@ -1006,7 +1014,7 @@ export function BulkActionsBar({
                 Predmet: {emailPreview.subject}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-body)' }}
-                dangerouslySetInnerHTML={{ __html: emailPreview.body }} />
+                dangerouslySetInnerHTML={{ __html: sanitizeHtmlAllowBasic(emailPreview.body) }} />
             </div>
           )}
 

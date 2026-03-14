@@ -114,6 +114,13 @@ const NotFound = () => {
       <div style={{ textAlign: 'center' }}>
         <div style={codeStyle} aria-hidden="true">404</div>
         <h1 id="not-found-title" style={titleStyle}>{t('notFound.title')}</h1>
+        <p style={{
+          ...descStyle,
+          fontSize: 'var(--forge-text-sm)',
+          marginBottom: '4px',
+        }}>
+          {t('notFound.subtitle')}
+        </p>
         <p style={descStyle}>
           {t('notFound.description')}
         </p>
@@ -129,7 +136,7 @@ const NotFound = () => {
           </ForgeButton>
         </div>
         <div style={helpSectionStyle}>
-          <div style={helpTitleStyle}>{t('notFound.helpfulLinks')}</div>
+          <div style={helpTitleStyle}>{t('notFound.searchHint')}</div>
           <nav style={helpLinksStyle} aria-label={t('notFound.helpfulLinks')}>
             <a
               href="/test-kalkulacka"
@@ -157,6 +164,15 @@ const NotFound = () => {
               onMouseLeave={(e) => e.target.style.color = 'var(--forge-text-muted)'}
             >
               {t('notFound.link.support')}
+            </a>
+            <a
+              href="/admin"
+              onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
+              style={helpLinkStyle}
+              onMouseEnter={(e) => e.target.style.color = 'var(--forge-accent-primary)'}
+              onMouseLeave={(e) => e.target.style.color = 'var(--forge-text-muted)'}
+            >
+              {t('notFound.link.admin')}
             </a>
           </nav>
         </div>

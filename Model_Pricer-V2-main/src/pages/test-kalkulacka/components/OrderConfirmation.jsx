@@ -1,9 +1,28 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import { CopyButton } from '../../../components/ui/forge/CopyButton';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { triggerConfetti, playSuccessSound } from '@/lib/confetti';
+
+/* ── Print Styles for OrderConfirmation ────────────────────── */
+let confirmPrintStylesInjected = false;
+function injectConfirmPrintStyles() {
+  if (confirmPrintStylesInjected || typeof document === 'undefined') return;
+  confirmPrintStylesInjected = true;
+  const style = document.createElement('style');
+  style.setAttribute('data-order-confirm-print', 'true');
+  style.textContent = `
+    @media print {
+      body > *:not(#root) { display: none !important; }
+      header, footer, nav, .site-header, .site-footer,
+      .order-confirm__no-print { display: none !important; }
+      body { background: #fff !important; }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 function formatCzk(amount) {
   const n = Number.isFinite(amount) ? amount : 0;
@@ -510,11 +529,13 @@ export default function OrderConfirmation({ order, onStartNew }) {
   const { language } = useLanguage();
   const t = (cs, en) => (language === 'en' ? en : cs);
   const confettiFiredRef = useRef(false);
+  const navigate = useNavigate();
 
   // Fire confetti celebration once when order confirmation mounts
   useEffect(() => {
     if (!order || confettiFiredRef.current) return;
     confettiFiredRef.current = true;
+    injectConfirmPrintStyles();
 
     // Brief delay so the page transition completes first
     const timer = setTimeout(() => {
@@ -524,6 +545,16 @@ export default function OrderConfirmation({ order, onStartNew }) {
 
     return () => clearTimeout(timer);
   }, [order]);
+
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  const handleTrackOrder = useCallback(() => {
+    if (!order?.id) return;
+    const params = new URLSearchParams({ id: order.id });
+    navigate(`/track?${params.toString()}`);
+  }, [order, navigate]);
 
   if (!order) return null;
 
@@ -718,11 +749,77 @@ export default function OrderConfirmation({ order, onStartNew }) {
         </div>
       )}
 
-      {/* Action */}
-      <div style={forgeStyles.actionCenter}>
-        <Button variant="default" onClick={onStartNew} iconName="Plus" iconPosition="left">
-          {t('Nova objednavka', 'New Order')}
-        </Button>
+      {/* Action buttons */}
+      <div className="order-confirm__no-print" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+        alignItems: 'stretch',
+      }}>
+        {/* Track order — primary CTA */}
+        <button
+          onClick={handleTrackOrder}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            padding: '12px 24px',
+            fontSize: 'var(--forge-text-base)',
+            fontFamily: 'var(--forge-font-heading)',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--forge-bg-primary)',
+            background: 'var(--forge-accent-primary)',
+            border: 'none',
+            borderRadius: 'var(--forge-radius-md)',
+            cursor: 'pointer',
+            transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          aria-label={t('Sledovat objednavku', 'Track your order')}
+        >
+          <Icon name="PackageSearch" size={18} />
+          {t('Sledovat objednavku', 'Track Your Order')}
+        </button>
+
+        {/* Secondary row: print + new order */}
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            onClick={handlePrint}
+            style={{
+              flex: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '10px 16px',
+              fontSize: 'var(--forge-text-sm)',
+              fontFamily: 'var(--forge-font-heading)',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              color: 'var(--forge-text-primary)',
+              background: 'var(--forge-bg-surface)',
+              border: '1px solid var(--forge-border-default)',
+              borderRadius: 'var(--forge-radius-md)',
+              cursor: 'pointer',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-default)'; }}
+            aria-label={t('Vytisknout potvrzeni', 'Print confirmation')}
+          >
+            <Icon name="Printer" size={16} />
+            {t('Vytisknout', 'Print')}
+          </button>
+
+          <Button variant="ghost" onClick={onStartNew} iconName="Plus" iconPosition="left" style={{ flex: 1 }}>
+            {t('Nova objednavka', 'New Order')}
+          </Button>
+        </div>
       </div>
     </div>
   );

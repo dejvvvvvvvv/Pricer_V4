@@ -11,6 +11,7 @@
 // - Settings: stacking rules, max discount cap
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { debug } from '@/lib/debug';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
@@ -35,7 +36,7 @@ function createId(prefix = 'cpn') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}_${crypto.randomUUID()}`;
   } catch { /* fallback */ }
-  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}_${crypto.randomUUID()}`;
 }
 
 function formatDate(isoStr) {
@@ -111,11 +112,11 @@ export default function AdminCoupons() {
       setSavedSnapshot(JSON.stringify(cfg));
       setLoading(false);
     } catch (e) {
-      console.error('[AdminCoupons] Failed to init', e);
+      debug('[AdminCoupons] Failed to init', e);
       setLoading(false);
       setBanner({
         type: 'error',
-        text: cs ? 'Nepodarilo se nacist konfiguraci.' : 'Failed to load config.',
+        text: t('admin.coupons.loadError', 'Failed to load config.'),
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,16 +131,14 @@ export default function AdminCoupons() {
   /* ---- UI labels ---- */
   const ui = useMemo(
     () => ({
-      title: cs ? 'Kupony a akce' : 'Coupons & Promotions',
-      subtitle: cs
-        ? 'Spravujte slevove kupony, automaticke akce a pravidla pro slevy.'
-        : 'Manage discount coupons, auto-apply promotions and discount rules.',
-      save: cs ? 'Ulozit' : 'Save',
-      saving: cs ? 'Ukladam...' : 'Saving...',
-      saved: cs ? 'Ulozeno' : 'Saved',
-      unsaved: cs ? 'Neulozene zmeny' : 'Unsaved changes',
+      title: t('admin.coupons.title', 'Coupons & Promotions'),
+      subtitle: t('admin.coupons.subtitle', 'Manage discount coupons, auto-apply promotions and discount rules.'),
+      save: t('admin.coupons.save', 'Save'),
+      saving: t('admin.coupons.saving', 'Saving...'),
+      saved: t('admin.coupons.saved', 'Saved'),
+      unsaved: t('admin.coupons.unsaved', 'Unsaved changes'),
     }),
-    [cs],
+    [t],
   );
 
   /* ---- Config updaters ---- */
@@ -195,9 +194,9 @@ export default function AdminCoupons() {
 
   const removeCoupon = useCallback(async (idx) => {
     const ok = await confirm({
-      title: cs ? 'Smazat kupon' : 'Delete coupon',
-      message: cs ? 'Opravdu smazat tento kupon?' : 'Really delete this coupon?',
-      confirmLabel: cs ? 'Smazat' : 'Delete',
+      title: t('admin.coupons.deleteTitle', 'Delete coupon'),
+      message: t('admin.coupons.deleteMessage', 'Really delete this coupon?'),
+      confirmLabel: t('admin.coupons.deleteConfirm', 'Delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -207,7 +206,7 @@ export default function AdminCoupons() {
       return { ...prev, coupons };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cs]);
+  }, [t]);
 
   const duplicateCoupon = useCallback((idx) => {
     setConfig((prev) => {
@@ -286,9 +285,9 @@ export default function AdminCoupons() {
 
   const removePromotion = useCallback(async (idx) => {
     const ok = await confirm({
-      title: cs ? 'Smazat akci' : 'Delete promotion',
-      message: cs ? 'Opravdu smazat tuto akci?' : 'Really delete this promotion?',
-      confirmLabel: cs ? 'Smazat' : 'Delete',
+      title: t('admin.coupons.deletePromoTitle', 'Delete promotion'),
+      message: t('admin.coupons.deletePromoMessage', 'Really delete this promotion?'),
+      confirmLabel: t('admin.coupons.deleteConfirm', 'Delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -298,30 +297,46 @@ export default function AdminCoupons() {
       return { ...prev, promotions };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cs]);
+  }, [t]);
 
   /* ---- Save / Reset ---- */
   const handleSave = useCallback(() => {
     setBanner(null);
     try {
       setSaving(true);
-      const saved = saveCouponsConfigV1(config);
+      // Clamp percent values to 0-100 before saving
+      const sanitized = {
+        ...config,
+        coupons: (config.coupons || []).map((c) => {
+          if (c.type === 'percent' || c.type === 'combined') {
+            const val = Math.max(0, Math.min(100, Number(c.value) || 0));
+            const cp = c.type === 'combined' ? Math.max(0, Math.min(100, Number(c.combined_percent) || 0)) : c.combined_percent;
+            return { ...c, value: val, combined_percent: cp };
+          }
+          return c;
+        }),
+        promotions: (config.promotions || []).map((p) => {
+          if (p.type === 'percent') return { ...p, value: Math.max(0, Math.min(100, Number(p.value) || 0)) };
+          return p;
+        }),
+      };
+      const saved = saveCouponsConfigV1(sanitized);
       setConfig(saved);
       setSavedSnapshot(JSON.stringify(saved));
       setSaving(false);
       setBanner({ type: 'success', text: ui.saved });
     } catch (e) {
-      console.error('[AdminCoupons] Save failed', e);
+      debug('[AdminCoupons] Save failed', e);
       setSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
+      setBanner({ type: 'error', text: t('admin.coupons.saveError', 'Save failed.') });
     }
-  }, [config, ui.saved, cs]);
+  }, [config, ui.saved, t]);
 
   const handleReset = useCallback(async () => {
     const ok = await confirm({
-      title: cs ? 'Zahodit zmeny' : 'Discard changes',
-      message: cs ? 'Zahodit zmeny?' : 'Discard changes?',
-      confirmLabel: cs ? 'Zahodit' : 'Discard',
+      title: t('admin.coupons.discardTitle', 'Discard changes'),
+      message: t('admin.coupons.discardMessage', 'Discard changes?'),
+      confirmLabel: t('admin.coupons.discardConfirm', 'Discard'),
       destructive: true,
     });
     if (!ok) return;
@@ -329,12 +344,12 @@ export default function AdminCoupons() {
       const cfg = loadCouponsConfigV1();
       setConfig(cfg);
       setSavedSnapshot(JSON.stringify(cfg));
-      setBanner({ type: 'success', text: cs ? 'Obnoveno.' : 'Reset done.' });
+      setBanner({ type: 'success', text: t('admin.coupons.resetDone', 'Reset done.') });
     } catch {
-      setBanner({ type: 'error', text: cs ? 'Reset selhal.' : 'Reset failed.' });
+      setBanner({ type: 'error', text: t('admin.coupons.resetError', 'Reset failed.') });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cs]);
+  }, [t]);
 
   /* ---- Coupon status helper ---- */
   const getCouponStatus = useCallback((coupon) => {
@@ -390,7 +405,7 @@ export default function AdminCoupons() {
           <div className="card-body" style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="Loader2" size={18} className="spin" />
-              <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
+              <span>{t('admin.coupons.loading', 'Loading...')}</span>
             </div>
           </div>
         </div>
@@ -420,7 +435,7 @@ export default function AdminCoupons() {
           </div>
           <button className="btn-secondary" onClick={handleReset} disabled={!dirty}>
             <Icon name="RotateCcw" size={18} />
-            {cs ? 'Reset' : 'Reset'}
+            {t('admin.coupons.reset', 'Reset')}
           </button>
           <button className="btn-primary" onClick={handleSave} disabled={!dirty || saving}>
             <Icon name="Save" size={18} />
@@ -442,22 +457,22 @@ export default function AdminCoupons() {
         <div className="cpn-stat">
           <Icon name="Ticket" size={16} />
           <span className="cpn-stat-value">{stats.totalCoupons}</span>
-          <span className="cpn-stat-label">{cs ? 'Celkem' : 'Total'}</span>
+          <span className="cpn-stat-label">{t('admin.coupons.statTotal', 'Total')}</span>
         </div>
         <div className="cpn-stat">
           <Icon name="CheckCircle2" size={16} style={{ color: 'var(--forge-success)' }} />
           <span className="cpn-stat-value">{stats.activeCoupons}</span>
-          <span className="cpn-stat-label">{cs ? 'Aktivnich' : 'Active'}</span>
+          <span className="cpn-stat-label">{t('admin.coupons.statActive', 'Active')}</span>
         </div>
         <div className="cpn-stat">
           <Icon name="BarChart3" size={16} />
           <span className="cpn-stat-value">{stats.totalUsed}</span>
-          <span className="cpn-stat-label">{cs ? 'Pouziti' : 'Uses'}</span>
+          <span className="cpn-stat-label">{t('admin.coupons.statUses', 'Uses')}</span>
         </div>
         <div className="cpn-stat">
           <Icon name="TrendingDown" size={16} style={{ color: 'var(--forge-warning, #f59e0b)' }} />
           <span className="cpn-stat-value">{formatCurrency(stats.totalRevImpact)}</span>
-          <span className="cpn-stat-label">{cs ? 'Celkova sleva' : 'Total discount'}</span>
+          <span className="cpn-stat-label">{t('admin.coupons.statDiscount', 'Total discount')}</span>
         </div>
       </div>
 
@@ -469,14 +484,14 @@ export default function AdminCoupons() {
             onChange={(e) => updateConfig({ enabled: e.target.checked })}
             label={
               <span style={{ fontWeight: 700, color: 'var(--forge-text-primary)' }}>
-                {cs ? 'Kupony a akce zapnuty' : 'Coupons & Promotions enabled'}
+                {t('admin.coupons.enabledLabel', 'Coupons & Promotions enabled')}
               </span>
             }
           />
           <span className="muted">
             {config?.enabled
-              ? (cs ? 'Zakaznici mohou pouzivat slevove kody.' : 'Customers can use discount codes.')
-              : (cs ? 'Slevovy system je vypnuty.' : 'Discount system is disabled.')}
+              ? t('admin.coupons.enabledDesc', 'Customers can use discount codes.')
+              : t('admin.coupons.disabledDesc', 'Discount system is disabled.')}
           </span>
         </div>
       </div>
@@ -509,21 +524,19 @@ export default function AdminCoupons() {
           <div className="admin-card">
             <div className="card-header">
               <div>
-                <h2>{cs ? 'Slevove kupony' : 'Discount coupons'}</h2>
+                <h2>{t('admin.coupons.sectionTitle', 'Discount coupons')}</h2>
                 <p className="card-description">
-                  {cs
-                    ? 'Vytvarejte a spravujte slevove kody ktere zakaznici zadavaji rucne.'
-                    : 'Create and manage discount codes that customers enter manually.'}
+                  {t('admin.coupons.sectionDesc', 'Create and manage discount codes that customers enter manually.')}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn-secondary" onClick={() => setBulkOpen(!bulkOpen)}>
                   <Icon name="Layers" size={18} />
-                  {cs ? 'Hromadne' : 'Bulk'}
+                  {t('admin.coupons.bulk', 'Bulk')}
                 </button>
                 <button className="btn-secondary" onClick={addCoupon}>
                   <Icon name="Plus" size={18} />
-                  {cs ? 'Pridat kupon' : 'Add coupon'}
+                  {t('admin.coupons.addCouponBtn', 'Add coupon')}
                 </button>
               </div>
             </div>
@@ -533,11 +546,11 @@ export default function AdminCoupons() {
               <div className="bulk-panel">
                 <h3 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)' }}>
                   <Icon name="Layers" size={16} style={{ verticalAlign: -3, marginRight: 6 }} />
-                  {cs ? 'Hromadne generovani kuponu' : 'Bulk generate coupons'}
+                  {t('admin.coupons.bulkTitle', 'Bulk generate coupons')}
                 </h3>
                 <div className="grid4">
                   <div className="field">
-                    <label>{cs ? 'Pocet' : 'Count'}</label>
+                    <label>{t('admin.coupons.bulkCount', 'Count')}</label>
                     <input
                       className="input"
                       type="number"
@@ -548,16 +561,16 @@ export default function AdminCoupons() {
                     />
                   </div>
                   <div className="field">
-                    <label>{cs ? 'Prefix kodu' : 'Code prefix'}</label>
+                    <label>{t('admin.coupons.bulkPrefix', 'Code prefix')}</label>
                     <input
                       className="input"
                       value={bulkPrefix}
                       onChange={(e) => setBulkPrefix(e.target.value.toUpperCase())}
-                      placeholder={cs ? 'Napr. SLEVA' : 'e.g. SAVE'}
+                      placeholder={t('admin.coupons.bulkPrefixPlaceholder', 'e.g. SAVE')}
                     />
                   </div>
                   <div className="field">
-                    <label>{cs ? 'Typ' : 'Type'}</label>
+                    <label>{t('admin.coupons.bulkType', 'Type')}</label>
                     <select className="input" value={bulkType} onChange={(e) => setBulkType(e.target.value)}>
                       {COUPON_TYPE_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>{cs ? o.label_cs : o.label_en}</option>
@@ -565,7 +578,7 @@ export default function AdminCoupons() {
                     </select>
                   </div>
                   <div className="field">
-                    <label>{cs ? 'Hodnota' : 'Value'}</label>
+                    <label>{t('admin.coupons.bulkValue', 'Value')}</label>
                     <input
                       className="input"
                       type="number"
@@ -581,7 +594,7 @@ export default function AdminCoupons() {
                     {cs ? `Vygenerovat ${bulkCount} kuponu` : `Generate ${bulkCount} coupons`}
                   </button>
                   <button className="btn-secondary" onClick={() => setBulkOpen(false)}>
-                    {cs ? 'Zrusit' : 'Cancel'}
+                    {t('admin.coupons.cancel', 'Cancel')}
                   </button>
                 </div>
               </div>
@@ -594,17 +607,17 @@ export default function AdminCoupons() {
                   <Icon name="Search" size={16} className="cpn-search-icon" />
                   <input
                     className="input cpn-search-input"
-                    placeholder={cs ? 'Hledat kod...' : 'Search code...'}
+                    placeholder={t('admin.coupons.searchPlaceholder', 'Search code...')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 <div className="cpn-filter-pills">
                   {[
-                    { value: 'all', label: cs ? 'Vse' : 'All' },
-                    { value: 'active', label: cs ? 'Aktivni' : 'Active' },
-                    { value: 'inactive', label: cs ? 'Neaktivni' : 'Inactive' },
-                    { value: 'expired', label: cs ? 'Expirovane' : 'Expired' },
+                    { value: 'all', label: t('admin.coupons.filterAll', 'All') },
+                    { value: 'active', label: t('admin.coupons.filterActive', 'Active') },
+                    { value: 'inactive', label: t('admin.coupons.filterInactive', 'Inactive') },
+                    { value: 'expired', label: t('admin.coupons.filterExpired', 'Expired') },
                   ].map((f) => (
                     <button
                       key={f.value}
@@ -622,14 +635,14 @@ export default function AdminCoupons() {
               {coupons.length === 0 ? (
                 <div className="empty-state">
                   <Icon name="Ticket" size={44} />
-                  <h3>{cs ? 'Zadne kupony' : 'No coupons'}</h3>
-                  <p>{cs ? 'Pridejte prvni slevovy kupon nebo vygenerujte hromadne.' : 'Add your first discount coupon or bulk generate.'}</p>
+                  <h3>{t('admin.coupons.noCoupons', 'No coupons')}</h3>
+                  <p>{t('admin.coupons.noCouponsDesc', 'Add your first discount coupon or bulk generate.')}</p>
                 </div>
               ) : filteredCoupons.length === 0 ? (
                 <div className="empty-state">
                   <Icon name="Search" size={44} />
-                  <h3>{cs ? 'Nic nenalezeno' : 'No results'}</h3>
-                  <p>{cs ? 'Zkuste jiny filtr nebo hledany vyraz.' : 'Try a different filter or search term.'}</p>
+                  <h3>{t('admin.coupons.noResults', 'No results')}</h3>
+                  <p>{t('admin.coupons.noResultsDesc', 'Try a different filter or search term.')}</p>
                 </div>
               ) : (
                 <div className="item-list">
@@ -639,11 +652,11 @@ export default function AdminCoupons() {
                     if (idx < 0) return null;
                     const status = getCouponStatus(coupon);
                     const statusLabel = {
-                      active: { text: cs ? 'Aktivni' : 'Active', cls: 'st-active' },
-                      scheduled: { text: cs ? 'Naplanovany' : 'Scheduled', cls: 'st-scheduled' },
-                      inactive: { text: cs ? 'Neaktivni' : 'Inactive', cls: 'st-inactive' },
-                      expired: { text: cs ? 'Expirovany' : 'Expired', cls: 'st-expired' },
-                      exhausted: { text: cs ? 'Vycerpany' : 'Exhausted', cls: 'st-expired' },
+                      active: { text: t('admin.coupons.statusActive', 'Active'), cls: 'st-active' },
+                      scheduled: { text: t('admin.coupons.statusScheduled', 'Scheduled'), cls: 'st-scheduled' },
+                      inactive: { text: t('admin.coupons.statusInactive', 'Inactive'), cls: 'st-inactive' },
+                      expired: { text: t('admin.coupons.statusExpired', 'Expired'), cls: 'st-expired' },
+                      exhausted: { text: t('admin.coupons.statusExhausted', 'Exhausted'), cls: 'st-expired' },
                     }[status] || { text: status, cls: '' };
 
                     return (
@@ -656,7 +669,7 @@ export default function AdminCoupons() {
                                 checked={coupon.active}
                                 onChange={(e) => updateCoupon(idx, { active: e.target.checked })}
                               />
-                              <span className="item-name">{coupon.code || (cs ? '(bez kodu)' : '(no code)')}</span>
+                              <span className="item-name">{coupon.code || t('admin.coupons.noCode', '(no code)')}</span>
                               <span className={`cpn-status-badge ${statusLabel.cls}`}>{statusLabel.text}</span>
                             </div>
                             <span className="muted" style={{ marginLeft: 30 }}>
@@ -681,7 +694,7 @@ export default function AdminCoupons() {
                                 </span>
                               ) : null}
                               {coupon.total_discount_given > 0 && (
-                                <span className="usage-badge rev-badge" title={cs ? 'Celkova poskytnuta sleva' : 'Total discount given'}>
+                                <span className="usage-badge rev-badge" title={t('admin.coupons.totalDiscountTitle', 'Total discount given')}>
                                   <Icon name="TrendingDown" size={12} />
                                   {formatCurrency(coupon.total_discount_given)}
                                 </span>
@@ -689,14 +702,14 @@ export default function AdminCoupons() {
                             </div>
                             <button
                               className="icon-btn"
-                              title={cs ? 'Duplikovat' : 'Duplicate'}
+                              title={t('admin.coupons.duplicate', 'Duplicate')}
                               onClick={() => duplicateCoupon(idx)}
                             >
                               <Icon name="Copy" size={14} />
                             </button>
                             <button
                               className="icon-btn danger"
-                              title={cs ? 'Smazat' : 'Remove'}
+                              title={t('admin.coupons.remove', 'Remove')}
                               onClick={() => removeCoupon(idx)}
                             >
                               <Icon name="Trash2" size={14} />
@@ -707,18 +720,18 @@ export default function AdminCoupons() {
                         {/* Row 1: Code + Type + Value */}
                         <div className="item-fields grid3">
                           <div className="field">
-                            <label>{cs ? 'Kod' : 'Code'}</label>
+                            <label>{t('admin.coupons.fieldCode', 'Code')}</label>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <input
                                 className="input"
                                 value={coupon.code}
                                 onChange={(e) => updateCoupon(idx, { code: e.target.value.toUpperCase() })}
-                                placeholder={cs ? 'Napr. SLEVA20' : 'e.g. SAVE20'}
+                                placeholder={t('admin.coupons.codePlaceholder', 'e.g. SAVE20')}
                                 style={{ flex: 1 }}
                               />
                               <button
                                 className="icon-btn"
-                                title={cs ? 'Vygenerovat kod' : 'Generate code'}
+                                title={t('admin.coupons.generateCode', 'Generate code')}
                                 onClick={() => generateCodeForCoupon(idx)}
                               >
                                 <Icon name="RefreshCw" size={14} />
@@ -726,7 +739,7 @@ export default function AdminCoupons() {
                             </div>
                           </div>
                           <div className="field">
-                            <label>{cs ? 'Typ' : 'Type'}</label>
+                            <label>{t('admin.coupons.fieldType', 'Type')}</label>
                             <select
                               className="input"
                               value={coupon.type}
@@ -749,9 +762,14 @@ export default function AdminCoupons() {
                                 className="input"
                                 type="number"
                                 min="0"
+                                max={coupon.type === 'percent' ? '100' : undefined}
                                 step={coupon.type === 'percent' ? '1' : '10'}
                                 value={coupon.value}
-                                onChange={(e) => updateCoupon(idx, { value: safeNum(e.target.value, 0) })}
+                                onChange={(e) => {
+                                  let v = safeNum(e.target.value, 0);
+                                  if (coupon.type === 'percent') v = Math.max(0, Math.min(100, v));
+                                  updateCoupon(idx, { value: v });
+                                }}
                               />
                             </div>
                           )}
@@ -915,7 +933,7 @@ export default function AdminCoupons() {
           <div className="admin-card">
             <div className="card-header">
               <div>
-                <h2>{cs ? 'Promocni akce' : 'Promotions'}</h2>
+                <h2>{t('admin.coupons.promotionsTitle', 'Promotions')}</h2>
                 <p className="card-description">
                   {cs
                     ? 'Automaticke slevy a bannerove akce. Mohou se aplikovat automaticky nebo pres kupon.'
@@ -924,15 +942,15 @@ export default function AdminCoupons() {
               </div>
               <button className="btn-secondary" onClick={addPromotion}>
                 <Icon name="Plus" size={18} />
-                {cs ? 'Pridat akci' : 'Add promotion'}
+                {t('admin.coupons.addPromoBtn', 'Add promotion')}
               </button>
             </div>
             <div className="card-body">
               {promotions.length === 0 ? (
                 <div className="empty-state">
                   <Icon name="Megaphone" size={44} />
-                  <h3>{cs ? 'Zadne akce' : 'No promotions'}</h3>
-                  <p>{cs ? 'Pridejte prvni promocni akci.' : 'Add your first promotion.'}</p>
+                  <h3>{t('admin.coupons.noPromos', 'No promotions')}</h3>
+                  <p>{t('admin.coupons.noPromosDesc', 'Add your first promotion.')}</p>
                 </div>
               ) : (
                 <div className="item-list">
@@ -943,7 +961,7 @@ export default function AdminCoupons() {
                           <ForgeCheckbox
                             checked={promo.active}
                             onChange={(e) => updatePromotion(idx, { active: e.target.checked })}
-                            label={<span className="item-name-text">{promo.name || (cs ? '(bez nazvu)' : '(unnamed)')}</span>}
+                            label={<span className="item-name-text">{promo.name || t('admin.coupons.noName', '(unnamed)')}</span>}
                           />
                           <span className="muted">
                             {PROMO_TYPE_OPTIONS.find((o) => o.value === promo.type)?.[cs ? 'label_cs' : 'label_en'] || promo.type}
@@ -996,9 +1014,14 @@ export default function AdminCoupons() {
                             className="input"
                             type="number"
                             min="0"
+                            max={promo.type === 'percent' ? '100' : undefined}
                             step={promo.type === 'percent' ? '1' : '10'}
                             value={promo.value}
-                            onChange={(e) => updatePromotion(idx, { value: safeNum(e.target.value, 0) })}
+                            onChange={(e) => {
+                              let v = safeNum(e.target.value, 0);
+                              if (promo.type === 'percent') v = Math.max(0, Math.min(100, v));
+                              updatePromotion(idx, { value: v });
+                            }}
                           />
                         </div>
                       </div>
@@ -1078,8 +1101,8 @@ export default function AdminCoupons() {
                           className="banner-preview"
                           style={{
                             marginTop: 10,
-                            background: promo.banner_color || '#3b82f6',
-                            color: '#fff',
+                            background: promo.banner_color || 'var(--forge-info)',
+                            color: 'var(--forge-text-primary)',
                             padding: '8px 14px',
                             borderRadius: 8,
                             fontSize: 13,
@@ -1107,7 +1130,7 @@ export default function AdminCoupons() {
           <div className="admin-card">
             <div className="card-header">
               <div>
-                <h2>{cs ? 'Nastaveni slev' : 'Discount settings'}</h2>
+                <h2>{t('admin.coupons.settingsTitle', 'Discount settings')}</h2>
                 <p className="card-description">
                   {cs
                     ? 'Globalni pravidla pro kombinovani slev a maximalni limity.'
@@ -1122,7 +1145,7 @@ export default function AdminCoupons() {
                   <div className="settings-info">
                     <div className="settings-label">
                       <Icon name="Layers" size={18} />
-                      <span>{cs ? 'Povoleni kombinaci slev' : 'Allow discount stacking'}</span>
+                      <span>{t('admin.coupons.allowStacking', 'Allow discount stacking')}</span>
                     </div>
                     <p className="settings-description">
                       {cs
@@ -1141,7 +1164,7 @@ export default function AdminCoupons() {
                   <div className="settings-info">
                     <div className="settings-label">
                       <Icon name="ShieldCheck" size={18} />
-                      <span>{cs ? 'Maximalni sleva (%)' : 'Maximum discount (%)'}</span>
+                      <span>{t('admin.coupons.maxDiscount', 'Maximum discount (%)')}</span>
                     </div>
                     <p className="settings-description">
                       {cs
@@ -1173,7 +1196,7 @@ export default function AdminCoupons() {
               <div className="info-box" style={{ marginTop: 20 }}>
                 <Icon name="Info" size={18} />
                 <div>
-                  <strong>{cs ? 'Poznamka' : 'Note'}</strong>
+                  <strong>{t('admin.coupons.note', 'Note')}</strong>
                   <p style={{ margin: '4px 0 0 0' }}>
                     {cs
                       ? 'Tato nastaveni se aplikuji na vsechny kupony i akce. Maximalni sleva se pocita po slozeni vsech aplikovanych slev.'

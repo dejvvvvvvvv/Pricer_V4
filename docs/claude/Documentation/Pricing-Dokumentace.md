@@ -416,32 +416,16 @@ LanguageContext                   faq.js
 | `pricing.monthly` | mesicne | monthly |
 | `pricing.custom` | Na miru | Custom |
 
-### 11.2 Hardcoded texty (MIMO prekladovy system)
+### 11.2 Prevedeno na t() klice (2026-03-14)
 
-Nasledujici texty pouzivaji `language === 'cs' ? '...' : '...'` misto `t()`:
-
-| Radek | CS text | EN text | Kategorie |
-|-------|---------|---------|-----------|
-| 29 | Vyzkouset Starter | Try Starter | CTA text |
-| 33-46 | Feature pole Starter (5 polozek) | Feature array (5 items) | Plan features |
-| 52 | Zacit s Professional | Start Professional | CTA text |
-| 56-71 | Feature pole Professional (6 polozek) | Feature array (6 items) | Plan features |
-| 77 | Kontaktovat nas | Contact Us | CTA text |
-| 81-96 | Feature pole Enterprise (6 polozek) | Feature array (6 items) | Plan features |
-| 100-110 | KPI pole (3x value+title+desc) | KPI array (3 items) | Statistiky |
-| 186-187 | Plany pro kazdou tiskarnu | Plans for every shop | Sekce nadpis |
-| 192-194 | Zacni zdarma a skaluj... | Start free and scale... | Sekce podnadpis |
-| 234 | Rocni sleva + individualni pilot | Annual discount + pilot options | Banner nadpis |
-| 237-239 | Chces delsi test...? | Need a longer test...? | Banner popis |
-| 243 | Kontaktovat podporu | Contact support | Banner CTA |
-| 255 | Casto kladene otazky | Frequently Asked Questions | FAQ nadpis |
-| 258-260 | Kratke odpovedi na nejcastejsi... | Quick answers to the most... | FAQ popis |
-| 290 | Zacit zdarma | Start free | FAQ CTA |
-| 293 | Napsat podporu | Contact support | FAQ CTA |
-| 327-329 | Chces plan na miru...? | Need a custom plan...? | Final CTA nadpis |
-| 331-334 | Napis nam co potrebujes... | Tell us what you need... | Final CTA popis |
-| 339 | Kontaktovat | Contact | Final CTA button |
-| 342 | Vyzkouset demo | Try demo | Final CTA button |
+Vsechny hardcoded texty prevedeny do LanguageContext. Nove klice:
+- Plan CTA: `pricing.plan.starter.cta`, `pricing.plan.professional.cta`, `pricing.plan.enterprise.cta`
+- Plan features: `pricing.starter.f1-f5`, `pricing.pro.f1-f6`, `pricing.enterprise.f1-f6`
+- KPI: `pricing.kpi.toQuote/toQuoteDesc`, `pricing.kpi.lessManual/lessManualDesc`, `pricing.kpi.automation/automationDesc`
+- Sekce nadpisy: `pricing.plans.title`, `pricing.plans.subtitle`, `pricing.plans.label`
+- Annual banner: `pricing.annual.title`, `pricing.annual.desc`, `pricing.annual.cta`
+- FAQ: `pricing.faq.title`, `pricing.faq.subtitle`, `pricing.faq.categories`, `pricing.faq.startFree`, `pricing.faq.contactSupport`
+- Final CTA: `pricing.cta.title`, `pricing.cta.desc`, `pricing.cta.contact`, `pricing.cta.demo`
 
 **Take v ForgePricingCard.jsx:41** — text "Recommended" je hardcoded anglicky, bez prekladu.
 
@@ -536,7 +520,7 @@ FAQ obsah je v `src/data/faq.js` — 4 kategorie, 12 otazek celkem. Plne lokaliz
 | Omezeni | Popis | Dopad |
 |---------|-------|-------|
 | **Dead import (ForgeSquiggle)** | Importovano na radku 4 ale nepouzito v JSX | Zbytecny kod v bundlu (minimalni dopad) |
-| **Hardcoded texty** | Vetsina textu pouziva ternary `language === 'cs'` misto prekladoveho systemu `t()` | Obtiznejsi udrzba prekladu, nesjednoceny pristup |
+| **Hardcoded texty** | OPRAVENO 2026-03-14 -- vsechny texty prevedeny na t() klice | -- |
 | **Inline styles** | Velke mnozstvi inline stylu misto CSS trid | Horsi cacheovatelnost, opakovani kodu |
 | **FAQ max-height 500px** | Fixni maximalni vyska pro accordion obsah | Delsi odpovedi by byly oriznuty |
 | **Hover efekty pres JS** | ForgeButton a ForgeFaqAccordion pouzivaji `onMouseEnter/onMouseLeave` pro hover | Nefunguje na touch zarizeni, nelze stylovat pres CSS pseudo-class |

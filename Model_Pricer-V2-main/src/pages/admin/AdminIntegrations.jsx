@@ -10,18 +10,15 @@
 // - WooCommerce, Stripe, PayPal, Zasilkovna, PPL/DPD, Google Analytics (placeholder)
 // - Custom API Webhook (link to /admin/webhooks)
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { debug } from '@/lib/debug';
-import { getTenantId } from '../../utils/adminTenantStorage';
+import { writeTenantJson } from '../../utils/adminTenantStorage';
 import {
   getEcommerceConfig,
   saveEcommerceConfig,
-  getShopifyConfig,
-  saveShopifyConfig,
-  getVariantMappings,
   addVariantMapping,
   updateVariantMapping,
   deleteVariantMapping,
@@ -83,7 +80,7 @@ const btnPrimary = {
   gap: '8px',
   padding: '10px 20px',
   backgroundColor: 'var(--forge-accent-primary)',
-  color: '#fff',
+  color: 'var(--forge-text-primary)',
   border: 'none',
   borderRadius: 'var(--forge-radius-sm, 8px)',
   fontSize: '14px',
@@ -225,7 +222,7 @@ function Toggle({ checked, onChange, label }) {
           width: '20px',
           height: '20px',
           borderRadius: '50%',
-          backgroundColor: '#fff',
+          backgroundColor: 'var(--forge-text-primary)',
           position: 'absolute',
           top: '2px',
           left: checked ? '25px' : '2px',
@@ -278,7 +275,7 @@ function SetupStep({ number, title, done, open, onToggle, children }) {
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: done ? 'var(--forge-accent-primary)' : 'var(--forge-bg-elevated)',
-          color: done ? '#fff' : 'var(--forge-text-muted)',
+          color: done ? 'var(--forge-text-primary)' : 'var(--forge-text-muted)',
           fontSize: '12px',
           fontWeight: 700,
           fontFamily: 'var(--forge-font-tech)',
@@ -315,41 +312,42 @@ function SetupStep({ number, title, done, open, onToggle, children }) {
 
 // ─── Status Badge ────────────────────────────────────────────
 
-function StatusBadge({ status, cs }) {
+function StatusBadge({ status, cs, t }) {
+  const safeT = t || ((key, fallback) => fallback || key);
   const styles = {
     connected: {
       bg: 'rgba(0, 212, 170, 0.1)',
       border: 'rgba(0, 212, 170, 0.25)',
       color: 'var(--forge-success)',
-      label: cs ? 'Pripojeno' : 'Connected',
+      label: safeT('admin.integrations.statusConnected', cs ? 'Pripojeno' : 'Connected'),
       icon: 'CheckCircle',
     },
     configuring: {
       bg: 'rgba(255, 181, 71, 0.1)',
       border: 'rgba(255, 181, 71, 0.25)',
       color: 'var(--forge-warning)',
-      label: cs ? 'Konfigurace' : 'Configuring',
+      label: safeT('admin.integrations.statusConfiguring', cs ? 'Konfigurace' : 'Configuring'),
       icon: 'Settings',
     },
     disconnected: {
       bg: 'var(--forge-bg-elevated)',
       border: 'var(--forge-border-default)',
       color: 'var(--forge-text-muted)',
-      label: cs ? 'Odpojeno' : 'Disconnected',
+      label: safeT('admin.integrations.statusDisconnected', cs ? 'Odpojeno' : 'Disconnected'),
       icon: 'MinusCircle',
     },
     coming_soon: {
       bg: 'rgba(108, 99, 255, 0.08)',
       border: 'rgba(108, 99, 255, 0.2)',
       color: 'var(--forge-accent-tertiary)',
-      label: cs ? 'Pripravujeme' : 'Coming soon',
+      label: safeT('admin.integrations.statusComingSoon', cs ? 'Pripravujeme' : 'Coming soon'),
       icon: 'Clock',
     },
     error: {
       bg: 'rgba(255, 71, 87, 0.08)',
       border: 'rgba(255, 71, 87, 0.2)',
       color: 'var(--forge-error)',
-      label: cs ? 'Chyba' : 'Error',
+      label: safeT('admin.integrations.statusError', cs ? 'Chyba' : 'Error'),
       icon: 'AlertTriangle',
     },
   };
@@ -380,7 +378,8 @@ function StatusBadge({ status, cs }) {
 
 // ─── Integration Card (marketplace grid) ────────────────────
 
-function IntegrationCard({ integration, status, lastSync, onOpen, cs }) {
+function IntegrationCard({ integration, status, lastSync, onOpen, cs, t }) {
+  const safeT = t || ((key, fallback) => fallback || key);
   const desc = cs ? integration.description_cs : integration.description_en;
   const isComingSoon = !integration.available;
   const category = CATEGORY_LABELS[integration.category];
@@ -434,7 +433,7 @@ function IntegrationCard({ integration, status, lastSync, onOpen, cs }) {
         }}>
           <Icon name={integration.icon} size={22} style={{ color: integration.iconColor }} />
         </div>
-        <StatusBadge status={status} cs={cs} />
+        <StatusBadge status={status} cs={cs} t={t} />
       </div>
 
       {/* Name + category */}
@@ -483,7 +482,7 @@ function IntegrationCard({ integration, status, lastSync, onOpen, cs }) {
           color: 'var(--forge-text-muted)',
         }}>
           <Icon name="RefreshCw" size={11} />
-          {cs ? 'Posledni sync' : 'Last sync'}: {lastSync}
+          {safeT('admin.integrations.lastSync', cs ? 'Posledni sync' : 'Last sync')}: {lastSync}
         </div>
       )}
 
@@ -498,7 +497,7 @@ function IntegrationCard({ integration, status, lastSync, onOpen, cs }) {
           fontWeight: 600,
           color: 'var(--forge-accent-primary)',
         }}>
-          {cs ? 'Otevrit nastaveni' : 'Open settings'}
+          {safeT('admin.integrations.openSettings', cs ? 'Otevrit nastaveni' : 'Open settings')}
           <Icon name="ArrowRight" size={14} />
         </div>
       )}
@@ -508,17 +507,16 @@ function IntegrationCard({ integration, status, lastSync, onOpen, cs }) {
 
 // ─── Coming Soon Detail ──────────────────────────────────────
 
-function ComingSoonDetail({ integration, cs, onClose }) {
+function ComingSoonDetail({ integration, cs, t, onClose }) {
+  const safeT = t || ((key, fallback) => fallback || key);
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
   const handleSubscribe = () => {
     if (!email || !email.includes('@')) return;
-    // Store notification request in localStorage via tenant storage
-    const tid = getTenantId();
-    const key = `modelpricer:${tid}:integration_notify:${integration.id}`;
+    // Store notification request via tenant storage helper
     try {
-      window.localStorage.setItem(key, JSON.stringify({ email, date: new Date().toISOString() }));
+      writeTenantJson(`integration_notify:${integration.id}`, { email, date: new Date().toISOString() });
     } catch { /* ignore */ }
     setSubscribed(true);
   };
@@ -546,7 +544,7 @@ function ComingSoonDetail({ integration, cs, onClose }) {
         }}
       >
         <Icon name="ArrowLeft" size={16} />
-        {cs ? 'Zpet na integrace' : 'Back to integrations'}
+        {safeT('admin.integrations.backToList', cs ? 'Zpet na integrace' : 'Back to integrations')}
       </button>
 
       {/* Header */}
@@ -582,7 +580,7 @@ function ComingSoonDetail({ integration, cs, onClose }) {
             {desc}
           </p>
         </div>
-        <StatusBadge status="coming_soon" cs={cs} />
+        <StatusBadge status="coming_soon" cs={cs} t={t} />
       </div>
 
       {/* Coming soon content */}
@@ -612,7 +610,7 @@ function ComingSoonDetail({ integration, cs, onClose }) {
             color: 'var(--forge-text-primary)',
             marginBottom: '8px',
           }}>
-            {cs ? 'Integrace se pripravuje' : 'Integration coming soon'}
+            {safeT('admin.integrations.comingSoon', cs ? 'Integrace se pripravuje' : 'Integration coming soon')}
           </h3>
 
           <p style={{
@@ -642,7 +640,7 @@ function ComingSoonDetail({ integration, cs, onClose }) {
               color: 'var(--forge-success)',
             }}>
               <Icon name="CheckCircle" size={16} />
-              {cs ? 'Odber nastaven! Budeme vas informovat.' : 'Subscribed! We will notify you.'}
+              {safeT('admin.integrations.notifySubscribed', cs ? 'Odber nastaven! Budeme vas informovat.' : 'Subscribed! We will notify you.')}
             </div>
           ) : (
             <div style={{
@@ -653,7 +651,7 @@ function ComingSoonDetail({ integration, cs, onClose }) {
             }}>
               <input
                 type="email"
-                placeholder={cs ? 'vas@email.cz' : 'your@email.com'}
+                placeholder={safeT('admin.integrations.notifyEmailPlaceholder', cs ? 'vas@email.cz' : 'your@email.com')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{ ...inputStyle, flex: 1 }}
@@ -664,7 +662,7 @@ function ComingSoonDetail({ integration, cs, onClose }) {
                 style={btnPrimary}
               >
                 <Icon name="Bell" size={16} />
-                {cs ? 'Upozornit' : 'Notify me'}
+                {safeT('admin.integrations.notifyBtn', cs ? 'Upozornit' : 'Notify me')}
               </button>
             </div>
           )}
@@ -676,7 +674,8 @@ function ComingSoonDetail({ integration, cs, onClose }) {
 
 // ─── Shopify Detail View ─────────────────────────────────────
 
-function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
+function ShopifyDetail({ config, setConfig, cs, t, onClose, materials }) {
+  const safeT = t || ((key, fallback) => fallback || key);
   const [banner, setBanner] = useState(null);
   const [saving, setSaving] = useState(false);
   const [openStep, setOpenStep] = useState(null);
@@ -690,13 +689,14 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
     shopify_product_title: '',
   });
   const [showToken, setShowToken] = useState(false);
+  const saveDebounceRef = useRef(null);
 
   const handleSave = useCallback((newConfig) => {
     setSaving(true);
     try {
       const saved = saveEcommerceConfig(newConfig);
       setConfig(saved);
-      setBanner({ type: 'success', msg: cs ? 'Ulozeno' : 'Saved' });
+      setBanner({ type: 'success', msg: safeT('admin.integrations.saved', cs ? 'Ulozeno' : 'Saved') });
       setTimeout(() => setBanner(null), 3000);
     } catch (e) {
       setBanner({ type: 'error', msg: e.message });
@@ -710,7 +710,9 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
         ...prev,
         shopify: { ...prev.shopify, [field]: value },
       };
-      handleSave(next);
+      // Debounce save — wait 300ms after last keystroke before persisting
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = setTimeout(() => handleSave(next), 300);
       return next;
     });
   }, [handleSave, setConfig]);
@@ -718,6 +720,13 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
   const handleTestConnection = useCallback(async () => {
     setTesting(true);
     setTestResult(null);
+    // Validate before making a network request
+    const validation = validateShopifyConfig(config.shopify);
+    if (!validation.valid) {
+      setTestResult({ success: false, error: validation.errors.join(' · ') });
+      setTesting(false);
+      return;
+    }
     try {
       const result = await testShopifyConnection({
         shopDomain: config.shopify.shop_domain,
@@ -738,7 +747,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
     if (!config?.shopify?.shop_domain) return;
     const testLine = config.shopify.fallback_variant_id || (config.shopify.variant_mappings?.[0]?.shopify_variant_id);
     if (!testLine) {
-      setTestResult({ success: false, error: cs ? 'Zadny variant ID pro test' : 'No variant ID for test' });
+      setTestResult({ success: false, error: safeT('admin.integrations.noVariantForTest', cs ? 'Zadny variant ID pro test' : 'No variant ID for test') });
       return;
     }
     const result = buildCartPermalinkUrl({
@@ -801,7 +810,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
         }}
       >
         <Icon name="ArrowLeft" size={16} />
-        {cs ? 'Zpet na integrace' : 'Back to integrations'}
+        {safeT('admin.integrations.backToList', cs ? 'Zpet na integrace' : 'Back to integrations')}
       </button>
 
       {/* Banner */}
@@ -847,6 +856,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
               <StatusBadge
                 status={isEnabled && step1Done ? 'connected' : isEnabled ? 'configuring' : 'disconnected'}
                 cs={cs}
+                t={t}
               />
             </div>
           </div>
@@ -868,17 +878,17 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
           }}>
             <div>
               <div style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                {cs ? 'Posledni test' : 'Last test'}
+                {safeT('admin.integrations.lastTest', cs ? 'Posledni test' : 'Last test')}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
                 {meta.last_test_at
                   ? new Date(meta.last_test_at).toLocaleString(cs ? 'cs-CZ' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })
-                  : (cs ? 'Zatim netestovano' : 'Not tested yet')}
+                  : safeT('admin.integrations.notTestedYet', cs ? 'Zatim netestovano' : 'Not tested yet')}
               </div>
             </div>
             <div>
               <div style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                {cs ? 'Stav' : 'Status'}
+                {safeT('admin.integrations.status', cs ? 'Stav' : 'Status')}
               </div>
               <div style={{
                 fontSize: '13px',
@@ -891,12 +901,12 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
               }}>
                 {meta.test_result === 'ok' && <Icon name="CheckCircle" size={13} />}
                 {meta.test_result === 'error' && <Icon name="AlertTriangle" size={13} />}
-                {meta.test_result === 'ok' ? 'OK' : meta.test_result === 'error' ? (cs ? 'Chyba' : 'Error') : '—'}
+                {meta.test_result === 'ok' ? 'OK' : meta.test_result === 'error' ? safeT('admin.integrations.error', cs ? 'Chyba' : 'Error') : '—'}
               </div>
             </div>
             <div>
               <div style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                {cs ? 'Odeslane objednavky' : 'Orders sent'}
+                {safeT('admin.integrations.ordersSent', cs ? 'Odeslane objednavky' : 'Orders sent')}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
                 {meta.orders_sent_count || 0}
@@ -934,7 +944,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
           }}>
             <p style={{ margin: 0 }}>
               <strong style={{ color: 'var(--forge-text-primary)' }}>
-                {cs ? 'Shopify rezim aktivni' : 'Shopify mode active'}
+                {safeT('admin.integrations.shopifyModeActive', cs ? 'Shopify rezim aktivni' : 'Shopify mode active')}
               </strong>
               {' — '}
               {cs
@@ -954,7 +964,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
             color: 'var(--forge-text-primary)',
             marginBottom: '12px',
           }}>
-            {cs ? 'Navod k nastaveni' : 'Setup Guide'}
+            {safeT('admin.integrations.setupGuide', cs ? 'Navod k nastaveni' : 'Setup Guide')}
           </h3>
 
           <SetupStep
@@ -1032,13 +1042,13 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
             color: 'var(--forge-text-primary)',
             marginBottom: '20px',
           }}>
-            {cs ? 'Pripojovaci udaje' : 'Connection Details'}
+            {safeT('admin.integrations.connectionDetails', cs ? 'Pripojovaci udaje' : 'Connection Details')}
           </h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {/* Shop Domain */}
             <div>
-              <label style={labelStyle}>{cs ? 'Shop domain' : 'Shop Domain'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.shopDomain', cs ? 'Shop domain' : 'Shop Domain')}</label>
               <input
                 type="text"
                 placeholder="myshop.myshopify.com"
@@ -1075,33 +1085,33 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
 
             {/* Checkout Mode */}
             <div>
-              <label style={labelStyle}>{cs ? 'Rezim checkout' : 'Checkout Mode'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.checkoutMode', cs ? 'Rezim checkout' : 'Checkout Mode')}</label>
               <select
                 value={shopify.checkout_mode || 'cart_permalink'}
                 onChange={(e) => updateField('checkout_mode', e.target.value)}
                 style={selectStyle}
               >
-                <option value="cart_permalink">Cart Permalink ({cs ? 'jednodussi' : 'simpler'})</option>
-                <option value="storefront_api">Storefront API ({cs ? 'bohatsi' : 'richer'})</option>
+                <option value="cart_permalink">Cart Permalink ({safeT('admin.integrations.checkoutSimpler', cs ? 'jednodussi' : 'simpler')})</option>
+                <option value="storefront_api">Storefront API ({safeT('admin.integrations.checkoutRicher', cs ? 'bohatsi' : 'richer')})</option>
               </select>
             </div>
 
             {/* Redirect */}
             <div>
-              <label style={labelStyle}>{cs ? 'Presmerovani' : 'Redirect To'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.redirectTo', cs ? 'Presmerovani' : 'Redirect To')}</label>
               <select
                 value={shopify.redirect_to || 'checkout'}
                 onChange={(e) => updateField('redirect_to', e.target.value)}
                 style={selectStyle}
               >
-                <option value="checkout">{cs ? 'Primo na checkout' : 'Directly to checkout'}</option>
-                <option value="cart">{cs ? 'Na kosik' : 'To cart page'}</option>
+                <option value="checkout">{safeT('admin.integrations.redirectCheckout', cs ? 'Primo na checkout' : 'Directly to checkout')}</option>
+                <option value="cart">{safeT('admin.integrations.redirectCart', cs ? 'Na kosik' : 'To cart page')}</option>
               </select>
             </div>
 
             {/* Currency */}
             <div>
-              <label style={labelStyle}>{cs ? 'Mena' : 'Currency'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.currency', cs ? 'Mena' : 'Currency')}</label>
               <select
                 value={shopify.currency || 'CZK'}
                 onChange={(e) => updateField('currency', e.target.value)}
@@ -1115,21 +1125,21 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
 
             {/* Fee Handling */}
             <div>
-              <label style={labelStyle}>{cs ? 'Zpracovani poplatku' : 'Fee Handling'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.feeHandling', cs ? 'Zpracovani poplatku' : 'Fee Handling')}</label>
               <select
                 value={shopify.fee_handling || 'included_in_price'}
                 onChange={(e) => updateField('fee_handling', e.target.value)}
                 style={selectStyle}
               >
-                <option value="included_in_price">{cs ? 'Zahrnuto v cene' : 'Included in price'}</option>
-                <option value="line_property">{cs ? 'Vlastnost polozky' : 'Line item property'}</option>
-                <option value="separate_variant">{cs ? 'Samostatna polozka' : 'Separate line item'}</option>
+                <option value="included_in_price">{safeT('admin.integrations.feeIncluded', cs ? 'Zahrnuto v cene' : 'Included in price')}</option>
+                <option value="line_property">{safeT('admin.integrations.feeLineProperty', cs ? 'Vlastnost polozky' : 'Line item property')}</option>
+                <option value="separate_variant">{safeT('admin.integrations.feeSeparate', cs ? 'Samostatna polozka' : 'Separate line item')}</option>
               </select>
             </div>
 
             {/* Cart Note Template */}
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={labelStyle}>{cs ? 'Sablona poznamky kosiku' : 'Cart Note Template'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.cartNoteTemplate', cs ? 'Sablona poznamky kosiku' : 'Cart Note Template')}</label>
               <input
                 type="text"
                 placeholder="ModelPricer: {modelCount} modelu"
@@ -1138,14 +1148,14 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                 style={inputStyle}
               />
               <p style={{ fontSize: '11px', color: 'var(--forge-text-muted)', marginTop: '4px' }}>
-                {cs ? 'Dostupne promenne' : 'Available variables'}: {'{modelCount}'}, {'{totalPrice}'}, {'{currency}'}
+                {safeT('admin.integrations.availableVars', cs ? 'Dostupne promenne' : 'Available variables')}: {'{modelCount}'}, {'{totalPrice}'}, {'{currency}'}
               </p>
             </div>
 
             {/* Fee Variant ID */}
             {shopify.fee_handling === 'separate_variant' && (
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>{cs ? 'Variant ID pro poplatky' : 'Fee Variant ID'}</label>
+                <label style={labelStyle}>{safeT('admin.integrations.feeVariantId', cs ? 'Variant ID pro poplatky' : 'Fee Variant ID')}</label>
                 <input
                   type="text"
                   placeholder="44012345678901"
@@ -1168,11 +1178,11 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
               fontSize: '16px', fontWeight: 600,
               color: 'var(--forge-text-primary)',
             }}>
-              {cs ? 'Mapovani materialu' : 'Material Mapping'}
+              {safeT('admin.integrations.materialMapping', cs ? 'Mapovani materialu' : 'Material Mapping')}
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '12px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-tech)' }}>
-                {cs ? 'Rezim' : 'Mode'}:
+                {safeT('admin.integrations.mappingMode', cs ? 'Rezim' : 'Mode')}:
               </span>
               <select
                 value={shopify.mapping_mode || 'per_variant'}
@@ -1180,7 +1190,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                 style={{ ...selectStyle, width: 'auto', fontSize: '12px', padding: '6px 30px 6px 10px' }}
               >
                 <option value="per_variant">Per-variant</option>
-                <option value="universal">{cs ? 'Univerzalni' : 'Universal'}</option>
+                <option value="universal">{safeT('admin.integrations.mappingUniversal', cs ? 'Univerzalni' : 'Universal')}</option>
               </select>
             </div>
           </div>
@@ -1188,7 +1198,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
           {/* Universal Mode */}
           {shopify.mapping_mode === 'universal' && (
             <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>{cs ? 'Univerzalni Variant ID' : 'Universal Variant ID'}</label>
+              <label style={labelStyle}>{safeT('admin.integrations.universalVariantId', cs ? 'Univerzalni Variant ID' : 'Universal Variant ID')}</label>
               <input
                 type="text"
                 placeholder="44012345678901"
@@ -1208,10 +1218,10 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
           {shopify.mapping_mode !== 'universal' && (
             <>
               <div style={{ marginBottom: '16px' }}>
-                <label style={labelStyle}>{cs ? 'Fallback Variant ID' : 'Fallback Variant ID'}</label>
+                <label style={labelStyle}>{safeT('admin.integrations.fallbackVariantId', cs ? 'Fallback Variant ID' : 'Fallback Variant ID')}</label>
                 <input
                   type="text"
-                  placeholder={cs ? 'Pro modely bez mapovani' : 'For unmapped models'}
+                  placeholder={safeT('admin.integrations.fallbackPlaceholder', cs ? 'Pro modely bez mapovani' : 'For unmapped models')}
                   value={shopify.fallback_variant_id || ''}
                   onChange={(e) => updateField('fallback_variant_id', e.target.value.trim())}
                   style={{ ...inputStyle, maxWidth: '300px' }}
@@ -1233,7 +1243,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                   }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--forge-border-default)' }}>
-                        {[cs ? 'Material' : 'Material', cs ? 'Kvalita' : 'Quality', 'Variant ID', cs ? 'Produkt' : 'Product', cs ? 'Aktivni' : 'Active', ''].map((h, i) => (
+                        {[safeT('admin.integrations.colMaterial', cs ? 'Material' : 'Material'), safeT('admin.integrations.colQuality', cs ? 'Kvalita' : 'Quality'), 'Variant ID', safeT('admin.integrations.colProduct', cs ? 'Produkt' : 'Product'), safeT('admin.integrations.colActive', cs ? 'Aktivni' : 'Active'), ''].map((h, i) => (
                           <th key={i} style={{
                             padding: '10px 12px',
                             textAlign: 'left',
@@ -1302,7 +1312,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                         onChange={(e) => setMappingForm(f => ({ ...f, material_key: e.target.value }))}
                         style={{ ...selectStyle, fontSize: '13px', padding: '8px 30px 8px 10px' }}
                       >
-                        <option value="">{cs ? '\u2014 Vyberte \u2014' : '\u2014 Select \u2014'}</option>
+                        <option value="">{safeT('admin.integrations.selectPlaceholder', cs ? '\u2014 Vyberte \u2014' : '\u2014 Select \u2014')}</option>
                         {materials.map((mat) => (
                           <option key={mat.key || mat.id} value={mat.key || mat.id}>
                             {mat.label || mat.name || mat.key || mat.id}
@@ -1311,7 +1321,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                       </select>
                     </div>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: '11px' }}>{cs ? 'Kvalita' : 'Quality'}</label>
+                      <label style={{ ...labelStyle, fontSize: '11px' }}>{safeT('admin.integrations.quality', cs ? 'Kvalita' : 'Quality')}</label>
                       <select
                         value={mappingForm.quality_key}
                         onChange={(e) => setMappingForm(f => ({ ...f, quality_key: e.target.value }))}
@@ -1333,7 +1343,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                       />
                     </div>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: '11px' }}>{cs ? 'Nazev produktu' : 'Product Title'}</label>
+                      <label style={{ ...labelStyle, fontSize: '11px' }}>{safeT('admin.integrations.productTitle', cs ? 'Nazev produktu' : 'Product Title')}</label>
                       <input
                         type="text"
                         placeholder="3D Tisk - PLA"
@@ -1346,17 +1356,17 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={handleAddMapping} style={{ ...btnPrimary, fontSize: '13px', padding: '8px 16px' }}>
                       <Icon name="Plus" size={14} />
-                      {cs ? 'Pridat' : 'Add'}
+                      {safeT('admin.integrations.add', cs ? 'Pridat' : 'Add')}
                     </button>
                     <button onClick={() => setShowMappingForm(false)} style={{ ...btnOutline, fontSize: '13px', padding: '8px 16px' }}>
-                      {cs ? 'Zrusit' : 'Cancel'}
+                      {safeT('admin.integrations.cancel', cs ? 'Zrusit' : 'Cancel')}
                     </button>
                   </div>
                 </div>
               ) : (
                 <button onClick={() => setShowMappingForm(true)} style={btnOutline}>
                   <Icon name="Plus" size={16} />
-                  {cs ? 'Pridat mapovani' : 'Add mapping'}
+                  {safeT('admin.integrations.addMapping', cs ? 'Pridat mapovani' : 'Add mapping')}
                 </button>
               )}
             </>
@@ -1373,7 +1383,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
             color: 'var(--forge-text-primary)',
             marginBottom: '16px',
           }}>
-            {cs ? 'Test pripojeni' : 'Test Connection'}
+            {safeT('admin.integrations.testConnection', cs ? 'Test pripojeni' : 'Test Connection')}
           </h3>
 
           <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
@@ -1385,18 +1395,18 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                     border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff',
                     borderRadius: '50%', animation: 'mp-spin 0.6s linear infinite',
                   }} />
-                  {cs ? 'Testuji...' : 'Testing...'}
+                  {safeT('admin.integrations.testing', cs ? 'Testuji...' : 'Testing...')}
                 </>
               ) : (
                 <>
                   <Icon name="Wifi" size={16} />
-                  {cs ? 'Otestovat pripojeni' : 'Test Connection'}
+                  {safeT('admin.integrations.testConnection', cs ? 'Otestovat pripojeni' : 'Test Connection')}
                 </>
               )}
             </button>
             <button onClick={handleTestCart} style={btnOutline}>
               <Icon name="ShoppingCart" size={16} />
-              {cs ? 'Testovaci kosik' : 'Test Cart'}
+              {safeT('admin.integrations.testCart', cs ? 'Testovaci kosik' : 'Test Cart')}
             </button>
           </div>
 
@@ -1417,16 +1427,16 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
                   fontSize: '14px', fontWeight: 600,
                   color: testResult.success ? 'var(--forge-success)' : 'var(--forge-error)',
                 }}>
-                  {testResult.success ? (cs ? 'Pripojeno' : 'Connected') : (cs ? 'Chyba' : 'Error')}
+                  {testResult.success ? safeT('admin.integrations.testConnected', cs ? 'Pripojeno' : 'Connected') : safeT('admin.integrations.testError', cs ? 'Chyba' : 'Error')}
                 </span>
               </div>
               {testResult.success && testResult.shopName && (
                 <p style={{ fontSize: '13px', color: 'var(--forge-text-secondary)', margin: '4px 0 0 24px' }}>
-                  {cs ? 'Obchod' : 'Shop'}: <strong>{testResult.shopName}</strong>
+                  {safeT('admin.integrations.shop', cs ? 'Obchod' : 'Shop')}: <strong>{testResult.shopName}</strong>
                   {testResult.shopUrl && (
                     <a href={testResult.shopUrl} target="_blank" rel="noopener noreferrer"
                       style={{ marginLeft: '8px', color: 'var(--forge-accent-primary)', textDecoration: 'none', fontSize: '12px' }}>
-                      {cs ? 'Otevrit' : 'Open'} &rarr;
+                      {safeT('admin.integrations.open', cs ? 'Otevrit' : 'Open')} &rarr;
                     </a>
                   )}
                 </p>
@@ -1449,7 +1459,7 @@ function ShopifyDetail({ config, setConfig, cs, onClose, materials }) {
 // ─── Main Component ──────────────────────────────────────────
 
 export default function AdminIntegrations() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const cs = language === 'cs';
   const navigate = useNavigate();
 
@@ -1504,7 +1514,7 @@ export default function AdminIntegrations() {
   // Get status for any integration
   const getStatus = useCallback((integrationId) => {
     if (integrationId === 'shopify') return getShopifyStatus();
-    if (integrationId === 'webhook') return 'connected'; // always available
+    if (integrationId === 'webhook') return 'disconnected'; // always available, neutral status
     return 'coming_soon';
   }, [getShopifyStatus]);
 
@@ -1544,6 +1554,7 @@ export default function AdminIntegrations() {
           config={config}
           setConfig={setConfig}
           cs={cs}
+          t={t}
           onClose={() => setActiveDetail(null)}
           materials={materials}
         />
@@ -1554,6 +1565,7 @@ export default function AdminIntegrations() {
       <ComingSoonDetail
         integration={integration}
         cs={cs}
+        t={t}
         onClose={() => setActiveDetail(null)}
       />
     );
@@ -1582,7 +1594,7 @@ export default function AdminIntegrations() {
           color: 'var(--forge-text-primary)',
           marginBottom: '4px',
         }}>
-          {cs ? 'Integrace' : 'Integrations'}
+          {t('admin.integrations.integrationsLabel', cs ? 'Integrace' : 'Integrations')}
         </h1>
         <p style={{
           fontSize: '14px',
@@ -1639,6 +1651,7 @@ export default function AdminIntegrations() {
                   lastSync={integration.id === 'shopify' ? getLastSync() : null}
                   onOpen={() => handleOpenIntegration(integration)}
                   cs={cs}
+                  t={t}
                 />
               ))}
             </div>

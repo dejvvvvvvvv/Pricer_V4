@@ -16,6 +16,7 @@
  *   lang       -- 'cs' | 'en', UI language (defaults to 'cs')
  */
 import React, { useState, useCallback } from 'react';
+import { writeTenantJson } from '@/utils/adminTenantStorage';
 import { ONBOARDING_STEPS } from '../config/onboardingSteps';
 
 export default function OnboardingOverlay({ tenantId, onComplete, lang = 'cs' }) {
@@ -32,8 +33,7 @@ export default function OnboardingOverlay({ tenantId, onComplete, lang = 'cs' })
   const finish = useCallback(() => {
     setIsExiting(true);
     try {
-      const key = `modelpricer:${tenantId}:builder:onboarding_complete`;
-      localStorage.setItem(key, 'true');
+      writeTenantJson('builder:onboarding_complete', true, tenantId);
     } catch {
       // Non-critical -- overlay just won't be suppressed next time.
     }
@@ -303,12 +303,12 @@ const styles = {
   },
 
   dotActive: {
-    background: '#3B82F6',
+    background: 'var(--forge-info)',
     transform: 'scale(1.25)',
   },
 
   dotCompleted: {
-    background: '#10B981',
+    background: 'var(--forge-success)',
   },
 
   buttonRow: {
@@ -336,21 +336,21 @@ const styles = {
     fontSize: 14,
     fontWeight: 600,
     color: '#FFFFFF',
-    background: '#3B82F6',
+    background: 'var(--forge-info)',
     border: 'none',
     padding: '10px 24px',
     borderRadius: 8,
     cursor: 'pointer',
     transition: 'background 150ms ease',
-    boxShadow: '0 1px 3px rgba(59, 130, 246, 0.3)',
+    boxShadow: '0 1px 3px rgba(77, 168, 218, 0.3)',
   },
 
   areaHint: {
     position: 'absolute',
-    border: '2px solid rgba(59, 130, 246, 0.5)',
+    border: '2px solid rgba(77, 168, 218, 0.5)',
     borderRadius: 4,
     pointerEvents: 'none',
     animation: 'onboardingPulse 2s ease-in-out infinite',
-    background: 'rgba(59, 130, 246, 0.04)',
+    background: 'rgba(77, 168, 218, 0.04)',
   },
 };

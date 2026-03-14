@@ -3,10 +3,12 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
+import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PRUSA_PARAMETER_CATALOG } from '../../data/prusaParameterCatalog';
 import { loadPricingConfigV3, savePricingConfigV3, getDefaultPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { appendTenantLog, readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
+import { safeJsonParse } from '../../utils/sanitizeJson';
 
 // =============================
 // Parameters & Presets (Admin) — Variant A (front-end demo)
@@ -70,7 +72,7 @@ function buildDefaultState(language) {
     parameters,
     widget,
     updated_at: nowIso(),
-    updated_by: 'admin',
+    updated_by: 'admin', // default value; overwritten with actual user on save
   };
 }
 
@@ -273,7 +275,10 @@ function StepperInput({ value, onChange, min, max, step = 1, unit, disabled, pla
             const raw = e.target.value;
             if (raw === '') return onChange(null);
             const num = Number(raw);
-            if (Number.isFinite(num)) onChange(num);
+            if (!Number.isFinite(num)) return;
+            // Clamp to min/max bounds when typing
+            const clamped = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, num));
+            onChange(clamped);
           }}
           disabled={disabled}
           placeholder={placeholder}
@@ -328,7 +333,7 @@ function KpiCard({ title, value, icon, tone }) {
 // =============================
 function PrinterProfileSection({ language }) {
   const profile = DEFAULT_PRINTER_PROFILE;
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
 
   return (
     <div className="ap-printer-profile">
@@ -338,7 +343,7 @@ function PrinterProfileSection({ language }) {
           <span>{profile.name}</span>
         </div>
         <Badge tone="blue">
-          {t('Aktivni profil', 'Active profile')}
+          {t('admin.parameters.printerActiveProfile', 'Active profile')}
         </Badge>
       </div>
 
@@ -347,7 +352,7 @@ function PrinterProfileSection({ language }) {
         <div className="ap-printer-card">
           <div className="ap-printer-card-title">
             <Icon name="Box" size={14} />
-            {t('Tiskovy objem', 'Build Volume')}
+            {t('admin.parameters.printerBuildVolume', 'Build Volume')}
           </div>
           <div className="ap-build-volume-visual">
             <div className="ap-build-volume-box">
@@ -365,7 +370,7 @@ function PrinterProfileSection({ language }) {
         <div className="ap-printer-card">
           <div className="ap-printer-card-title">
             <Icon name="Target" size={14} />
-            {t('Tryska', 'Nozzle')}
+            {t('admin.parameters.printerNozzle', 'Nozzle')}
           </div>
           <div className="ap-nozzle-grid">
             {profile.nozzleDiameters.map(d => (
@@ -375,7 +380,7 @@ function PrinterProfileSection({ language }) {
             ))}
           </div>
           <div className="ap-printer-card-footer">
-            {t('Aktualni:', 'Current:')} <strong>{profile.currentNozzle} mm</strong>
+            {t('admin.parameters.printerNozzleCurrent', 'Current:')} <strong>{profile.currentNozzle} mm</strong>
           </div>
         </div>
 
@@ -383,7 +388,7 @@ function PrinterProfileSection({ language }) {
         <div className="ap-printer-card">
           <div className="ap-printer-card-title">
             <Icon name="Layers" size={14} />
-            {t('Vyska vrstvy', 'Layer Height')}
+            {t('admin.parameters.printerLayerHeight', 'Layer Height')}
           </div>
           <div className="ap-layer-range">
             <div className="ap-layer-range-bar">
@@ -398,7 +403,7 @@ function PrinterProfileSection({ language }) {
             </div>
           </div>
           <div className="ap-printer-card-footer">
-            {t('Vychozi:', 'Default:')} <strong>{profile.layerHeights.default} mm</strong>
+            {t('admin.parameters.printerLayerDefault', 'Default:')} <strong>{profile.layerHeights.default} mm</strong>
           </div>
         </div>
 
@@ -406,7 +411,7 @@ function PrinterProfileSection({ language }) {
         <div className="ap-printer-card ap-printer-card-wide">
           <div className="ap-printer-card-title">
             <Icon name="Thermometer" size={14} />
-            {t('Teplotni presety', 'Temperature Presets')}
+            {t('admin.parameters.printerTempPresets', 'Temperature Presets')}
           </div>
           <div className="ap-temp-grid">
             {Object.entries(profile.temperaturePresets).map(([mat, temps]) => (
@@ -429,6 +434,7 @@ function PrinterProfileSection({ language }) {
 // ParamRow (improved with stepper, highlight, change indicator)
 // =============================
 function ParamRow({ def, row, selected, onToggleSelected, onChange, language, searchTerm, isChanged: isChangedProp }) {
+  const { t } = useLanguage();
   const value = row.default_value_override;
   const isChanged = value !== null && !safeEqual(value, def.defaultValue);
   const isActiveChanged = Boolean(row.active_for_slicing) !== Boolean(def.defaultActiveForSlicing);
@@ -539,14 +545,14 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language, se
             {unitLabel && <span className="ap-paramCard-badge ap-paramCard-badge-unit">{unitLabel}</span>}
             {hasAnyChange ? (
               <span className="ap-paramCard-badge ap-paramCard-badge-changed">
-                {language === 'cs' ? 'zmeneno' : 'changed'}
+                {t('admin.parameters.paramBadgeChanged', 'changed')}
               </span>
             ) : (
-              <span className="ap-paramCard-badge ap-paramCard-badge-muted">{language === 'cs' ? 'vychozi' : 'default'}</span>
+              <span className="ap-paramCard-badge ap-paramCard-badge-muted">{t('admin.parameters.paramBadgeDefault', 'default')}</span>
             )}
             {!row.active_for_slicing && (
               <span className="ap-paramCard-badge ap-paramCard-badge-inactive">
-                {language === 'cs' ? 'neaktivni' : 'inactive'}
+                {t('admin.parameters.paramBadgeInactive', 'inactive')}
               </span>
             )}
           </div>
@@ -556,7 +562,7 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language, se
           <Toggle
             checked={!!row.active_for_slicing}
             onChange={(v) => setActive(v)}
-            label={language === 'cs' ? 'Aktivni' : 'Active'}
+            label={t('admin.parameters.paramActive', 'Active')}
           />
         </div>
       </div>
@@ -572,7 +578,7 @@ function ParamRow({ def, row, selected, onToggleSelected, onChange, language, se
             className="ap-paramCard-reset"
             onClick={() => setOverride(null)}
             disabled={value === null}
-            title={language === 'cs' ? 'Vratit na vychozi' : 'Reset to default'}
+            title={t('admin.parameters.paramResetTitle', 'Reset to default')}
           >
             <Icon name="RotateCcw" size={14} />
           </button>
@@ -700,7 +706,7 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
     action();
   };
 
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
 
   return (
     <div>
@@ -712,10 +718,10 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('Hledat podle nazvu nebo klice...', 'Search by name or key...')}
+              placeholder={t('admin.parameters.filterSearchPlaceholder', 'Search by name or key...')}
             />
             {search && (
-              <button className="ap-lib-search-clear" onClick={() => setSearch('')} title={t('Vymazat', 'Clear')}>
+              <button className="ap-lib-search-clear" onClick={() => setSearch('')} title={t('admin.parameters.filterClearBtn', 'Clear')}>
                 <Icon name="X" size={14} />
               </button>
             )}
@@ -724,23 +730,23 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
             <span className="ap-lib-filter-result-count">{filtered.length}</span>
             <span className="ap-lib-filter-result-sep">/</span>
             <span className="ap-lib-filter-result-total">{PRUSA_PARAMETER_CATALOG.length}</span>
-            <span className="ap-lib-filter-result-label">{t('parametru', 'params')}</span>
+            <span className="ap-lib-filter-result-label">{t('admin.parameters.filterParamCount', 'params')}</span>
           </div>
         </div>
 
         <div className="ap-lib-filter-row-controls">
           <div className="ap-lib-filter-selects">
             <div className="ap-lib-filter-select-wrap">
-              <span className="ap-lib-filter-select-label">{t('Skupina', 'Group')}</span>
+              <span className="ap-lib-filter-select-label">{t('admin.parameters.filterGroup', 'Group')}</span>
               <select value={group} onChange={(e) => setGroup(e.target.value)}>
-                <option value="">{t('Vsechny', 'All')}</option>
+                <option value="">{t('admin.parameters.filterAll', 'All')}</option>
                 {groups.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
             </div>
             <div className="ap-lib-filter-select-wrap">
-              <span className="ap-lib-filter-select-label">{t('Datovy typ', 'Data type')}</span>
+              <span className="ap-lib-filter-select-label">{t('admin.parameters.filterDataType', 'Data type')}</span>
               <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                <option value="">{t('Vsechny', 'All')}</option>
+                <option value="">{t('admin.parameters.filterAll', 'All')}</option>
                 <option value="number">Number</option>
                 <option value="boolean">Boolean</option>
                 <option value="enum">Enum</option>
@@ -748,9 +754,9 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
               </select>
             </div>
             <div className="ap-lib-filter-select-wrap">
-              <span className="ap-lib-filter-select-label">{t('Uroven', 'Level')}</span>
+              <span className="ap-lib-filter-select-label">{t('admin.parameters.filterLevel', 'Level')}</span>
               <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
-                <option value="pro">{t('Vsechny', 'All')}</option>
+                <option value="pro">{t('admin.parameters.filterAll', 'All')}</option>
                 <option value="basic">Basic</option>
                 <option value="mid">Basic + Mid</option>
               </select>
@@ -764,26 +770,26 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
               className={`ap-lib-chip ${onlyActive ? 'on' : ''}`}
               onClick={() => { setOnlyActive(v => !v); if (!onlyActive) setOnlyInactive(false); }}
             >
-              {t('Aktivni', 'Active')}
+              {t('admin.parameters.filterActive', 'Active')}
             </button>
             <button
               className={`ap-lib-chip ${onlyInactive ? 'on' : ''}`}
               onClick={() => { setOnlyInactive(v => !v); if (!onlyInactive) setOnlyActive(false); }}
             >
-              {t('Neaktivni', 'Inactive')}
+              {t('admin.parameters.filterInactive', 'Inactive')}
             </button>
             <button
               className={`ap-lib-chip ${onlyChanged ? 'on' : ''}`}
               onClick={() => setOnlyChanged(v => !v)}
             >
-              {t('Zmenene', 'Changed')}
+              {t('admin.parameters.filterChanged', 'Changed')}
             </button>
           </div>
 
           {hasAnyFilter && (
             <button className="ap-lib-filter-clear-btn" onClick={clearAllFilters}>
               <Icon name="X" size={14} />
-              {t('Zrusit filtry', 'Clear')}
+              {t('admin.parameters.filterClearBtn', 'Clear')}
             </button>
           )}
         </div>
@@ -793,14 +799,11 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
       {!group && (
         <div className="ap-bulk" style={{ justifyContent: 'space-between' }}>
           <Hint>
-            {t(
-              'Checkbox v knihovne = pouzit parametr v konfiguraci (active_for_slicing). Viditelnost ve widgetu res v zalozce "Widget parametry".',
-              'Checkbox in the library = include parameter in config (active_for_slicing). Widget visibility is configured in "Widget parameters".'
-            )}
+            {t('admin.parameters.groupHint', 'Checkbox in the library = include parameter in config (active_for_slicing). Widget visibility is configured in "Widget parameters".')}
           </Hint>
-          <button className="ap-btn ap-btn-danger-outline" onClick={() => handleConfirm(() => onResetAll(), t('Resetovat vsechny parametry?', 'Reset ALL parameters?'), t('Vrati vsechny hodnoty i aktivitu na defaulty katalogu (destruktivni).', 'Resets all values and active flags to catalog defaults (destructive).'))}>
+          <button className="ap-btn ap-btn-danger-outline" onClick={() => handleConfirm(() => onResetAll(), t('admin.parameters.resetAllConfirmTitle', 'Reset ALL parameters?'), t('admin.parameters.resetAllConfirmDesc', 'Resets all values and active flags to catalog defaults (destructive).'))}>
             <Icon name="RotateCcw" size={14} />
-            {t('Reset vsech na default', 'Reset all to defaults')}
+            {t('admin.parameters.groupResetAll', 'Reset all to defaults')}
           </button>
         </div>
       )}
@@ -810,7 +813,7 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
         {Object.keys(grouped).length === 0 && (
           <div className="ap-empty">
             <Icon name="SearchX" size={20} />
-            <span>{t('Nic nenalezeno.', 'No results.')}</span>
+            <span>{t('admin.parameters.filterNoResults', 'No results.')}</span>
           </div>
         )}
 
@@ -821,18 +824,18 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
               key={g}
               title={g}
               icon="FolderOpen"
-              badge={`${defs.length} ${t('parametru', 'params')}${counts.changed > 0 ? ` / ${counts.changed} ${t('zmen', 'changed')}` : ''}`}
+              badge={`${defs.length} ${t('admin.parameters.filterParamCount', 'params')}${counts.changed > 0 ? ` / ${counts.changed} ${t('admin.parameters.filterChanged', 'changed')}` : ''}`}
               defaultOpen={Object.keys(grouped).length <= 3}
               headerRight={
                 <div className="ap-group-actions">
-                  <button className="ap-btn-sm" onClick={() => handleConfirm(() => onEnableGroup(g), t('Zapnout vsechny v teto skupine?', 'Enable all in this group?'), t('Oznaci vsechny parametry jako aktivni pro slicovani.', 'Marks all parameters as active for slicing.'))}>
-                    <Icon name="Check" size={12} /> {t('Zapnout', 'Enable')}
+                  <button className="ap-btn-sm" onClick={() => handleConfirm(() => onEnableGroup(g), t('admin.parameters.groupEnableConfirmTitle', 'Enable all in this group?'), t('admin.parameters.groupEnableConfirmDesc', 'Marks all parameters as active for slicing.'))}>
+                    <Icon name="Check" size={12} /> {t('admin.parameters.groupEnableBtn', 'Enable')}
                   </button>
-                  <button className="ap-btn-sm" onClick={() => handleConfirm(() => onDisableGroup(g), t('Vypnout vsechny v teto skupine?', 'Disable all in this group?'), t('Oznaci vsechny parametry jako neaktivni pro slicovani.', 'Marks all parameters as inactive for slicing.'))}>
-                    <Icon name="X" size={12} /> {t('Vypnout', 'Disable')}
+                  <button className="ap-btn-sm" onClick={() => handleConfirm(() => onDisableGroup(g), t('admin.parameters.groupDisableConfirmTitle', 'Disable all in this group?'), t('admin.parameters.groupDisableConfirmDesc', 'Marks all parameters as inactive for slicing.'))}>
+                    <Icon name="X" size={12} /> {t('admin.parameters.groupDisableBtn', 'Disable')}
                   </button>
-                  <button className="ap-btn-sm ap-btn-sm-danger" onClick={() => handleConfirm(() => onResetGroup(g), t('Resetovat skupinu na default?', 'Reset group to defaults?'), t('Vrati hodnoty i aktivitu na defaulty katalogu (destruktivni).', 'Resets values and active flags to catalog defaults (destructive).'))}>
-                    <Icon name="RotateCcw" size={12} /> {t('Reset', 'Reset')}
+                  <button className="ap-btn-sm ap-btn-sm-danger" onClick={() => handleConfirm(() => onResetGroup(g), t('admin.parameters.groupResetConfirmTitle', 'Reset group to defaults?'), t('admin.parameters.groupResetConfirmDesc', 'Resets values and active flags to catalog defaults (destructive).'))}>
+                    <Icon name="RotateCcw" size={12} /> {t('admin.parameters.groupResetBtn', 'Reset')}
                   </button>
                 </div>
               }
@@ -861,8 +864,8 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
         open={confirm.open}
         title={confirm.title}
         description={confirm.description}
-        confirmText={t('Potvrdit', 'Confirm')}
-        cancelText={t('Zrusit', 'Cancel')}
+        confirmText={t('admin.parameters.confirmConfirm', 'Confirm')}
+        cancelText={t('admin.parameters.confirmCancel', 'Cancel')}
         danger
         onConfirm={runConfirmAction}
         onCancel={() => setConfirm({ open: false, action: null, title: '', description: '' })}
@@ -877,7 +880,7 @@ function LibraryPage({ language, defsByKey, draft, persisted, onPatchDraft, onRe
 function OverviewPage({ language, draft }) {
   const presets = readTenantJson(STORAGE_PRESETS, []);
   const activity = readTenantJson(STORAGE_LOG, []);
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
 
   const stats = useMemo(() => {
     let active = 0;
@@ -900,15 +903,15 @@ function OverviewPage({ language, draft }) {
   return (
     <div className="ap-overview">
       <div className="ap-overview-grid">
-        <KpiCard title={t('Aktivni parametry', 'Active parameters')} value={stats.active} icon="CheckCircle" />
-        <KpiCard title={t('Zmenene parametry', 'Changed parameters')} value={stats.changed} icon="Edit" tone={stats.changed > 0 ? 'amber' : undefined} />
-        <KpiCard title={t('Viditelne ve widgetu', 'Visible in widget')} value={stats.visible} icon="Eye" />
-        <KpiCard title={t('Presetu', 'Presets')} value={stats.presets} icon="Layers" />
+        <KpiCard title={t('admin.parameters.overviewActiveParams', 'Active parameters')} value={stats.active} icon="CheckCircle" />
+        <KpiCard title={t('admin.parameters.overviewChangedParams', 'Changed parameters')} value={stats.changed} icon="Edit" tone={stats.changed > 0 ? 'amber' : undefined} />
+        <KpiCard title={t('admin.parameters.overviewVisibleWidget', 'Visible in widget')} value={stats.visible} icon="Eye" />
+        <KpiCard title={t('admin.parameters.overviewPresets', 'Presets')} value={stats.presets} icon="Layers" />
       </div>
 
       {/* Printer Profile */}
       <CollapsibleSection
-        title={t('Profil tiskarny', 'Printer Profile')}
+        title={t('admin.parameters.overviewProfileTitle', 'Printer Profile')}
         icon="Cpu"
         defaultOpen={true}
       >
@@ -917,7 +920,7 @@ function OverviewPage({ language, draft }) {
 
       {/* Recent Changes */}
       <CollapsibleSection
-        title={t('Posledni zmeny', 'Recent Changes')}
+        title={t('admin.parameters.overviewRecentChanges', 'Recent Changes')}
         icon="History"
         badge={activity.length > 0 ? String(activity.length) : undefined}
         defaultOpen={true}
@@ -925,7 +928,7 @@ function OverviewPage({ language, draft }) {
         {activity.length === 0 ? (
           <div className="ap-empty">
             <Icon name="History" size={18} />
-            <span>{t('Zatim zadne zmeny.', 'No changes yet.')}</span>
+            <span>{t('admin.parameters.overviewNoChanges', 'No changes yet.')}</span>
           </div>
         ) : (
           <div className="ap-activity">
@@ -965,7 +968,7 @@ function WidgetPage({ language, draft, onPatchDraft }) {
   const [group, setGroup] = useState('');
   const [onlyActive, setOnlyActive] = useState(true);
   const [onlyVisible, setOnlyVisible] = useState(false);
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
 
   const groups = useMemo(() => {
     const set = new Set(PRUSA_PARAMETER_CATALOG.map(d => d.group || 'Other'));
@@ -1002,11 +1005,8 @@ function WidgetPage({ language, draft, onPatchDraft }) {
           <Toggle
             checked={!!draft.enable_widget_overrides}
             onChange={(v) => onPatchDraft({ enable_widget_overrides: v })}
-            label={t('Povolit zakaznikovi menit parametry ve widgetu', 'Allow customers to change parameters in widget')}
-            hint={t(
-              'Kdyz je vypnuto, kalkulacka vzdy pouzije admin defaults/preset a zakaznik neuvidi parametry.',
-              "When off, widget won't show parameter controls; defaults/presets are still used."
-            )}
+            label={t('admin.parameters.widgetAllowCustomers', 'Allow customers to change parameters in widget')}
+            hint={t('admin.parameters.widgetAllowHint', "When off, widget won't show parameter controls; defaults/presets are still used.")}
           />
         </div>
       </div>
@@ -1017,20 +1017,20 @@ function WidgetPage({ language, draft, onPatchDraft }) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('Hledat...', 'Search...')}
+            placeholder={t('admin.parameters.widgetSearchPlaceholder', 'Search...')}
           />
         </div>
 
         <div className="ap-widget-filters">
           <select value={group} onChange={(e) => setGroup(e.target.value)}>
-            <option value="">{t('Vsechny skupiny', 'All groups')}</option>
+            <option value="">{t('admin.parameters.widgetAllGroups', 'All groups')}</option>
             {groups.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <button className={`ap-chip ${onlyActive ? 'on' : ''}`} onClick={() => setOnlyActive(v => !v)}>
-            {t('Jen aktivni pro slicovani', 'Active for slicing only')}
+            {t('admin.parameters.widgetActiveOnly', 'Active for slicing only')}
           </button>
           <button className={`ap-chip ${onlyVisible ? 'on' : ''}`} onClick={() => setOnlyVisible(v => !v)}>
-            {t('Jen viditelne ve widgetu', 'Visible in widget only')}
+            {t('admin.parameters.widgetVisibleOnly', 'Visible in widget only')}
           </button>
         </div>
       </div>
@@ -1055,7 +1055,7 @@ function WidgetPage({ language, draft, onPatchDraft }) {
 function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) {
   const inactiveForSlicing = !libraryRow?.active_for_slicing;
   const disabled = !enabled || inactiveForSlicing;
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
 
   const baseAllowed = useMemo(() => {
     if (def.dataType === 'number') {
@@ -1086,10 +1086,10 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
             <span className="ap-widget-row-key">{def.key}</span>
             <Badge tone={inactiveForSlicing ? 'gray' : widgetRow.visible_in_widget ? 'blue' : 'gray'}>
               {inactiveForSlicing
-                ? t('Neaktivni pro slicovani', 'Inactive for slicing')
+                ? t('admin.parameters.widgetBadgeInactive', 'Inactive for slicing')
                 : widgetRow.visible_in_widget
-                  ? t('Viditelne', 'Visible')
-                  : t('Skryte', 'Hidden')}
+                  ? t('admin.parameters.widgetBadgeVisible', 'Visible')
+                  : t('admin.parameters.widgetBadgeHidden', 'Hidden')}
             </Badge>
           </div>
         </div>
@@ -1098,14 +1098,14 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
             checked={!!widgetRow.visible_in_widget}
             onChange={(v) => onChange({ ...widgetRow, visible_in_widget: v })}
             disabled={disabled}
-            label={t('Ve widgetu', 'In widget')}
+            label={t('admin.parameters.widgetInWidget', 'In widget')}
           />
         </div>
       </div>
 
       <div className="ap-widget-row-body">
         <div className="ap-widget-row-col">
-          <label>{t('Widget label', 'Widget label')}</label>
+          <label>{t('admin.parameters.widgetLabelField', 'Widget label')}</label>
           <input
             value={widgetRow.widget_label || ''}
             onChange={(e) => onChange({ ...widgetRow, widget_label: e.target.value })}
@@ -1113,7 +1113,7 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           />
         </div>
         <div className="ap-widget-row-col">
-          <label>{t('Help text', 'Help text')}</label>
+          <label>{t('admin.parameters.widgetHelpText', 'Help text')}</label>
           <input
             value={widgetRow.widget_help || ''}
             onChange={(e) => onChange({ ...widgetRow, widget_help: e.target.value })}
@@ -1125,7 +1125,7 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
       <div className="ap-widget-row-advanced">
         <div className="ap-widget-row-advanced-grid">
           <div className="ap-widget-row-col">
-            <label>{t('Input typ', 'Input type')}</label>
+            <label>{t('admin.parameters.widgetInputType', 'Input type')}</label>
             <select
               value={widgetRow.input_type || 'auto'}
               onChange={(e) => onChange({ ...widgetRow, input_type: e.target.value })}
@@ -1140,42 +1140,57 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           </div>
 
           <div className="ap-widget-row-col">
-            <label>{t('Read-only', 'Read-only')}</label>
+            <label>{t('admin.parameters.widgetReadOnly', 'Read-only')}</label>
             <select
               value={widgetRow.locked_readonly ? 'yes' : 'no'}
               onChange={(e) => onChange({ ...widgetRow, locked_readonly: e.target.value === 'yes' })}
               disabled={!enabled}
             >
-              <option value="no">{t('Ne', 'No')}</option>
-              <option value="yes">{t('Ano', 'Yes')}</option>
+              <option value="no">{t('admin.parameters.widgetNo', 'No')}</option>
+              <option value="yes">{t('admin.parameters.widgetYes', 'Yes')}</option>
             </select>
           </div>
 
           <div className="ap-widget-row-col">
-            <label>{t('Povolene hodnoty', 'Allowed values')}</label>
+            <label>{t('admin.parameters.widgetAllowedValues', 'Allowed values')}</label>
 
             {def.dataType === 'number' ? (
               <div className="ap-widget-allowed">
                 <input
                   type="number"
                   value={String(allowed?.min ?? '')}
-                  onChange={(e) => setAllowed({ ...allowed, min: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setAllowed({ ...allowed, min: raw === '' ? undefined : Number(raw) });
+                  }}
                   disabled={!enabled}
                   placeholder="min"
+                  min={def.min}
+                  max={allowed?.max ?? def.max}
                 />
                 <input
                   type="number"
                   value={String(allowed?.max ?? '')}
-                  onChange={(e) => setAllowed({ ...allowed, max: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setAllowed({ ...allowed, max: raw === '' ? undefined : Number(raw) });
+                  }}
                   disabled={!enabled}
                   placeholder="max"
+                  min={allowed?.min ?? def.min}
+                  max={def.max}
                 />
                 <input
                   type="number"
                   value={String(allowed?.step ?? '')}
-                  onChange={(e) => setAllowed({ ...allowed, step: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setAllowed({ ...allowed, step: raw === '' ? undefined : Number(raw) });
+                  }}
                   disabled={!enabled}
                   placeholder="step"
+                  min={0.001}
+                  step="any"
                 />
                 {def.unit ? <span className="ap-widget-unit">{def.unit}</span> : null}
               </div>
@@ -1202,7 +1217,7 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
               </div>
             ) : (
               <div className="ap-widget-allowed-note">
-                {t('Pro tento typ se povolene hodnoty typicky neresi.', 'Allowed values are typically not needed for this type.')}
+                {t('admin.parameters.widgetAllowedNote', 'Allowed values are typically not needed for this type.')}
               </div>
             )}
           </div>
@@ -1212,10 +1227,7 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
           <div className="ap-widget-warn">
             <Icon name="AlertTriangle" size={16} />
             <span>
-              {t(
-                'Parametr je neaktivni pro slicovani - nedoporucuje se ho zobrazovat ve widgetu.',
-                'Parameter is inactive for slicing - it should not be shown in widget.'
-              )}
+              {t('admin.parameters.widgetInactiveWarn', 'Parameter is inactive for slicing - it should not be shown in widget.')}
             </span>
           </div>
         )}
@@ -1228,21 +1240,18 @@ function WidgetRow({ language, def, libraryRow, widgetRow, enabled, onChange }) 
 // ValidationPage
 // =============================
 function ValidationPage({ language }) {
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
   return (
     <div>
       <div className="ap-validation-banner">
         <Icon name="Construction" size={18} />
         <span>
-          {t(
-            'Validace & limity je pripravene architektonicky (tab), ale logika pravidel bude doplnena pozdeji.',
-            'Validation & limits is prepared as a tab, rule engine will be added later.'
-          )}
+          {t('admin.parameters.validationBanner', 'Validation & limits is prepared as a tab, rule engine will be added later.')}
         </span>
       </div>
 
       <div className="ap-card">
-        <div className="ap-card-title">{t('Priklady pravidel (budouci)', 'Example rules (future)')}</div>
+        <div className="ap-card-title">{t('admin.parameters.validationExamplesTitle', 'Example rules (future)')}</div>
         <ul className="ap-validation-list">
           <li><code>layer_height</code> &#8804; 0.75 x <code>nozzle_diameter</code></li>
           <li><code>fill_density</code> v rozsahu 0..100</li>
@@ -1250,10 +1259,7 @@ function ValidationPage({ language }) {
           <li>Pokud <code>support_material=false</code>, support parametry se ignoruji/skryvaji</li>
         </ul>
         <div className="ap-validation-note">
-          {t(
-            'Chovani: ve widgetu blokovat kalkulaci s vysvetlenim; v adminu zabranit ulozeni, pokud je to tvrdy limit.',
-            'Behavior: block widget calculation with explanation; in admin, prevent save for hard limits.'
-          )}
+          {t('admin.parameters.validationNote', 'Behavior: block widget calculation with explanation; in admin, prevent save for hard limits.')}
         </div>
       </div>
     </div>
@@ -1295,7 +1301,7 @@ function getMaterialDensity(mat) {
 }
 
 function MaterialsPage({ language }) {
-  const t = (cs, en) => language === 'cs' ? cs : en;
+  const { t } = useLanguage();
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const fileInputRef = useRef(null);
 
@@ -1309,6 +1315,8 @@ function MaterialsPage({ language }) {
   const [sortField, setSortField] = useState('name'); // 'name' | 'density' | 'price'
   const [sortDir, setSortDir] = useState('asc');
   const [showPreview, setShowPreview] = useState(null); // material id for preview
+  const [importError, setImportError] = useState(null);
+  const importErrorTimerRef = useRef(null);
 
   // Reload materials from storage
   const reloadMaterials = useCallback(() => {
@@ -1373,12 +1381,12 @@ function MaterialsPage({ language }) {
     const targetEnabled = !allEnabled;
     const ok = await confirm({
       title: targetEnabled
-        ? t('Zapnout vsechny materialy?', 'Enable all materials?')
-        : t('Vypnout vsechny materialy?', 'Disable all materials?'),
+        ? t('admin.parameters.matBulkEnableConfirmTitle', 'Enable all materials?')
+        : t('admin.parameters.matBulkDisableConfirmTitle', 'Disable all materials?'),
       message: targetEnabled
-        ? t('Vsechny materialy budou povoleny pro kalkulaci.', 'All materials will be enabled for calculations.')
-        : t('Vsechny materialy budou zakázany. Kalkulace nebudou mozne.', 'All materials will be disabled. Calculations will not be possible.'),
-      confirmLabel: targetEnabled ? t('Zapnout vse', 'Enable all') : t('Vypnout vse', 'Disable all'),
+        ? t('admin.parameters.matBulkEnableConfirmMsg', 'All materials will be enabled for calculations.')
+        : t('admin.parameters.matBulkDisableConfirmMsg', 'All materials will be disabled. Calculations will not be possible.'),
+      confirmLabel: targetEnabled ? t('admin.parameters.matBulkEnableBtn', 'Enable all') : t('admin.parameters.matBulkDisableBtn', 'Disable all'),
       destructive: !targetEnabled,
     });
     if (!ok) return;
@@ -1388,17 +1396,21 @@ function MaterialsPage({ language }) {
   // Reset to defaults
   const handleResetDefaults = async () => {
     const ok = await confirm({
-      title: t('Resetovat materialy na vychozi?', 'Reset materials to defaults?'),
-      message: t(
-        'Tato akce smaze vasi konfiguraci materialu a nahradí ji vychozim nastavenim. Tuto akci nelze vratit.',
-        'This will replace your materials configuration with defaults. This action cannot be undone.'
-      ),
-      confirmLabel: t('Resetovat', 'Reset'),
+      title: t('admin.parameters.matResetConfirmTitle', 'Reset materials to defaults?'),
+      message: t('admin.parameters.matResetConfirmMsg', 'This will replace your materials configuration with defaults. This action cannot be undone.'),
+      confirmLabel: t('admin.parameters.matResetBtn', 'Reset'),
       destructive: true,
     });
     if (!ok) return;
     const defaults = getDefaultPricingConfigV3();
     saveMaterials(defaults.materials);
+  };
+
+  // Show an auto-dismissing import error banner
+  const showImportError = (msg) => {
+    clearTimeout(importErrorTimerRef.current);
+    setImportError(msg);
+    importErrorTimerRef.current = setTimeout(() => setImportError(null), 4000);
   };
 
   // Export materials as JSON
@@ -1427,23 +1439,22 @@ function MaterialsPage({ language }) {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
-        const parsed = JSON.parse(ev.target.result);
+        const parsed = safeJsonParse(ev.target.result);
         if (!parsed.materials || !Array.isArray(parsed.materials)) {
-          alert(t('Neplatny format souboru. Ocekavan JSON s polem "materials".', 'Invalid file format. Expected JSON with "materials" array.'));
+          showImportError(t('admin.parameters.matImportInvalid', 'Invalid file format. Expected JSON with "materials" array.'));
           return;
         }
         const ok = await confirm({
-          title: t('Importovat materialy?', 'Import materials?'),
-          message: t(
-            `Soubor obsahuje ${parsed.materials.length} materialu. Aktualni konfigurace bude nahrazena.`,
-            `File contains ${parsed.materials.length} materials. Current configuration will be replaced.`
-          ),
-          confirmLabel: t('Importovat', 'Import'),
+          title: t('admin.parameters.matImportConfirmTitle', 'Import materials?'),
+          message: language === 'cs'
+            ? `Soubor obsahuje ${parsed.materials.length} materialu. Aktualni konfigurace bude nahrazena.`
+            : `File contains ${parsed.materials.length} materials. Current configuration will be replaced.`,
+          confirmLabel: t('admin.parameters.matImportBtn', 'Import'),
         });
         if (!ok) return;
         saveMaterials(parsed.materials);
       } catch {
-        alert(t('Chyba pri cteni souboru. Zkontrolujte format JSON.', 'Error reading file. Check JSON format.'));
+        showImportError(t('admin.parameters.matImportReadError', 'Error reading file. Check JSON format.'));
       }
     };
     reader.readAsText(file);
@@ -1468,7 +1479,7 @@ function MaterialsPage({ language }) {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('Hledat material...', 'Search material...')}
+              placeholder={t('admin.parameters.matSearchPlaceholder', 'Search material...')}
             />
             {search && (
               <button className="ap-lib-search-clear" onClick={() => setSearch('')}>
@@ -1480,32 +1491,43 @@ function MaterialsPage({ language }) {
             <span className="ap-mat-count-num">{filteredMaterials.length}</span>
             <span className="ap-mat-count-sep">/</span>
             <span>{materials.length}</span>
-            <span className="ap-mat-count-label">{t('materialu', 'materials')}</span>
+            <span className="ap-mat-count-label">{t('admin.parameters.matCount', 'materials')}</span>
           </div>
         </div>
 
         <div className="ap-mat-toolbar-right">
-          <button className="ap-btn-sm" onClick={handleBulkToggle} title={allEnabled ? t('Vypnout vse', 'Disable all') : t('Zapnout vse', 'Enable all')}>
+          <button className="ap-btn-sm" onClick={handleBulkToggle} title={allEnabled ? t('admin.parameters.matBulkDisable', 'Disable all') : t('admin.parameters.matBulkEnable', 'Enable all')}>
             <Icon name={allEnabled ? 'ToggleRight' : 'ToggleLeft'} size={14} />
-            {allEnabled ? t('Vypnout vse', 'Disable all') : t('Zapnout vse', 'Enable all')}
+            {allEnabled ? t('admin.parameters.matBulkDisable', 'Disable all') : t('admin.parameters.matBulkEnable', 'Enable all')}
           </button>
           <div className="ap-lib-filter-divider" />
-          <button className="ap-btn-sm" onClick={handleExport} title={t('Exportovat JSON', 'Export JSON')}>
+          <button className="ap-btn-sm" onClick={handleExport} title={t('admin.parameters.matExport', 'Export JSON')}>
             <Icon name="Download" size={14} />
-            {t('Export', 'Export')}
+            {t('admin.parameters.matExport', 'Export')}
           </button>
-          <button className="ap-btn-sm" onClick={() => fileInputRef.current?.click()} title={t('Importovat JSON', 'Import JSON')}>
+          <button className="ap-btn-sm" onClick={() => fileInputRef.current?.click()} title={t('admin.parameters.matImport', 'Import JSON')}>
             <Icon name="Upload" size={14} />
-            {t('Import', 'Import')}
+            {t('admin.parameters.matImport', 'Import')}
           </button>
           <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
           <div className="ap-lib-filter-divider" />
           <button className="ap-btn-sm ap-btn-sm-danger" onClick={handleResetDefaults}>
             <Icon name="RotateCcw" size={14} />
-            {t('Reset na vychozi', 'Reset to defaults')}
+            {t('admin.parameters.matReset', 'Reset to defaults')}
           </button>
         </div>
       </div>
+
+      {/* Import error banner */}
+      {importError && (
+        <div className="ap-import-error-banner" role="alert">
+          <Icon name="XCircle" size={16} />
+          <span>{importError}</span>
+          <button className="ap-import-error-close" onClick={() => setImportError(null)} aria-label={t('admin.parameters.matDismiss', 'Dismiss')}>
+            <Icon name="X" size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Materials Table */}
       <div className="ap-mat-table-wrap">
@@ -1520,20 +1542,20 @@ function MaterialsPage({ language }) {
                 />
               </th>
               <th className="ap-mat-th-sortable" onClick={() => handleSort('name')}>
-                {t('Material', 'Material')}
+                {t('admin.parameters.matTableMaterial', 'Material')}
                 <Icon name={sortIcon('name')} size={14} />
               </th>
               <th className="ap-mat-th-sortable" onClick={() => handleSort('density')}>
-                {t('Hustota', 'Density')}
+                {t('admin.parameters.matTableDensity', 'Density')}
                 <Icon name={sortIcon('density')} size={14} />
               </th>
               <th className="ap-mat-th-sortable" onClick={() => handleSort('price')}>
-                {t('Cena/g', 'Price/g')}
+                {t('admin.parameters.matTablePrice', 'Price/g')}
                 <Icon name={sortIcon('price')} size={14} />
               </th>
-              <th>{t('Barvy', 'Colors')}</th>
-              <th>{t('Stav', 'Status')}</th>
-              <th>{t('Nahled', 'Preview')}</th>
+              <th>{t('admin.parameters.matTableColors', 'Colors')}</th>
+              <th>{t('admin.parameters.matTableStatus', 'Status')}</th>
+              <th>{t('admin.parameters.matTablePreview', 'Preview')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1541,7 +1563,7 @@ function MaterialsPage({ language }) {
               <tr>
                 <td colSpan={7} className="ap-mat-empty-row">
                   <Icon name="SearchX" size={18} />
-                  {t('Zadne materialy nenalezeny.', 'No materials found.')}
+                  {t('admin.parameters.matNoResults', 'No materials found.')}
                 </td>
               </tr>
             )}
@@ -1598,20 +1620,20 @@ function MaterialsPage({ language }) {
                           {colorCount > 5 && <span className="ap-mat-color-more">+{colorCount - 5}</span>}
                         </>
                       ) : (
-                        <span className="ap-mat-no-colors">{t('Zadne', 'None')}</span>
+                        <span className="ap-mat-no-colors">{t('admin.parameters.matNoColors', 'None')}</span>
                       )}
                     </div>
                   </td>
                   <td>
                     <Badge tone={isEnabled ? 'green' : 'gray'}>
-                      {isEnabled ? t('Aktivni', 'Active') : t('Neaktivni', 'Inactive')}
+                      {isEnabled ? t('admin.parameters.matActive', 'Active') : t('admin.parameters.matInactive', 'Inactive')}
                     </Badge>
                   </td>
                   <td>
                     <button
                       className="ap-btn-sm"
                       onClick={() => setShowPreview(showPreview === mat.id ? null : mat.id)}
-                      title={t('Zobrazit nahled kalkulacky', 'Show calculator preview')}
+                      title={t('admin.parameters.matTablePreview', 'Show calculator preview')}
                     >
                       <Icon name={showPreview === mat.id ? 'EyeOff' : 'Eye'} size={14} />
                     </button>
@@ -1636,19 +1658,19 @@ function MaterialsPage({ language }) {
           <div className="ap-mat-preview">
             <div className="ap-mat-preview-header">
               <Icon name="Eye" size={16} />
-              <span>{t('Nahled v kalkulacce', 'Calculator preview')}</span>
+              <span>{t('admin.parameters.matPreviewTitle', 'Calculator preview')}</span>
               <button className="ap-lib-search-clear" onClick={() => setShowPreview(null)}>
                 <Icon name="X" size={14} />
               </button>
             </div>
             <div className="ap-mat-preview-body">
               <div className="ap-mat-preview-card">
-                <div className="ap-mat-preview-label">{t('Material', 'Material')}</div>
+                <div className="ap-mat-preview-label">{t('admin.parameters.matPreviewMaterial', 'Material')}</div>
                 <div className="ap-mat-preview-value">{mat.name}</div>
               </div>
               {density && (
                 <div className="ap-mat-preview-card">
-                  <div className="ap-mat-preview-label">{t('Hustota', 'Density')}</div>
+                  <div className="ap-mat-preview-label">{t('admin.parameters.matPreviewDensity', 'Density')}</div>
                   <div className="ap-mat-preview-value">
                     <span className="ap-mat-density-dot" style={{ background: getDensityColor(density) }} />
                     {density.toFixed(2)} g/cm3
@@ -1656,16 +1678,16 @@ function MaterialsPage({ language }) {
                 </div>
               )}
               <div className="ap-mat-preview-card">
-                <div className="ap-mat-preview-label">{t('Cena za gram', 'Price per gram')}</div>
+                <div className="ap-mat-preview-label">{t('admin.parameters.matPreviewPricePerG', 'Price per gram')}</div>
                 <div className="ap-mat-preview-value ap-mat-preview-price">{price.toFixed(2)} CZK</div>
               </div>
               <div className="ap-mat-preview-card">
-                <div className="ap-mat-preview-label">{t(`Priklad: ${exampleWeight}g model`, `Example: ${exampleWeight}g model`)}</div>
+                <div className="ap-mat-preview-label">{language === 'cs' ? `Priklad: ${exampleWeight}g model` : `Example: ${exampleWeight}g model`}</div>
                 <div className="ap-mat-preview-value ap-mat-preview-total">{exampleCost} CZK</div>
               </div>
               {Array.isArray(mat.colors) && mat.colors.length > 0 && (
                 <div className="ap-mat-preview-card ap-mat-preview-card-wide">
-                  <div className="ap-mat-preview-label">{t('Dostupne barvy', 'Available colors')}</div>
+                  <div className="ap-mat-preview-label">{t('admin.parameters.matPreviewColors', 'Available colors')}</div>
                   <div className="ap-mat-preview-colors">
                     {mat.colors.map(c => (
                       <div key={c.id} className="ap-mat-preview-color-item">
@@ -1682,7 +1704,7 @@ function MaterialsPage({ language }) {
             </div>
             <div className="ap-mat-preview-footer">
               <Icon name="Info" size={14} />
-              {t('Takto zakaznik uvidi material v kalkulacce.', 'This is how the customer sees the material in the calculator.')}
+              {t('admin.parameters.matPreviewFooter', 'This is how the customer sees the material in the calculator.')}
             </div>
           </div>
         );
@@ -1697,7 +1719,9 @@ function MaterialsPage({ language }) {
 // Main module
 // =============================
 export default function AdminParameters() {
-  const { language } = useLanguage();
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
+  const { language, t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -1708,8 +1732,6 @@ export default function AdminParameters() {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [confirmResetAllOpen, setConfirmResetAllOpen] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-
-  const t = (cs, en) => language === 'cs' ? cs : en;
 
   useEffect(() => {
     const p = loadPersisted(language);
@@ -1843,7 +1865,7 @@ export default function AdminParameters() {
 
     const nextPersisted = deepClone(draft);
     nextPersisted.updated_at = nowIso();
-    nextPersisted.updated_by = 'admin';
+    nextPersisted.updated_by = currentUser;
 
     writeTenantJson(STORAGE_NS, nextPersisted);
     setPersisted(nextPersisted);
@@ -1868,10 +1890,10 @@ export default function AdminParameters() {
     const active = (p) => (p === base ? path === base || path === base + '/' : path.startsWith(p));
 
     return [
-      { path: base + '/overview', label: t('Prehled', 'Overview'), icon: 'BarChart3' },
-      { path: base + '/library', label: t('Knihovna Parametru', 'Parameter Library'), icon: 'List' },
-      { path: base + '/widget', label: t('Widget parametry', 'Widget'), icon: 'SlidersHorizontal' },
-      { path: base + '/validation', label: t('Validace', 'Validation'), icon: 'ShieldCheck' },
+      { path: base + '/overview', label: t('admin.parameters.tabOverview', 'Overview'), icon: 'BarChart3' },
+      { path: base + '/library', label: t('admin.parameters.tabLibrary', 'Parameter Library'), icon: 'List' },
+      { path: base + '/widget', label: t('admin.parameters.tabWidget', 'Widget'), icon: 'SlidersHorizontal' },
+      { path: base + '/validation', label: t('admin.parameters.tabValidation', 'Validation'), icon: 'ShieldCheck' },
     ].map(t2 => ({ ...t2, active: active(t2.path) }));
   }, [location.pathname, language]);
 
@@ -1879,12 +1901,9 @@ export default function AdminParameters() {
     <div className="ap-root">
       <div className="ap-page-header">
         <div>
-          <h1 className="ap-h1">{t('Parametry', 'Parameters')}</h1>
+          <h1 className="ap-h1">{t('admin.parameters.pageTitle', 'Parameters')}</h1>
           <p className="ap-subtitle">
-            {t(
-              'Sprava parametru pro PrusaSlicer: aktivita, defaulty a widget moznosti. Zmeny se projevi v novych kalkulacich.',
-              'Manage PrusaSlicer parameters: activity, defaults and widget options. Changes apply to new calculations.'
-            )}
+            {t('admin.parameters.pageSubtitle', 'Manage PrusaSlicer parameters: activity, defaults and widget options. Changes apply to new calculations.')}
           </p>
         </div>
 
@@ -1892,20 +1911,20 @@ export default function AdminParameters() {
           {showSaveSuccess && (
             <Badge tone="green">
               <Icon name="Check" size={14} />
-              {t('Ulozeno', 'Saved')}
+              {t('admin.parameters.badgeSaved', 'Saved')}
             </Badge>
           )}
           <Badge tone={dirtyCount ? 'amber' : 'green'}>
-            {dirtyCount ? t('Neulozene zmeny', 'Unsaved changes') : t('Ulozeno', 'Saved')}
+            {dirtyCount ? t('admin.parameters.badgeUnsaved', 'Unsaved changes') : t('admin.parameters.badgeSaved', 'Saved')}
             {dirtyCount ? ` (${dirtyCount})` : ''}
           </Badge>
           <button className="ap-btn" onClick={() => setConfirmResetAllOpen(true)} disabled={saveStatus === 'saving'}>
             <Icon name="RotateCcw" size={16} />
-            {t('Reset', 'Reset')}
+            {t('admin.parameters.btnReset', 'Reset')}
           </button>
           <button className="ap-btn ap-btn-primary" onClick={handleSave} disabled={saveDisabled || dirtyCount === 0}>
             <Icon name="Save" size={16} />
-            {t('Ulozit zmeny', 'Save changes')}
+            {t('admin.parameters.btnSave', 'Save changes')}
           </button>
         </div>
       </div>
@@ -1924,7 +1943,7 @@ export default function AdminParameters() {
         <div className="ap-tabs-right">
           <button className="ap-tab ap-tab-link" onClick={() => navigate('/admin/presets')}>
             <Icon name="Layers" size={16} />
-            {t('Presety', 'Presets')}
+            {t('admin.parameters.tabPresets', 'Presets')}
           </button>
         </div>
       </div>
@@ -1954,13 +1973,10 @@ export default function AdminParameters() {
 
       <ConfirmModal
         open={confirmResetAllOpen}
-        title={t('Resetovat vsechny parametry?', 'Reset all parameters?')}
-        description={t(
-          'Tato akce vrati vsechny parametry na katalogove defaulty (aktivita + hodnoty). Je to destruktivni zmena.',
-          'This will restore all parameters to catalog defaults (active flags + values). This is destructive.'
-        )}
-        confirmText={t('Resetovat', 'Reset')}
-        cancelText={t('Zrusit', 'Cancel')}
+        title={t('admin.parameters.resetAllConfirmTitle', 'Reset all parameters?')}
+        description={t('admin.parameters.resetAllConfirmDesc', 'This will restore all parameters to catalog defaults (active flags + values). This is destructive.')}
+        confirmText={t('admin.parameters.resetAllConfirmBtn', 'Reset')}
+        cancelText={t('admin.parameters.confirmCancel', 'Cancel')}
         danger
         onConfirm={() => {
           setConfirmResetAllOpen(false);
@@ -3335,6 +3351,31 @@ const adminParametersStyles = `
   margin-top: 12px;
   font-size: 13px;
   color: var(--forge-text-muted);
+}
+
+/* ─── Import error banner ─── */
+.ap-import-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: var(--forge-radius-xl);
+  background: rgba(255,71,87,0.06);
+  border: 1px solid rgba(255,71,87,0.3);
+  color: var(--forge-error, #FF4757);
+  font-size: 13px;
+  font-weight: 500;
+}
+.ap-import-error-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+  color: inherit;
+  padding: 2px;
+  display: flex;
+  align-items: center;
 }
 
 /* ─── Responsive ─── */

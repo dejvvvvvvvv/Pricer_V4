@@ -17,7 +17,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
       // Process accepted files
       acceptedFiles?.forEach((file) => {
-        const fileId = Date.now() + Math.random();
+        const fileId = crypto.randomUUID();
         setUploadProgress((prev) => ({ ...prev, [fileId]: 0 }));
 
         let progress = 0;

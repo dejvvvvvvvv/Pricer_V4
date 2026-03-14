@@ -4,6 +4,8 @@
 */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
+import { useLanguage } from '../../contexts/LanguageContext';
 import {
   getMigrationList,
   runMigrations,
@@ -16,6 +18,8 @@ import { checkSupabaseConnection, isSupabaseAvailable } from '../../lib/supabase
 import { getAllStorageModes, setStorageMode } from '../../lib/supabase/featureFlags';
 
 export default function AdminMigration() {
+  const { confirm, ConfirmDialogPortal } = useConfirmDialog();
+  const { t } = useLanguage();
   const [migrations, setMigrations] = useState([]);
   const [connection, setConnection] = useState(null);
   const [storageModes, setStorageModes] = useState({});
@@ -57,7 +61,13 @@ export default function AdminMigration() {
   }, []);
 
   const handleMigrate = useCallback(async () => {
-    if (!window.confirm('This will copy all localStorage data to Supabase. Continue?')) return;
+    const ok = await confirm({
+      title: 'Migrate data',
+      message:
+        'This will copy all localStorage data to Supabase. ' +
+        'Download a backup first if you have not done so already. Continue?',
+    });
+    if (!ok) return;
 
     setRunning(true);
     setResults(null);
@@ -98,14 +108,24 @@ export default function AdminMigration() {
     refreshModes();
   }, [refreshModes]);
 
-  const handleEnableSupabase = useCallback(() => {
-    if (!window.confirm('Switch ALL namespaces to Supabase-only mode? localStorage will no longer be written to.')) return;
+  const handleEnableSupabase = useCallback(async () => {
+    const ok = await confirm({
+      title: 'Enable Supabase-only mode',
+      message: 'Switch ALL namespaces to Supabase-only mode? localStorage will no longer be written to.',
+    });
+    if (!ok) return;
     enableSupabaseForAll();
     refreshModes();
   }, [refreshModes]);
 
-  const handleRollback = useCallback(() => {
-    if (!window.confirm('Switch ALL namespaces back to localStorage mode?')) return;
+  const handleRollback = useCallback(async () => {
+    const ok = await confirm({
+      title: 'Rollback to localStorage',
+      message:
+        'This switches ALL namespaces back to localStorage mode (feature flag only). ' +
+        'No data is moved or deleted — your localStorage data must still be present for the app to read it.',
+    });
+    if (!ok) return;
     rollbackToLocalStorage();
     refreshModes();
   }, [refreshModes]);
@@ -127,9 +147,9 @@ export default function AdminMigration() {
   return (
     <div className="mig-page">
       <div>
-        <h1 className="mig-title">Database Migration</h1>
+        <h1 className="mig-title">{t('admin.migration.title')}</h1>
         <p className="mig-subtitle">
-          Migrate data from localStorage to Supabase PostgreSQL
+          {t('admin.migration.subtitle')}
         </p>
       </div>
 
@@ -145,7 +165,7 @@ export default function AdminMigration() {
             background: connection?.ok ? 'var(--forge-success)' : 'var(--forge-error)',
           }} />
           <span style={{ fontWeight: 600, fontSize: 14, color: connection?.ok ? 'var(--forge-success)' : 'var(--forge-error)' }}>
-            {connection?.ok ? 'Supabase connected' : `Supabase: ${connection?.error || 'Checking...'}`}
+            {connection?.ok ? t('admin.migration.connOk') : `Supabase: ${connection?.error || 'Checking...'}`}
           </span>
         </div>
       </div>
@@ -153,21 +173,21 @@ export default function AdminMigration() {
       {/* Actions */}
       <div className="mig-actions">
         <button onClick={handleBackup} className="mig-btn mig-btn-secondary">
-          Download Backup
+          {t('admin.migration.downloadBackup')}
         </button>
         <button
           onClick={handleDryRun}
           disabled={running || !connection?.ok}
           className="mig-btn mig-btn-outline"
         >
-          {running ? 'Running...' : 'Dry Run'}
+          {running ? t('admin.migration.running') : t('admin.migration.dryRun')}
         </button>
         <button
           onClick={handleMigrate}
           disabled={running || !connection?.ok}
           className="mig-btn mig-btn-primary"
         >
-          {running ? 'Migrating...' : 'Migrate to Supabase'}
+          {running ? t('admin.migration.migrating') : t('admin.migration.migrate')}
         </button>
       </div>
 
@@ -197,7 +217,7 @@ export default function AdminMigration() {
           background: results.ok ? 'rgba(0,212,170,0.08)' : 'rgba(255,181,71,0.08)',
         }}>
           <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}>
-            {results.dryRun ? 'Dry Run Results' : 'Migration Results'}
+            {results.dryRun ? t('admin.migration.dryRunResults') : t('admin.migration.migrateResults')}
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, fontSize: 14 }}>
             <div><span style={{ color: 'var(--forge-text-muted)' }}>Total:</span> <span style={{ color: 'var(--forge-text-primary)' }}>{results.total}</span></div>
@@ -219,18 +239,18 @@ export default function AdminMigration() {
 
       {/* Migration Table */}
       <div>
-        <h2 className="mig-section-title">Data Sources ({migrations.length})</h2>
+        <h2 className="mig-section-title">{t('admin.migration.dataSources')} ({migrations.length})</h2>
         <p style={{ fontSize: 12, color: 'var(--forge-text-muted)', marginBottom: 12, fontFamily: 'var(--forge-font-mono)' }}>
-          Total localStorage data: {formatBytes(totalLocalData)}
+          {t('admin.migration.totalData')} {formatBytes(totalLocalData)}
         </p>
         <div className="mig-table-wrap">
           <table className="mig-table">
             <thead>
               <tr>
-                <th>Namespace</th>
-                <th>Table</th>
-                <th style={{ textAlign: 'right' }}>Size</th>
-                <th style={{ textAlign: 'center' }}>Has Data</th>
+                <th>{t('admin.migration.colNamespace')}</th>
+                <th>{t('admin.migration.colTable')}</th>
+                <th style={{ textAlign: 'right' }}>{t('admin.migration.colSize')}</th>
+                <th style={{ textAlign: 'center' }}>{t('admin.migration.colHasData')}</th>
               </tr>
             </thead>
             <tbody>
@@ -260,16 +280,16 @@ export default function AdminMigration() {
 
       {/* Feature Flags / Storage Modes */}
       <div>
-        <h2 className="mig-section-title">Storage Mode per Namespace</h2>
+        <h2 className="mig-section-title">{t('admin.migration.storageModes')}</h2>
         <div className="mig-actions" style={{ marginBottom: 16 }}>
           <button onClick={handleEnableDualWrite} className="mig-btn mig-btn-warn-outline">
-            Enable Dual-Write (all)
+            {t('admin.migration.enableDualWrite')}
           </button>
           <button onClick={handleEnableSupabase} className="mig-btn mig-btn-success-outline">
-            Switch to Supabase (all)
+            {t('admin.migration.switchSupabase')}
           </button>
           <button onClick={handleRollback} className="mig-btn mig-btn-danger-outline">
-            Rollback to localStorage (all)
+            {t('admin.migration.rollback')}
           </button>
         </div>
 
@@ -277,9 +297,9 @@ export default function AdminMigration() {
           <table className="mig-table">
             <thead>
               <tr>
-                <th>Namespace</th>
-                <th>Current Mode</th>
-                <th>Actions</th>
+                <th>{t('admin.migration.colNamespace')}</th>
+                <th>{t('admin.migration.colCurrentMode')}</th>
+                <th>{t('admin.migration.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -401,6 +421,7 @@ export default function AdminMigration() {
         .mig-table tr:last-child td { border-bottom: none; }
         .mig-table tbody tr:hover { background: var(--forge-bg-elevated); }
       `}</style>
+      {ConfirmDialogPortal}
     </div>
   );
 }

@@ -17,6 +17,20 @@ const NS_REPORT_HISTORY = 'reports:history:v1';
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
+/**
+ * Escape a string for safe HTML interpolation.
+ * Prevents XSS when user-controlled values (material names, customer names,
+ * report titles) are embedded in generated HTML reports.
+ */
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 function filterOrdersByDateRange(orders, from, to) {
   const fromDate = new Date(from);
   const toDate = new Date(to);
@@ -355,11 +369,12 @@ export function reportToCSV(report) {
 /* ── Printable HTML ──────────────────────────────────────────────────── */
 
 function htmlWrapper(title, from, to, bodyHtml) {
+  const safeTitle = escapeHtml(title);
   return `<!DOCTYPE html>
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <title>${title}</title>
+  <title>${safeTitle}</title>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; padding: 32px; color: #1a1a2e; max-width: 900px; margin: 0 auto; }
     h1 { font-size: 22px; margin-bottom: 4px; }
@@ -377,7 +392,7 @@ function htmlWrapper(title, from, to, bodyHtml) {
   </style>
 </head>
 <body>
-  <h1>${title}</h1>
+  <h1>${safeTitle}</h1>
   <div class="subtitle">Obdobi: ${formatDateCZ(from)} - ${formatDateCZ(to)} | Vygenerovano: ${formatDateCZ(new Date().toISOString())}</div>
   ${bodyHtml}
   <div class="footer">ModelPricer — automaticky generovany report</div>
@@ -421,11 +436,11 @@ export function reportToHTML(report) {
       const summaryHtml = `<div class="summary-grid">
         ${summaryCard('Materialu', fmtNum(s.totalMaterials))}
         ${summaryCard('Objednavek', fmtNum(s.totalOrders))}
-        ${s.mostUsed ? summaryCard('Nejpouzivanejsi', s.mostUsed.name) : ''}
+        ${s.mostUsed ? summaryCard('Nejpouzivanejsi', escapeHtml(s.mostUsed.name)) : ''}
       </div>`;
 
       const rows = report.materials.map((m) =>
-        `<tr><td>${m.name}</td><td class="text-right">${m.orderCount}</td><td class="text-right">${fmtKc(m.revenue)}</td><td class="text-right">${fmtNum(m.totalWeightG)} g</td><td class="text-right">${m.sharePercent}%</td></tr>`
+        `<tr><td>${escapeHtml(m.name)}</td><td class="text-right">${m.orderCount}</td><td class="text-right">${fmtKc(m.revenue)}</td><td class="text-right">${fmtNum(m.totalWeightG)} g</td><td class="text-right">${m.sharePercent}%</td></tr>`
       ).join('');
 
       const tableHtml = `<table>
@@ -447,7 +462,7 @@ export function reportToHTML(report) {
       </div>`;
 
       const rows = report.customers.map((c) =>
-        `<tr><td>${c.name}</td><td class="text-right">${c.orderCount}</td><td class="text-right">${fmtKc(c.totalRevenue)}</td><td class="text-right">${fmtKc(c.avgOrderValue)}</td><td>${c.isReturning ? 'Ano' : 'Ne'}</td></tr>`
+        `<tr><td>${escapeHtml(c.name)}</td><td class="text-right">${c.orderCount}</td><td class="text-right">${fmtKc(c.totalRevenue)}</td><td class="text-right">${fmtKc(c.avgOrderValue)}</td><td>${c.isReturning ? 'Ano' : 'Ne'}</td></tr>`
       ).join('');
 
       const tableHtml = `<table>

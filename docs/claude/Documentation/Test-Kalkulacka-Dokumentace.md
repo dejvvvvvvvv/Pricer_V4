@@ -33,11 +33,14 @@ pres PrusaSlicer backend a odeslani objednavky.
 - **Classified error messages** -- 12 kategorii slicer erroru s user-friendly CZ hlasky
 - **Developer view** -- prepinac Zakaznicky/Developer s detailnim fee breakdown vcetne condition evaluation
 - **Checkout flow** -- react-hook-form + zod validace, ulozeni do localStorage + backend storage
-- **Cross-tab sync** -- localStorage storage event listener pro live reload admin config zmen
+- **Cross-tab sync** -- localStorage storage event listener pro live reload admin config zmen (vcetne branding)
 - **Breadcrumb navigace** -- kontextualni breadcrumb "Kalkulacka / {aktualni krok}" nad stepperem
 - **Klikatelny stepper** -- completed kroky jsou klikatelne (navrat zpet bez ztraty dat), future kroky disabled
 - **Checkmark ikony** -- completed kroky zobrazuji checkmark misto puvodni ikony
 - **Kontextovy Zpet button** -- "Zpet na: {nazev predchoziho kroku}" v bottom navigaci
+- **Branding integrace** -- cte `getBranding(getTenantId())` z `adminBrandingWidgetStorage`, zobrazuje logo + businessName + tagline z AdminBranding konfigurace; live reload pres storage event
+- **Animovany slicing progress** -- `SlicingProgressInline` v `PricingCalculator` animuje pres 3 kroky (upload -> analyze -> calculate) s time-based simulation behem slicovani (krok 0 ihned, krok 1 po 700ms, krok 2 po 1500ms, pak cykleni od kroku 1 kazde 2.2s)
+- **Upload progress faze** -- `FileUploadZone` upload progress bar zobrazuje fazove popisky ("Ctu soubor...", "Validace formatu...", "Pripravuji model...", "Dokoncuji...") a rychlost animace je 120ms/krok (1.2s celkem)
 
 ### URL a routing
 
@@ -125,6 +128,8 @@ index.jsx
   +-- utils/adminExpressStorage (loadExpressConfigV1)
   +-- utils/adminShippingStorage (loadShippingConfigV1)
   +-- utils/adminCouponsStorage (loadCouponsConfigV1)
+  +-- utils/adminBrandingWidgetStorage (getBranding)   <-- pridano 2026-03-13
+  +-- utils/adminTenantStorage (getTenantId)           <-- pridano 2026-03-13
   +-- utils/slicerErrorClassifier (parseSlicerError)
   +-- ./hooks/useDebouncedRecalculation
 ```

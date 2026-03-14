@@ -7,9 +7,9 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 159
-**Dalsi ID k pouziti:** 160
-**Posledni aktualizace:** 2026-03-12
+**Posledni pouzite ID:** 179
+**Dalsi ID k pouziti:** 180
+**Posledni aktualizace:** 2026-03-13 (Session S32 — E2E Testing + Widget Embed + Console Cleanup, 178-GN + 179-GN)
 
 ---
 
@@ -83,6 +83,7 @@ S{NN}
 | PE | Pricing-Engine | src/lib/pricing/pricingEngineV3.js |
 | ST | Storage | src/utils/adminTenantStorage.js + helpery |
 | SB | Supabase | src/lib/supabase/ |
+| SDB | Supabase-Database | docs (DB schema, migrations, RLS) |
 | SH | Shopify | src/lib/shopify/ |
 | AU | Auth | docs/claude/Research/Auth/ |
 | RT | Routing | src/Routes.jsx |

@@ -25,7 +25,9 @@ import Icon from '../../components/AppIcon';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useApp } from '../../contexts/AppContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { getTenantId, readTenantJson } from '../../utils/adminTenantStorage';
+import { logSecurityEvent } from '../../utils/securityAuditLog';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { getBranding, getWidgets } from '../../utils/adminBrandingWidgetStorage';
@@ -79,10 +81,14 @@ function formatUptime(seconds) {
   return parts.join(' ');
 }
 
-/** Estimate byte size of a string */
+/** Estimate byte size of a string (accurate UTF-8 via Blob when available) */
 function byteSize(str) {
   if (!str) return 0;
-  return str.length * 2;
+  try {
+    return new Blob([str]).size;
+  } catch {
+    return str.length * 2;
+  }
 }
 
 /** Format bytes to human-readable */
@@ -367,16 +373,17 @@ function MemoryGauge({ usedMB, totalMB }) {
   );
 }
 
-/** Tab definitions for System Health page */
-const SYSTEM_HEALTH_TABS = [
-  { key: 'health', label: 'Stav systemu', icon: 'Activity' },
-  { key: 'security', label: 'Bezpecnost', icon: 'Shield' },
+/** Tab definitions for System Health page — labels resolved at render time */
+const SYSTEM_HEALTH_TAB_KEYS = [
+  { key: 'health', labelKey: 'admin.system.tabHealth', icon: 'Activity' },
+  { key: 'security', labelKey: 'admin.system.tabSecurity', icon: 'Shield' },
 ];
 
 export default function AdminSystemHealth() {
   useDocumentTitle('Admin - Stav systemu');
   const isOnline = useOnlineStatus();
   const { featureFlags, setFeatureFlag, appVersion } = useApp();
+  const { t } = useLanguage();
 
   // Active tab
   const [activeTab, setActiveTab] = useState('health');
@@ -433,9 +440,14 @@ export default function AdminSystemHealth() {
       const emailConfig = loadEmailConfigV1();
       const hasEmailProvider = Boolean(emailConfig?.provider && emailConfig.provider !== 'none');
 
-      // Presets
-      const presets = readTenantJson('presets', []);
-      const presetsCount = Array.isArray(presets) ? presets.length : 0;
+      // Presets — namespace must match AdminPresets.jsx LOCAL_FALLBACK_NAMESPACE = 'presets:v1'
+      const presetsRaw = readTenantJson('presets:v1', []);
+      const presetsList = Array.isArray(presetsRaw)
+        ? presetsRaw
+        : Array.isArray(presetsRaw?.presets)
+          ? presetsRaw.presets
+          : [];
+      const presetsCount = presetsList.filter(p => p?.id).length;
 
       setConfigSummary({
         hasPricing,
@@ -470,20 +482,18 @@ export default function AdminSystemHealth() {
 
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
-        if (!key || !key.startsWith('modelpricer:')) continue;
+        if (!key || !key.startsWith(prefix)) continue;
 
         const val = window.localStorage.getItem(key);
         const size = byteSize(key) + byteSize(val);
         totalBytes += size;
         allKeys.push({ key, size });
 
-        if (key.startsWith(prefix)) {
-          const rest = key.slice(prefix.length);
-          for (const ns of STORAGE_NAMESPACES) {
-            if (rest.startsWith(ns.key)) {
-              nsMap[ns.key] += size;
-              break;
-            }
+        const rest = key.slice(prefix.length);
+        for (const ns of STORAGE_NAMESPACES) {
+          if (rest.startsWith(ns.key)) {
+            nsMap[ns.key] += size;
+            break;
           }
         }
       }
@@ -587,26 +597,31 @@ export default function AdminSystemHealth() {
     };
   }, [autoRefresh, runChecks]);
 
-  /** Clear all modelpricer cache from localStorage */
+  /** Clear all modelpricer cache from localStorage (current tenant only) */
   const handleClearCache = useCallback(() => {
+    const tenantId = getTenantId();
+    const prefix = `modelpricer:${tenantId}:`;
     const keysToRemove = [];
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
-      if (key && key.startsWith('modelpricer:') && key !== 'modelpricer:tenant_id') {
+      if (key && key.startsWith(prefix)) {
         keysToRemove.push(key);
       }
     }
     keysToRemove.forEach(k => window.localStorage.removeItem(k));
+    logSecurityEvent('cache_clear', { keysRemoved: keysToRemove.length, timestamp: new Date().toISOString() });
     measureStorage();
     checkConfigSummary();
   }, [measureStorage, checkConfigSummary]);
 
-  /** Export all modelpricer config as JSON backup */
+  /** Export all modelpricer config as JSON backup (current tenant only) */
   const handleExportConfig = useCallback(() => {
+    const tenantId = getTenantId();
+    const prefix = `modelpricer:${tenantId}:`;
     const data = {};
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
-      if (key && key.startsWith('modelpricer:')) {
+      if (key && key.startsWith(prefix)) {
         const raw = window.localStorage.getItem(key);
         try {
           data[key] = JSON.parse(raw);
@@ -622,6 +637,7 @@ export default function AdminSystemHealth() {
     a.download = `modelpricer-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    logSecurityEvent('config_export', { type: 'tenant_config', timestamp: new Date().toISOString() });
   }, []);
 
   // Browser info
@@ -632,7 +648,7 @@ export default function AdminSystemHealth() {
     colorDepth: `${window.screen.colorDepth}-bit`,
     pixelRatio: window.devicePixelRatio?.toFixed(1) || '1.0',
     cookiesEnabled: navigator.cookieEnabled ? 'Ano' : 'Ne',
-    platform: navigator.platform || '--',
+    platform: navigator.userAgentData?.platform || navigator.platform || '--',
   }), []);
 
   // Avg latency
@@ -681,7 +697,7 @@ export default function AdminSystemHealth() {
               }}
             >
               <Icon name={autoRefresh ? 'RotateCw' : 'Pause'} size={14} />
-              {autoRefresh ? `Auto (${countdown}s)` : 'Pozastaveno'}
+              {autoRefresh ? `${t('admin.system.autoOn')} (${countdown}s)` : t('admin.system.paused')}
             </button>
 
             {/* Manual refresh */}
@@ -704,7 +720,7 @@ export default function AdminSystemHealth() {
               }}
             >
               <Icon name="RefreshCw" size={14} />
-              Obnovit
+              {t('admin.system.refresh')}
             </button>
           </div>
         }
@@ -718,7 +734,7 @@ export default function AdminSystemHealth() {
         marginBottom: '24px',
         borderBottom: '2px solid var(--forge-border-default)',
       }}>
-        {SYSTEM_HEALTH_TABS.map((tab) => {
+        {SYSTEM_HEALTH_TAB_KEYS.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
             <button
@@ -746,7 +762,7 @@ export default function AdminSystemHealth() {
               <Icon name={tab.icon} size={16} style={{
                 color: isActive ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
               }} />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           );
         })}
@@ -800,7 +816,7 @@ export default function AdminSystemHealth() {
             <DataRow label="Status" value={
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <StatusDot status={healthStatus} size={8} />
-                {healthStatus === 'healthy' ? 'OK' : healthStatus === 'degraded' ? 'Degradovany' : 'Nedostupny'}
+                {healthStatus === 'healthy' ? t('admin.system.statusOk') : healthStatus === 'degraded' ? t('admin.system.statusDegraded') : t('admin.system.statusDown')}
               </span>
             } />
             <DataRow label="Odezva" value={responseTime != null ? `${responseTime} ms` : '--'} mono />
@@ -877,16 +893,16 @@ export default function AdminSystemHealth() {
           status={health ? (health.status === 'ok' ? 'healthy' : 'degraded') : 'down'}
         >
           <div>
-            <DataRow label="Backend dostupny" value={
+            <DataRow label={t('admin.system.backendAvailable')} value={
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <StatusDot status={health ? 'healthy' : 'down'} size={8} />
-                {health ? 'Ano' : 'Ne'}
+                {health ? t('admin.system.online') : t('admin.system.offline')}
               </span>
             } />
             <DataRow label="Slicer endpoint" value="/api/slice" mono />
             <DataRow
-              label="Status"
-              value={health ? 'Pripraveny (via backend)' : 'Nelze overit -- backend nedostupny'}
+              label={t('admin.system.status')}
+              value={health ? t('admin.system.slicerReady') : t('admin.system.slicerUnreachable')}
             />
           </div>
           <div style={{
@@ -957,7 +973,7 @@ export default function AdminSystemHealth() {
               textAlign: 'center',
               padding: '12px 0',
             }}>
-              Nacitani konfigurace...
+              {t('admin.system.configLoading')}
             </div>
           )}
         </StatusCard>
@@ -1083,7 +1099,7 @@ export default function AdminSystemHealth() {
               }}
             >
               <Icon name="Trash2" size={13} />
-              Vymazat cache
+              {t('admin.system.clearCache')}
             </button>
             <button
               onClick={handleExportConfig}
@@ -1104,7 +1120,7 @@ export default function AdminSystemHealth() {
               }}
             >
               <Icon name="Download" size={13} />
-              Exportovat konfiguraci
+              {t('admin.system.exportConfig')}
             </button>
           </div>
 
@@ -1116,7 +1132,7 @@ export default function AdminSystemHealth() {
               textAlign: 'center',
               padding: '12px 0',
             }}>
-              Zadna data v localStorage
+              {t('admin.system.storageNoData')}
             </div>
           )}
         </StatusCard>
@@ -1132,20 +1148,21 @@ export default function AdminSystemHealth() {
             <DataRow label="Online" value={
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <StatusDot status={isOnline ? 'healthy' : 'down'} size={8} />
-                {isOnline ? 'Ano' : 'Ne'}
+                {isOnline ? t('admin.system.online') : t('admin.system.offline')}
               </span>
             } />
           </div>
 
+          {import.meta.env.DEV && (
           <div>
             <SectionLabel>PROSTREDI</SectionLabel>
             <DataRow label="Verze frontendu" value={appVersion || '--'} mono />
-            <DataRow label="API endpoint" value={import.meta.env.VITE_API_URL || '/api'} mono />
             <DataRow label="Rezim" value={import.meta.env.MODE || 'development'} mono />
             <DataRow label="Base URL" value={import.meta.env.BASE_URL || '/'} mono />
             <DataRow label="DEV" value={import.meta.env.DEV ? 'Ano' : 'Ne'} mono />
             <DataRow label="PROD" value={import.meta.env.PROD ? 'Ano' : 'Ne'} mono />
           </div>
+          )}
 
           <div>
             <SectionLabel>PROHLIZEC</SectionLabel>
@@ -1191,7 +1208,7 @@ export default function AdminSystemHealth() {
               color: 'var(--forge-warning, #F97316)',
             }}>
               <Icon name="AlertTriangle" size={16} />
-              Rezim udrzby je aktivni -- uzivatele uvidi oznameni o udrzbe.
+              {t('admin.system.maintenanceActive')}
             </div>
           )}
 
@@ -1270,9 +1287,9 @@ export default function AdminSystemHealth() {
       {/* Confirm dialog for cache clear */}
       <ForgeConfirmDialog
         {...clearCacheDialog.props}
-        title="Vymazat cache"
-        description="Opravdu chcete smazat vsechna ulozena data v localStorage (krome tenant ID)? Tato akce je nevratna. Konfigurace pricing, fees, branding a dalsich bude ztracena."
-        confirmLabel="Smazat cache"
+        title={t('admin.system.clearCacheConfirmTitle')}
+        description={t('admin.system.clearCacheConfirmDesc')}
+        confirmLabel={t('admin.system.clearCacheConfirmLabel')}
         variant="danger"
         onConfirm={handleClearCache}
       />

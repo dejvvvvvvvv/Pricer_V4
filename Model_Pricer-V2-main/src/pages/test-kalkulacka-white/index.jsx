@@ -1,4 +1,4 @@
-// src/pages/test-kalkulacka/index.jsx
+// src/pages/test-kalkulacka-white/index.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
@@ -11,13 +11,16 @@ import GenerateButton from './components/GenerateButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import CheckoutForm from './components/CheckoutForm';
 import OrderConfirmation from './components/OrderConfirmation';
+import CouponInput from './components/CouponInput';
 import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadExpressConfigV1 } from '../../utils/adminExpressStorage';
 import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
-import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponStorage';
+import { getBranding } from '@/utils/adminBrandingWidgetStorage';
+import { getTenantId } from '@/utils/adminTenantStorage';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
 import { debug } from '@/lib/debug';
@@ -34,6 +37,9 @@ const DEFAULT_PRINT_CONFIG = {
 };
 
 const TestKalkulacka = () => {
+  // Branding — load from AdminBranding (tenant-scoped)
+  const [branding, setBranding] = useState(() => getBranding(getTenantId()));
+
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -54,13 +60,24 @@ const TestKalkulacka = () => {
     feeTargetsById: {},
   }));
 
-  // S09: Express pricing
+  // S09: Express pricing — auto-select default tier from config
   const [expressConfig, setExpressConfig] = useState(() => loadExpressConfigV1());
-  const [selectedExpressTierId, setSelectedExpressTierId] = useState(null);
+  const [selectedExpressTierId, setSelectedExpressTierId] = useState(() => {
+    const ec = loadExpressConfigV1();
+    if (!ec?.enabled || !Array.isArray(ec.tiers)) return null;
+    const activeTiers = ec.tiers.filter(t => t.active !== false);
+    const defaultTier = activeTiers.find(t => t.is_default);
+    return defaultTier?.id || activeTiers[0]?.id || null;
+  });
 
-  // S04: Shipping
+  // S04: Shipping — auto-select first active method from config
   const [shippingConfig, setShippingConfig] = useState(() => loadShippingConfigV1());
-  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(null);
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(() => {
+    const sc = loadShippingConfigV1();
+    if (!sc?.enabled || !Array.isArray(sc.methods)) return null;
+    const activeMethods = sc.methods.filter(m => m.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    return activeMethods[0]?.id || null;
+  });
 
   // S10: Coupons
   const [couponsConfig, setCouponsConfig] = useState(() => loadCouponsConfigV1());
@@ -77,6 +94,7 @@ const TestKalkulacka = () => {
       if (e.key.includes('express:v1')) setExpressConfig(loadExpressConfigV1());
       if (e.key.includes('shipping:v1')) setShippingConfig(loadShippingConfigV1());
       if (e.key.includes('coupons:v1')) setCouponsConfig(loadCouponsConfigV1());
+      if (e.key && e.key.includes('branding')) setBranding(getBranding(getTenantId()));
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -521,7 +539,7 @@ const TestKalkulacka = () => {
     if (!(fileToProcess instanceof File)) return;
 
     if (!uploadedFiles.some(file => file.name === fileToProcess.name)) {
-      const newId = Date.now() + Math.random();
+      const newId = crypto.randomUUID();
       const modelObject = {
         id: newId,
         name: fileToProcess.name,
@@ -644,6 +662,8 @@ const TestKalkulacka = () => {
         style={{ display: 'none' }}
         multiple
         accept=".stl,.obj,.3mf"
+        aria-label="Upload 3D model files"
+        tabIndex={-1}
       />
 
       <div>
@@ -656,9 +676,25 @@ const TestKalkulacka = () => {
               <Icon name="ChevronRight" size={16} />
               <span className="text-foreground">Nahrání modelu</span>
             </div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Nahrání 3D modelu</h1>
+            {/* Branding: logo + company name */}
+            {branding?.showLogo && branding?.logo && (
+              <div className="mb-3 flex items-center">
+                <img
+                  src={branding.logo}
+                  alt={branding.businessName || 'Logo'}
+                  style={{ maxHeight: 48, maxWidth: 180, objectFit: 'contain' }}
+                />
+              </div>
+            )}
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              {branding?.showBusinessName && branding?.businessName
+                ? branding.businessName
+                : 'Nahrání 3D modelu'}
+            </h1>
             <p className="text-muted-foreground">
-              Nahrajte své 3D modely a nakonfigurujte parametry tisku.
+              {branding?.showTagline && branding?.tagline
+                ? branding.tagline
+                : 'Nahrajte své 3D modely a nakonfigurujte parametry tisku.'}
             </p>
           </div>
 
@@ -837,12 +873,37 @@ const TestKalkulacka = () => {
                   selectedShippingMethodId={selectedShippingMethodId}
                   couponsConfig={couponsConfig}
                   appliedCouponCode={appliedCouponCode}
+                  onExpressTierChange={setSelectedExpressTierId}
+                  onShippingMethodChange={setSelectedShippingMethodId}
+                  onApplyCoupon={(code) => setAppliedCouponCode(code)}
+                  onRemoveCoupon={() => setAppliedCouponCode('')}
+                />
+              )}
+              {/* Coupon code input */}
+              {uploadedFiles.length > 0 && couponsConfig?.enabled && (
+                <CouponInput
+                  onApply={(code) => setAppliedCouponCode(code)}
+                  onRemove={() => setAppliedCouponCode('')}
+                  appliedCoupon={appliedCouponCode ? (() => {
+                    const coupons = Array.isArray(couponsConfig?.coupons) ? couponsConfig.coupons : [];
+                    const found = coupons.find(c => c.code === appliedCouponCode && c.active);
+                    if (!found) return null;
+                    return { code: found.code, type: found.type, value: found.value, discount: found.value };
+                  })() : null}
+                  validationError={appliedCouponCode && (() => {
+                    const coupons = Array.isArray(couponsConfig?.coupons) ? couponsConfig.coupons : [];
+                    const found = coupons.find(c => c.code === appliedCouponCode);
+                    if (!found) return 'Neplatný kód';
+                    if (!found.active) return 'Kupón není aktivní';
+                    return '';
+                  })()}
+                  disabled={sliceAllProcessing}
                 />
               )}
               {uploadedFiles.length > 0 && (
                 <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold">Nahrané modely</h3>
+                    <h2 className="font-semibold">Nahrané modely</h2>
                     <Button variant="ghost" size="icon" onClick={handleAddModelClick}>
                       <Icon name="Plus" size={16} />
                       <span className="sr-only">Přidání Modelu</span>
@@ -860,14 +921,14 @@ const TestKalkulacka = () => {
                         >
                           <div className="flex items-center gap-2 w-full">
                             {file.status === 'processing' && (
-                              <Icon name="Loader" size={14} className="animate-spin flex-shrink-0" />
+                              <Icon name="Loader" size={14} className="animate-spin flex-shrink-0" aria-label="Processing" role="img" title="Processing" />
                             )}
-                            {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0 text-muted-foreground" />}
+                            {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0 text-muted-foreground" aria-label="Queued" role="img" title="Queued" />}
                             {file.status === 'completed' && (
-                              <Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" />
+                              <Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" aria-label="Ready" role="img" title="Ready" />
                             )}
                             {file.status === 'failed' && (
-                              <Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" />
+                              <Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" aria-label="Error" role="img" title="Error" />
                             )}
                             <span className="truncate flex-grow text-left">{file.name}</span>
                             {file.status === 'completed' && file.result?.metrics && (

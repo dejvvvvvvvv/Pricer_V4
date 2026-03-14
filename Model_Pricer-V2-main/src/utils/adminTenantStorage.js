@@ -26,15 +26,27 @@ function canUseLocalStorage() {
 }
 
 export function getTenantId() {
-  // Keep it simple for now. Later this should come from auth/tenant context.
-  if (!canUseLocalStorage()) return 'demo-tenant';
-  return window.localStorage.getItem('modelpricer:tenant_id') || 'demo-tenant';
+  // Returns null if no tenant is set — callers must handle this.
+  if (!canUseLocalStorage()) return null;
+  return window.localStorage.getItem('modelpricer:tenant_id') || null;
+}
+
+/**
+ * Returns the current tenant ID or throws if none is set.
+ * Use in code paths where a tenant MUST exist (e.g. admin write operations).
+ */
+export function getTenantIdOrThrow() {
+  const id = getTenantId();
+  if (!id) {
+    throw new Error('[adminTenantStorage] No tenant ID set. User must be authenticated with a tenant.');
+  }
+  return id;
 }
 
 export function setTenantId(id) {
   if (!canUseLocalStorage()) return;
   if (!id || typeof id !== 'string') {
-    console.warn('[adminTenantStorage] setTenantId called with invalid id:', id);
+    debug('[adminTenantStorage] setTenantId called with invalid id:', id);
     return;
   }
   debug('[adminTenantStorage] setTenantId:', id.trim());
@@ -52,12 +64,39 @@ function buildKey(tenantId, namespace) {
 }
 
 /**
+ * Validates tenantIdOverride — it must match the current tenant or be nullish.
+ * If it doesn't match, logs a security warning and returns the current tenant ID.
+ * Returns null if no tenant is available at all.
+ */
+function resolveAndValidateTenantId(tenantIdOverride) {
+  const currentTenantId = getTenantId();
+  if (!tenantIdOverride) {
+    return currentTenantId;
+  }
+  if (currentTenantId && tenantIdOverride !== currentTenantId) {
+    console.warn(
+      '[adminTenantStorage] SECURITY: tenantIdOverride does not match current tenant.',
+      'Override:', tenantIdOverride,
+      'Current:', currentTenantId,
+      'Using current tenant ID instead.'
+    );
+    return currentTenantId;
+  }
+  // If currentTenantId is null, allow override (e.g. during initialization)
+  return tenantIdOverride;
+}
+
+/**
  * Read tenant-scoped JSON from localStorage (sync, backward compatible).
  * For async Supabase reads, use readTenantJsonAsync().
  */
 export function readTenantJson(namespace, fallback, tenantIdOverride) {
   if (!canUseLocalStorage()) return fallback;
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] readTenantJson: No tenant ID available, returning fallback for', namespace);
+    return fallback;
+  }
   const storageKey = buildKey(tenantId, namespace);
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -76,7 +115,11 @@ export function readTenantJson(namespace, fallback, tenantIdOverride) {
  */
 export function writeTenantJson(namespace, value, tenantIdOverride) {
   if (!canUseLocalStorage()) return;
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] writeTenantJson: No tenant ID available, skipping write for', namespace);
+    return;
+  }
   const storageKey = buildKey(tenantId, namespace);
 
   // Always write to localStorage for sync compat
@@ -90,7 +133,7 @@ export function writeTenantJson(namespace, value, tenantIdOverride) {
   const mode = getStorageMode(namespace);
   if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
     storageAdapter.write(namespace, tenantId, storageKey, value).catch((err) => {
-      console.warn('[adminTenantStorage] Supabase write failed:', err.message);
+      debug('[adminTenantStorage] Supabase write failed:', err.message);
     });
   }
 }
@@ -100,6 +143,10 @@ export function writeTenantJson(namespace, value, tenantIdOverride) {
  */
 export function appendTenantLog(namespace, entry, maxItems = 100) {
   const tenantId = getTenantId();
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] appendTenantLog: No tenant ID available, skipping append for', namespace);
+    return [];
+  }
   const storageKey = buildKey(tenantId, namespace);
 
   // Sync localStorage append
@@ -132,6 +179,65 @@ export function appendTenantLog(namespace, entry, maxItems = 100) {
   return next;
 }
 
+/**
+ * Delete a single tenant-scoped key from localStorage.
+ * Also fires a Supabase delete if enabled for the namespace.
+ */
+export function deleteTenantJson(namespace, tenantIdOverride) {
+  if (!canUseLocalStorage()) return;
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] deleteTenantJson: No tenant ID available, skipping delete for', namespace);
+    return;
+  }
+  const storageKey = buildKey(tenantId, namespace);
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch (e) {
+    console.warn('[adminTenantStorage] Failed to delete', storageKey, e);
+  }
+}
+
+/**
+ * Remove ALL tenant-scoped keys from localStorage (factory reset).
+ * Iterates all localStorage keys matching `modelpricer:${tenantId}:*`.
+ *
+ * Also removes legacy-format keys used by adminBrandingWidgetStorage.js and
+ * adminEcommerceStorage.js before the colon-separated namespace convention.
+ * Legacy pattern: `modelpricer_<namespace>__${tenantId}`
+ * Examples: modelpricer_branding__<id>, modelpricer_widgets__<id>,
+ *           modelpricer_plan_features__<id>, modelpricer_ecommerce__<id>
+ */
+export function clearAllTenantData(tenantIdOverride) {
+  if (!canUseLocalStorage()) return;
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] clearAllTenantData: No tenant ID available, skipping.');
+    return;
+  }
+  const modernPrefix = `modelpricer:${tenantId}:`;
+  const legacySuffix = `__${tenantId}`;
+  try {
+    const keys = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (!k) continue;
+      // Modern keys: modelpricer:<tenantId>:*
+      if (k.startsWith(modernPrefix)) {
+        keys.push(k);
+        continue;
+      }
+      // Legacy keys: modelpricer_*__<tenantId>
+      if (k.startsWith('modelpricer_') && k.endsWith(legacySuffix)) {
+        keys.push(k);
+      }
+    }
+    keys.forEach((k) => window.localStorage.removeItem(k));
+  } catch (e) {
+    console.warn('[adminTenantStorage] clearAllTenantData failed:', e);
+  }
+}
+
 // ─── Async API (for new code / Step 1+ migrations) ──────────────
 
 /**
@@ -140,7 +246,11 @@ export function appendTenantLog(namespace, entry, maxItems = 100) {
  * In localStorage mode: reads from localStorage (same as sync version).
  */
 export async function readTenantJsonAsync(namespace, fallback, tenantIdOverride) {
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] readTenantJsonAsync: No tenant ID available, returning fallback for', namespace);
+    return fallback;
+  }
   const storageKey = buildKey(tenantId, namespace);
   return storageAdapter.read(namespace, tenantId, storageKey, fallback);
 }
@@ -149,7 +259,11 @@ export async function readTenantJsonAsync(namespace, fallback, tenantIdOverride)
  * Async write — writes to the appropriate backend(s) based on feature flags.
  */
 export async function writeTenantJsonAsync(namespace, value, tenantIdOverride) {
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] writeTenantJsonAsync: No tenant ID available, skipping write for', namespace);
+    return;
+  }
   const storageKey = buildKey(tenantId, namespace);
   return storageAdapter.write(namespace, tenantId, storageKey, value);
 }
@@ -158,7 +272,11 @@ export async function writeTenantJsonAsync(namespace, value, tenantIdOverride) {
  * Async append — appends log entry to appropriate backend(s).
  */
 export async function appendTenantLogAsync(namespace, entry, maxItems = 100, tenantIdOverride) {
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = resolveAndValidateTenantId(tenantIdOverride);
+  if (!tenantId) {
+    console.warn('[adminTenantStorage] appendTenantLogAsync: No tenant ID available, skipping append for', namespace);
+    return [];
+  }
   const storageKey = buildKey(tenantId, namespace);
   return storageAdapter.appendLog(namespace, tenantId, storageKey, entry, maxItems);
 }

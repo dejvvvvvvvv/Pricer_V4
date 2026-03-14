@@ -1,11 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import KanbanCard from './KanbanCard';
 import { getStatusColor, getStatusLabel, canTransition } from './statusTransitions';
 import Icon from '../../../../components/AppIcon';
 import { computeOrderTotals } from '../../../../utils/adminOrdersStorage';
 
-export default function KanbanColumn({
+const COLUMN_STYLES = `
+  @keyframes kanban-col-pulse {
+    0%, 100% { border-color: rgba(0, 212, 170, 0.4); }
+    50% { border-color: rgba(0, 212, 170, 0.8); }
+  }
+`;
+
+function KanbanColumn({
   status,
   orders = [],
   wipLimit = 0,
@@ -102,7 +109,7 @@ export default function KanbanColumn({
           cursor: 'pointer',
           userSelect: 'none',
         }}
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={(e) => { if (e.target === e.currentTarget || collapsed) setCollapsed(!collapsed); }}
         title={collapsed ? `Rozbalit: ${label}` : `Sbalit: ${label}`}
       >
         {collapsed ? (
@@ -282,12 +289,9 @@ export default function KanbanColumn({
         </div>
       )}
 
-      <style>{`
-        @keyframes kanban-col-pulse {
-          0%, 100% { border-color: rgba(0, 212, 170, 0.4); }
-          50% { border-color: rgba(0, 212, 170, 0.8); }
-        }
-      `}</style>
+      <style>{COLUMN_STYLES}</style>
     </div>
   );
 }
+
+export default memo(KanbanColumn);

@@ -228,8 +228,7 @@ function CommandPaletteInner(_props, ref) {
   const overlayRef = useRef(null);
   const debounceRef = useRef(null);
 
-  let auth = null;
-  try { auth = useAuth(); } catch { /* auth not available */ }
+  const auth = useAuth();
 
   // Open/close
   const handleOpen = useCallback(() => {
@@ -491,9 +490,17 @@ function CommandPaletteInner(_props, ref) {
     }
   }, [handleClose]);
 
+  // Pre-compute flat index for each item in each group (avoids mutable let in render)
+  const groupsWithIndex = useMemo(() => {
+    let idx = 0;
+    return groupedResults.map((group) => ({
+      ...group,
+      items: group.items.map((item) => ({ ...item, _flatIdx: idx++ })),
+    }));
+  }, [groupedResults]);
+
   if (!open) return null;
 
-  let globalIndex = -1;
   const showRecentSearches = !debouncedQuery.trim() && recentSearches.length > 0;
 
   return (
@@ -674,7 +681,7 @@ function CommandPaletteInner(_props, ref) {
           )}
 
           {/* Grouped results */}
-          {groupedResults.map((group) => {
+          {groupsWithIndex.map((group) => {
             const catConfig = CATEGORY_CONFIG[group.key] || { label: group.key.toUpperCase(), icon: 'Circle', color: '#7A8291' };
 
             return (
@@ -707,8 +714,7 @@ function CommandPaletteInner(_props, ref) {
 
                 {/* Items */}
                 {group.items.map((item) => {
-                  globalIndex++;
-                  const idx = globalIndex;
+                  const idx = item._flatIdx;
                   const isSelected = idx === selectedIndex;
                   const badgeColors = BADGE_COLORS[item.categoryBadge] || { bg: 'rgba(122,130,145,0.12)', text: '#7A8291' };
 

@@ -21,8 +21,10 @@ import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { loadFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadExpressConfigV1 } from '../../utils/adminExpressStorage';
 import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
-import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponStorage';
 import { getShopifyConfig } from '../../utils/adminEcommerceStorage';
+import { getBranding } from '../../utils/adminBrandingWidgetStorage';
+import { getTenantId } from '../../utils/adminTenantStorage';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
@@ -101,7 +103,9 @@ const DEFAULT_PRINT_CONFIG = {
 };
 
 const TestKalkulacka = () => {
-  useDocumentTitle('Calculator');
+  // Branding — načtení konfigurace z AdminBranding (musí být před useDocumentTitle)
+  const [branding, setBranding] = useState(() => getBranding(getTenantId()));
+  useDocumentTitle(branding?.businessName || 'Calculator');
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const themeContainerRef = useRef(null);
@@ -212,7 +216,7 @@ const TestKalkulacka = () => {
         couponsConfig, appliedCouponCode,
         shippingConfig, selectedShippingMethodId,
       });
-      return Number.isFinite(quote?.simple?.grandTotal) ? quote.simple.grandTotal
+      return Number.isFinite(quote?.grandTotal) ? quote.grandTotal
         : Number.isFinite(quote?.total) ? quote.total : null;
     } catch {
       return null;
@@ -260,6 +264,7 @@ const TestKalkulacka = () => {
       if (e.key.includes('express:v1')) setExpressConfig(loadExpressConfigV1());
       if (e.key.includes('shipping:v1')) setShippingConfig(loadShippingConfigV1());
       if (e.key.includes('coupons:v1')) setCouponsConfig(loadCouponsConfigV1());
+      if (e.key && e.key.includes('branding')) setBranding(getBranding(getTenantId()));
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -441,7 +446,7 @@ const TestKalkulacka = () => {
         return await sliceModelLocal(file.file, { presetId: pid });
       } catch (e) {
         if (pid) {
-          console.warn('[test-kalkulacka] Auto-recalc failed with presetId, retrying without:', pid, e);
+          debug('[test-kalkulacka] Auto-recalc failed with presetId, retrying without:', pid, e);
           setSelectedPresetIds(prev => ({ ...prev, [fileId]: null }));
           return await sliceModelLocal(file.file, { presetId: null });
         }
@@ -456,7 +461,7 @@ const TestKalkulacka = () => {
         updateModelStatus(fileId, { status: 'completed', result: res, error: null });
       })
       .catch(err => {
-        console.error('[test-kalkulacka] Auto-recalc failed:', err);
+        debug('[test-kalkulacka] Auto-recalc failed:', err);
         const classified = parseSlicerError(err);
         updateModelStatus(fileId, {
           status: 'failed',
@@ -671,7 +676,7 @@ const TestKalkulacka = () => {
         } catch (e) {
           // Fallback: if preset-based slicing fails, drop presetId and retry once.
           if (pid) {
-            console.warn('[test-kalkulacka] Slice failed with presetId, retrying without presetId:', pid, e);
+            debug('[test-kalkulacka] Slice failed with presetId, retrying without presetId:', pid, e);
             setSelectedPresetIds(prev => ({ ...prev, [selectedFile.id]: null }));
             return await sliceModelLocal(selectedFile.file, { presetId: null });
           }
@@ -701,7 +706,7 @@ const TestKalkulacka = () => {
       // After successful slice, it's useful to show the price step.
       if (currentStep < 3) setCurrentStep(3);
     } catch (err) {
-      console.error('[test-kalkulacka] Slice failed:', err);
+      debug('[test-kalkulacka] Slice failed:', err);
       const classified = parseSlicerError(err);
       updateModelStatus(selectedFile.id, {
         status: 'failed',
@@ -754,7 +759,7 @@ const TestKalkulacka = () => {
               return await sliceModelLocal(fileItem.file, { presetId });
             } catch (e) {
               if (presetId) {
-                console.warn('[test-kalkulacka] Batch slice failed with presetId, retrying without presetId:', presetId, e);
+                debug('[test-kalkulacka] Batch slice failed with presetId, retrying without presetId:', presetId, e);
                 effectivePresetId = null;
                 setSelectedPresetIds(prev => ({ ...prev, [fileItem.id]: null }));
                 return await sliceModelLocal(fileItem.file, { presetId: null });
@@ -779,7 +784,7 @@ const TestKalkulacka = () => {
           });
         } catch (err) {
           hasErrors = true;
-          console.error('[test-kalkulacka] Batch slice failed:', fileItem.name, err);
+          debug('[test-kalkulacka] Batch slice failed:', fileItem.name, err);
           const classified = parseSlicerError(err);
           updateModelStatus(fileItem.id, {
             status: 'failed',
@@ -837,7 +842,7 @@ const TestKalkulacka = () => {
     if (!(fileToProcess instanceof File)) return;
 
     if (!uploadedFiles.some(file => file.name === fileToProcess.name)) {
-      const newId = Date.now() + Math.random();
+      const newId = crypto.randomUUID();
       const modelObject = {
         id: newId,
         name: fileToProcess.name,
@@ -1120,14 +1125,28 @@ const TestKalkulacka = () => {
               <Icon name="ChevronRight" size={16} />
               <span style={{ color: 'var(--forge-text-primary)' }}>Nahrání modelu</span>
             </div>
+            {/* Branding: logo + název firmy */}
+            {branding?.showLogo && branding?.logo && (
+              <div className="mb-3" style={{ display: 'flex', alignItems: 'center' }}>
+                <img
+                  src={branding.logo}
+                  alt={branding.businessName || 'Logo'}
+                  style={{ maxHeight: 48, maxWidth: 180, objectFit: 'contain' }}
+                />
+              </div>
+            )}
             <h1
               className="text-3xl font-bold mb-2 tk-page-title"
               style={{ color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}
             >
-              Nahrání 3D modelu
+              {branding?.showBusinessName && branding?.businessName
+                ? branding.businessName
+                : 'Nahrání 3D modelu'}
             </h1>
             <p className="tk-page-subtitle" style={{ color: 'var(--forge-text-secondary)' }}>
-              Nahrajte své 3D modely a nakonfigurujte parametry tisku.
+              {branding?.showTagline && branding?.tagline
+                ? branding.tagline
+                : 'Nahrajte své 3D modely a nakonfigurujte parametry tisku.'}
             </p>
           </div>
 
@@ -1646,7 +1665,7 @@ const TestKalkulacka = () => {
 
               {/* Metrics + price card (right column) */}
               {uploadedFiles.length > 0 && (
-                <div data-tour="pricing-results">
+                <div data-tour="pricing-results" ref={pricingResultsRef}>
                 <PricingCalculator
                   selectedFile={selectedFile}
                   onSlice={handleSliceSelected}

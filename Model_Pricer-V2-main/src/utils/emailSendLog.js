@@ -43,7 +43,7 @@ export function logEmailSent(orderId, entry) {
   if (!all[orderId]) all[orderId] = [];
 
   const record = {
-    id: `eml-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: `eml-${crypto.randomUUID()}`,
     timestamp: new Date().toISOString(),
     templateId: entry.templateId || '',
     templateName: entry.templateName || '',

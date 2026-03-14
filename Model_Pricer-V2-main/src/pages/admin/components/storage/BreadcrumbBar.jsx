@@ -2,7 +2,7 @@ import React from 'react';
 import Icon from '../../../../components/AppIcon';
 
 export default function BreadcrumbBar({ currentPath, onNavigate }) {
-  const parts = currentPath ? currentPath.split('/').filter(Boolean) : [];
+  const parts = currentPath ? currentPath.split('/').filter(s => s && s !== '..' && s !== '.') : [];
 
   const crumbs = [{ label: 'Root', path: '' }];
   let accumulated = '';

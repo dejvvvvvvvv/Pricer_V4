@@ -11,6 +11,7 @@
 // - Stats cards: total customers, new this month, avg LTV, repeat rate
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { debug } from '@/lib/debug';
 import Icon from '../../components/AppIcon';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import { CopyButton } from '../../components/ui/forge/CopyButton';
@@ -24,14 +25,17 @@ import {
   computeOrderTotals,
   extractOrderMaterials,
   getStatusLabel,
-  round2,
 } from '../../utils/adminOrdersStorage';
+import { formatMoney, formatDate } from '../../utils/formatters';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const CUSTOMER_NOTES_NS = 'customer-notes:v1';
+
+// Round to 2 decimal places
+const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const SEGMENTS = {
   NEW: 'NEW',
@@ -43,13 +47,13 @@ const SEGMENT_CONFIG = {
   [SEGMENTS.NEW]: {
     labelCs: 'Novy',
     labelEn: 'New',
-    color: '#60A5FA',
+    color: 'var(--forge-info)',
     icon: 'UserPlus',
   },
   [SEGMENTS.REGULAR]: {
     labelCs: 'Pravideln',
     labelEn: 'Regular',
-    color: '#F0A030',
+    color: 'var(--forge-accent-orange)',
     icon: 'Users',
   },
   [SEGMENTS.VIP]: {
@@ -64,21 +68,6 @@ const SEGMENT_CONFIG = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatMoney(amount) {
-  return `${round2(amount).toFixed(2)} Kc`;
-}
-
-function formatDate(iso, locale = 'cs-CZ') {
-  try {
-    return new Date(iso).toLocaleDateString(locale, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-  } catch {
-    return iso || '--';
-  }
-}
 
 /** Get the first letter(s) for avatar placeholder */
 function getInitials(name) {
@@ -376,7 +365,7 @@ function SortableTh({ children, sortKey, currentSort, onSort, align = 'left' }) 
   );
 }
 
-function CustomerNotes({ email, cs, notes, onSaveNote }) {
+function CustomerNotes({ email, cs, t, notes, onSaveNote }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const currentNote = notes[email] || '';
@@ -415,7 +404,7 @@ function CustomerNotes({ email, cs, notes, onSaveNote }) {
           color: 'var(--forge-text-muted)',
         }}>
           <Icon name="StickyNote" size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-          {cs ? 'Poznamky' : 'Notes'}
+          {t('admin.customers.notes', cs ? 'Poznamky' : 'Notes')}
         </span>
         {!editing && (
           <button
@@ -436,8 +425,8 @@ function CustomerNotes({ email, cs, notes, onSaveNote }) {
           >
             <Icon name={currentNote ? 'Pencil' : 'Plus'} size={10} />
             {currentNote
-              ? (cs ? 'Upravit' : 'Edit')
-              : (cs ? 'Pridat' : 'Add')}
+              ? t('admin.customers.editNote', cs ? 'Upravit' : 'Edit')
+              : t('admin.customers.addNote', cs ? 'Pridat' : 'Add')}
           </button>
         )}
       </div>
@@ -447,7 +436,7 @@ function CustomerNotes({ email, cs, notes, onSaveNote }) {
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={cs ? 'Napiste poznamku o zakaznikovi...' : 'Write a note about this customer...'}
+            placeholder={t('admin.customers.notePlaceholder', cs ? 'Napiste poznamku o zakaznikovi...' : 'Write a note about this customer...')}
             rows={3}
             style={{
               width: '100%',
@@ -478,14 +467,14 @@ function CustomerNotes({ email, cs, notes, onSaveNote }) {
                 borderRadius: 'var(--forge-radius-sm)',
                 border: 'none',
                 backgroundColor: 'var(--forge-accent-primary)',
-                color: '#fff',
+                color: 'var(--forge-bg-void)',
                 fontFamily: 'var(--forge-font-tech)',
                 fontSize: '11px',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
-              {cs ? 'Ulozit' : 'Save'}
+              {t('admin.customers.save', cs ? 'Ulozit' : 'Save')}
             </button>
             <button
               onClick={handleCancel}
@@ -501,7 +490,7 @@ function CustomerNotes({ email, cs, notes, onSaveNote }) {
                 cursor: 'pointer',
               }}
             >
-              {cs ? 'Zrusit' : 'Cancel'}
+              {t('admin.customers.cancel', cs ? 'Zrusit' : 'Cancel')}
             </button>
           </div>
         </div>
@@ -524,7 +513,7 @@ function CustomerNotes({ email, cs, notes, onSaveNote }) {
   );
 }
 
-function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
+function CustomerDetailRow({ customer, cs, t, colSpan, notes, onSaveNote }) {
   return (
     <tr>
       <td colSpan={colSpan} style={{ padding: 0 }}>
@@ -545,27 +534,27 @@ function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
             border: '1px solid var(--forge-border-default)',
           }}>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Celkem objednavek' : 'Total orders'}</span>
+              <span style={detailLabelStyle}>{t('admin.customers.totalOrders', cs ? 'Celkem objednavek' : 'Total orders')}</span>
               <span style={detailValueStyle}>{customer.orderCount}</span>
             </div>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Celkem utraceno' : 'Total spent'}</span>
+              <span style={detailLabelStyle}>{t('admin.customers.totalSpentDetail', cs ? 'Celkem utraceno' : 'Total spent')}</span>
               <span style={{ ...detailValueStyle, fontFamily: 'var(--forge-font-tech)', fontWeight: 700 }}>
                 {formatMoney(customer.totalSpent)}
               </span>
             </div>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Prumerna objednavka' : 'Average order'}</span>
+              <span style={detailLabelStyle}>{t('admin.customers.avgOrder', cs ? 'Prumerna objednavka' : 'Average order')}</span>
               <span style={{ ...detailValueStyle, fontFamily: 'var(--forge-font-tech)' }}>
                 {formatMoney(customer.avgOrder)}
               </span>
             </div>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Oblibeny material' : 'Favorite material'}</span>
+              <span style={detailLabelStyle}>{t('admin.customers.favMaterial', cs ? 'Oblibeny material' : 'Favorite material')}</span>
               <span style={detailValueStyle}>{customer.favMaterial}</span>
             </div>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Frekvence objednavek' : 'Order frequency'}</span>
+              <span style={detailLabelStyle}>{t('admin.customers.orderFrequency', cs ? 'Frekvence objednavek' : 'Order frequency')}</span>
               <span style={detailValueStyle}>
                 {customer.orderFrequency != null
                   ? (cs ? `~${customer.orderFrequency} dni` : `~${customer.orderFrequency} days`)
@@ -573,7 +562,7 @@ function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
               </span>
             </div>
             <div>
-              <span style={detailLabelStyle}>{cs ? 'Prvni objednavka' : 'First order'}</span>
+              <span style={detailLabelStyle}>{t('admin.customers.firstOrder', cs ? 'Prvni objednavka' : 'First order')}</span>
               <span style={detailValueStyle}>{formatDate(customer.firstOrderDate)}</span>
             </div>
           </div>
@@ -604,8 +593,8 @@ function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
               </span>
               <CopyButton
                 text={customer.email}
-                label={cs ? 'Kopirovat' : 'Copy'}
-                copiedLabel={cs ? 'Zkopirovano!' : 'Copied!'}
+                label={t('admin.customers.copy', cs ? 'Kopirovat' : 'Copy')}
+                copiedLabel={t('admin.customers.copied', cs ? 'Zkopirovano!' : 'Copied!')}
                 style={{ padding: '2px 4px', fontSize: '10px' }}
               />
             </div>
@@ -630,8 +619,8 @@ function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
                 </span>
                 <CopyButton
                   text={customer.phone}
-                  label={cs ? 'Kopirovat' : 'Copy'}
-                  copiedLabel={cs ? 'Zkopirovano!' : 'Copied!'}
+                  label={t('admin.customers.copy', cs ? 'Kopirovat' : 'Copy')}
+                  copiedLabel={t('admin.customers.copied', cs ? 'Zkopirovano!' : 'Copied!')}
                   style={{ padding: '2px 4px', fontSize: '10px' }}
                 />
               </div>
@@ -648,7 +637,7 @@ function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
             color: 'var(--forge-text-muted)',
             marginBottom: '8px',
           }}>
-            {cs ? 'Historie objednavek' : 'Order history'} ({customer.orders.length})
+            {t('admin.customers.orderHistory', cs ? 'Historie objednavek' : 'Order history')} ({customer.orders.length})
           </div>
           <div style={{
             display: 'flex',
@@ -712,6 +701,7 @@ function CustomerDetailRow({ customer, cs, colSpan, notes, onSaveNote }) {
           <CustomerNotes
             email={customer.email}
             cs={cs}
+            t={t}
             notes={notes}
             onSaveNote={onSaveNote}
           />
@@ -833,9 +823,9 @@ const detailValueStyle = {
 // ---------------------------------------------------------------------------
 
 export default function AdminCustomers() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const cs = language === 'cs';
-  useDocumentTitle(cs ? 'Zakaznici — Admin' : 'Customers — Admin');
+  useDocumentTitle(t('admin.customers.documentTitle', cs ? 'Zakaznici — Admin' : 'Customers — Admin'));
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -843,6 +833,8 @@ export default function AdminCustomers() {
   const [expandedEmail, setExpandedEmail] = useState(null);
   const [segmentFilter, setSegmentFilter] = useState('ALL');
   const [customerNotes, setCustomerNotes] = useState({});
+  const [custPage, setCustPage] = useState(1);
+  const CUST_PAGE_SIZE = 25;
 
   // Load orders + notes
   useEffect(() => {
@@ -851,7 +843,7 @@ export default function AdminCustomers() {
       setOrders(data);
       setCustomerNotes(loadCustomerNotes());
     } catch (e) {
-      console.error('[AdminCustomers] Failed to load orders', e);
+      debug('[AdminCustomers] Failed to load orders', e);
     } finally {
       setLoading(false);
     }
@@ -897,6 +889,15 @@ export default function AdminCustomers() {
     key: 'totalSpent',
     direction: 'desc',
   });
+
+  // Pagination derived values
+  const custPageCount = Math.max(1, Math.ceil(sortedData.length / CUST_PAGE_SIZE));
+  const pagedCustomers = sortedData.slice((custPage - 1) * CUST_PAGE_SIZE, custPage * CUST_PAGE_SIZE);
+
+  // Reset to page 1 when filters or sort change
+  useEffect(() => {
+    setCustPage(1);
+  }, [search, segmentFilter, sortConfig?.key, sortConfig?.direction]);
 
   // Stats
   const stats = useMemo(() => {
@@ -961,7 +962,7 @@ export default function AdminCustomers() {
       <div style={{ padding: '40px', textAlign: 'center', color: 'var(--forge-text-muted)' }}>
         <Icon name="Loader2" size={24} style={{ animation: 'spin 1s linear infinite' }} />
         <div style={{ marginTop: '12px', fontFamily: 'var(--forge-font-body)', fontSize: '14px' }}>
-          {cs ? 'Nacitam zakazniky...' : 'Loading customers...'}
+          {t('admin.customers.loading', cs ? 'Nacitam zakazniky...' : 'Loading customers...')}
         </div>
       </div>
     );
@@ -970,8 +971,8 @@ export default function AdminCustomers() {
   return (
     <div style={{ maxWidth: 1200 }}>
       <ForgePageHeader
-        title={cs ? 'Zakaznici' : 'Customers'}
-        breadcrumb={cs ? 'ADMIN / ZAKAZNICI' : 'ADMIN / CUSTOMERS'}
+        title={t('admin.customers.title', cs ? 'Zakaznici' : 'Customers')}
+        breadcrumb={t('admin.customers.breadcrumb', cs ? 'ADMIN / ZAKAZNICI' : 'ADMIN / CUSTOMERS')}
       />
 
       {/* Stats cards */}
@@ -984,24 +985,24 @@ export default function AdminCustomers() {
       }}>
         <StatCard
           icon="Users"
-          label={cs ? 'Celkem zakazniku' : 'Total customers'}
+          label={t('admin.customers.statTotal', cs ? 'Celkem zakazniku' : 'Total customers')}
           value={stats.total}
         />
         <StatCard
           icon="UserPlus"
-          label={cs ? 'Novych tento mesic' : 'New this month'}
+          label={t('admin.customers.statNewMonth', cs ? 'Novych tento mesic' : 'New this month')}
           value={stats.newThisMonth}
-          color="#60A5FA"
+          color="var(--forge-info)"
         />
         <StatCard
           icon="TrendingUp"
-          label={cs ? 'Prumerna hodnota zakaznika' : 'Avg. lifetime value'}
+          label={t('admin.customers.statAvgLtv', cs ? 'Prumerna hodnota zakaznika' : 'Avg. lifetime value')}
           value={formatMoney(stats.avgLtv)}
-          color="#F0A030"
+          color="var(--forge-accent-orange)"
         />
         <StatCard
           icon="Repeat"
-          label={cs ? 'Vracejici se zakaznici' : 'Repeat customer rate'}
+          label={t('admin.customers.statRepeatRate', cs ? 'Vracejici se zakaznici' : 'Repeat customer rate')}
           value={`${stats.repeatRate}%`}
           sub={cs
             ? `${customers.filter((c) => c.orderCount > 1).length} z ${stats.total}`
@@ -1033,10 +1034,10 @@ export default function AdminCustomers() {
           <Icon name="Search" size={16} style={{ color: 'var(--forge-text-muted)', flexShrink: 0 }} />
           <input
             type="text"
-            placeholder={cs ? 'Hledat jmeno, email, telefon...' : 'Search name, email, phone...'}
+            placeholder={t('admin.customers.searchPlaceholder', cs ? 'Hledat jmeno, email, telefon...' : 'Search name, email, phone...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label={cs ? 'Hledat zakazniky' : 'Search customers'}
+            aria-label={t('admin.customers.searchAriaLabel', cs ? 'Hledat zakazniky' : 'Search customers')}
             style={{
               background: 'none',
               border: 'none',
@@ -1051,7 +1052,7 @@ export default function AdminCustomers() {
           {search && (
             <button
               onClick={() => setSearch('')}
-              aria-label={cs ? 'Vymazat hledani' : 'Clear search'}
+              aria-label={t('admin.customers.clearSearch', cs ? 'Vymazat hledani' : 'Clear search')}
               style={{
                 background: 'none',
                 border: 'none',
@@ -1096,7 +1097,7 @@ export default function AdminCustomers() {
               cursor: 'pointer',
               transition: 'all 150ms',
             }}
-            title={cs ? 'Exportovat jako CSV' : 'Export as CSV'}
+            title={t('admin.customers.exportCsvTitle', cs ? 'Exportovat jako CSV' : 'Export as CSV')}
           >
             <Icon name="Download" size={14} />
             {cs ? 'Export CSV' : 'Export CSV'}
@@ -1110,7 +1111,7 @@ export default function AdminCustomers() {
           color: 'var(--forge-text-muted)',
           whiteSpace: 'nowrap',
         }}>
-          {sortedData.length} {cs ? 'zakazniku' : 'customers'}
+          {sortedData.length} {t('admin.customers', cs ? 'zakazniku' : 'customers')}
         </span>
       </div>
 
@@ -1131,7 +1132,7 @@ export default function AdminCustomers() {
             color: 'var(--forge-text-primary)',
             marginBottom: '8px',
           }}>
-            {cs ? 'Zadni zakaznici' : 'No customers yet'}
+            {t('admin.customers.noCustomers', cs ? 'Zadni zakaznici' : 'No customers yet')}
           </div>
           <div style={{
             fontFamily: 'var(--forge-font-body)',
@@ -1161,8 +1162,8 @@ export default function AdminCustomers() {
             fontSize: '14px',
             color: 'var(--forge-text-muted)',
           }}>
-            {cs ? 'Zadne vysledky' : 'No results'}
-            {search && <> {cs ? 'pro' : 'for'} &quot;{search}&quot;</>}
+            {t('admin.customers.noResults', cs ? 'Zadne vysledky' : 'No results')}
+            {search && <> {t('admin.customers.noResultsFor', cs ? 'pro' : 'for')} &quot;{search}&quot;</>}
           </div>
         </div>
       )}
@@ -1188,7 +1189,7 @@ export default function AdminCustomers() {
               <thead>
                 <tr>
                   <SortableTh sortKey="name" currentSort={sortConfig} onSort={requestSort}>
-                    {cs ? 'Zakaznik' : 'Customer'}
+                    {t('admin.customers.colCustomer', cs ? 'Zakaznik' : 'Customer')}
                   </SortableTh>
                   <th style={{
                     padding: '10px 12px',
@@ -1201,7 +1202,7 @@ export default function AdminCustomers() {
                     borderBottom: '1px solid var(--forge-border-default)',
                     textAlign: 'left',
                   }}>
-                    {cs ? 'Telefon' : 'Phone'}
+                    {t('admin.customers.colPhone', cs ? 'Telefon' : 'Phone')}
                   </th>
                   <th style={{
                     padding: '10px 12px',
@@ -1217,16 +1218,16 @@ export default function AdminCustomers() {
                     Segment
                   </th>
                   <SortableTh sortKey="orderCount" currentSort={sortConfig} onSort={requestSort} align="center">
-                    {cs ? 'Objednavek' : 'Orders'}
+                    {t('admin.customers.colOrders', cs ? 'Objednavek' : 'Orders')}
                   </SortableTh>
                   <SortableTh sortKey="totalSpent" currentSort={sortConfig} onSort={requestSort} align="right">
-                    {cs ? 'Celkem utraceno' : 'Total spent'}
+                    {t('admin.customers.colTotalSpent', cs ? 'Celkem utraceno' : 'Total spent')}
                   </SortableTh>
                   <SortableTh sortKey="avgOrder" currentSort={sortConfig} onSort={requestSort} align="right">
-                    {cs ? 'Prumer. obj.' : 'Avg. order'}
+                    {t('admin.customers.colAvgOrder', cs ? 'Prumer. obj.' : 'Avg. order')}
                   </SortableTh>
                   <SortableTh sortKey="lastOrderDate" currentSort={sortConfig} onSort={requestSort}>
-                    {cs ? 'Posledni obj.' : 'Last order'}
+                    {t('admin.customers.colLastOrder', cs ? 'Posledni obj.' : 'Last order')}
                   </SortableTh>
                   <th style={{
                     padding: '10px 12px',
@@ -1236,7 +1237,7 @@ export default function AdminCustomers() {
                 </tr>
               </thead>
               <tbody>
-                {sortedData.map((cust) => {
+                {pagedCustomers.map((cust) => {
                   const isExpanded = expandedEmail === cust.email;
                   return (
                     <React.Fragment key={cust.email}>
@@ -1371,6 +1372,7 @@ export default function AdminCustomers() {
                         <CustomerDetailRow
                           customer={cust}
                           cs={cs}
+                          t={t}
                           colSpan={COL_COUNT}
                           notes={customerNotes}
                           onSaveNote={handleSaveNote}
@@ -1382,6 +1384,69 @@ export default function AdminCustomers() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Customers pagination */}
+      {custPageCount > 1 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: '12px',
+          gap: '8px',
+        }}>
+          <button
+            type="button"
+            disabled={custPage <= 1}
+            onClick={() => setCustPage((p) => Math.max(1, p - 1))}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              border: '1px solid var(--forge-border-default)',
+              borderRadius: 'var(--forge-radius-lg)',
+              background: 'var(--forge-bg-surface)',
+              color: custPage <= 1 ? 'var(--forge-text-muted)' : 'var(--forge-text-secondary)',
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '13px',
+              cursor: custPage <= 1 ? 'not-allowed' : 'pointer',
+              opacity: custPage <= 1 ? 0.5 : 1,
+            }}
+          >
+            <Icon name="ChevronLeft" size={15} />
+            {t('admin.customers.previous', cs ? 'Predchozi' : 'Previous')}
+          </button>
+          <span style={{
+            fontFamily: 'var(--forge-font-body)',
+            fontSize: '13px',
+            color: 'var(--forge-text-muted)',
+          }}>
+            {cs ? `Strana ${custPage} / ${custPageCount}` : `Page ${custPage} of ${custPageCount}`}
+          </span>
+          <button
+            type="button"
+            disabled={custPage >= custPageCount}
+            onClick={() => setCustPage((p) => Math.min(custPageCount, p + 1))}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              border: '1px solid var(--forge-border-default)',
+              borderRadius: 'var(--forge-radius-lg)',
+              background: 'var(--forge-bg-surface)',
+              color: custPage >= custPageCount ? 'var(--forge-text-muted)' : 'var(--forge-text-secondary)',
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '13px',
+              cursor: custPage >= custPageCount ? 'not-allowed' : 'pointer',
+              opacity: custPage >= custPageCount ? 0.5 : 1,
+            }}
+          >
+            {t('admin.customers.next', cs ? 'Dalsi' : 'Next')}
+            <Icon name="ChevronRight" size={15} />
+          </button>
         </div>
       )}
 

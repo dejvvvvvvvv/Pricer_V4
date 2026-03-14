@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Icon from '../../../../components/AppIcon';
+import { useAuth } from '../../../../context/AuthContext';
 
 function CopyButton({ value }) {
   const [copied, setCopied] = useState(false);
@@ -64,6 +65,8 @@ function InfoRow({ label, value }) {
 }
 
 export default function TabCustomer({ order, onSaveNote, onUpdateOrders }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const [noteText, setNoteText] = useState('');
   const customer = order?.customer_snapshot || {};
 
@@ -72,7 +75,8 @@ export default function TabCustomer({ order, onSaveNote, onUpdateOrders }) {
     const note = {
       text: noteText.trim(),
       created_at: new Date().toISOString(),
-      user_id: 'admin',
+      // TODO: replace with real user ID from auth system if available
+      user_id: currentUser,
     };
     onSaveNote?.(note);
     setNoteText('');
@@ -144,7 +148,7 @@ export default function TabCustomer({ order, onSaveNote, onUpdateOrders }) {
         {(order?.notes || []).length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {(order.notes).map((note, idx) => (
-              <div key={idx} style={{
+              <div key={note.id || note.created_at || idx} style={{
                 padding: '8px 12px',
                 background: 'var(--forge-bg-elevated)',
                 borderRadius: 'var(--forge-radius-sm)',

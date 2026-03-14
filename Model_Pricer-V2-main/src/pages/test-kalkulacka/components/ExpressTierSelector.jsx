@@ -1,5 +1,6 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 // Props: { tiers, selectedTierId, onSelectTier, disabled }
 // tiers = array of tier objects from express config
@@ -7,7 +8,10 @@ import Icon from '../../../components/AppIcon';
 // onSelectTier = (tierId) => void
 
 export default function ExpressTierSelector({ tiers = [], selectedTierId, onSelectTier, disabled = false }) {
-  const activeTiers = tiers.filter(t => t.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  const { language } = useLanguage();
+  const t = (cs, en) => (language === 'en' ? en : cs);
+
+  const activeTiers = tiers.filter(tier => tier.active !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
   if (activeTiers.length === 0) return null;
 
@@ -35,14 +39,14 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
     <div style={cardStyle}>
       <h3 style={headingStyle}>
         <Icon name="Zap" size={18} style={{ color: 'var(--forge-accent-secondary)' }} />
-        Delivery Speed
+        {t('Rychlost doruceni', 'Delivery Speed')}
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {activeTiers.map(tier => {
           const isSelected = tier.id === selectedTierId;
           const surchargeLabel = tier.surcharge_value > 0
-            ? (tier.surcharge_type === 'percent' ? `+${tier.surcharge_value}%` : `+${tier.surcharge_value} CZK`)
-            : 'Included';
+            ? (tier.surcharge_type === 'percent' ? `+${tier.surcharge_value}%` : `+${tier.surcharge_value} ${t('Kc', 'CZK')}`)
+            : t('V cene', 'Included');
 
           return (
             <button
@@ -80,7 +84,9 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>{tier.name}</div>
                 <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)', marginTop: '2px' }}>
-                  {tier.delivery_days > 0 ? `${tier.delivery_days} business days` : 'Standard delivery'}
+                  {tier.delivery_days > 0
+                    ? `${tier.delivery_days} ${t('pracovnich dni', 'business days')}`
+                    : t('Standardni doruceni', 'Standard delivery')}
                 </div>
               </div>
               <span style={{

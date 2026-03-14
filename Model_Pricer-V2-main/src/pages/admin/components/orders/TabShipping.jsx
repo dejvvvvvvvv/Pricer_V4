@@ -67,7 +67,7 @@ export default function TabShipping({ order }) {
           borderRadius: 'var(--forge-radius-md)',
           border: '2px dashed var(--forge-border-default)',
           fontFamily: 'var(--forge-font-body)',
-          color: '#08090C',
+          color: 'var(--forge-bg-void)',
           lineHeight: 1.6,
         }}>
           <div style={{ fontWeight: 700, fontSize: '14px' }}>
@@ -80,7 +80,7 @@ export default function TabShipping({ order }) {
           <div style={{ fontSize: '13px' }}>{addr.zip} {addr.city}</div>
           <div style={{ fontSize: '13px', fontWeight: 600 }}>{countryName}</div>
           {order?.customer_snapshot?.phone && (
-            <div style={{ fontSize: '12px', marginTop: '6px', color: '#666' }}>
+            <div style={{ fontSize: '12px', marginTop: '6px', color: 'var(--forge-text-muted)' }}>
               Tel: {order.customer_snapshot.phone}
             </div>
           )}

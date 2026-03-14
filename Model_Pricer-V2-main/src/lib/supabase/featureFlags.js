@@ -11,6 +11,8 @@
     const mode = getStorageMode('orders:v1'); // 'localStorage' | 'supabase' | 'dual-write'
 */
 
+import { debug } from '../debug';
+
 const STORAGE_KEY = 'modelpricer:feature_flags:storage_modes';
 
 // All known namespaces — mirrors the storage helpers
@@ -35,6 +37,20 @@ const ALL_NAMESPACES = [
   'widgets',
   'plan_features',
   'widget_theme',
+  'settings:v1',
+  'payment:v1',
+  'ecommerce',
+  'notifications',
+  'notification-prefs:v1',
+  'print-queue:v1',
+  'print-stats:v1',
+  'invoices:v1',
+  'company:v1',
+  'order-views:v1',
+  'order-tags:v1',
+  'order-tag-assignments:v1',
+  'email-send-log:v1',
+  'activityLog',
 ];
 
 const VALID_MODES = ['localStorage', 'supabase', 'dual-write'];
@@ -79,7 +95,7 @@ export function getStorageMode(namespace) {
  */
 export function setStorageMode(namespace, mode) {
   if (!VALID_MODES.includes(mode)) {
-    console.warn(`[featureFlags] Invalid mode "${mode}". Valid: ${VALID_MODES.join(', ')}`);
+    debug(`[featureFlags] Invalid mode "${mode}". Valid: ${VALID_MODES.join(', ')}`);
     return;
   }
   const flags = loadFlags();
@@ -93,7 +109,7 @@ export function setStorageMode(namespace, mode) {
  */
 export function setAllStorageModes(mode) {
   if (!VALID_MODES.includes(mode)) {
-    console.warn(`[featureFlags] Invalid mode "${mode}".`);
+    debug(`[featureFlags] Invalid mode "${mode}".`);
     return;
   }
   const flags = {};

@@ -9,8 +9,8 @@
  * - Pre-change auto-backup option
  * - Two-column layout: Backup left, Restore/History right
  *
- * Uses storage helpers for reading/writing — never touches localStorage directly
- * except for collecting raw data during export (read-only scan).
+ * Uses storage helpers for reading/writing — direct localStorage access is limited
+ * to legacy-format keys (branding, widgets, etc.) that writeTenantJson cannot produce.
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -19,6 +19,7 @@ import ForgeDialog from '../../../components/ui/forge/ForgeDialog';
 import { ForgeConfirmDialog } from '../../../components/ui/forge/ForgeConfirmDialog';
 import { getTenantId, readTenantJson, writeTenantJson } from '../../../utils/adminTenantStorage';
 import { downloadFile } from '../../../utils/exportData';
+import { safeJsonParse, stripDangerousKeys } from '../../../utils/sanitizeJson';
 
 // ---------------------------------------------------------------------------
 // Config namespace registry — all config namespaces to backup/restore
@@ -161,9 +162,19 @@ function restoreConfigData(backupData, selectedKeys) {
 
     try {
       if (ns.type === 'tenant') {
-        writeTenantJson(ns.key, backupData[ns.key]);
+        // Sanitize URL fields before writing to prevent stored XSS via javascript:/data: schemes.
+        const nsData = backupData[ns.key];
+        if (nsData && typeof nsData === 'object' && nsData.logoUrl &&
+            /^\s*(javascript|data|vbscript)\s*:/i.test(String(nsData.logoUrl).trim())) {
+          nsData.logoUrl = '';
+        }
+        writeTenantJson(ns.key, nsData);
       } else if (ns.type === 'legacy' && ns.legacyKey) {
-        window.localStorage.setItem(ns.legacyKey(tenantId), JSON.stringify(backupData[ns.key]));
+        // Legacy keys use a different format (modelpricer_<ns>__<tid>) that writeTenantJson
+        // cannot produce. Direct localStorage write is required for backwards compatibility
+        // with code that reads these old-format keys (branding, widgets, plan_features, ecommerce).
+        const sanitized = stripDangerousKeys(backupData[ns.key]);
+        window.localStorage.setItem(ns.legacyKey(tenantId), JSON.stringify(sanitized));
       }
       restored++;
     } catch (err) {
@@ -848,7 +859,7 @@ export default function ConfigBackupRestore() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const parsed = JSON.parse(ev.target.result);
+        const parsed = safeJsonParse(ev.target.result);
         const validation = validateBackupFile(parsed);
         setImportFile(parsed);
         setImportValidation(validation);

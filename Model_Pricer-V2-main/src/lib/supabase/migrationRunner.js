@@ -251,6 +251,21 @@ async function migrateLog(migration, tenantSlug, tenantUuid, dryRun) {
     return { status: 'dry-run', entryCount: data.length, dataSize: JSON.stringify(data).length };
   }
 
+  // Idempotency guard: skip if this tenant already has rows in this log table.
+  // Log tables use plain INSERT (no conflict key) so re-running would create duplicates.
+  const { count, error: countError } = await supabase
+    .from(migration.table)
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantUuid);
+
+  if (countError) {
+    return { status: 'error', error: `Idempotency check failed: ${countError.message}` };
+  }
+
+  if (count > 0) {
+    return { status: 'skipped', reason: `Already migrated (${count} rows exist in ${migration.table})` };
+  }
+
   // Batch insert log entries
   const batchSize = 500;
   let inserted = 0;

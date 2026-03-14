@@ -21,6 +21,7 @@
  */
 
 import { Router } from "express";
+import { logInfo } from "../util/logger.js";
 import { validate } from "../middleware/validate.js";
 import {
   listOrders,
@@ -220,7 +221,7 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
         });
       }
 
-      console.log(`[orders] Created order ${order.orderNumber} (${order.id}) for tenant ${tenantId}`);
+      logInfo(`[orders] Created order ${order.orderNumber} (${order.id}) for tenant ${tenantId}`);
       return res.status(201).json({ ok: true, data: order });
     } catch (e) {
       return fail(res, 500, "MP_ORDER_CREATE_FAILED", String(e?.message || e));
@@ -229,7 +230,16 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
 
   // ───────────────────────────────────────────────────
   // PATCH /api/orders/:id — Update order fields
+  // Only fields listed in PATCHABLE_FIELDS are accepted.
+  // Status changes must use PATCH /api/orders/:id/status.
   // ───────────────────────────────────────────────────
+  const PATCHABLE_FIELDS = [
+    "customerName", "customerEmail", "customerPhone",
+    "shippingAddress", "billingAddress", "notes", "tags",
+    "internalNote", "priority", "assignedTo", "deliveryEstimate",
+    "shippingMethod", "trackingNumber",
+  ];
+
   router.patch("/:id", validate(orderSchemas.byId), async (req, res) => {
     try {
       const tenantId = getTenantIdFromReq(req);
@@ -246,8 +256,23 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
         );
       }
 
+      // Build patch from allowlist only — reject unbounded body spread
+      const patch = {};
+      for (const key of PATCHABLE_FIELDS) {
+        if (body[key] !== undefined) patch[key] = body[key];
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return fail(
+          res,
+          400,
+          "MP_VALIDATION_ERROR",
+          `No patchable fields provided. Allowed: ${PATCHABLE_FIELDS.join(", ")}`
+        );
+      }
+
       const result = await updateOrder(workspaceRoot, tenantId, orderId, {
-        ...body,
+        ...patch,
         _actor: req.user?.email || req.user?.uid || "api",
       });
 
@@ -261,7 +286,7 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
           orderId: result.order.id,
           orderNumber: result.order.orderNumber,
           status: result.order.status,
-          updatedFields: Object.keys(body).filter((k) => k !== "_actor"),
+          updatedFields: Object.keys(patch),
         });
       }
 
@@ -312,7 +337,7 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
         });
       }
 
-      console.log(
+      logInfo(
         `[orders] Status changed: ${result.previousStatus} -> ${result.newStatus} for order ${orderId} (tenant ${tenantId})`
       );
 
@@ -355,7 +380,7 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
         });
       }
 
-      console.log(`[orders] Soft-deleted order ${orderId} for tenant ${tenantId}`);
+      logInfo(`[orders] Soft-deleted order ${orderId} for tenant ${tenantId}`);
 
       return ok(res, { id: orderId, status: "cancelled" });
     } catch (e) {

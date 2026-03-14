@@ -127,7 +127,10 @@ const WidgetConfigTab = ({ editor, errors, onEditorChange }) => {
               min={0}
               max={32}
               value={editor.borderRadius ?? 8}
-              onChange={(e) => update('borderRadius', Number(e.target.value) || 0)}
+              onChange={(e) => {
+                const clamped = Math.max(0, Math.min(32, Number(e.target.value) || 0));
+                update('borderRadius', clamped);
+              }}
             />
             <span className="aw-muted">px</span>
           </div>

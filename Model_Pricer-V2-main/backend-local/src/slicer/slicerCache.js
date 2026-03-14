@@ -25,6 +25,7 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
  * @property {Object} result - The cached slicer result
  * @property {number} expiresAt - Timestamp when this entry expires
  * @property {number} createdAt - Timestamp when this entry was created
+ * @property {number} lastAccessedAt - Timestamp of the most recent cache hit (used for LRU eviction)
  * @property {number} hits - Number of cache hits for this entry
  */
 
@@ -92,6 +93,7 @@ export class SlicerCache {
     }
 
     entry.hits++;
+    entry.lastAccessedAt = Date.now();
     this._stats.hits++;
     return entry.result;
   }
@@ -108,10 +110,12 @@ export class SlicerCache {
       this._evictOldest();
     }
 
+    const now = Date.now();
     this._cache.set(key, {
       result,
-      expiresAt: Date.now() + this.ttlMs,
-      createdAt: Date.now(),
+      expiresAt: now + this.ttlMs,
+      createdAt: now,
+      lastAccessedAt: now,
       hits: 0,
     });
   }
@@ -159,7 +163,7 @@ export class SlicerCache {
   }
 
   /**
-   * Remove expired entries.
+   * Remove expired entries and count them toward the evictions stat.
    * @private
    */
   _cleanup() {
@@ -167,12 +171,15 @@ export class SlicerCache {
     for (const [key, entry] of this._cache) {
       if (now > entry.expiresAt) {
         this._cache.delete(key);
+        this._stats.evictions++;
       }
     }
   }
 
   /**
-   * Evict the oldest entry by creation time.
+   * Evict the least-recently-used entry (by lastAccessedAt).
+   * This preserves frequently accessed entries over stale ones that were
+   * never hit after being written.
    * @private
    */
   _evictOldest() {
@@ -180,8 +187,8 @@ export class SlicerCache {
     let oldestTime = Infinity;
 
     for (const [key, entry] of this._cache) {
-      if (entry.createdAt < oldestTime) {
-        oldestTime = entry.createdAt;
+      if (entry.lastAccessedAt < oldestTime) {
+        oldestTime = entry.lastAccessedAt;
         oldestKey = key;
       }
     }

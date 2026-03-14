@@ -353,6 +353,12 @@ export default function DataImportWizard({ open, onClose }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const MAX_IMPORT_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (file.size > MAX_IMPORT_SIZE) {
+      setParseError('Soubor je příliš velký (max 5 MB)');
+      return;
+    }
+
     setParseError('');
     setFileName(file.name);
 

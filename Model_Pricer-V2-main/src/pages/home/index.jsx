@@ -47,7 +47,7 @@ const Home = () => {
       name: 'STARTER',
       price: language === 'cs' ? '499 Kč' : '$20',
       period: t('home.forge.plans.period'),
-      ctaText: language === 'cs' ? 'Vyzkoušet Starter' : 'Try Starter',
+      ctaText: t('home.plan.starter.cta'),
       ctaTo: '/register',
       recommended: false,
       features: [
@@ -60,7 +60,7 @@ const Home = () => {
       name: 'PROFESSIONAL',
       price: language === 'cs' ? '1 999 Kč' : '$80',
       period: t('home.forge.plans.period'),
-      ctaText: language === 'cs' ? 'Začít s Professional' : 'Start Professional',
+      ctaText: t('home.plan.pro.cta'),
       ctaTo: '/register',
       recommended: true,
       features: [
@@ -72,9 +72,9 @@ const Home = () => {
     },
     {
       name: 'ENTERPRISE',
-      price: language === 'cs' ? 'Na míru' : 'Custom',
-      period: language === 'cs' ? '' : '',
-      ctaText: language === 'cs' ? 'Kontaktovat nás' : 'Contact Us',
+      price: t('home.plan.enterprise.price'),
+      period: '',
+      ctaText: t('home.plan.enterprise.cta'),
       ctaTo: '/support',
       recommended: false,
       features: [
@@ -148,7 +148,7 @@ const Home = () => {
                 className="mt-4"
                 style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}
               >
-                {language === 'cs' ? 'Bez kreditni karty. Zacnete za par minut.' : 'No credit card required. Get started in minutes.'}
+                {t('home.hero.note')}
               </p>
             </div>
           </Reveal>
@@ -178,7 +178,7 @@ const Home = () => {
               letterSpacing: '0.02em',
             }}
           >
-            {language === 'cs' ? 'Pouziva 120+ tiskovych farem' : 'Trusted by 120+ print farms'}
+            {t('home.trust.strip')}
           </span>
           <span
             className="shrink-0"

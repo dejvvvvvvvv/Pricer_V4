@@ -6,17 +6,23 @@ export function getCheckoutSchema(language = 'cs') {
   return z.object({
     name: z
       .string()
+      .min(1, t('Jmeno je povinne', 'Name is required'))
       .min(2, t('Jmeno musi mit alespon 2 znaky', 'Name must be at least 2 characters'))
       .max(100, t('Jmeno je prilis dlouhe', 'Name is too long')),
 
     email: z
       .string()
       .min(1, t('Email je povinny', 'Email is required'))
+      .trim()
       .email(t('Neplatny format emailu', 'Invalid email format')),
 
     phone: z
       .string()
-      .max(20, t('Telefon je prilis dlouhy', 'Phone is too long'))
+      .max(30, t('Telefon je prilis dlouhy', 'Phone is too long'))
+      .refine(
+        (val) => !val || /^[+]?[\d\s\-().]{7,30}$/.test(val),
+        t('Neplatny format telefonu', 'Invalid phone format')
+      )
       .optional()
       .or(z.literal('')),
 
@@ -162,11 +168,11 @@ export function getCheckoutSchema(language = 'cs') {
           path: ['ico'],
         });
       }
-      // Czech ICO validation: must be exactly 8 digits
-      if (data.ico && data.ico.length > 0 && !/^\d{8}$/.test(data.ico)) {
+      // ICO/Company ID validation: 5-15 alphanumeric characters (supports CZ 8-digit and international formats)
+      if (data.ico && data.ico.length > 0 && !/^[A-Za-z0-9]{5,15}$/.test(data.ico)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: t('ICO musi mit presne 8 cislic', 'Company ID must be exactly 8 digits'),
+          message: t('Neplatne ICO / Company ID', 'Neplatné IČO / Company ID'),
           path: ['ico'],
         });
       }

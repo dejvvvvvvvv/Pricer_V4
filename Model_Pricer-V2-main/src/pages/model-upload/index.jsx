@@ -233,7 +233,7 @@ function FileTypeIcon({ ext, size = 40 }) {
 /* ══════════════════════════════════════════════════════════════════════════
  * FILE LIST ITEM — individual file in the multi-file queue
  * ══════════════════════════════════════════════════════════════════════════ */
-function FileListItem({ item, cs, isActive, onSelect, onRemove }) {
+function FileListItem({ item, cs, isActive, onSelect, onRemove, onRetry, labels = {} }) {
   const statusClass = item.status === 'error'
     ? 'mu-file-item--error'
     : item.status === 'done'
@@ -285,11 +285,22 @@ function FileListItem({ item, cs, isActive, onSelect, onRemove }) {
         </div>
       )}
 
-      {/* Error reason */}
+      {/* Error reason + retry */}
       {item.status === 'error' && item.reason && (
         <div className="mu-file-item__error">
           <Icon name="AlertCircle" size={12} />
           <span>{item.reason}</span>
+          {onRetry && (
+            <button
+              className="mu-file-item__retry"
+              onClick={(e) => { e.stopPropagation(); onRetry(item); }}
+              type="button"
+              aria-label={labels.retryLabel || (cs ? 'Zkusit znovu' : 'Retry')}
+            >
+              <Icon name="RotateCcw" size={11} />
+              {labels.retry || (cs ? 'Znovu' : 'Retry')}
+            </button>
+          )}
         </div>
       )}
 
@@ -297,8 +308,8 @@ function FileListItem({ item, cs, isActive, onSelect, onRemove }) {
         className="mu-file-item__remove"
         onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}
         type="button"
-        aria-label={cs ? 'Odebrat soubor' : 'Remove file'}
-        title={cs ? 'Odebrat' : 'Remove'}
+        aria-label={labels.removeLabel || (cs ? 'Odebrat soubor' : 'Remove file')}
+        title={labels.removeTitle || (cs ? 'Odebrat' : 'Remove')}
       >
         <Icon name="X" size={14} />
       </button>
@@ -313,11 +324,11 @@ function FileListItem({ item, cs, isActive, onSelect, onRemove }) {
 let fileIdCounter = 0;
 
 const ModelUpload = () => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const navigate = useNavigate();
   const cs = language === 'cs';
 
-  useDocumentTitle(cs ? 'Nahrat model' : 'Upload Model');
+  useDocumentTitle(t('modelUpload.title'));
 
   // File queue: { id, file, status: 'pending'|'uploading'|'done'|'error', progress, reason, objectUrl }
   const [fileQueue, setFileQueue] = useState([]);
@@ -540,6 +551,25 @@ const ModelUpload = () => {
     });
   }, [selectedFile, navigate]);
 
+  // Retry a failed file — re-validate and re-upload
+  const handleRetryFile = useCallback((item) => {
+    const validation = validateFile(item.file, cs);
+    if (!validation.valid) {
+      // Still invalid (e.g. size), keep error but refresh message
+      setFileQueue((prev) =>
+        prev.map((f) => (f.id === item.id ? { ...f, reason: validation.reason } : f))
+      );
+      return;
+    }
+    // Reset to uploading and start simulation
+    setFileQueue((prev) =>
+      prev.map((f) =>
+        f.id === item.id ? { ...f, status: 'uploading', progress: 0, reason: null } : f
+      )
+    );
+    simulateUpload(item);
+  }, [cs, simulateUpload]);
+
   // Clear all files
   const handleClearAll = useCallback(() => {
     Object.values(intervalsRef.current).forEach(clearInterval);
@@ -580,12 +610,10 @@ const ModelUpload = () => {
         {/* Header */}
         <header className="mu-header">
           <h1 className="mu-header__title">
-            {cs ? 'Nahrat 3D model' : 'Upload 3D Model'}
+            {t('modelUpload.title')}
           </h1>
           <p className="mu-header__subtitle">
-            {cs
-              ? 'Nahrajte sve 3D modely a okamzite zjistete cenu tisku'
-              : 'Upload your 3D models and instantly get a print price estimate'}
+            {t('modelUpload.subtitle')}
           </p>
         </header>
 
@@ -594,11 +622,11 @@ const ModelUpload = () => {
           {...getRootProps({
             className: `mu-dropzone${isDragActive ? ' mu-dropzone--active' : ''}${hasFiles ? ' mu-dropzone--compact' : ''}`,
             role: 'button',
-            'aria-label': cs ? 'Oblast pro nahrani souboru' : 'File upload area',
+            'aria-label': t('modelUpload.dropzone.label'),
             tabIndex: 0,
           })}
         >
-          <input {...getInputProps()} aria-label={cs ? 'Vybrat soubory' : 'Choose files'} />
+          <input {...getInputProps()} aria-label={t('modelUpload.dropzone.inputLabel')} />
 
           {/* Animated border on drag */}
           <div className="mu-dropzone__border-anim" aria-hidden="true" />
@@ -613,21 +641,21 @@ const ModelUpload = () => {
 
           <h2 className="mu-dropzone__title">
             {isDragActive
-              ? (cs ? 'Pustte soubory sem' : 'Drop your files here')
-              : (cs ? 'Pretahnete soubory sem' : 'Drag & drop your models here')}
+              ? t('modelUpload.dropzone.active')
+              : t('modelUpload.dropzone.idle')}
           </h2>
 
           {!hasFiles && (
             <>
               <p className="mu-dropzone__text">
-                {cs ? 'nebo ' : 'or '}
+                {t('modelUpload.dropzone.or')}{' '}
                 <span className="mu-dropzone__browse">
-                  {cs ? 'vyberte ze zarizeni' : 'browse from your device'}
+                  {t('modelUpload.dropzone.browse')}
                 </span>
               </p>
 
               {/* Supported formats with file type icons */}
-              <div className="mu-dropzone__formats" aria-label={cs ? 'Podporovane formaty' : 'Supported formats'}>
+              <div className="mu-dropzone__formats" aria-label={t('modelUpload.dropzone.formatsLabel')}>
                 {FORMATS.map((f) => (
                   <div
                     key={f.ext}
@@ -642,7 +670,7 @@ const ModelUpload = () => {
                     </div>
                     {!f.supported && (
                       <span className="mu-format-card__badge">
-                        {cs ? 'brzy' : 'soon'}
+                        {t('modelUpload.dropzone.soon')}
                       </span>
                     )}
                   </div>
@@ -651,27 +679,25 @@ const ModelUpload = () => {
 
               <p className="mu-dropzone__meta">
                 <Icon name="HardDrive" size={12} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-                {cs
-                  ? `Max ${formatFileSize(MAX_FILE_SIZE)} na soubor  ·  vice souboru najednou`
-                  : `Max ${formatFileSize(MAX_FILE_SIZE)} per file  ·  multiple files supported`}
+                {`Max ${formatFileSize(MAX_FILE_SIZE)} ${t('modelUpload.dropzone.maxSize')}`}
               </p>
             </>
           )}
 
           {hasFiles && (
             <p className="mu-dropzone__text mu-dropzone__text--compact">
-              {cs ? 'Kliknutim nebo pretazenim pridejte dalsi soubory' : 'Click or drag to add more files'}
+              {t('modelUpload.dropzone.addMore')}
             </p>
           )}
         </div>
 
         {/* File Queue List */}
         {hasFiles && (
-          <section className="mu-filelist" aria-label={cs ? 'Nahrane soubory' : 'Uploaded files'}>
+          <section className="mu-filelist" aria-label={t('modelUpload.files.label')}>
             <div className="mu-filelist__header">
               <h2 className="mu-filelist__title">
                 <Icon name="Files" size={16} />
-                {cs ? 'Soubory' : 'Files'}
+                {t('modelUpload.files.title')}
                 <span className="mu-filelist__count">{fileQueue.length}</span>
               </h2>
 
@@ -680,19 +706,19 @@ const ModelUpload = () => {
                 {acceptedCount > 0 && (
                   <span className="mu-badge mu-badge--success">
                     <Icon name="CheckCircle2" size={12} />
-                    {acceptedCount} {cs ? 'ok' : 'ok'}
+                    {acceptedCount} {t('modelUpload.files.ok')}
                   </span>
                 )}
                 {rejectedCount > 0 && (
                   <span className="mu-badge mu-badge--error">
                     <Icon name="XCircle" size={12} />
-                    {rejectedCount} {cs ? 'chyb' : 'failed'}
+                    {rejectedCount} {t('modelUpload.files.failed')}
                   </span>
                 )}
                 {uploadingCount > 0 && (
                   <span className="mu-badge mu-badge--uploading">
                     <Icon name="Loader2" size={12} className="mu-spin" />
-                    {uploadingCount} {cs ? 'nahrava se' : 'uploading'}
+                    {uploadingCount} {t('modelUpload.files.uploading')}
                   </span>
                 )}
               </div>
@@ -701,10 +727,10 @@ const ModelUpload = () => {
                 className="mu-filelist__clear"
                 onClick={handleClearAll}
                 type="button"
-                aria-label={cs ? 'Odebrat vsechny' : 'Clear all'}
+                aria-label={t('modelUpload.files.clearAllLabel')}
               >
                 <Icon name="Trash2" size={14} />
-                {cs ? 'Vymazat vse' : 'Clear all'}
+                {t('modelUpload.files.clearAll')}
               </button>
             </div>
 
@@ -717,6 +743,13 @@ const ModelUpload = () => {
                   isActive={item.id === selectedFileId}
                   onSelect={handleSelectFile}
                   onRemove={handleRemoveFile}
+                  onRetry={item.status === 'error' ? handleRetryFile : undefined}
+                  labels={{
+                    retry: t('modelUpload.file.retry'),
+                    retryLabel: t('modelUpload.file.retryLabel'),
+                    removeLabel: t('modelUpload.file.removeLabel'),
+                    removeTitle: t('modelUpload.file.removeTitle'),
+                  }}
                 />
               ))}
             </div>
@@ -728,8 +761,8 @@ const ModelUpload = () => {
                   <Icon name="CheckCircle2" size={18} style={{ color: 'var(--forge-success)' }} />
                   <span>
                     {cs
-                      ? `${acceptedCount} ${acceptedCount === 1 ? 'model nahran' : 'modelu nahrano'} uspesne!`
-                      : `${acceptedCount} model${acceptedCount !== 1 ? 's' : ''} uploaded successfully!`}
+                      ? `${acceptedCount} ${acceptedCount === 1 ? t('modelUpload.success.uploaded') : t('modelUpload.success.uploadedPlural')} ${t('modelUpload.success.uploadedSuffix')}`
+                      : `${acceptedCount} ${acceptedCount !== 1 ? t('modelUpload.success.uploadedPlural') : t('modelUpload.success.uploaded')} ${t('modelUpload.success.uploadedSuffix')}`}
                   </span>
                 </div>
                 <div className="mu-success-cta__actions">
@@ -740,14 +773,12 @@ const ModelUpload = () => {
                       type="button"
                     >
                       <Icon name="Calculator" size={16} />
-                      {cs ? 'Spocitat cenu' : 'Calculate price'}
+                      {t('modelUpload.success.calculateBtn')}
                     </button>
                   ) : (
                     <p className="mu-success-cta__hint">
                       <Icon name="MousePointerClick" size={14} />
-                      {cs
-                        ? 'Kliknete na soubor v seznamu pro nahled a vypocet ceny'
-                        : 'Click a file in the list to preview and calculate price'}
+                      {t('modelUpload.success.hint')}
                     </p>
                   )}
                   <Link
@@ -755,7 +786,7 @@ const ModelUpload = () => {
                     className="mu-btn mu-btn--ghost"
                   >
                     <Icon name="ArrowRight" size={16} />
-                    {cs ? 'Prejit do kalkulacky' : 'Go to calculator'}
+                    {t('modelUpload.success.goCalc')}
                   </Link>
                 </div>
               </div>
@@ -779,7 +810,7 @@ const ModelUpload = () => {
                           className="mu-spin"
                           style={{ color: 'var(--forge-accent-primary)' }}
                         />
-                        <span>{cs ? 'Nacitam model...' : 'Loading model...'}</span>
+                        <span>{t('modelUpload.preview.loading')}</span>
                       </div>
                     }
                   >
@@ -808,7 +839,7 @@ const ModelUpload = () => {
                 ) : (
                   <div className="mu-preview__loading">
                     <Icon name="FileQuestion" size={32} style={{ color: 'var(--forge-text-muted)' }} />
-                    <span>{cs ? 'Nahled neni k dispozici' : 'Preview not available'}</span>
+                    <span>{t('modelUpload.preview.unavailable')}</span>
                   </div>
                 )}
               </div>
@@ -832,7 +863,7 @@ const ModelUpload = () => {
                 <div className="mu-preview__stats">
                   <div className="mu-stat">
                     <div className="mu-stat__label">
-                      {cs ? 'Velikost' : 'Size'}
+                      {t('modelUpload.preview.size')}
                     </div>
                     <div className="mu-stat__value">
                       {formatFileSize(selectedFile.size)}
@@ -847,7 +878,7 @@ const ModelUpload = () => {
                   {modelInfo?.dimX != null && (
                     <div className="mu-stat">
                       <div className="mu-stat__label">
-                        {cs ? 'Rozmery' : 'Dimensions'}
+                        {t('modelUpload.preview.dimensions')}
                       </div>
                       <div className="mu-stat__value">
                         {modelInfo.dimX.toFixed(1)} x {modelInfo.dimY.toFixed(1)} x{' '}
@@ -858,7 +889,7 @@ const ModelUpload = () => {
                   {modelInfo?.triangleCount != null && (
                     <div className="mu-stat">
                       <div className="mu-stat__label">
-                        {cs ? 'Trojuhelniky' : 'Triangles'}
+                        {t('modelUpload.preview.triangles')}
                       </div>
                       <div className="mu-stat__value">
                         {formatNumber(modelInfo.triangleCount)}
@@ -868,7 +899,7 @@ const ModelUpload = () => {
                   {modelInfo?.vertexCount != null && (
                     <div className="mu-stat">
                       <div className="mu-stat__label">
-                        {cs ? 'Vertexy' : 'Vertices'}
+                        {t('modelUpload.preview.vertices')}
                       </div>
                       <div className="mu-stat__value">
                         {formatNumber(modelInfo.vertexCount)}
@@ -885,7 +916,7 @@ const ModelUpload = () => {
                     type="button"
                   >
                     <Icon name="Calculator" size={18} />
-                    {cs ? 'Spocitat cenu' : 'Calculate price'}
+                    {t('modelUpload.preview.calculate')}
                   </button>
 
                   <button
@@ -898,7 +929,7 @@ const ModelUpload = () => {
                     type="button"
                   >
                     <Icon name="Eye" size={18} />
-                    {cs ? 'Zavrit nahled' : 'Close preview'}
+                    {t('modelUpload.preview.close')}
                   </button>
                 </div>
               </div>
@@ -908,10 +939,10 @@ const ModelUpload = () => {
 
         {/* Session Upload History */}
         {history.length > 0 && (
-          <section className="mu-history" aria-label={cs ? 'Historie nahrani' : 'Upload history'}>
+          <section className="mu-history" aria-label={t('modelUpload.history.label')}>
             <h2 className="mu-history__title">
               <Icon name="Clock" size={14} />
-              {cs ? 'Nedavno nahrane' : 'Recently uploaded'}
+              {t('modelUpload.history.title')}
             </h2>
             <div className="mu-history__list">
               {history.map((item) => {

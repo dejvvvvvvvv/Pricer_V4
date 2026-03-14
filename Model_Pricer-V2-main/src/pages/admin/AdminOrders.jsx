@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
+import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSortableData } from '../../hooks/useSortableData';
 import {
@@ -20,6 +21,7 @@ import {
   round2,
   saveOrders,
 } from '../../utils/adminOrdersStorage';
+import { formatDateTime, formatMoney, formatTime } from '../../utils/formatters';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import { loadKanbanConfigV1, saveKanbanConfigV1 } from '../../utils/adminKanbanStorage';
 import { addNotification } from '../../utils/adminNotificationStorage';
@@ -78,32 +80,6 @@ const viewMenuItemStyle = {
   whiteSpace: 'nowrap',
 };
 
-function formatDateTime(iso, locale = 'cs-CZ') {
-  try {
-    return new Date(iso).toLocaleString(locale, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function formatMoney(amount) {
-  return `${round2(amount).toFixed(2)} Kc`;
-}
-
-function formatTime(min) {
-  const m = Math.max(0, Math.round(Number(min) || 0));
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (h <= 0) return `${r} min`;
-  return `${h}h ${r}m`;
-}
-
 /** Extract time in minutes from slicer_snapshot (supports seed format + calculator format) */
 function getSlicerTimeMin(slicer) {
   if (!slicer) return 0;
@@ -122,7 +98,7 @@ function Badge({ children, tone = 'gray' }) {
   const toneMap = {
     gray: { bg: 'var(--forge-bg-elevated)', color: 'var(--forge-text-secondary)', border: 'var(--forge-border-default)' },
     blue: { bg: 'rgba(0, 212, 170, 0.1)', color: 'var(--forge-accent-primary)', border: 'rgba(0, 212, 170, 0.25)' },
-    green: { bg: 'rgba(0, 212, 170, 0.15)', color: '#00D4AA', border: 'rgba(0, 212, 170, 0.3)' },
+    green: { bg: 'rgba(0, 212, 170, 0.15)', color: 'var(--forge-success)', border: 'rgba(0, 212, 170, 0.3)' },
     red: { bg: 'rgba(255, 71, 87, 0.12)', color: 'var(--forge-error)', border: 'rgba(255, 71, 87, 0.3)' },
   };
   const t = toneMap[tone] || toneMap.gray;
@@ -157,7 +133,7 @@ function PillButton({ active, onClick, children }) {
       style={{
         border: `1px solid ${active ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
         background: active ? 'var(--forge-accent-primary)' : (hovered ? 'var(--forge-bg-overlay)' : 'var(--forge-bg-elevated)'),
-        color: active ? '#08090C' : 'var(--forge-text-secondary)',
+        color: active ? 'var(--forge-bg-void)' : 'var(--forge-text-secondary)',
         borderRadius: '999px',
         padding: '2px 8px',
         fontSize: '10px',
@@ -259,7 +235,7 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
           <button onClick={onConfirm} type="button" style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: '1px solid var(--forge-accent-primary)', backgroundColor: 'var(--forge-accent-primary)',
-            color: '#08090C', borderRadius: 'var(--forge-radius-lg)',
+            color: 'var(--forge-bg-void)', borderRadius: 'var(--forge-radius-lg)',
             padding: '10px 14px', fontWeight: 800, fontSize: '13px', cursor: 'pointer',
             fontFamily: 'var(--forge-font-body)',
           }}>{confirmText}</button>
@@ -270,6 +246,8 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
 }
 
 function OrdersList({ orders, setOrders, onSelectOrder }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const { t, language } = useLanguage();
   const navigate = useNavigate();
 
@@ -422,7 +400,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
-    const toTs = dateTo ? new Date(dateTo).getTime() : null;
+    const toTs = dateTo ? new Date(dateTo + 'T23:59:59.999').getTime() : null;
 
     const rows = orders.filter((o) => {
       // search
@@ -504,7 +482,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 
   useEffect(() => {
     setPage(1);
-  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, tagFilter, dateFrom, dateTo, sortKey, columnSortConfig]);
+  }, [q, statusFilter, materialFilter, presetFilter, flagFilter, tagFilter, dateFrom, dateTo, sortKey, columnSortConfig?.key, columnSortConfig?.direction]);
 
   function toggleSet(setter, value) {
     setter((prev) => {
@@ -569,35 +547,38 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 
   function handleBulkStatusChange(newStatus) {
     if (selectedIds.size === 0) return;
-    const next = orders.map((o) => {
-      if (!selectedIds.has(o.id) || o.status === newStatus) return o;
-      return {
-        ...o,
-        status: newStatus,
-        updated_at: nowIso(),
-        activity: [
-          { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } },
-          ...(o.activity || []),
-        ].slice(0, 200),
-      };
-    });
-    setOrders(next);
-    saveOrders(next);
-    let changedCount = 0;
-    for (const id of selectedIds) {
-      const orig = orders.find((o) => o.id === id);
-      if (orig && orig.status !== newStatus) {
-        appendOrderActivity(id, { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: orig.status, to: newStatus } });
-        changedCount++;
-      }
-    }
-    if (changedCount > 0) {
-      addNotification({
-        type: 'order',
-        title: `Zmena statusu: ${changedCount} objednavek`,
-        description: `Status zmenen na "${getStatusLabel(newStatus)}"`,
+    const selectedIdsCopy = new Set(selectedIds);
+    setOrders((prev) => {
+      const next = prev.map((o) => {
+        if (!selectedIdsCopy.has(o.id) || o.status === newStatus) return o;
+        return {
+          ...o,
+          status: newStatus,
+          updated_at: nowIso(),
+          activity: [
+            { timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } },
+            ...(o.activity || []),
+          ].slice(0, 200),
+        };
       });
-    }
+      saveOrders(next);
+      let changedCount = 0;
+      for (const id of selectedIdsCopy) {
+        const orig = prev.find((o) => o.id === id);
+        if (orig && orig.status !== newStatus) {
+          appendOrderActivity(id, { timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE', payload: { from: orig.status, to: newStatus } });
+          changedCount++;
+        }
+      }
+      if (changedCount > 0) {
+        addNotification({
+          type: 'order',
+          title: `Zmena statusu: ${changedCount} objednavek`,
+          description: `Status zmenen na "${getStatusLabel(newStatus)}"`,
+        });
+      }
+      return next;
+    });
     setSelectedIds(new Set());
   }
 
@@ -621,7 +602,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
         {
           id: generateId('note'),
           text: `Duplikovano z objednavky #${sourceLabel}`,
-          author: 'admin',
+          author: currentUser,
           created_at: now,
           type: 'text',
           category: 'internal',
@@ -631,7 +612,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
       activity: [
         {
           action: 'ORDER_DUPLICATED',
-          actor: 'admin',
+          actor: currentUser,
           timestamp: now,
           details: `Duplikovano z objednavky #${sourceLabel}`,
         },
@@ -649,7 +630,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
       action: `ORDER_DUPLICATED: ${newOrderNumber} (z ${sourceLabel})`,
       category: 'order',
       details: `${(sourceOrder.customer_snapshot || {}).name || '-'}, ${(sourceOrder.models || []).length} model(u)`,
-      user: 'admin',
+      user: currentUser,
     });
 
     addNotification({
@@ -685,7 +666,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
             onClick={() => setShowQuickOrder(true)}
           >
             <Icon name="Plus" size={14} />
-            {language === 'cs' ? 'Nova objednavka' : 'New order'}
+            {t('admin.orders.newOrder')}
           </button>
           <div className="view-toggle">
             <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => toggleView('table')} type="button" title="Tabulka">
@@ -818,7 +799,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                       gap: '4px',
                       border: `1px solid ${activeViewId === view.id ? 'var(--forge-accent-primary)' : 'var(--forge-border-default)'}`,
                       background: activeViewId === view.id ? 'var(--forge-accent-primary)' : 'var(--forge-bg-elevated)',
-                      color: activeViewId === view.id ? '#08090C' : 'var(--forge-text-secondary)',
+                      color: activeViewId === view.id ? 'var(--forge-bg-void)' : 'var(--forge-text-secondary)',
                       borderRadius: '999px',
                       padding: '2px 8px',
                       fontSize: '10px',
@@ -936,7 +917,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
                     gap: '2px',
                     border: '1px solid var(--forge-accent-primary)',
                     background: 'var(--forge-accent-primary)',
-                    color: '#08090C',
+                    color: 'var(--forge-bg-void)',
                     borderRadius: '999px',
                     padding: '2px 8px',
                     fontSize: '10px',
@@ -1273,15 +1254,17 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
             </table>
           </div>
 
-          <div className="pagination">
-            <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} type="button">
-              <Icon name="ChevronLeft" size={16} /> Predchozi
-            </button>
-            <div className="muted">Strana {page} / {pageCount}</div>
-            <button className="btn" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} type="button">
-              Dalsi <Icon name="ChevronRight" size={16} />
-            </button>
-          </div>
+          {pageCount > 1 && (
+            <div className="pagination">
+              <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} type="button">
+                <Icon name="ChevronLeft" size={16} /> Predchozi
+              </button>
+              <div className="muted">Strana {page} / {pageCount}</div>
+              <button className="btn" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} type="button">
+                Dalsi <Icon name="ChevronRight" size={16} />
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <KanbanBoard
@@ -1292,7 +1275,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
             const orig = orders.find(o => o.id === orderId);
             const next = orders.map(o => {
               if (o.id !== orderId) return o;
-              return { ...o, status: newStatus, updated_at: nowIso(), activity: [{ timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } }, ...(o.activity || [])].slice(0, 200) };
+              return { ...o, status: newStatus, updated_at: nowIso(), activity: [{ timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE', payload: { from: o.status, to: newStatus } }, ...(o.activity || [])].slice(0, 200) };
             });
             setOrders(next);
             saveOrders(next);
@@ -1385,7 +1368,7 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
         .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
         .btn:hover:not(:disabled) { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); color: var(--forge-text-primary); }
         .btn:disabled { opacity:.4; cursor:not-allowed; }
-        .btn-primary { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: #08090C; border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn-primary { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: var(--forge-bg-void); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
         .btn-primary:hover { background: var(--forge-accent-primary-h); border-color: var(--forge-accent-primary-h); }
         .btn-small { padding: 8px 10px; border-radius: var(--forge-radius-lg); }
 
@@ -1406,6 +1389,8 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
 }
 
 function OrderDetail({ orders, setOrders }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const { language } = useLanguage();
   const navigate = useNavigate();
   const params = useParams();
@@ -1468,14 +1453,14 @@ function OrderDetail({ orders, setOrders }) {
       activity: [
         {
           timestamp: nowIso(),
-          user_id: 'admin',
+          user_id: currentUser,
           type: 'STATUS_CHANGE',
           payload: { from: order.status, to: nextStatus },
         },
         ...(order.activity || []),
       ].slice(0, 200),
     };
-    persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: order.status, to: nextStatus } });
+    persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE', payload: { from: order.status, to: nextStatus } });
   }
 
   function addNote() {
@@ -1488,7 +1473,7 @@ function OrderDetail({ orders, setOrders }) {
         {
           id: `n-${Date.now()}`,
           timestamp: nowIso(),
-          user_id: 'admin',
+          user_id: currentUser,
           text,
         },
         ...(order.notes || []),
@@ -1496,14 +1481,14 @@ function OrderDetail({ orders, setOrders }) {
       activity: [
         {
           timestamp: nowIso(),
-          user_id: 'admin',
+          user_id: currentUser,
           type: 'NOTE_ADDED',
           payload: { length: text.length },
         },
         ...(order.activity || []),
       ].slice(0, 200),
     };
-    persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'NOTE_ADDED', payload: { length: text.length } });
+    persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'NOTE_ADDED', payload: { length: text.length } });
     setNoteDraft('');
   }
 
@@ -1511,7 +1496,7 @@ function OrderDetail({ orders, setOrders }) {
     // Create a price revision for each model; demo only
     const updatedModels = (targetOrder.models || []).map((m) => {
       const prev = m.price_breakdown_snapshot || {};
-      const factor = 0.95 + Math.random() * 0.12; // small drift
+      const factor = 0.95 + Math.random() * 0.12; // DEMO: mock data only — price drift simulation
       const next = {
         ...prev,
         material_cost: round2((prev.material_cost || 0) * factor),
@@ -1547,7 +1532,7 @@ function OrderDetail({ orders, setOrders }) {
       activity: [
         {
           timestamp: nowIso(),
-          user_id: 'admin',
+          user_id: currentUser,
           type: 'REPRICE',
           payload: { note: 'Simulated reprice in demo (Variant A)' },
         },
@@ -1561,11 +1546,11 @@ function OrderDetail({ orders, setOrders }) {
   function simulateReslice(targetOrder) {
     const updatedModels = (targetOrder.models || []).map((m) => {
       const prev = m.slicer_snapshot || {};
-      const factor = 0.92 + Math.random() * 0.18;
+      const factor = 0.92 + Math.random() * 0.18; // DEMO: mock data only — slicer drift simulation
       const next = {
         ...prev,
         time_min: Math.max(1, Math.round((prev.time_min || 0) * factor)),
-        weight_g: round2(Math.max(0.1, (prev.weight_g || 0) * (0.97 + Math.random() * 0.06))),
+        weight_g: round2(Math.max(0.1, (prev.weight_g || 0) * (0.97 + Math.random() * 0.06))), // DEMO: mock data only
       };
       const revId = `s${(m.revisions?.slicer?.length || 0)}`;
       return {
@@ -1593,7 +1578,7 @@ function OrderDetail({ orders, setOrders }) {
       activity: [
         {
           timestamp: nowIso(),
-          user_id: 'admin',
+          user_id: currentUser,
           type: 'RESLICE',
           payload: { note: 'Simulated reslice in demo (Variant A)' },
         },
@@ -1614,11 +1599,11 @@ function OrderDetail({ orders, setOrders }) {
     if (!confirm) return;
     if (confirm.type === 'reprice') {
       const updated = simulateReprice(order);
-      persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'REPRICE', payload: { demo: true } });
+      persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'REPRICE', payload: { demo: true } });
     }
     if (confirm.type === 'reslice') {
       const updated = simulateReslice(order);
-      persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'RESLICE', payload: { demo: true } });
+      persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'RESLICE', payload: { demo: true } });
     }
     setConfirm(null);
   }
@@ -1855,7 +1840,7 @@ function OrderDetail({ orders, setOrders }) {
 
         .btn { display:inline-flex; align-items:center; gap: 8px; border:1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-secondary); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
         .btn:hover { background: var(--forge-bg-overlay); border-color: var(--forge-border-active); color: var(--forge-text-primary); }
-        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: #08090C; border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: var(--forge-bg-void); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
         .btn-primary:hover { background: var(--forge-accent-primary-h); border-color: var(--forge-accent-primary-h); }
         .btn-small { padding: 8px 10px; }
 
@@ -1869,6 +1854,8 @@ function OrderDetail({ orders, setOrders }) {
 }
 
 function ModelDetail({ orders, setOrders }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const { language } = useLanguage();
   const navigate = useNavigate();
   const params = useParams();
@@ -1899,7 +1886,7 @@ function ModelDetail({ orders, setOrders }) {
     const updatedModels = order.models.map((m) => {
       if (m.id !== model.id) return m;
       const prev = m.price_breakdown_snapshot || {};
-      const factor = 0.95 + Math.random() * 0.12;
+      const factor = 0.95 + Math.random() * 0.12; // DEMO: mock data only — price drift simulation
       const next = {
         ...prev,
         material_cost: round2((prev.material_cost || 0) * factor),
@@ -1927,23 +1914,23 @@ function ModelDetail({ orders, setOrders }) {
       models: updatedModels,
       updated_at: nowIso(),
       activity: [
-        { timestamp: nowIso(), user_id: 'admin', type: 'REPRICE_MODEL', payload: { model_id: model.id } },
+        { timestamp: nowIso(), user_id: currentUser, type: 'REPRICE_MODEL', payload: { model_id: model.id } },
         ...(order.activity || []),
       ].slice(0, 200),
     };
 
-    persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'REPRICE_MODEL', payload: { model_id: model.id } });
+    persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'REPRICE_MODEL', payload: { model_id: model.id } });
   }
 
   function simulateResliceModel() {
     const updatedModels = order.models.map((m) => {
       if (m.id !== model.id) return m;
       const prev = m.slicer_snapshot || {};
-      const factor = 0.92 + Math.random() * 0.18;
+      const factor = 0.92 + Math.random() * 0.18; // DEMO: mock data only — slicer drift simulation
       const next = {
         ...prev,
         time_min: Math.max(1, Math.round((prev.time_min || 0) * factor)),
-        weight_g: round2(Math.max(0.1, (prev.weight_g || 0) * (0.97 + Math.random() * 0.06))),
+        weight_g: round2(Math.max(0.1, (prev.weight_g || 0) * (0.97 + Math.random() * 0.06))), // DEMO: mock data only
       };
       const revId = `s${(m.revisions?.slicer?.length || 0)}`;
       return {
@@ -1964,14 +1951,14 @@ function ModelDetail({ orders, setOrders }) {
       models: updatedModels,
       updated_at: nowIso(),
       activity: [
-        { timestamp: nowIso(), user_id: 'admin', type: 'RESLICE_MODEL', payload: { model_id: model.id } },
+        { timestamp: nowIso(), user_id: currentUser, type: 'RESLICE_MODEL', payload: { model_id: model.id } },
         ...(order.activity || []),
       ].slice(0, 200),
     };
 
     // auto reprice
     // reuse model reprice right after reslice
-    const factor = 0.95 + Math.random() * 0.12;
+    const factor = 0.95 + Math.random() * 0.12; // DEMO: mock data only — auto-reprice after reslice
     updated = {
       ...updated,
       models: updated.models.map((m) => {
@@ -2000,7 +1987,7 @@ function ModelDetail({ orders, setOrders }) {
       }),
     };
 
-    persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'RESLICE_MODEL', payload: { model_id: model.id } });
+    persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'RESLICE_MODEL', payload: { model_id: model.id } });
   }
 
   const resolved = model.resolved_config_snapshot || {};
@@ -2196,7 +2183,7 @@ function ModelDetail({ orders, setOrders }) {
 
         .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; border:1px solid transparent; font-family: var(--forge-font-tech); text-transform: uppercase; letter-spacing: 0.04em; }
 
-        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: #08090C; border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
+        .btn-primary { display:inline-flex; align-items:center; justify-content:center; gap: 8px; border:1px solid var(--forge-accent-primary); background: var(--forge-accent-primary); color: var(--forge-bg-void); border-radius: var(--forge-radius-lg); padding: 10px 12px; font-weight: 800; font-size: 13px; cursor:pointer; font-family: var(--forge-font-body); transition: all var(--forge-duration-micro) ease; }
         .btn-primary:hover { background: var(--forge-accent-primary-h); border-color: var(--forge-accent-primary-h); }
       `}</style>
     </div>
@@ -2204,6 +2191,8 @@ function ModelDetail({ orders, setOrders }) {
 }
 
 export default function AdminOrders() {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const [orders, setOrders] = useState([]);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
 
@@ -2221,7 +2210,7 @@ export default function AdminOrders() {
       return {
         ...o,
         notes: [...(o.notes || []), note],
-        activity: [...(o.activity || []), { timestamp: note.created_at, user_id: 'admin', type: 'NOTE_ADDED', payload: { text: note.text } }],
+        activity: [...(o.activity || []), { timestamp: note.created_at, user_id: currentUser, type: 'NOTE_ADDED', payload: { text: note.text } }],
         updated_at: note.created_at,
       };
     });
@@ -2254,7 +2243,7 @@ export default function AdminOrders() {
               activity: [
                 {
                   timestamp: nowIso(),
-                  user_id: 'admin',
+                  user_id: currentUser,
                   type: 'STATUS_CHANGE',
                   payload: { from: o.status, to: newStatus },
                 },
@@ -2266,7 +2255,7 @@ export default function AdminOrders() {
           saveOrders(next);
           appendOrderActivity(orderId, {
             timestamp: nowIso(),
-            user_id: 'admin',
+            user_id: currentUser,
             type: 'STATUS_CHANGE',
             payload: { from: selectedOrder?.status, to: newStatus },
           });

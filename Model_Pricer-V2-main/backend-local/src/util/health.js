@@ -15,20 +15,46 @@
  * @param {string} opts.version - Package version from package.json
  * @returns {object} Health status payload
  */
-export function getHealthStatus({ version = "unknown" } = {}) {
+export function getHealthStatus({ version = "unknown", getCacheStats, getQueueStats } = {}) {
   const mem = process.memoryUsage();
-  return {
+  const uptimeSec = Math.floor(process.uptime());
+
+  const payload = {
     status: "healthy",
     service: "modelpricer-backend-local",
     version,
-    uptime: Math.floor(process.uptime()),
+    uptime: uptimeSec,
+    uptimeHuman: formatUptime(uptimeSec),
     timestamp: new Date().toISOString(),
     memory: {
       heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
       heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      rssMB: Math.round(mem.rss / 1024 / 1024),
     },
     node: process.version,
   };
+
+  // Lightweight cache summary (hit rate only — no sensitive details)
+  if (getCacheStats) {
+    try {
+      const cs = getCacheStats();
+      payload.cache = { size: cs.size, hitRate: cs.hitRate };
+    } catch {
+      payload.cache = { available: false };
+    }
+  }
+
+  // Lightweight queue summary (counts only)
+  if (getQueueStats) {
+    try {
+      const qs = getQueueStats();
+      payload.queue = { queued: qs.queued, processing: qs.processing };
+    } catch {
+      payload.queue = { available: false };
+    }
+  }
+
+  return payload;
 }
 
 /**

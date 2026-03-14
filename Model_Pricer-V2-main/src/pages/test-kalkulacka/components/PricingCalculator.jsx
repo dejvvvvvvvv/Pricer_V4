@@ -10,6 +10,7 @@ import PricingHistory from './PricingHistory';
 import VolumeDiscountChart from './VolumeDiscountChart';
 import PricingShareMenu from './PricingShareMenu';
 import { usePricingHistory } from '../../../hooks/usePricingHistory';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import '../../../styles/animations.css';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
@@ -174,9 +175,9 @@ function MiniRow({ label, value, emphasize = false }) {
 
 /* ── Inline slicing progress indicator ─────────────────────────────────── */
 const SLICING_STEPS = [
-  { key: 'upload', label: 'Nahrávání modelu', icon: 'Upload' },
-  { key: 'analyze', label: 'Analýza geometrie', icon: 'Search' },
-  { key: 'calculate', label: 'Výpočet ceny', icon: 'Calculator' },
+  { key: 'upload', labelKey: 'calc.pricing.processingStepUpload', icon: 'Upload' },
+  { key: 'analyze', labelKey: 'calc.pricing.processingStepAnalyze', icon: 'Search' },
+  { key: 'calculate', labelKey: 'calc.pricing.processingStepCalculate', icon: 'Calculator' },
 ];
 
 const shimmerCSS = `
@@ -202,13 +203,38 @@ const shimmerCSS = `
 `;
 
 function SlicingProgressInline({ uploadedFiles: files }) {
+  const { t } = useLanguage();
   const allFiles = Array.isArray(files) ? files : [];
   const processing = allFiles.filter((f) => f?.status === 'processing');
   const pending = allFiles.filter((f) => f?.status === 'pending');
 
+  // Animate through steps while processing is active
+  const [animStep, setAnimStep] = useState(0);
+  const isProcessing = processing.length > 0;
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setAnimStep(0);
+      return;
+    }
+    // Advance through the 3 steps with varying delays
+    const delays = [0, 700, 1500];
+    const timers = delays.map((delay, idx) =>
+      setTimeout(() => setAnimStep(idx), delay)
+    );
+    // After reaching last step, cycle back to step 1 (keep it feeling alive)
+    const cycle = setInterval(() => {
+      setAnimStep((prev) => (prev >= SLICING_STEPS.length - 1 ? 1 : prev + 1));
+    }, 2200);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearInterval(cycle);
+    };
+  }, [isProcessing]);
+
   if (processing.length === 0 && pending.length === 0) return null;
 
-  const activeStep = processing.length > 0 ? 1 : 0;
+  const activeStep = isProcessing ? animStep : 0;
 
   return (
     <div
@@ -219,7 +245,7 @@ function SlicingProgressInline({ uploadedFiles: files }) {
         background: 'var(--forge-bg-elevated)',
       }}
       role="status"
-      aria-label={`Zpracovani modelu: ${processing.length} zpracovavano, ${pending.length} ceka`}
+      aria-label={`${t('calc.pricing.processingAriaLabel')}: ${processing.length} ${t('calc.pricing.processing').toLowerCase()}, ${pending.length}`}
       aria-live="polite"
     >
       <style>{shimmerCSS}</style>
@@ -242,13 +268,13 @@ function SlicingProgressInline({ uploadedFiles: files }) {
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
         }}>
-          Zpracovani{processing.length > 0 ? ` (${processing.length})` : ''}
+          {t('calc.pricing.processing')}{processing.length > 0 ? ` (${processing.length})` : ''}
         </span>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.75rem' }} role="group" aria-label="Postup zpracovani">
+      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.75rem' }} role="group" aria-label={t('calc.pricing.processingProgress')}>
         {SLICING_STEPS.map((step, idx) => (
-          <div key={step.key} aria-label={`${step.label}: ${idx < activeStep ? 'dokonceno' : idx === activeStep ? 'probehajici' : 'cekani'}`} style={{
+          <div key={step.key} aria-label={`${t(step.labelKey)}: ${idx < activeStep ? 'ok' : idx === activeStep ? 'active' : 'waiting'}`} style={{
             flex: 1,
             height: '3px',
             borderRadius: '2px',
@@ -307,7 +333,7 @@ function SlicingProgressInline({ uploadedFiles: files }) {
                 textAlign: 'center',
                 lineHeight: 1.2,
               }}>
-                {step.label}
+                {t(step.labelKey)}
               </span>
             </div>
           );
@@ -360,30 +386,11 @@ export default function PricingCalculator({
   onApplyHistoryConfig,
   getShareableUrl,
 }) {
+  const { t } = useLanguage();
   const [showDeveloper, setShowDeveloper] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
 
-  // Detect invalid coupon: code was applied but engine did not produce a coupon discount
-  const prevAppliedRef = useRef('');
-  useEffect(() => {
-    if (!appliedCouponCode) {
-      setCouponError('');
-      return;
-    }
-    // Only show error after a fresh apply (not on mount with stale code)
-    if (prevAppliedRef.current === appliedCouponCode) return;
-    prevAppliedRef.current = appliedCouponCode;
-
-    if (quote && !quote.coupon) {
-      setCouponError('Neplatn\u00fd k\u00f3d');
-      // Auto-remove the invalid code so the engine is not stuck with it
-      onRemoveCoupon?.();
-    } else if (quote && quote.coupon) {
-      setCouponError('');
-      setCouponInput('');
-    }
-  }, [appliedCouponCode, quote, onRemoveCoupon]);
   const { history, addEntry, clearHistory, compareEntries } = usePricingHistory();
 
   const readyModels = useMemo(() => {
@@ -463,22 +470,43 @@ export default function PricingCalculator({
     );
   }, [quote, quoteState.isPartial, quoteState.error, readyModels, printConfigs, addEntry]);
 
+  // Detect invalid coupon: code was applied but engine did not produce a coupon discount
+  const prevAppliedRef = useRef('');
+  useEffect(() => {
+    if (!appliedCouponCode) {
+      setCouponError('');
+      return;
+    }
+    // Only show error after a fresh apply (not on mount with stale code)
+    if (prevAppliedRef.current === appliedCouponCode) return;
+    prevAppliedRef.current = appliedCouponCode;
+
+    if (quote && !quote.coupon) {
+      setCouponError(t('calc.pricing.couponInvalid'));
+      // Auto-remove the invalid code so the engine is not stuck with it
+      onRemoveCoupon?.();
+    } else if (quote && quote.coupon) {
+      setCouponError('');
+      setCouponInput('');
+    }
+  }, [appliedCouponCode, quote, onRemoveCoupon]);
+
   // Build print-only model list
   const printDate = new Date().toLocaleDateString('cs-CZ');
   const printTime = new Date().toLocaleTimeString('cs-CZ');
 
   return (
-    <Card style={fg.card} role="region" aria-label="Cena a souhrn objednavky">
+    <Card style={fg.card} role="region" aria-label={t('calc.pricing.title')}>
       {/* Print-only header — visible only when printing */}
       <div className="print-header" aria-hidden="true">
-        <h1>Cenova kalkulace 3D tisku</h1>
-        <p>Vygenerovano: {printDate} v {printTime}</p>
+        <h1>{t('calc.pricing.printHeader')}</h1>
+        <p>{t('calc.pricing.printGenerated')}: {printDate} v {printTime}</p>
       </div>
 
       <CardHeader style={{ paddingBottom: '0.75rem' }}>
         <div className="tk-pricing-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
           <div>
-            <CardTitle style={fg.sectionTitle}>CENA A SOUHRN</CardTitle>
+            <CardTitle style={fg.sectionTitle}>{t('calc.pricing.title')}</CardTitle>
             <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', marginTop: '0.25rem', fontFamily: 'var(--forge-font-body)' }}>
               Výpočet používá Admin Pricing + Admin Fees (tenant) a pipeline base → fees → markup → minima → rounding.
             </p>
@@ -498,9 +526,9 @@ export default function PricingCalculator({
               iconPosition="left"
               data-no-print
               aria-pressed={showDeveloper}
-              aria-label={showDeveloper ? 'Prepnout na zakaznicky pohled' : 'Prepnout na developer pohled'}
+              aria-label={showDeveloper ? t('calc.pricing.ariaToggleCustomer') : t('calc.pricing.ariaToggleDeveloper')}
             >
-              {showDeveloper ? 'Zakaznicky' : 'Developer'}
+              {showDeveloper ? t('calc.pricing.viewCustomer') : t('calc.pricing.viewDeveloper')}
             </Button>
           </div>
         </div>
@@ -518,7 +546,7 @@ export default function PricingCalculator({
             iconName="Layers"
             iconPosition="left"
           >
-            Přepočítat vše
+            {t('calc.pricing.recalcAll')}
           </Button>
           <Button
             variant="outline"
@@ -528,7 +556,7 @@ export default function PricingCalculator({
             iconName="RefreshCw"
             iconPosition="left"
           >
-            Přepočítat vybraný
+            {t('calc.pricing.recalcSelected')}
           </Button>
         </div>
 
@@ -540,21 +568,21 @@ export default function PricingCalculator({
               <div>
                 <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
                   {readyModels.length > 0
-                    ? `Průběžná cena (${readyModels.length}/${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} modelů)`
-                    : 'Čekám na dokončení slicování'}
+                    ? `${t('calc.pricing.progressLabel')} (${readyModels.length}/${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} ${t('calc.pricing.modelsCount')})`
+                    : t('calc.pricing.waitingSlice')}
                 </p>
                 <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', marginTop: '0.25rem', fontFamily: 'var(--forge-font-mono)' }}>
-                  Hotovo: {readyModels.length} / {Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels}
-                  {readyModels.length > 0 && ' — cena se aktualizuje s každým dalším modelem'}
+                  {t('calc.pricing.doneOf')}: {readyModels.length} / {Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels}
+                  {readyModels.length > 0 && ` ${t('calc.pricing.updatesPerModel')}`}
                 </p>
                 {incompleteModels.length > 0 && (
                   <ul style={{ marginTop: '0.5rem', fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', listStyleType: 'disc', paddingLeft: '1.25rem', fontFamily: 'var(--forge-font-mono)' }}>
                     {incompleteModels.slice(0, 4).map((f) => (
                       <li key={f.id} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {f.name} — {f.status === 'processing' ? 'vypočítávám…' : f.status === 'failed' ? 'chyba' : 'čeká'}
+                        {f.name} — {f.status === 'processing' ? t('calc.recalc.running') : f.status === 'failed' ? t('calc.pricing.calcError') : '...'}
                       </li>
                     ))}
-                    {incompleteModels.length > 4 && <li>…a další</li>}
+                    {incompleteModels.length > 4 && <li>…</li>}
                   </ul>
                 )}
               </div>
@@ -563,7 +591,7 @@ export default function PricingCalculator({
         )}
         {quoteState.error ? (
           <div style={fg.errorBox} role="alert">
-            <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-error)' }}>Chyba vypoctu ceny</p>
+            <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-error)' }}>{t('calc.pricing.calcError')}</p>
             <p style={{ fontSize: 'var(--forge-text-xs)', marginTop: '0.25rem', color: 'var(--forge-error)', wordBreak: 'break-word', fontFamily: 'var(--forge-font-mono)' }}>{quoteState.error}</p>
           </div>
         ) : null}
@@ -574,7 +602,7 @@ export default function PricingCalculator({
         {/* Main totals */}
         {quote && (() => {
           // Compute total quantity across all ready models for per-unit price display
-          const displayTotal = Number.isFinite(quote.simple?.grandTotal) ? quote.simple.grandTotal : quote.total;
+          const displayTotal = Number.isFinite(quote?.grandTotal) ? quote.grandTotal : quote.total;
           const totalQty = readyModels.reduce((sum, f) => {
             const q = printConfigs?.[f.id]?.quantity;
             return sum + (Number.isFinite(Number(q)) ? Math.max(1, Number(q)) : 1);
@@ -587,7 +615,7 @@ export default function PricingCalculator({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <p style={fg.totalLabel} id="tk-total-label">
-                  {quoteState.isPartial ? `Prubezne (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : 'CELKEM'}
+                  {quoteState.isPartial ? `${t('calc.pricing.partialLabel')} (${readyModels.length} z ${Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels})` : t('calc.pricing.totalLabel')}
                 </p>
                 <p
                   aria-labelledby="tk-total-label"
@@ -614,20 +642,20 @@ export default function PricingCalculator({
                 {(quote.flags?.min_order_total_applied || quote.flags?.clamped_to_zero) && (
                   <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {quote.flags?.min_order_total_applied && (
-                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>Aplikováno minimum objednávky</p>
+                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>{t('calc.pricing.minOrderApplied')}</p>
                     )}
                     {quote.flags?.clamped_to_zero && (
-                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>Sleva byla omezena, aby celkem nebylo záporné</p>
+                      <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>{t('calc.pricing.clampedToZero')}</p>
                     )}
                   </div>
                 )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <MiniRow label="Materiál" value={formatCzk(quote.simple.material)} />
-                <MiniRow label="Čas tisku" value={formatCzk(quote.simple.time)} />
-                <MiniRow label="Služby" value={formatSignedCzk(quote.simple.services)} />
-                <MiniRow label="Sleva" value={formatSignedCzk(quote.simple.discount)} />
+                <MiniRow label={t('calc.pricing.material')} value={formatCzk(quote.simple.material)} />
+                <MiniRow label={t('calc.pricing.printTime')} value={formatCzk(quote.simple.time)} />
+                <MiniRow label={t('calc.pricing.services')} value={formatSignedCzk(quote.simple.services)} />
+                <MiniRow label={t('calc.pricing.discount')} value={formatSignedCzk(quote.simple.discount)} />
                 {quote.flags?.volume_discount_applied && quote.volumeDiscount && (
                   <div style={fg.volumeDiscountBox}>
                     <MiniRow
@@ -647,7 +675,7 @@ export default function PricingCalculator({
                       ))}
                   </div>
                 )}
-                <MiniRow label="Markup" value={formatSignedCzk(quote.simple.markup)} />
+                <MiniRow label={t('calc.pricing.markup')} value={formatSignedCzk(quote.simple.markup)} />
 
                 {/* Express surcharge line */}
                 {quote.flags?.express_applied && quote.express && (
@@ -674,7 +702,7 @@ export default function PricingCalculator({
                       color: quote.shipping.freeShippingApplied ? 'var(--forge-accent-primary)' : 'var(--forge-text-muted)',
                       fontFamily: 'var(--forge-font-body)',
                     }}>
-                      {quote.shipping.name || 'Doprava'}
+                      {quote.shipping.name || t('calc.pricing.shipping')}
                     </span>
                     <span style={{
                       fontSize: 'var(--forge-text-sm)',
@@ -682,7 +710,7 @@ export default function PricingCalculator({
                       fontWeight: 500,
                       color: quote.shipping.freeShippingApplied ? 'var(--forge-accent-primary)' : 'var(--forge-text-primary)',
                     }}>
-                      {quote.shipping.freeShippingApplied ? 'Zdarma' : `+ ${formatCzk(quote.shipping.cost)}`}
+                      {quote.shipping.freeShippingApplied ? t('calc.pricing.shippingFree') : `+ ${formatCzk(quote.shipping.cost)}`}
                     </span>
                   </div>
                 )}
@@ -710,7 +738,7 @@ export default function PricingCalculator({
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                       }}>
-                        Sleva ({quote.coupon.code})
+                        {t('calc.pricing.couponDiscount')} ({quote.coupon.code})
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
@@ -726,7 +754,7 @@ export default function PricingCalculator({
                         <button
                           type="button"
                           onClick={onRemoveCoupon}
-                          aria-label="Odebrat kupon"
+                          aria-label={t('calc.pricing.removeCoupon')}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -761,8 +789,8 @@ export default function PricingCalculator({
                             setCouponError('');
                           }
                         }}
-                        placeholder="Slevov\u00fd k\u00f3d"
-                        aria-label="Slevov\u00fd k\u00f3d"
+                        placeholder={t('calc.pricing.couponPlaceholder')}
+                        aria-label={t('calc.pricing.couponPlaceholder')}
                         style={{
                           flex: 1,
                           padding: '0.375rem 0.625rem',
@@ -793,7 +821,7 @@ export default function PricingCalculator({
                         disabled={!couponInput.trim()}
                         style={{ flexShrink: 0 }}
                       >
-                        Uplatnit
+                        {t('calc.pricing.couponApply')}
                       </Button>
                     </div>
                     {couponError && (
@@ -817,7 +845,7 @@ export default function PricingCalculator({
                 )}
 
                 <div style={fg.totalRow} />
-                <MiniRow label="Celkem" value={formatCzk(displayTotal)} emphasize />
+                <MiniRow label={t('calc.pricing.orderTotal')} value={formatCzk(displayTotal)} emphasize />
               </div>
 
               {/* Donut chart — price breakdown visualization */}
@@ -856,8 +884,8 @@ export default function PricingCalculator({
         {quote && !showDeveloper && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h4 style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, fontFamily: 'var(--forge-font-heading)', color: 'var(--forge-text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rozpis objednávky</h4>
-              <span style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>{Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} modelů</span>
+              <h4 style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, fontFamily: 'var(--forge-font-heading)', color: 'var(--forge-text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('calc.pricing.orderBreakdown')}</h4>
+              <span style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>{Array.isArray(uploadedFiles) ? uploadedFiles.length : totalModels} {t('calc.pricing.modelsCount')}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -874,18 +902,18 @@ export default function PricingCalculator({
                       <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }}>{formatCzk(m.totals.subtotalAfterPerModelRounding)}</p>
                       {m.quantity > 1 && Number.isFinite(m.totals.subtotalAfterPerModelRounding) && (
                         <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)' }}>
-                          {formatCzk(m.totals.subtotalAfterPerModelRounding / m.quantity)} / kus
+                          {formatCzk(m.totals.subtotalAfterPerModelRounding / m.quantity)} / {t('calc.pricing.perPiece')}
                         </p>
                       )}
                       {m.flags?.min_price_per_model_applied && (
-                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>min. za model</p>
+                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>{t('calc.pricing.minPerModel')}</p>
                       )}
                     </div>
                   </div>
 
                   <details style={{ marginTop: '0.5rem' }}>
                     <summary style={{ cursor: 'pointer', userSelect: 'none', fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)' }}>
-                      Služby (model)
+                      {t('calc.pricing.modelServices')}
                     </summary>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       {m.fees
@@ -895,14 +923,14 @@ export default function PricingCalculator({
                             <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <span style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                               {f.required && (
-                                <span style={fg.pill}>V ceně</span>
+                                <span style={fg.pill}>{t('calc.pricing.includedInPrice')}</span>
                               )}
                             </div>
                             <span style={{ fontSize: 'var(--forge-text-xs)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{formatSignedCzk(f.amount)}</span>
                           </div>
                         ))}
                       {m.fees.filter((f) => f.applied && (f.amount !== 0 || f.required)).length === 0 && (
-                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>Žádné služby pro tento model.</p>
+                        <p style={{ fontSize: 'var(--forge-text-xs)', color: 'var(--forge-text-muted)' }}>{t('calc.pricing.noServices')}</p>
                       )}
                     </div>
                   </details>
@@ -912,7 +940,7 @@ export default function PricingCalculator({
 
             {quote.orderFees?.some((f) => f.applied && (f.amount !== 0 || f.required)) && (
               <div style={fg.modelCard}>
-                <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Poplatky (objednávka)</p>
+                <p style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 600, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>{t('calc.pricing.orderFees')}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   {quote.orderFees
                     .filter((f) => f.applied && (f.amount !== 0 || f.required))
@@ -921,7 +949,7 @@ export default function PricingCalculator({
                         <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           {f.name}
                           {f.required && (
-                            <span style={fg.pill}>V ceně</span>
+                            <span style={fg.pill}>{t('calc.pricing.includedInPrice')}</span>
                           )}
                         </span>
                         <span style={{ fontSize: 'var(--forge-text-sm)', fontWeight: 500, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-mono)', whiteSpace: 'nowrap' }}>{formatSignedCzk(f.amount)}</span>
@@ -1115,7 +1143,7 @@ export default function PricingCalculator({
 
       {/* Print-only footer */}
       <div className="print-footer" aria-hidden="true">
-        <p>Tento dokument byl vygenerovan automaticky. Ceny jsou orientacni a mohou se lisit.</p>
+        <p>{t('calc.pricing.printFooter')}</p>
         <p>{printDate} {printTime}</p>
       </div>
     </Card>

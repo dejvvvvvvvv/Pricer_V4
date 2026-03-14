@@ -3,29 +3,14 @@
 //
 // NOTE: In Varianta B, this becomes server-side (DB) with enforcement + pagination.
 
-import { getTenantId } from './adminTenantStorage';
+import { getTenantId, readTenantJson, writeTenantJson, deleteTenantJson } from './adminTenantStorage';
 import { generateId } from './generateId';
 import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
+import { debug } from '@/lib/debug';
 
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && !!window.localStorage;
-  } catch {
-    return false;
-  }
-}
-
-const AUDIT_KEY = (tenantId) => `modelpricer:${tenantId}:audit_log`;
-
-function safeParse(json, fallback) {
-  try {
-    return JSON.parse(json);
-  } catch {
-    return fallback;
-  }
-}
+const NAMESPACE = 'audit_log';
 
 function nowIso() {
   return new Date().toISOString();
@@ -35,10 +20,8 @@ function randomId(prefix = 'aud') {
   return generateId(prefix);
 }
 
-export function getAuditEntries(tenantId = getTenantId()) {
-  if (!canUseLocalStorage()) return [];
-  const raw = window.localStorage.getItem(AUDIT_KEY(tenantId));
-  const parsed = safeParse(raw, []);
+export function getAuditEntries(tenantIdOverride) {
+  const parsed = readTenantJson(NAMESPACE, [], tenantIdOverride);
 
   // Backward-compatible normalization:
   // older builds may have stored an object like { entries: [...] } or { items: [...] }.
@@ -58,13 +41,14 @@ export function getAuditEntries(tenantId = getTenantId()) {
 export function appendAuditEntry(
   entry,
   {
-    tenantId = getTenantId(),
+    tenantIdOverride,
     actor = { id: 'demo-admin', email: 'admin@demo.local', name: 'Admin' },
     ip_address = '127.0.0.1',
     user_agent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
   } = {}
 ) {
-  const entries = getAuditEntries(tenantId);
+  const tenantId = tenantIdOverride || getTenantId();
+  const entries = getAuditEntries(tenantIdOverride);
   const full = {
     id: entry?.id || randomId(),
     tenant_id: tenantId,
@@ -84,12 +68,11 @@ export function appendAuditEntry(
 
   // Retention: keep last ~2000 entries in demo.
   const next = [full, ...entries].slice(0, 2000);
-  if (canUseLocalStorage()) {
-    window.localStorage.setItem(AUDIT_KEY(tenantId), JSON.stringify(next));
-  }
+  writeTenantJson(NAMESPACE, next, tenantIdOverride);
 
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('audit_log');
+  // Fire-and-forget Supabase dual-write (writeTenantJson already handles dual-write
+  // for the bulk JSON, but audit log uses insert-per-entry for Supabase)
+  const mode = getStorageMode(NAMESPACE);
   if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
     storageAdapter.supabase.insert('audit_log', {
       tenant_id: tenantId,
@@ -101,15 +84,14 @@ export function appendAuditEntry(
       ip_address: full.ip_address,
       user_agent: full.user_agent,
       created_at: full.timestamp,
-    }).catch(err => console.warn('[auditLog] Supabase insert failed:', err.message));
+    }).catch(err => debug('[auditLog] Supabase insert failed:', err.message));
   }
 
   return full;
 }
 
-export function clearAuditLog(tenantId = getTenantId()) {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.removeItem(AUDIT_KEY(tenantId));
+export function clearAuditLog(tenantIdOverride) {
+  deleteTenantJson(NAMESPACE, tenantIdOverride);
 }
 
 export function filterAuditEntries(

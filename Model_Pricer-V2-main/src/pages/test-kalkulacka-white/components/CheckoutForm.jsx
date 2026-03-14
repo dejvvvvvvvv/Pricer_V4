@@ -33,7 +33,7 @@ function generateOrderNumber() {
     String(now.getHours()).padStart(2, '0'),
     String(now.getMinutes()).padStart(2, '0'),
   ].join('');
-  const rand = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
+  const rand = crypto.randomUUID().slice(0, 8).toUpperCase();
   return `ORD-${ts}-${rand}`;
 }
 
@@ -136,7 +136,7 @@ export default function CheckoutForm({
           };
         }),
       totals_snapshot: quote
-        ? { total: quote.total, currency: quote.currency, simple: quote.simple }
+        ? { total: Number.isFinite(quote?.grandTotal) ? quote.grandTotal : quote.total, currency: quote.currency, simple: quote.simple }
         : { total: 0, currency: 'CZK' },
       flags: [],
       notes: data.note ? [{ text: data.note, created_at: now }] : [],
@@ -293,7 +293,7 @@ export default function CheckoutForm({
                     )}
                     <div className="pt-2 border-t border-border flex justify-between items-center">
                       <span className="text-sm font-semibold">{t('Celkem', 'Total')}</span>
-                      <span className="text-xl font-bold text-primary">{formatCzk(quote.total)}</span>
+                      <span className="text-xl font-bold text-primary">{formatCzk(Number.isFinite(quote?.grandTotal) ? quote.grandTotal : quote.total)}</span>
                     </div>
                   </div>
                 </div>

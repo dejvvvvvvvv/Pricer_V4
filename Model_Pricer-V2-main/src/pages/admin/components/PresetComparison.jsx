@@ -93,7 +93,7 @@ export default function PresetComparison({
             {selectedIds.length}/3
           </span>
         </div>
-        <button onClick={onClose} style={styles.closeBtn} aria-label="Close">
+        <button type="button" onClick={onClose} style={styles.closeBtn} aria-label="Close">
           <Icon name="X" size={16} />
         </button>
       </div>

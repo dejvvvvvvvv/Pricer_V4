@@ -80,28 +80,34 @@ export default function Routes() {
       <RouterRoutes>
         {/* Public Widget Route - no Header/Footer (embeddable) */}
         <Route path="/w/:publicWidgetId" element={
-          <Suspense fallback={<PageFallback />}>
-            <WidgetPublicPage />
-          </Suspense>
+          <ErrorBoundary module="PublicWidget">
+            <Suspense fallback={<PageFallback />}>
+              <WidgetPublicPage />
+            </Suspense>
+          </ErrorBoundary>
         } />
 
         {/* Slicer - fullscreen, no Header/Footer */}
         <Route path="/slicer" element={
-          <Suspense fallback={<div style={{
-            width:'100vw', height:'100vh', display:'flex',
-            alignItems:'center', justifyContent:'center',
-            background:'var(--forge-bg-void, #08090C)',
-            color:'var(--forge-text-primary, #E8ECF1)'
-          }}>Loading Slicer...</div>}>
-            <SlicerPage />
-          </Suspense>
+          <ErrorBoundary module="SlicerEditor" fullPage>
+            <Suspense fallback={<div style={{
+              width:'100vw', height:'100vh', display:'flex',
+              alignItems:'center', justifyContent:'center',
+              background:'var(--forge-bg-void, #08090C)',
+              color:'var(--forge-text-primary, #E8ECF1)'
+            }}>Loading Slicer...</div>}>
+              <SlicerPage />
+            </Suspense>
+          </ErrorBoundary>
         } />
 
         {/* Widget Builder - fullscreen, no admin sidebar / Header / Footer */}
         <Route path="/admin/widget/builder/:id" element={
-          <Suspense fallback={<PageFallback />}>
-            <AdminWidgetBuilder />
-          </Suspense>
+          <ErrorBoundary module="WidgetBuilder">
+            <Suspense fallback={<PageFallback />}>
+              <AdminWidgetBuilder />
+            </Suspense>
+          </ErrorBoundary>
         } />
 
         {/* Main app with Header/Footer */}

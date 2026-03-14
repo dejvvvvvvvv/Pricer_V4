@@ -611,10 +611,7 @@ function TrackingForm({ onFound, t, lang }) {
               />
             </div>
 
-            {/* Optional tenant field — hidden unless pre-filled via URL */}
-            {tenantId && (
-              <input type="hidden" value={tenantId} />
-            )}
+            {/* tenantId is stored in component state — no hidden input needed */}
 
             <button
               type="submit"
@@ -1040,6 +1037,54 @@ function OrderDetail({ order: initialOrder, tenantId, onBack, t, lang }) {
         {/* Real-time status indicator */}
         <StatusIndicator adminStatus={adminStatus} lang={lang} />
 
+        {/* Canceled order explanation card */}
+        {isCanceled && (
+          <div className="order-tracking__card" style={{
+            background: 'rgba(239, 68, 68, 0.06)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            borderRadius: 'var(--forge-radius-xl, 16px)',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '1rem',
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              background: 'rgba(239, 68, 68, 0.12)',
+            }}>
+              <Icon name="XCircle" size={22} color="#ef4444" />
+            </div>
+            <div>
+              <div style={{
+                fontSize: 'var(--forge-text-base, 1rem)',
+                fontFamily: 'var(--forge-font-heading, "Space Grotesk", system-ui, sans-serif)',
+                fontWeight: 600,
+                color: '#ef4444',
+                marginBottom: '0.25rem',
+              }}>
+                {lang === 'en' ? 'Order Canceled' : 'Objednavka zrusena'}
+              </div>
+              <div style={{
+                fontSize: 'var(--forge-text-sm, 0.875rem)',
+                fontFamily: 'var(--forge-font-body, "IBM Plex Sans", system-ui, sans-serif)',
+                color: 'var(--forge-text-secondary, #9BA3B0)',
+                lineHeight: 1.5,
+              }}>
+                {lang === 'en'
+                  ? 'This order has been canceled. If you have questions, please contact us using the message box below.'
+                  : 'Tato objednavka byla zrusena. Pokud mate dotazy, kontaktujte nas pres pole zprav nize.'}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Order info card */}
         <div className="order-tracking__card" style={{
           background: 'var(--forge-bg-surface, #0E1015)',
@@ -1156,7 +1201,7 @@ function OrderDetail({ order: initialOrder, tenantId, onBack, t, lang }) {
                   gap: '0.375rem',
                 }}>
                   <Icon name="Truck" size={14} color="var(--forge-text-muted, #7A8291)" />
-                  {order.shipping_method}
+                  {order.shipping_method.charAt(0).toUpperCase() + order.shipping_method.slice(1)}
                 </div>
               </div>
             )}

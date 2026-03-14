@@ -9,6 +9,7 @@ import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import { deletePreset, fetchPresetContent, listPresets, patchPreset, setDefaultPreset, uploadPreset, validatePresetConfig, duplicatePreset } from '../../services/presetsApi';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 import { downloadFile } from '../../utils/exportData';
+import { safeJsonParse } from '../../utils/sanitizeJson';
 import PresetComparison from './components/PresetComparison';
 import PresetTemplates from './components/PresetTemplates';
 import PresetInlineEditor from './components/PresetInlineEditor';
@@ -175,18 +176,36 @@ function presetToShareString(preset) {
   } catch { return null; }
 }
 
+const SAFE_PRINT_OVERRIDE_KEYS = new Set([
+  // Keys actually used by the app (must match PRINT_OVERRIDE_FIELDS and PresetInlineEditor)
+  'layer_height', 'first_layer_height', 'infill_sparse_density', 'perimeters',
+  'fill_pattern', 'support_material', 'support_material_threshold',
+  'temperature', 'bed_temperature', 'max_print_speed',
+]);
+
+function sanitizePrintOverrides(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const key of Object.keys(raw)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    if (!SAFE_PRINT_OVERRIDE_KEYS.has(key)) continue;
+    out[key] = raw[key];
+  }
+  return out;
+}
+
 function parseShareString(str) {
   try {
     const json = decodeURIComponent(escape(atob(str.trim())));
-    const data = JSON.parse(json);
+    const data = safeJsonParse(json);
     if (!data || typeof data !== 'object') return null;
-    return { name: data.n || 'Imported', order: data.o || 0, visibleInWidget: !!data.v, material_key: data.m || null, print_overrides: data.p || {} };
+    return { name: data.n || 'Imported', order: data.o || 0, visibleInWidget: !!data.v, material_key: data.m || null, print_overrides: sanitizePrintOverrides(data.p) };
   } catch { return null; }
 }
 
 function parseImportFile(text) {
   try {
-    const data = JSON.parse(text);
+    const data = safeJsonParse(text);
     if (data._format === 'modelpricer_preset_v1' && data.preset) return [data.preset];
     if (data._format === 'modelpricer_presets_v1' && Array.isArray(data.presets)) return data.presets;
     if (data.name && typeof data.print_overrides === 'object') return [data];
@@ -198,82 +217,84 @@ function parseImportFile(text) {
 // ============ MAIN COMPONENT ============
 
 export default function AdminPresets() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   const str = useMemo(() => ({
-    title: pickLang(language, 'Presety', 'Presets'),
-    subtitle: pickLang(language, 'Sprava presetu (.ini) — tiskove parametry pro kalkulacku a widget.', 'Manage presets (.ini) — print parameters for calculator and widget.'),
-    refresh: pickLang(language, 'Obnovit', 'Refresh'),
-    uploadPreset: pickLang(language, 'Nahrat preset', 'Upload preset'),
-    setAsDefault: pickLang(language, 'Vychozi', 'Default'),
-    delete: pickLang(language, 'Smazat', 'Delete'),
-    duplicate: pickLang(language, 'Duplikovat', 'Duplicate'),
-    edit: pickLang(language, 'Upravit', 'Edit'),
-    active: pickLang(language, 'Aktivni', 'Active'),
-    inactive: pickLang(language, 'Neaktivni', 'Inactive'),
-    namePlaceholder: pickLang(language, 'Nazev presetu', 'Preset name'),
-    orderLabel: pickLang(language, 'Poradi', 'Order'),
-    fileLabel: pickLang(language, 'Soubor (.ini)', 'File (.ini)'),
-    offlineBanner: pickLang(language, 'Offline rezim: Backend neni dostupny.', 'Offline mode: Backend unreachable.'),
-    backendErrorLabel: pickLang(language, 'Chyba:', 'Error:'),
-    emptyTitle: pickLang(language, 'Zatim nemas zadne presety.', 'No presets yet.'),
-    emptyHint: pickLang(language, 'Pridej presety nahranim .ini nebo ze sablon.', 'Add presets by uploading .ini or from templates.'),
-    badgeDefault: pickLang(language, 'Vychozi', 'Default'),
-    toastFail: pickLang(language, 'Chyba:', 'Error:'),
-    toastSaved: pickLang(language, 'Ulozeno.', 'Saved.'),
-    toastDefaultSet: pickLang(language, 'Vychozi preset nastaven.', 'Default preset set.'),
-    toastDeleted: pickLang(language, 'Smazano.', 'Deleted.'),
-    toastDuplicated: pickLang(language, 'Duplikovano.', 'Duplicated.'),
-    toastCopied: pickLang(language, 'Zkopirovan do schranky.', 'Copied to clipboard.'),
-    toastImported: pickLang(language, 'Importovano.', 'Imported.'),
-    toastImportFail: pickLang(language, 'Neplatny format.', 'Invalid format.'),
-    deleteDefaultTitle: pickLang(language, 'Smazat vychozi preset?', 'Delete default preset?'),
-    deleteDefaultBody: pickLang(language, 'Po smazani se vychozi preset prepne na preset s nejvyssi prioritou.', 'Default will switch to highest-priority preset.'),
-    confirmYes: pickLang(language, 'Ano, smazat', 'Yes, delete'),
-    confirmCancel: pickLang(language, 'Zrusit', 'Cancel'),
-    hintMax5mb: pickLang(language, 'Max 5 MB. Pouze .ini.', 'Max 5 MB. .ini only.'),
-    materialLabel: pickLang(language, 'Material', 'Material'),
-    allMaterials: pickLang(language, '-- Vsechny --', '-- All --'),
-    searchPlaceholder: pickLang(language, 'Hledat presety...', 'Search presets...'),
-    noResults: pickLang(language, 'Zadne presety nenalezeny', 'No presets found'),
-    exportAll: pickLang(language, 'Export vse', 'Export all'),
-    importPresets: pickLang(language, 'Import', 'Import'),
-    share: pickLang(language, 'Sdilet', 'Share'),
-    compare: pickLang(language, 'Porovnat', 'Compare'),
-    layerHeight: pickLang(language, 'Vrstva', 'Layer'),
+    title: t('admin.presets.title', 'Presets'),
+    subtitle: t('admin.presets.subtitle', 'Manage presets (.ini) — print parameters for calculator and widget.'),
+    refresh: t('admin.presets.refresh', 'Refresh'),
+    uploadPreset: t('admin.presets.uploadPreset', 'Upload preset'),
+    setAsDefault: t('admin.presets.setAsDefault', 'Default'),
+    delete: t('admin.presets.delete', 'Delete'),
+    duplicate: t('admin.presets.duplicate', 'Duplicate'),
+    edit: t('admin.presets.edit', 'Edit'),
+    active: t('admin.presets.active', 'Active'),
+    inactive: t('admin.presets.inactive', 'Inactive'),
+    namePlaceholder: t('admin.presets.namePlaceholder', 'Preset name'),
+    orderLabel: t('admin.presets.orderLabel', 'Order'),
+    fileLabel: t('admin.presets.fileLabel', 'File (.ini)'),
+    offlineBanner: t('admin.presets.offlineBanner', 'Offline mode: Backend unreachable.'),
+    backendErrorLabel: t('admin.presets.backendErrorLabel', 'Error:'),
+    emptyTitle: t('admin.presets.emptyTitle', 'No presets yet.'),
+    emptyHint: t('admin.presets.emptyHint', 'Add presets by uploading .ini or from templates.'),
+    badgeDefault: t('admin.presets.badgeDefault', 'Default'),
+    toastFail: t('admin.presets.toastFail', 'Error:'),
+    toastSaved: t('admin.presets.toastSaved', 'Saved.'),
+    toastDefaultSet: t('admin.presets.toastDefaultSet', 'Default preset set.'),
+    toastDeleted: t('admin.presets.toastDeleted', 'Deleted.'),
+    toastDuplicated: t('admin.presets.toastDuplicated', 'Duplicated.'),
+    toastCopied: t('admin.presets.toastCopied', 'Copied to clipboard.'),
+    toastImported: t('admin.presets.toastImported', 'Imported.'),
+    toastImportFail: t('admin.presets.toastImportFail', 'Invalid format.'),
+    deleteTitle: t('admin.presets.deleteTitle', 'Delete preset?'),
+    deleteBody: t('admin.presets.deleteBody', 'This action cannot be undone.'),
+    deleteDefaultTitle: t('admin.presets.deleteDefaultTitle', 'Delete default preset?'),
+    deleteDefaultBody: t('admin.presets.deleteDefaultBody', 'Default will switch to highest-priority preset.'),
+    confirmYes: t('admin.presets.confirmYes', 'Yes, delete'),
+    confirmCancel: t('admin.presets.confirmCancel', 'Cancel'),
+    hintMax5mb: t('admin.presets.hintMax5mb', 'Max 5 MB. .ini only.'),
+    materialLabel: t('admin.presets.materialLabel', 'Material'),
+    allMaterials: t('admin.presets.allMaterials', '-- All --'),
+    searchPlaceholder: t('admin.presets.searchPlaceholder', 'Search presets...'),
+    noResults: t('admin.presets.noResults', 'No presets found'),
+    exportAll: t('admin.presets.exportAll', 'Export all'),
+    importPresets: t('admin.presets.importPresets', 'Import'),
+    share: t('admin.presets.share', 'Share'),
+    compare: t('admin.presets.compare', 'Compare'),
+    layerHeight: t('admin.presets.layerHeight', 'Layer'),
     infill: 'Infill',
-    speed: pickLang(language, 'Rychlost', 'Speed'),
-    supports: pickLang(language, 'Supporty', 'Supports'),
-    estPrice: pickLang(language, 'Odhad ceny', 'Est. price'),
-    sampleModel: pickLang(language, '50 cm\u00b3 model', '50 cm\u00b3 model'),
-    groupAll: pickLang(language, 'Vsechny', 'All'),
-    groupOther: pickLang(language, 'Ostatni', 'Other'),
-    filterMat: pickLang(language, 'Material:', 'Material:'),
-    dialogTitle: pickLang(language, 'Editace presetu', 'Edit preset'),
-    dialogCancel: pickLang(language, 'Zrusit', 'Cancel'),
-    dialogSave: pickLang(language, 'Ulozit', 'Save'),
-    sectionMeta: pickLang(language, 'Metadata', 'Metadata'),
-    sectionOverrides: pickLang(language, 'Tiskove parametry', 'Print parameters'),
-    overrideHint: pickLang(language, '-- vychozi --', '-- default --'),
-    overrideYes: pickLang(language, 'Ano', 'Yes'),
-    overrideNo: pickLang(language, 'Ne', 'No'),
-    colName: pickLang(language, 'Nazev', 'Name'),
-    visibleInWidget: pickLang(language, 'Viditelny ve widgetu', 'Visible in widget'),
-    statusOffline: pickLang(language, 'Offline', 'Offline'),
-    statusOnline: pickLang(language, 'Online', 'Online'),
-    moveUp: pickLang(language, 'Nahoru', 'Up'),
-    moveDown: pickLang(language, 'Dolu', 'Down'),
-    bulkSelected: pickLang(language, 'vybrano', 'selected'),
-    bulkDeleteAll: pickLang(language, 'Smazat vybrane', 'Delete selected'),
-    bulkExport: pickLang(language, 'Export vybranych', 'Export selected'),
-    bulkDuplicate: pickLang(language, 'Duplikovat vybrane', 'Duplicate selected'),
-    bulkEnable: pickLang(language, 'Aktivovat', 'Enable'),
-    bulkDisable: pickLang(language, 'Deaktivovat', 'Disable'),
-    selectAll: pickLang(language, 'Vse', 'All'),
-    clearSelection: pickLang(language, 'Zrusit vyber', 'Clear'),
-    bulkDeleteConfirm: pickLang(language, 'Smazat vybrane presety?', 'Delete selected presets?'),
-    bulkDeleteBody: pickLang(language, 'Tato akce je nevratna.', 'This action cannot be undone.'),
-  }), [language]);
+    speed: t('admin.presets.speed', 'Speed'),
+    supports: t('admin.presets.supports', 'Supports'),
+    estPrice: t('admin.presets.estPrice', 'Est. price'),
+    sampleModel: t('admin.presets.sampleModel', '50 cm\u00b3 model'),
+    groupAll: t('admin.presets.groupAll', 'All'),
+    groupOther: t('admin.presets.groupOther', 'Other'),
+    filterMat: t('admin.presets.filterMat', 'Material:'),
+    dialogTitle: t('admin.presets.dialogTitle', 'Edit preset'),
+    dialogCancel: t('admin.presets.dialogCancel', 'Cancel'),
+    dialogSave: t('admin.presets.dialogSave', 'Save'),
+    sectionMeta: t('admin.presets.sectionMeta', 'Metadata'),
+    sectionOverrides: t('admin.presets.sectionOverrides', 'Print parameters'),
+    overrideHint: t('admin.presets.overrideHint', '-- default --'),
+    overrideYes: t('admin.presets.overrideYes', 'Yes'),
+    overrideNo: t('admin.presets.overrideNo', 'No'),
+    colName: t('admin.presets.colName', 'Name'),
+    visibleInWidget: t('admin.presets.visibleInWidget', 'Visible in widget'),
+    statusOffline: t('admin.presets.statusOffline', 'Offline'),
+    statusOnline: t('admin.presets.statusOnline', 'Online'),
+    moveUp: t('admin.presets.moveUp', 'Up'),
+    moveDown: t('admin.presets.moveDown', 'Down'),
+    bulkSelected: t('admin.presets.bulkSelected', 'selected'),
+    bulkDeleteAll: t('admin.presets.bulkDeleteAll', 'Delete selected'),
+    bulkExport: t('admin.presets.bulkExport', 'Export selected'),
+    bulkDuplicate: t('admin.presets.bulkDuplicate', 'Duplicate selected'),
+    bulkEnable: t('admin.presets.bulkEnable', 'Enable'),
+    bulkDisable: t('admin.presets.bulkDisable', 'Disable'),
+    selectAll: t('admin.presets.selectAll', 'All'),
+    clearSelection: t('admin.presets.clearSelection', 'Clear'),
+    bulkDeleteConfirm: t('admin.presets.bulkDeleteConfirm', 'Delete selected presets?'),
+    bulkDeleteBody: t('admin.presets.bulkDeleteBody', 'This action cannot be undone.'),
+  }), [t]);
 
   const [search, setSearch] = useState('');
   const [materialFilter, setMaterialFilter] = useState('');
@@ -425,11 +446,11 @@ export default function AdminPresets() {
   // ---- CRUD ----
 
   const onUpload = async () => {
-    if (actionsDisabled || !uploadFile) { if (!uploadFile) showError(pickLang(language, 'Vyber .ini soubor.', 'Select .ini file.')); return; }
+    if (actionsDisabled || !uploadFile) { if (!uploadFile) showError(t('admin.presets.selectIniFile', 'Select .ini file.')); return; }
     setUploading(true);
     const meta = { name: uploadName?.trim() || undefined, order: Number.isFinite(Number(uploadOrder)) ? Number(uploadOrder) : 0, visibleInWidget: !!uploadVisibleInWidget, material_key: uploadMaterialKey || null };
     if (offlineMode) {
-      const id = `local-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const id = `local-${crypto.randomUUID()}`;
       const base = uploadFile?.name ? String(uploadFile.name).replace(/\.ini$/i, '') : '';
       setPresets(prev => [...prev, normalizePreset({ id, name: meta.name || base || id, order: meta.order ?? 0, visibleInWidget: meta.visibleInWidget ?? true, material_key: meta.material_key, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), sizeBytes: uploadFile?.size ?? null })]);
       showToast('ok', str.toastSaved);
@@ -474,8 +495,8 @@ export default function AdminPresets() {
 
   const onDelete = async (id) => {
     if (!id) return;
-    if (defaultPresetId && id === defaultPresetId) { setDeleteModal({ open: true, presetId: id }); return; }
-    await runDelete(id);
+    // Always show confirmation dialog — extra important for the default preset
+    setDeleteModal({ open: true, presetId: id });
   };
 
   const onDuplicate = async (id) => {
@@ -484,7 +505,7 @@ export default function AdminPresets() {
     const source = presets.find(p => p.id === id);
     if (offlineMode) {
       if (!source) { setDuplicatingById(p => ({ ...p, [id]: false })); return; }
-      const newId = `dup-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const newId = `dup-${crypto.randomUUID()}`;
       setPresets(prev => [...prev, normalizePreset({ ...source, id: newId, name: `${source.name} (kopie)`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })]);
       showToast('ok', str.toastDuplicated);
     } else {
@@ -576,7 +597,7 @@ export default function AdminPresets() {
   // Template create
   const onCreateFromTemplate = async (template) => {
     if (offlineMode) {
-      const id = `tpl-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const id = `tpl-${crypto.randomUUID()}`;
       setPresets(prev => [...prev, normalizePreset({ id, name: template.name || 'Template', order: 0, visibleInWidget: true, material_key: template.material || null, print_overrides: { layer_height: template.layerHeight, infill_sparse_density: template.infillDensity, max_print_speed: template.printSpeed, temperature: template.temperature, bed_temperature: template.bedTemperature, support_material: template.supports || false }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })]);
       showToast('ok', str.toastSaved); return;
     }
@@ -592,7 +613,7 @@ export default function AdminPresets() {
   const importPresetsLocal = useCallback(async (presetList) => {
     let count = 0;
     for (const p of presetList) {
-      const id = `imp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}-${count}`;
+      const id = `imp-${crypto.randomUUID()}-${count}`;
       const np = normalizePreset({ id, name: p.name || 'Imported', order: p.order || 0, visibleInWidget: p.visibleInWidget ?? true, material_key: p.material_key || null, print_overrides: p.print_overrides || {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       if (offlineMode) { setPresets(prev => [...prev, np]); }
       else {
@@ -881,12 +902,12 @@ export default function AdminPresets() {
               <div style={cs.paramItem}><span style={cs.paramLabel}>{str.layerHeight}</span><span style={cs.paramVal}>{ov.layer_height != null ? `${ov.layer_height} mm` : '--'}</span></div>
               <div style={cs.paramItem}><span style={cs.paramLabel}>{str.infill}</span><span style={cs.paramVal}>{ov.infill_sparse_density != null ? `${ov.infill_sparse_density}%` : '--'}</span></div>
               <div style={cs.paramItem}><span style={cs.paramLabel}>{str.speed}</span><span style={cs.paramVal}>{ov.max_print_speed != null ? `${ov.max_print_speed} mm/s` : '--'}</span></div>
-              <div style={cs.paramItem}><span style={cs.paramLabel}>{str.supports}</span><span style={cs.paramVal}>{ov.support_material != null ? (ov.support_material ? pickLang(language, 'Ano', 'Yes') : pickLang(language, 'Ne', 'No')) : '--'}</span></div>
+              <div style={cs.paramItem}><span style={cs.paramLabel}>{str.supports}</span><span style={cs.paramVal}>{ov.support_material != null ? (ov.support_material ? t('admin.presets.yes', 'Yes') : t('admin.presets.no', 'No')) : '--'}</span></div>
             </div>
             {showPreview && (
               <div style={cs.previewBox}>
                 <div style={cs.previewLabel}><Icon name="Calculator" size={12} />{str.estPrice} ({str.sampleModel})</div>
-                <div style={cs.previewVal}>{estimated != null ? `${estimated.toFixed(2)} CZK` : pickLang(language, 'Nelze vypocitat', 'N/A')}</div>
+                <div style={cs.previewVal}>{estimated != null ? `${estimated.toFixed(2)} CZK` : t('admin.presets.estPriceNA', 'N/A')}</div>
               </div>
             )}
           </div>
@@ -1054,8 +1075,8 @@ export default function AdminPresets() {
       {deleteModal.open && (
         <div className="ap-overlay" role="dialog" aria-modal="true" ref={deleteOverlayRef}>
           <div className="ap-modal">
-            <div className="ap-mHdr"><div className="ap-mTitle">{deleteModal.presetId === '__bulk__' ? str.bulkDeleteConfirm : str.deleteDefaultTitle}</div><button className="ap-iconBtn" onClick={() => setDeleteModal({ open: false, presetId: null })}><Icon name="X" size={16} /></button></div>
-            <div className="ap-mBody"><pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', color: 'var(--forge-text-secondary)', lineHeight: 1.5 }}>{deleteModal.presetId === '__bulk__' ? str.bulkDeleteBody : str.deleteDefaultBody}</pre></div>
+            <div className="ap-mHdr"><div className="ap-mTitle">{deleteModal.presetId === '__bulk__' ? str.bulkDeleteConfirm : (defaultPresetId && deleteModal.presetId === defaultPresetId ? str.deleteDefaultTitle : str.deleteTitle)}</div><button className="ap-iconBtn" onClick={() => setDeleteModal({ open: false, presetId: null })}><Icon name="X" size={16} /></button></div>
+            <div className="ap-mBody"><pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', color: 'var(--forge-text-secondary)', lineHeight: 1.5 }}>{deleteModal.presetId === '__bulk__' ? str.bulkDeleteBody : (defaultPresetId && deleteModal.presetId === defaultPresetId ? str.deleteDefaultBody : str.deleteBody)}</pre></div>
             <div className="ap-mFoot"><button className="ap-btn" onClick={() => setDeleteModal({ open: false, presetId: null })}>{str.confirmCancel}</button><button className="ap-btn danger" onClick={async () => { const id = deleteModal.presetId; setDeleteModal({ open: false, presetId: null }); if (id === '__bulk__') await runBulkDelete(); else if (id) await runDelete(id); }}><Icon name="Trash2" size={16} />{str.confirmYes}</button></div>
           </div>
         </div>
@@ -1065,10 +1086,10 @@ export default function AdminPresets() {
       <ForgeDialog open={showImportDialog} onClose={() => { setShowImportDialog(false); setImportText(''); }} title={str.importPresets} maxWidth="520px"
         footer={<><button className="ap-btn" onClick={() => { setShowImportDialog(false); setImportText(''); }}>{str.confirmCancel}</button><button className="ap-btn primary" onClick={onImportFromClipboard} disabled={!importText.trim()}><Icon name="Download" size={16} />{str.importPresets}</button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 13, color: 'var(--forge-text-secondary)' }}>{pickLang(language, 'Vloz JSON data nebo sdiletci retezec (base64):', 'Paste JSON data or share string (base64):')}</div>
-          <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder={pickLang(language, 'Vloz JSON nebo sdiletci retezec...', 'Paste JSON or share string...')} style={{ width: '100%', minHeight: 120, padding: 12, borderRadius: 'var(--forge-radius-md, 8px)', border: '1px solid var(--forge-border-default)', background: 'var(--forge-bg-elevated)', color: 'var(--forge-text-primary)', fontSize: 13, fontFamily: 'var(--forge-font-tech)', resize: 'vertical' }} />
+          <div style={{ fontSize: 13, color: 'var(--forge-text-secondary)' }}>{t('admin.presets.importPasteLabel', 'Paste JSON data or share string (base64):')}</div>
+          <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder={t('admin.presets.importPastePlaceholder', 'Paste JSON or share string...')} style={{ width: '100%', minHeight: 120, padding: 12, borderRadius: 'var(--forge-radius-md, 8px)', border: '1px solid var(--forge-border-default)', background: 'var(--forge-bg-elevated)', color: 'var(--forge-text-primary)', fontSize: 13, fontFamily: 'var(--forge-font-tech)', resize: 'vertical' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>{pickLang(language, 'Nebo soubor:', 'Or file:')}</span>
+            <span style={{ fontSize: 12, color: 'var(--forge-text-muted)' }}>{t('admin.presets.importOrFile', 'Or file:')}</span>
             <input type="file" accept=".json" ref={fileInputRef} onChange={onImportFile} style={{ fontSize: 12, color: 'var(--forge-text-secondary)' }} />
           </div>
         </div>
@@ -1076,14 +1097,14 @@ export default function AdminPresets() {
 
       {/* Edit dialog */}
       <ForgeDialog open={!!editingPresetId} onClose={closePresetDialog} title={presetDraft?.name || str.dialogTitle} maxWidth="50vw"
-        footer={dialogTab === 'settings' ? <><button className="ap-btn" onClick={closePresetDialog}>{str.dialogCancel}</button><button className="ap-btn primary" onClick={savePresetDialog}><Icon name="Save" size={16} />{str.dialogSave}</button></> : <button className="ap-btn" onClick={closePresetDialog}>{pickLang(language, 'Zavrit', 'Close')}</button>}>
+        footer={dialogTab === 'settings' ? <><button className="ap-btn" onClick={closePresetDialog}>{str.dialogCancel}</button><button className="ap-btn primary" onClick={savePresetDialog}><Icon name="Save" size={16} />{str.dialogSave}</button></> : <button className="ap-btn" onClick={closePresetDialog}>{t('admin.presets.dialogClose', 'Close')}</button>}>
         {presetDraft && (
           <div>
             <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--forge-border-default)', marginBottom: 16 }}>
               {['settings', 'ini'].map(tab => (
                 <button key={tab} onClick={tab === 'ini' ? switchToIniTab : () => setDialogTab('settings')} style={{ padding: '10px 20px', border: 'none', borderBottom: dialogTab === tab ? '2px solid var(--forge-accent-primary)' : '2px solid transparent', background: 'transparent', color: dialogTab === tab ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)', fontWeight: dialogTab === tab ? 700 : 500, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--forge-font-heading)', transition: 'all 0.15s' }}>
                   <Icon name={tab === 'settings' ? 'Settings' : 'FileText'} size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
-                  {tab === 'settings' ? pickLang(language, 'Nastaveni', 'Settings') : pickLang(language, 'INI obsah', 'INI Content')}
+                  {tab === 'settings' ? t('admin.presets.dialogTabSettings', 'Settings') : t('admin.presets.dialogTabIni', 'INI Content')}
                 </button>
               ))}
             </div>
@@ -1116,9 +1137,9 @@ export default function AdminPresets() {
             )}
             {dialogTab === 'ini' && (
               <div style={{ minHeight: '40vh' }}>
-                {iniLoading ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: 'var(--forge-text-muted)' }}><Icon name="Loader" size={18} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />{pickLang(language, 'Nacitani...', 'Loading...')}</div>
+                {iniLoading ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: 'var(--forge-text-muted)' }}><Icon name="Loader" size={18} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />{t('admin.presets.iniLoading', 'Loading...')}</div>
                   : iniContent && !iniContent.startsWith('ERR:') ? <pre style={{ margin: 0, padding: 16, background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', borderRadius: 'var(--forge-radius-md)', fontFamily: 'var(--forge-font-tech)', fontSize: 13, lineHeight: 1.6, color: 'var(--forge-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowY: 'auto', maxHeight: '55vh' }}>{iniContent}</pre>
-                    : <div style={{ padding: 24, background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 'var(--forge-radius-md)', display: 'flex', flexDirection: 'column', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--forge-error)', fontWeight: 700, fontSize: 14 }}><Icon name="AlertTriangle" size={18} />{pickLang(language, 'INI neni dostupny', 'INI not available')}</div><div style={{ color: 'var(--forge-text-secondary)', fontSize: 13 }}>{iniContent ? iniContent.replace('ERR:', '') : pickLang(language, 'INI soubor nebyl nalezen.', 'INI file not found.')}</div></div>}
+                    : <div style={{ padding: 24, background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 'var(--forge-radius-md)', display: 'flex', flexDirection: 'column', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--forge-error)', fontWeight: 700, fontSize: 14 }}><Icon name="AlertTriangle" size={18} />{t('admin.presets.iniNotAvailable', 'INI not available')}</div><div style={{ color: 'var(--forge-text-secondary)', fontSize: 13 }}>{iniContent ? iniContent.replace('ERR:', '') : t('admin.presets.iniNotFound', 'INI file not found.')}</div></div>}
               </div>
             )}
           </div>

@@ -2,12 +2,14 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   pointerWithin,
   rectIntersection,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import KanbanFilters from './KanbanFilters';
@@ -27,7 +29,7 @@ function customCollisionDetection(args) {
   return rectIntersection(args);
 }
 
-export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange, onViewOrder, onConfigChange }) {
+export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange, onViewOrder, onConfigChange, isLoading = false }) {
   const [activeOrderId, setActiveOrderId] = useState(null);
   const [filters, setFilters] = useState({});
   const [showSettings, setShowSettings] = useState(false);
@@ -37,6 +39,9 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
       activationConstraint: {
         distance: 8,
       },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
@@ -262,8 +267,51 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
         />
       )}
 
+      {/* Loading skeleton */}
+      {isLoading && (
+        <div style={{ display: 'flex', gap: '10px', paddingBottom: '16px', minHeight: '400px' }}>
+          {STATUS_ORDER.slice(0, 5).map(status => (
+            <div key={status} style={{
+              width: '280px',
+              minWidth: '280px',
+              backgroundColor: 'var(--forge-bg-surface)',
+              borderRadius: 'var(--forge-radius-lg)',
+              border: '1.5px solid var(--forge-border-default)',
+              padding: '10px 12px',
+            }}>
+              {/* Column header skeleton */}
+              <div style={{
+                height: '20px',
+                borderRadius: 'var(--forge-radius-sm)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                marginBottom: '12px',
+                animation: 'kanban-skeleton-shimmer 1.5s ease-in-out infinite',
+              }} />
+              {/* Card skeletons */}
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{
+                  height: '90px',
+                  borderRadius: 'var(--forge-radius-md)',
+                  backgroundColor: 'var(--forge-bg-elevated)',
+                  marginBottom: '8px',
+                  opacity: 1 - (i - 1) * 0.25,
+                  animation: 'kanban-skeleton-shimmer 1.5s ease-in-out infinite',
+                  animationDelay: `${i * 150}ms`,
+                }} />
+              ))}
+            </div>
+          ))}
+          <style>{`
+            @keyframes kanban-skeleton-shimmer {
+              0%, 100% { opacity: 0.6; }
+              50% { opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Kanban board */}
-      <DndContext
+      {!isLoading && <DndContext
         sensors={sensors}
         collisionDetection={customCollisionDetection}
         onDragStart={handleDragStart}
@@ -301,7 +349,7 @@ export default function KanbanBoard({ orders = [], kanbanConfig, onStatusChange,
             <KanbanCard order={activeOrder} isOverlay />
           ) : null}
         </DragOverlay>
-      </DndContext>
+      </DndContext>}
     </div>
   );
 }

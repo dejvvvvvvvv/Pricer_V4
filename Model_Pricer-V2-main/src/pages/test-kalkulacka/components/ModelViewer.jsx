@@ -767,11 +767,11 @@ function ModelCanvas({ file, ext, computeSurface, onSurfaceComputed, onGeometryL
 
   return (
     <div ref={canvasWrapRef} style={{ width: '100%', height: '100%', ...fg.canvasWrap }}>
-      <Canvas camera={{ position: [0, 0, 100], fov: 50 }} dpr={[1, 1.5]}>
+      <Canvas camera={{ position: [0, 0, 100], fov: 50 }} dpr={[1, 1.5]} frameloop="demand">
         <ambientLight intensity={0.8} />
         <directionalLight position={[10, 10, 10]} intensity={0.8} />
         <ModelScene url={url} ext={ext} computeSurface={computeSurface} onSurfaceComputed={onSurfaceComputed} onGeometryLoaded={onGeometryLoaded} />
-        <OrbitControls enablePan={false} autoRotate autoRotateSpeed={0.5} />
+        <OrbitControls enablePan={false} />
       </Canvas>
     </div>
   );

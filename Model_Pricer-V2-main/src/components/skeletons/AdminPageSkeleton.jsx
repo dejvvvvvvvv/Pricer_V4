@@ -19,6 +19,9 @@ const s = {
     display: 'flex',
     flexDirection: 'column',
     gap: '24px',
+    minHeight: '60vh',
+    backgroundColor: 'var(--forge-bg-void, #08090C)',
+    color: 'var(--forge-text-primary, #E8ECF1)',
   },
   header: {
     display: 'flex',

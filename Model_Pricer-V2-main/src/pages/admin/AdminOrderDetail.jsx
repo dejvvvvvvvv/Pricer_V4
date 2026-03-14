@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { debug } from '@/lib/debug';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls, Center } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+import { sanitizeHtmlAllowBasic } from '@/utils/sanitizeHtml';
 import * as THREE from 'three';
 import Icon from '../../components/AppIcon';
+import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import StorageStatusBadge from './components/orders/StorageStatusBadge';
 import OrderTagSelector from './components/orders/OrderTagSelector';
@@ -22,55 +25,20 @@ import {
   round2,
   saveOrders,
 } from '../../utils/adminOrdersStorage';
+import { formatDateTime, formatMoney, formatTime, formatSize } from '../../utils/formatters';
 import { generateId } from '../../utils/generateId';
 import { logActivity } from '../../utils/adminActivityLog';
 import { generateInvoiceHTML, generateInvoiceNumber, getDueDate, formatInvoiceDate } from '../../utils/invoiceGenerator';
 import { saveInvoice, getInvoice, updateInvoiceStatus } from '../../utils/invoiceStorage';
 import { readCompanyData } from '../../utils/adminCompanyStorage';
-import { loadEmailTemplates, EMAIL_TEMPLATE_TYPES, EMAIL_TEMPLATE_VARIABLES, loadAutoSendRules } from '../../utils/adminEmailStorage';
+import { loadEmailTemplates, EMAIL_TEMPLATE_TYPES, EMAIL_TEMPLATE_VARIABLES, loadAutoSendRules, addEmailLogEntry } from '../../utils/adminEmailStorage';
 import { logEmailSent, getEmailLog } from '../../utils/emailSendLog';
 import { generateOrderSummaryHTML, generatePackingSlipHTML } from '../../utils/orderExportGenerator';
 import { exportJSON as downloadJSON } from '../../utils/exportData';
 import { canTransition, getNextStatuses } from './components/kanban/statusTransitions';
-
-// ── Status colors ──
-const STATUS_COLORS = {
-  NEW:         { bg: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa', border: 'rgba(59, 130, 246, 0.30)' },
-  REVIEW:      { bg: 'rgba(99, 102, 241, 0.12)', color: '#818cf8', border: 'rgba(99, 102, 241, 0.30)' },
-  APPROVED:    { bg: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: 'rgba(245, 158, 11, 0.30)' },
-  PRINTING:    { bg: 'rgba(249, 115, 22, 0.12)', color: '#fb923c', border: 'rgba(249, 115, 22, 0.30)' },
-  POSTPROCESS: { bg: 'rgba(234, 179, 8, 0.12)',  color: '#facc15', border: 'rgba(234, 179, 8, 0.30)' },
-  READY:       { bg: 'rgba(0, 212, 170, 0.10)',   color: '#00d4aa', border: 'rgba(0, 212, 170, 0.25)' },
-  SHIPPED:     { bg: 'rgba(20, 184, 166, 0.12)',  color: '#2dd4bf', border: 'rgba(20, 184, 166, 0.30)' },
-  DONE:        { bg: 'rgba(34, 197, 94, 0.12)',   color: '#4ade80', border: 'rgba(34, 197, 94, 0.30)' },
-  CANCELED:    { bg: 'rgba(239, 68, 68, 0.12)',   color: '#f87171', border: 'rgba(239, 68, 68, 0.30)' },
-};
-
-function getStatusColor(status) {
-  return STATUS_COLORS[status] || STATUS_COLORS.NEW;
-}
+import { STATUS_COLORS, getStatusColor } from '../../utils/orderConstants';
 
 // ── Helpers ──
-function formatDateTime(iso, locale = 'cs-CZ') {
-  try {
-    return new Date(iso).toLocaleString(locale, {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit',
-    });
-  } catch { return iso; }
-}
-
-function formatMoney(amount) {
-  return `${round2(amount).toFixed(2)} Kc`;
-}
-
-function formatTime(min) {
-  const m = Math.max(0, Math.round(Number(min) || 0));
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (h <= 0) return `${r} min`;
-  return `${h}h ${r}m`;
-}
 
 function getSlicerTimeMin(slicer) {
   if (!slicer) return 0;
@@ -82,13 +50,6 @@ function getSlicerTimeMin(slicer) {
 function getSlicerWeightG(slicer) {
   if (!slicer) return 0;
   return Number(slicer.weight_g) || Number(slicer.filamentGrams) || 0;
-}
-
-function formatSize(bytes) {
-  if (!bytes) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ── StatusBadge ──
@@ -148,7 +109,7 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: `1px solid ${destructive ? 'var(--forge-error)' : 'var(--forge-accent-primary)'}`,
             backgroundColor: destructive ? 'var(--forge-error)' : 'var(--forge-accent-primary)',
-            color: destructive ? '#fff' : '#08090C', borderRadius: 'var(--forge-radius-lg)',
+            color: destructive ? 'var(--forge-text-primary)' : 'var(--forge-bg-void)', borderRadius: 'var(--forge-radius-lg)',
             padding: '10px 14px', fontWeight: 800, fontSize: '13px', cursor: 'pointer',
             fontFamily: 'var(--forge-font-body)',
           }}>{confirmText}</button>
@@ -214,7 +175,9 @@ function formatCountdown(targetDate) {
 }
 
 // ── Status Change Note Dialog ──
-function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCancel }) {
+function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCancel, language }) {
+  const cs = language === 'cs';
+  const { t } = useLanguage();
   const [note, setNote] = useState('');
   const textareaRef = useRef(null);
   const overlayRef = useRef(null);
@@ -255,7 +218,7 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
         <div style={{
           fontFamily: 'var(--forge-font-heading)', fontWeight: 800,
           color: 'var(--forge-text-primary)', fontSize: '16px', marginBottom: '4px',
-        }}>Zmena stavu objednavky</div>
+        }}>{t('admin.orderDetail.statusChangeTitle', 'Zmena stavu')}</div>
 
         {/* Status transition visual */}
         <div style={{
@@ -269,7 +232,7 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
             borderRadius: '999px', fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
             fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
             backgroundColor: fromSc.bg, color: fromSc.color, border: `1px solid ${fromSc.border}`,
-          }}>{getStatusLabel(fromStatus, 'cs')}</span>
+          }}>{getStatusLabel(fromStatus, cs ? 'cs' : 'en')}</span>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M3 8h10M10 5l3 3-3 3" stroke="var(--forge-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -278,7 +241,7 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
             borderRadius: '999px', fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
             fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
             backgroundColor: toSc.bg, color: toSc.color, border: `1px solid ${toSc.border}`,
-          }}>{getStatusLabel(toStatus, 'cs')}</span>
+          }}>{getStatusLabel(toStatus, cs ? 'cs' : 'en')}</span>
         </div>
 
         {/* Auto-send email indicator */}
@@ -289,12 +252,12 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
             background: 'rgba(59, 130, 246, 0.08)', borderRadius: 'var(--forge-radius-md)',
             border: '1px solid rgba(59, 130, 246, 0.2)',
           }}>
-            <Icon name="Mail" size={14} style={{ color: '#60a5fa', flexShrink: 0 }} />
+            <Icon name="Mail" size={14} style={{ color: 'var(--forge-info)', flexShrink: 0 }} />
             <span style={{
               fontSize: '12px', fontFamily: 'var(--forge-font-body)',
-              color: '#60a5fa',
+              color: 'var(--forge-info)',
             }}>
-              Email bude automaticky odeslan ({EMAIL_TEMPLATE_TYPES.find(t => t.id === autoSendRule.template_id)?.label_cs || autoSendRule.template_id})
+              {t('admin.orderDetail.autoEmailWillSend', 'Email bude automaticky odeslan')} ({EMAIL_TEMPLATE_TYPES.find(tpl => tpl.id === autoSendRule.template_id)?.[cs ? 'label_cs' : 'label_en'] || autoSendRule.template_id})
             </span>
           </div>
         )}
@@ -304,13 +267,13 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
           fontSize: '13px', fontFamily: 'var(--forge-font-body)',
           color: 'var(--forge-text-secondary)', marginBottom: '8px',
         }}>
-          Proc menite stav? <span style={{ color: 'var(--forge-text-muted)', fontSize: '11px' }}>(volitelne)</span>
+          {t('admin.orderDetail.whyChangeStatus', 'Proc menite stav?')} <span style={{ color: 'var(--forge-text-muted)', fontSize: '11px' }}>({t('admin.orderDetail.optional', 'volitelne')})</span>
         </div>
         <textarea
           ref={textareaRef}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Napr. zakaznik pozadal o urychleni, material dodan..."
+          placeholder={t('admin.orderDetail.statusNotePlaceholder', 'Napr. zakaznik pozadal o urychleni, material dodan...')}
           style={{
             width: '100%', minHeight: '80px', resize: 'vertical',
             padding: '10px 12px', fontSize: '13px', fontFamily: 'var(--forge-font-body)',
@@ -323,16 +286,16 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
         />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-          <button onClick={onCancel} type="button" className="od-btn">Zrusit</button>
+          <button onClick={onCancel} type="button" className="od-btn">{t('admin.orderDetail.cancel', 'Zrusit')}</button>
           <button onClick={() => onConfirm(note.trim())} type="button" style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: '1px solid var(--forge-accent-primary)',
             backgroundColor: 'var(--forge-accent-primary)',
-            color: '#08090C', borderRadius: 'var(--forge-radius-lg)',
+            color: 'var(--forge-bg-void)', borderRadius: 'var(--forge-radius-lg)',
             padding: '10px 14px', fontWeight: 800, fontSize: '13px', cursor: 'pointer',
             fontFamily: 'var(--forge-font-body)', gap: '6px',
           }}>
-            <Icon name="Check" size={14} /> Potvrdit zmenu
+            <Icon name="Check" size={14} /> {t('admin.orderDetail.confirmChange', 'Potvrdit zmenu')}
           </button>
         </div>
       </div>
@@ -422,7 +385,7 @@ function StatusTimeline({ order }) {
             <div style={{
               fontSize: '13px', fontWeight: 700,
               fontFamily: 'var(--forge-font-body)',
-              color: isDone ? '#4ade80' : 'var(--forge-text-primary)',
+              color: isDone ? 'var(--forge-success)' : 'var(--forge-text-primary)',
             }}>
               {delivery.estimated.toLocaleDateString('cs-CZ', {
                 weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
@@ -441,7 +404,7 @@ function StatusTimeline({ order }) {
               <div style={{
                 fontSize: '15px', fontWeight: 800,
                 fontFamily: 'var(--forge-font-tech)',
-                color: countdown.overdue ? '#f87171' : 'var(--forge-accent-primary)',
+                color: countdown.overdue ? 'var(--forge-error)' : 'var(--forge-accent-primary)',
               }}>
                 {countdown.text}
               </div>
@@ -756,7 +719,7 @@ function OrderStatsPanel({ order, totals }) {
     border: 'none', borderRadius: 'var(--forge-radius-sm)', cursor: 'pointer',
     transition: 'all 120ms ease', textAlign: 'center',
     background: active ? 'var(--forge-bg-surface)' : 'transparent',
-    color: active ? '#00D4AA' : 'var(--forge-text-muted)',
+    color: active ? 'var(--forge-accent-teal)' : 'var(--forge-text-muted)',
     boxShadow: active ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
   });
 
@@ -868,7 +831,7 @@ function OrderStatsPanel({ order, totals }) {
                 fontFamily: 'var(--forge-font-body)', color: 'var(--forge-text-secondary)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={checkedModels[i] ?? true}
                   onChange={(e) => setCheckedModels(p => ({ ...p, [i]: e.target.checked }))}
-                  style={{ width: 12, height: 12, accentColor: '#00D4AA' }} />
+                  style={{ width: 12, height: 12, accentColor: 'var(--forge-accent-teal)' }} />
                 {m.name.slice(0, 20)}
               </label>
             ))}
@@ -905,6 +868,49 @@ function OrderStatsPanel({ order, totals }) {
       {view === 'comparison' && renderComparison()}
     </Card>
   );
+}
+
+// ── Viewer Error Boundary (catches R3F useLoader crashes) ──
+class ViewerErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.warn('[ViewerErrorBoundary] 3D viewer crashed:', error?.message || error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const h = this.props.height || 300;
+      return (
+        <div style={{
+          height: h, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px',
+          background: 'var(--forge-bg-elevated)', borderRadius: 'var(--forge-radius-md)',
+          border: '1px solid var(--forge-border-default)',
+          color: 'var(--forge-text-muted)', fontSize: '12px', fontFamily: 'var(--forge-font-body)',
+        }}>
+          <span>Nelze nacist nahled modelu</span>
+          <button type="button" onClick={() => this.setState({ hasError: false })}
+            style={{
+              padding: '4px 12px', fontSize: '11px', fontFamily: 'var(--forge-font-body)',
+              background: 'var(--forge-bg-card)', border: '1px solid var(--forge-border-default)',
+              borderRadius: 'var(--forge-radius-sm)', color: 'var(--forge-text-secondary)',
+              cursor: 'pointer',
+            }}>
+            Zkusit znovu
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ── Inline 3D Model Viewer (simplified for admin order detail) ──
@@ -972,7 +978,7 @@ function InlineModelViewer({ url, height = 300 }) {
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: '4px', zIndex: 10 }}>
         <button type="button" onClick={() => setIsFullScreen(true)} title="Fullscreen"
           style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.5)',
-            border: '1px solid var(--forge-border-default)', color: '#fff', cursor: 'pointer',
+            border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-primary)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="Maximize2" size={12} />
         </button>
@@ -1001,7 +1007,7 @@ function InlineModelViewer({ url, height = 300 }) {
             <button type="button" onClick={() => setIsFullScreen(false)}
               style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36,
                 borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid var(--forge-border-active)',
-                color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
+                color: 'var(--forge-text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
               <Icon name="X" size={16} />
             </button>
           </div>
@@ -1084,6 +1090,9 @@ function BuildPlateViewer({ url, height = 300 }) {
 // ── Collapsible Item Row with Viewer ──
 function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload }) {
   const [expanded, setExpanded] = useState(false);
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [blobLoading, setBlobLoading] = useState(false);
+  const [blobError, setBlobError] = useState(null);
   const bd = m.price_breakdown_snapshot || {};
   const qty = m.quantity || 1;
   const unitPrice = Number(bd.model_total) || Number(bd.total) || Number(bd.totalPrice) || Number(m.totalPrice) || Number(m.price) || 0;
@@ -1092,16 +1101,37 @@ function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload }) {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   const isViewable = ext === 'stl';
 
-  const modelUrl = useMemo(() => {
+  // Raw storage path for download button
+  const modelFilePath = useMemo(() => {
     if (!hasStorage || !storage?.fileManifest) return null;
     const manifestEntry = (storage.fileManifest || []).find(
       (f) => f.type === 'model' && (f.filename === filename || f.filename === filename.replace(/[^a-zA-Z0-9._-]/g, '_'))
     );
     if (!manifestEntry) return null;
     const basePath = (storage.storagePath || '').replace(/\/+$/, '');
-    const filePath = manifestEntry.path || `${basePath}/models/${manifestEntry.filename}`;
-    return getDownloadUrl(filePath);
+    return manifestEntry.path || `${basePath}/models/${manifestEntry.filename}`;
   }, [hasStorage, storage, filename]);
+
+  const modelUrl = modelFilePath ? getDownloadUrl(modelFilePath) : null;
+
+  // Fetch file with auth headers when expanded — useLoader can't send auth headers
+  useEffect(() => {
+    if (!expanded || !modelFilePath || blobUrl) return;
+    let cancelled = false;
+    setBlobLoading(true);
+    setBlobError(null);
+    downloadFile(modelFilePath)
+      .then((url) => { if (!cancelled) { setBlobUrl(url); setBlobLoading(false); } })
+      .catch((err) => { if (!cancelled) { setBlobError(err.message || 'Nelze nacist model'); setBlobLoading(false); } });
+    return () => { cancelled = true; };
+  }, [expanded, modelFilePath, blobUrl]);
+
+  // Revoke blob URL on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [blobUrl]);
 
   const dlManifestEntry = hasStorage ? (storage.fileManifest || []).find(
     (f) => f.type === 'model' && (f.filename === filename || f.filename === filename.replace(/[^a-zA-Z0-9._-]/g, '_'))
@@ -1154,18 +1184,45 @@ function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload }) {
       {expanded && isViewable && modelUrl && (
         <tr>
           <td colSpan={hasStorage ? 9 : 8} style={{ padding: '12px 16px', background: 'var(--forge-bg-elevated)' }}>
-            <div className="od-viewer-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)',
-                  textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Build Plate</div>
-                <BuildPlateViewer url={modelUrl} height={300} />
+            {blobLoading && (
+              <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--forge-bg-elevated)', borderRadius: 'var(--forge-radius-md)',
+                color: 'var(--forge-text-muted)', fontSize: '12px', fontFamily: 'var(--forge-font-body)' }}>
+                Nacitani modelu...
               </div>
-              <div>
-                <div style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)',
-                  textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>3D Nahled</div>
-                <InlineModelViewer url={modelUrl} height={300} />
+            )}
+            {blobError && (
+              <div style={{ height: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: '12px', background: 'var(--forge-bg-elevated)', borderRadius: 'var(--forge-radius-md)',
+                border: '1px solid var(--forge-border-default)',
+                color: 'var(--forge-text-muted)', fontSize: '12px', fontFamily: 'var(--forge-font-body)' }}>
+                <span>Nelze nacist nahled modelu</span>
+                <span style={{ fontSize: '10px', opacity: 0.6 }}>{blobError}</span>
+                <button type="button" onClick={() => { setBlobUrl(null); setBlobError(null); }}
+                  style={{ padding: '6px 16px', borderRadius: 'var(--forge-radius-sm)', fontSize: '11px',
+                    fontFamily: 'var(--forge-font-tech)', background: 'var(--forge-bg-surface)',
+                    border: '1px solid var(--forge-border-default)', color: 'var(--forge-text-secondary)',
+                    cursor: 'pointer' }}>
+                  Zkusit znovu
+                </button>
               </div>
-            </div>
+            )}
+            {blobUrl && !blobLoading && !blobError && (
+              <ViewerErrorBoundary height={300}>
+                <div className="od-viewer-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Build Plate</div>
+                    <BuildPlateViewer url={blobUrl} height={300} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>3D Nahled</div>
+                    <InlineModelViewer url={blobUrl} height={300} />
+                  </div>
+                </div>
+              </ViewerErrorBoundary>
+            )}
           </td>
         </tr>
       )}
@@ -1175,7 +1232,10 @@ function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload }) {
 
 // ── Main Component ──
 export default function AdminOrderDetail({ orders, setOrders }) {
-  const { language } = useLanguage();
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
+  const { language, t } = useLanguage();
+  const cs = language === 'cs';
   const navigate = useNavigate();
   const params = useParams();
   const orderId = params.id;
@@ -1249,13 +1309,13 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       <div className="od-page">
         <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
           <button className="od-btn" onClick={() => navigate('../')} type="button">
-            <Icon name="ChevronLeft" size={16} /> Zpet na objednavky
+            <Icon name="ChevronLeft" size={16} /> {t('admin.orderDetail.backToOrders', 'Zpet na objednavky')}
           </button>
         </div>
         <Card>
           <div style={{ padding: '32px', color: 'var(--forge-text-muted)', textAlign: 'center', fontFamily: 'var(--forge-font-body)' }}>
             <Icon name="PackageX" size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-            <p>Objednavka nenalezena.</p>
+            <p>{t('admin.orderDetail.notFound', 'Objednavka nenalezena.')}</p>
           </div>
         </Card>
         <style>{orderDetailStyles}</style>
@@ -1300,11 +1360,11 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       status: to,
       updated_at: ts,
       activity: [
-        { timestamp: ts, user_id: 'admin', type: 'STATUS_CHANGE', payload },
+        { timestamp: ts, user_id: currentUser, type: 'STATUS_CHANGE', payload },
         ...(order.activity || []),
       ].slice(0, 200),
     };
-    persist(updated, { timestamp: ts, user_id: 'admin', type: 'STATUS_CHANGE', payload });
+    persist(updated, { timestamp: ts, user_id: currentUser, type: 'STATUS_CHANGE', payload });
 
     // Check auto-send email rule
     const autoRule = getAutoSendRuleForStatus(to);
@@ -1324,6 +1384,13 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           autoTriggered: true,
           triggerStatus: to,
         });
+        addEmailLogEntry({
+          template: autoRule.template_id,
+          recipient: (order.customer_snapshot || {}).email || '',
+          subject: rendered.subject,
+          orderId: order.id,
+          status: 'sent',
+        });
         setEmailSentLog(getEmailLog(order.id));
       }
     }
@@ -1342,7 +1409,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
     const newNote = {
       id: `n-${Date.now()}`,
       timestamp: nowIso(),
-      user_id: 'admin',
+      user_id: currentUser,
       text,
       type: noteType,
       category: noteCategory,
@@ -1356,11 +1423,11 @@ export default function AdminOrderDetail({ orders, setOrders }) {
         ...(order.notes || []),
       ].slice(0, 200),
       activity: [
-        { timestamp: nowIso(), user_id: 'admin', type: 'NOTE_ADDED', payload: { length: text.length, noteType, category: noteCategory } },
+        { timestamp: nowIso(), user_id: currentUser, type: 'NOTE_ADDED', payload: { length: text.length, noteType, category: noteCategory } },
         ...(order.activity || []),
       ].slice(0, 200),
     };
-    persist(updated, { timestamp: nowIso(), user_id: 'admin', type: 'NOTE_ADDED', payload: { length: text.length, noteType, category: noteCategory } });
+    persist(updated, { timestamp: nowIso(), user_id: currentUser, type: 'NOTE_ADDED', payload: { length: text.length, noteType, category: noteCategory } });
     setNoteDraft('');
     setNoteType('text');
   }
@@ -1395,7 +1462,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
         {
           id: generateId('note'),
           text: noteText,
-          author: 'admin',
+          author: currentUser,
           created_at: now,
           type: 'text',
           category: 'internal',
@@ -1405,7 +1472,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       activity: [
         {
           action: actionLabel,
-          actor: 'admin',
+          actor: currentUser,
           timestamp: now,
           details: noteText,
         },
@@ -1425,7 +1492,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       action: `${actionLabel}: ${newOrderNumber} (z ${sourceLabel})`,
       category: 'order',
       details: `${(order.customer_snapshot || {}).name || '-'}, ${(order.models || []).length} model(u)`,
-      user: 'admin',
+      user: currentUser,
     });
 
     navigate(`../${newId}`);
@@ -1506,7 +1573,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
 
   function handleDownloadZip() {
     if (!hasStorage) return;
-    createZip([storage.storagePath]).catch(console.error);
+    createZip([storage.storagePath]).catch((e) => debug('[AdminOrderDetail] ZIP download failed', e));
   }
 
   async function handleDownloadFile(filePath) {
@@ -1521,7 +1588,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.error('Download failed:', err);
+      debug('[AdminOrderDetail] File download failed', err);
     }
   }
 
@@ -1553,7 +1620,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       ...order,
       updated_at: nowIso(),
       activity: [
-        { timestamp: nowIso(), user_id: 'admin', type: 'INVOICE_CREATED', payload: { invoiceNumber: invNumber } },
+        { timestamp: nowIso(), user_id: currentUser, type: 'INVOICE_CREATED', payload: { invoiceNumber: invNumber } },
         ...(order.activity || []),
       ].slice(0, 200),
     };
@@ -1571,7 +1638,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       ...order,
       updated_at: nowIso(),
       activity: [
-        { timestamp: nowIso(), user_id: 'admin', type: 'INVOICE_STATUS', payload: { status: nextStatus } },
+        { timestamp: nowIso(), user_id: currentUser, type: 'INVOICE_STATUS', payload: { status: nextStatus } },
         ...(order.activity || []),
       ].slice(0, 200),
     };
@@ -1643,6 +1710,13 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       subject: emailPreview.subject,
       hasInvoice: false,
     });
+    addEmailLogEntry({
+      template: emailPreview.templateId,
+      recipient: emailPreview.recipientEmail,
+      subject: emailPreview.subject,
+      orderId: order.id,
+      status: 'sent',
+    });
 
     setEmailSentLog(getEmailLog(order.id));
     setEmailPreview(null);
@@ -1654,7 +1728,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       ...order,
       updated_at: nowIso(),
       activity: [
-        { timestamp: nowIso(), user_id: 'admin', type: 'EMAIL_SENT', payload: { template: emailPreview.templateId, recipient: emailPreview.recipientEmail } },
+        { timestamp: nowIso(), user_id: currentUser, type: 'EMAIL_SENT', payload: { template: emailPreview.templateId, recipient: emailPreview.recipientEmail } },
         ...(order.activity || []),
       ].slice(0, 200),
     };
@@ -1668,7 +1742,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       {/* ── Header ── */}
       <div className="od-header">
         <button className="od-btn" onClick={() => navigate('../')} type="button">
-          <Icon name="ChevronLeft" size={16} /> Zpet
+          <Icon name="ChevronLeft" size={16} /> {t('admin.orderDetail.back', 'Zpet')}
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -1676,7 +1750,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
               margin: 0, fontSize: '24px', fontWeight: 900,
               color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)',
             }}>
-              Objednavka {order.id}
+              {t('admin.orderDetail.title', 'Objednavka')} {order.id}
             </h1>
             <StatusBadge status={order.status} />
           </div>
@@ -1684,18 +1758,18 @@ export default function AdminOrderDetail({ orders, setOrders }) {
             fontSize: '13px', color: 'var(--forge-text-muted)',
             marginTop: '4px', fontFamily: 'var(--forge-font-body)',
           }}>
-            Vytvoreno: {formatDateTime(order.created_at)} | Modelu: {(order.models || []).length} | Materialy: {materials.join(', ') || '-'}
+            {t('admin.orderDetail.created', 'Vytvoreno')}: {formatDateTime(order.created_at)} | {t('admin.orderDetail.models', 'Modelu')}: {(order.models || []).length} | {t('admin.orderDetail.materials', 'Materialy')}: {materials.join(', ') || '-'}
           </div>
         </div>
 
         {/* Action buttons */}
         <div className="od-header-actions">
-          <button className="od-btn" onClick={handlePrintSummary} type="button" title="Tisk souhrnu">
-            <Icon name="Printer" size={16} /> Tisk souhrnu
+          <button className="od-btn" onClick={handlePrintSummary} type="button" title={t('admin.orderDetail.printSummary', 'Tisk souhrnu')}>
+            <Icon name="Printer" size={16} /> {t('admin.orderDetail.printSummary', 'Tisk souhrnu')}
           </button>
           <div ref={emailMenuRef} style={{ position: 'relative' }}>
-            <button className="od-btn" type="button" title="Odeslat email" onClick={() => setEmailMenuOpen(v => !v)}>
-              <Icon name="Mail" size={16} /> Odeslat email
+            <button className="od-btn" type="button" title={t('admin.orderDetail.sendEmail', 'Odeslat email')} onClick={() => setEmailMenuOpen(v => !v)}>
+              <Icon name="Mail" size={16} /> {t('admin.orderDetail.sendEmail', 'Odeslat email')}
               <Icon name="ChevronDown" size={12} style={{ marginLeft: '2px', color: 'var(--forge-text-muted)', transform: emailMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 150ms ease' }} />
             </button>
             {emailMenuOpen && (
@@ -1730,22 +1804,22 @@ export default function AdminOrderDetail({ orders, setOrders }) {
               </div>
             )}
           </div>
-          <button className="od-btn" onClick={handlePrintPackingSlip} type="button" title="Dodaci list">
-            <Icon name="ClipboardList" size={16} /> Dodaci list
+          <button className="od-btn" onClick={handlePrintPackingSlip} type="button" title={t('admin.orderDetail.packingSlip', 'Dodaci list')}>
+            <Icon name="ClipboardList" size={16} /> {t('admin.orderDetail.packingSlip', 'Dodaci list')}
           </button>
           <button className="od-btn" onClick={handleExportOrderJSON} type="button" title="Export JSON">
             <Icon name="Braces" size={16} /> Export JSON
           </button>
-          <button className="od-btn" onClick={handleCopyOrderLink} type="button" title="Kopirovat odkaz">
+          <button className="od-btn" onClick={handleCopyOrderLink} type="button" title={t('admin.orderDetail.copyLink', 'Kopirovat odkaz')}>
             <Icon name={copyLinkFeedback ? 'Check' : 'Link'} size={16} />
-            {copyLinkFeedback ? 'Zkopirovano' : 'Odkaz'}
+            {copyLinkFeedback ? t('admin.orderDetail.copied', 'Zkopirovano') : t('admin.orderDetail.link', 'Odkaz')}
           </button>
-          <button className="od-btn" onClick={() => handleDuplicateOrder(false)} type="button" title="Duplikovat objednavku">
-            <Icon name="Copy" size={16} /> Duplikovat
+          <button className="od-btn" onClick={() => handleDuplicateOrder(false)} type="button" title={t('admin.orderDetail.duplicate', 'Duplikovat objednavku')}>
+            <Icon name="Copy" size={16} /> {t('admin.orderDetail.duplicate', 'Duplikovat')}
           </button>
           {(order.status === 'DONE' || order.status === 'SHIPPED') && (
-            <button className="od-btn" onClick={() => handleDuplicateOrder(true)} type="button" title="Objednat znovu" style={{ borderColor: 'var(--forge-accent-primary)', color: 'var(--forge-accent-primary)' }}>
-              <Icon name="RefreshCw" size={16} /> Objednat znovu
+            <button className="od-btn" onClick={() => handleDuplicateOrder(true)} type="button" title={t('admin.orderDetail.reorder', 'Objednat znovu')} style={{ borderColor: 'var(--forge-accent-primary)', color: 'var(--forge-accent-primary)' }}>
+              <Icon name="RefreshCw" size={16} /> {t('admin.orderDetail.reorder', 'Objednat znovu')}
             </button>
           )}
           {order.status !== 'CANCELED' && order.status !== 'DONE' && (
@@ -1754,7 +1828,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
               onClick={() => setConfirm({ type: 'cancel' })}
               type="button"
             >
-              <Icon name="XCircle" size={16} /> Zrusit objednavku
+              <Icon name="XCircle" size={16} /> {t('admin.orderDetail.cancelOrder', 'Zrusit objednavku')}
             </button>
           )}
         </div>
@@ -1765,7 +1839,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
         <div className="od-banner-warning">
           <Icon name="AlertTriangle" size={18} />
           <div>
-            <div style={{ fontWeight: 900, fontFamily: 'var(--forge-font-heading)' }}>Upozorneni</div>
+            <div style={{ fontWeight: 900, fontFamily: 'var(--forge-font-heading)' }}>{t('admin.orderDetail.warnings', 'Upozorneni')}</div>
             <div style={{ fontSize: '12px', marginTop: '2px', color: 'rgba(255,181,71,0.8)', fontFamily: 'var(--forge-font-body)' }}>
               {flags.map((f) => getFlagLabel(f, 'cs')).join(' / ')}
             </div>
@@ -1778,19 +1852,19 @@ export default function AdminOrderDetail({ orders, setOrders }) {
         {/* Left column: main content */}
         <div className="od-col-left">
           {/* Items table */}
-          <Card title="Polozky objednavky" icon="Package">
+          <Card title={t('admin.orderDetail.sectionItems', 'Polozky objednavky')} icon="Package">
             <div style={{ overflowX: 'auto' }}>
               <table className="od-table">
                 <thead>
                   <tr>
-                    <th>Model</th>
-                    <th>Material</th>
-                    <th>Kvalita</th>
-                    <th>Ks</th>
-                    <th>Cas tisku</th>
-                    <th>Hmotnost</th>
-                    <th>Cena/ks</th>
-                    <th>Celkem</th>
+                    <th>{t('admin.orderDetail.colModel', 'Model')}</th>
+                    <th>{t('admin.orderDetail.colMaterial', 'Material')}</th>
+                    <th>{t('admin.orderDetail.colQuality', 'Kvalita')}</th>
+                    <th>{t('admin.orderDetail.colQty', 'Ks')}</th>
+                    <th>{t('admin.orderDetail.colPrintTime', 'Cas tisku')}</th>
+                    <th>{t('admin.orderDetail.colWeight', 'Hmotnost')}</th>
+                    <th>{t('admin.orderDetail.colPricePerPc', 'Cena/ks')}</th>
+                    <th>{t('admin.orderDetail.colTotal', 'Celkem')}</th>
                     {hasStorage && <th></th>}
                   </tr>
                 </thead>
@@ -1806,7 +1880,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                     />
                   ))}
                   {(order.models || []).length === 0 && (
-                    <tr><td colSpan={hasStorage ? 9 : 8} style={{ textAlign: 'center', padding: '24px', color: 'var(--forge-text-muted)' }}>Zadne polozky</td></tr>
+                    <tr><td colSpan={hasStorage ? 9 : 8} style={{ textAlign: 'center', padding: '24px', color: 'var(--forge-text-muted)' }}>{t('admin.orderDetail.noItems', 'Zadne polozky')}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1814,7 +1888,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           </Card>
 
           {/* Storage section */}
-          <Card title="Soubory a uloziste" icon="HardDrive">
+          <Card title={t('admin.orderDetail.sectionStorage', 'Soubory a uloziste')} icon="HardDrive">
             {/* Storage status + action buttons */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1839,7 +1913,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                       style={{ gap: '6px' }}
                     >
                       <Icon name="FolderOpen" size={14} />
-                      Otevrit v Model Storage
+                      {t('admin.orderDetail.openInStorage', 'Otevrit v Model Storage')}
                     </button>
                     <button
                       type="button"
@@ -1847,7 +1921,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                       className="od-btn"
                     >
                       <Icon name="Download" size={14} />
-                      Stahnout ZIP
+                      {t('admin.orderDetail.downloadZip', 'Stahnout ZIP')}
                     </button>
                   </>
                 )}
@@ -1858,7 +1932,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                     className="od-btn"
                   >
                     <Icon name="FolderOpen" size={14} />
-                    Otevrit slozku
+                    {t('admin.orderDetail.openFolder', 'Otevrit slozku')}
                   </button>
                 )}
               </div>
@@ -1934,53 +2008,53 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                 color: 'var(--forge-text-muted)', fontSize: '13px', fontFamily: 'var(--forge-font-body)',
               }}>
                 <Icon name="FolderX" size={24} style={{ opacity: 0.3, marginBottom: '8px', display: 'block', margin: '0 auto 8px' }} />
-                Soubory objednavky nejsou v ulozisti.
+                {t('admin.orderDetail.noStorageFiles', 'Soubory objednavky nejsou v ulozisti.')}
               </div>
             )}
           </Card>
 
           {/* Pricing breakdown */}
-          <Card title="Cenovy rozpad" icon="Calculator">
+          <Card title={t('admin.orderDetail.sectionPricing', 'Cenovy rozpad')} icon="Calculator">
             <div className="od-breakdown">
-              <div className="od-b-row"><span>Subtotal modely</span><span>{formatMoney(totals.subtotal_models)}</span></div>
-              <div className="od-b-row"><span>Jednorazove poplatky</span><span>{formatMoney(totals.one_time_fees_total)}</span></div>
-              <div className="od-b-row"><span>Doprava</span><span>{formatMoney(totals.shipping_total)}</span></div>
+              <div className="od-b-row"><span>{t('admin.orderDetail.subtotalModels', 'Subtotal modely')}</span><span>{formatMoney(totals.subtotal_models)}</span></div>
+              <div className="od-b-row"><span>{t('admin.orderDetail.oneTimeFees', 'Jednorazove poplatky')}</span><span>{formatMoney(totals.one_time_fees_total)}</span></div>
+              <div className="od-b-row"><span>{t('admin.orderDetail.shipping', 'Doprava')}</span><span>{formatMoney(totals.shipping_total)}</span></div>
               {totals.min_order_delta !== 0 && (
-                <div className="od-b-row"><span>Min. objednavka (dorovnani)</span><span>{formatMoney(totals.min_order_delta)}</span></div>
+                <div className="od-b-row"><span>{t('admin.orderDetail.minOrderAdjust', 'Min. objednavka (dorovnani)')}</span><span>{formatMoney(totals.min_order_delta)}</span></div>
               )}
               {totals.rounding_delta !== 0 && (
-                <div className="od-b-row"><span>Zaokrouhleni</span><span>{formatMoney(totals.rounding_delta)}</span></div>
+                <div className="od-b-row"><span>{t('admin.orderDetail.rounding', 'Zaokrouhleni')}</span><span>{formatMoney(totals.rounding_delta)}</span></div>
               )}
-              <div className="od-b-row od-b-total"><span>Celkem</span><span>{formatMoney(totals.total)}</span></div>
+              <div className="od-b-row od-b-total"><span>{t('admin.orderDetail.total', 'Celkem')}</span><span>{formatMoney(totals.total)}</span></div>
             </div>
 
             {/* Summary stats */}
             <div className="od-stats-row">
               <div className="od-stat">
-                <div className="od-stat-label">Celkovy cas</div>
+                <div className="od-stat-label">{t('admin.orderDetail.totalTime', 'Celkovy cas')}</div>
                 <div className="od-stat-value">{formatTime(totals.sum_time_min)}</div>
               </div>
               <div className="od-stat">
-                <div className="od-stat-label">Celkova hmotnost</div>
+                <div className="od-stat-label">{t('admin.orderDetail.totalWeight', 'Celkova hmotnost')}</div>
                 <div className="od-stat-value">{round2(totals.sum_weight_g)} g</div>
               </div>
               <div className="od-stat">
-                <div className="od-stat-label">Pocet kusu</div>
+                <div className="od-stat-label">{t('admin.orderDetail.totalPieces', 'Pocet kusu')}</div>
                 <div className="od-stat-value">{totals.sum_pieces}</div>
               </div>
             </div>
           </Card>
 
           {/* Invoice section */}
-          <Card title="Faktura" icon="FileText">
+          <Card title={t('admin.orderDetail.sectionInvoice', 'Faktura')} icon="FileText">
             {!invoice ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px 0' }}>
                 <Icon name="FileText" size={32} style={{ opacity: 0.2, color: 'var(--forge-text-muted)' }} />
                 <div style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', textAlign: 'center' }}>
-                  Pro tuto objednavku zatim nebyla vystavena faktura.
+                  {t('admin.orderDetail.noInvoice', 'Pro tuto objednavku zatim nebyla vystavena faktura.')}
                 </div>
                 <button className="od-btn-primary" type="button" onClick={handleGenerateInvoice}>
-                  <Icon name="FilePlus" size={14} /> Vystavit fakturu
+                  <Icon name="FilePlus" size={14} /> {t('admin.orderDetail.createInvoice', 'Vystavit fakturu')}
                 </button>
               </div>
             ) : (
@@ -2016,12 +2090,12 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Icon name={invoice.status === 'paid' ? 'CheckCircle2' : 'Clock'} size={16}
-                      style={{ color: invoice.status === 'paid' ? '#4ade80' : '#fbbf24' }} />
+                      style={{ color: invoice.status === 'paid' ? 'var(--forge-success)' : 'var(--forge-warning)' }} />
                     <span style={{
                       fontSize: '13px', fontWeight: 700, fontFamily: 'var(--forge-font-body)',
-                      color: invoice.status === 'paid' ? '#4ade80' : '#fbbf24',
+                      color: invoice.status === 'paid' ? 'var(--forge-success)' : 'var(--forge-warning)',
                     }}>
-                      {invoice.status === 'paid' ? 'Zaplaceno' : 'Nezaplaceno'}
+                      {invoice.status === 'paid' ? t('admin.orderDetail.paid', 'Zaplaceno') : t('admin.orderDetail.unpaid', 'Nezaplaceno')}
                     </span>
                     {invoice.paidAt && invoice.status === 'paid' && (
                       <span style={{ fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)' }}>
@@ -2035,7 +2109,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                     className="od-btn"
                     style={{ padding: '5px 10px', fontSize: '11px' }}
                   >
-                    {invoice.status === 'paid' ? 'Oznacit jako nezaplaceno' : 'Oznacit jako zaplaceno'}
+                    {invoice.status === 'paid' ? t('admin.orderDetail.markUnpaid', 'Oznacit jako nezaplaceno') : t('admin.orderDetail.markPaid', 'Oznacit jako zaplaceno')}
                   </button>
                 </div>
 
@@ -2159,7 +2233,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           <OrderStatsPanel order={order} totals={totals} />
 
           {/* Status change */}
-          <Card title="Zmena stavu" icon="RefreshCcw" style={{ position: 'sticky', top: '64px' }}>
+          <Card title={t('admin.orderDetail.sectionStatus', 'Zmena stavu')} icon="RefreshCcw" style={{ position: 'sticky', top: '64px' }}>
             <div ref={statusDropdownRef} style={{ position: 'relative', marginBottom: '12px' }}>
               <button
                 type="button"
@@ -2236,17 +2310,17 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           </Card>
 
           {/* Tags */}
-          <Card title="Stitky" icon="Tag">
+          <Card title={t('admin.orderDetail.sectionTags', 'Stitky')} icon="Tag">
             <OrderTagSelector orderId={order.id} />
           </Card>
 
           {/* Status timeline */}
-          <Card title="Prubeh objednavky" icon="GitBranch">
+          <Card title={t('admin.orderDetail.sectionTimeline', 'Prubeh objednavky')} icon="GitBranch">
             <StatusTimeline order={order} />
           </Card>
 
           {/* Notes (Enhanced) */}
-          <Card title="Poznamky" icon="MessageSquare">
+          <Card title={t('admin.orderDetail.sectionNotes', 'Poznamky')} icon="MessageSquare">
             {/* Note type selector + category */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               {Object.entries(NOTE_TYPE_CONFIG).map(([key, cfg]) => (
@@ -2277,11 +2351,11 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                     fontFamily: 'var(--forge-font-tech)', fontWeight: 700, cursor: 'pointer',
                     border: noteCategory === 'internal' ? '1px solid #f59e0b' : '1px solid var(--forge-border-default)',
                     background: noteCategory === 'internal' ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
-                    color: noteCategory === 'internal' ? '#fbbf24' : 'var(--forge-text-muted)',
+                    color: noteCategory === 'internal' ? 'var(--forge-warning)' : 'var(--forge-text-muted)',
                     textTransform: 'uppercase', letterSpacing: '0.04em',
                   }}
                 >
-                  Interni
+                  {t('admin.orderDetail.noteInternal', 'Interni')}
                 </button>
                 <button
                   type="button"
@@ -2291,11 +2365,11 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                     fontFamily: 'var(--forge-font-tech)', fontWeight: 700, cursor: 'pointer',
                     border: noteCategory === 'customer' ? '1px solid #22d3ee' : '1px solid var(--forge-border-default)',
                     background: noteCategory === 'customer' ? 'rgba(34, 211, 238, 0.12)' : 'transparent',
-                    color: noteCategory === 'customer' ? '#22d3ee' : 'var(--forge-text-muted)',
+                    color: noteCategory === 'customer' ? 'var(--forge-info)' : 'var(--forge-text-muted)',
                     textTransform: 'uppercase', letterSpacing: '0.04em',
                   }}
                 >
-                  Zakaznik
+                  {t('admin.orderDetail.noteCustomer', 'Zakaznik')}
                 </button>
               </div>
             </div>
@@ -2320,7 +2394,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                   cursor: noteDraft.trim() ? 'pointer' : 'default',
                 }}
               >
-                <Icon name="Plus" size={14} /> Pridat
+                <Icon name="Plus" size={14} /> {t('admin.orderDetail.addNote', 'Pridat')}
               </button>
             </div>
 
@@ -2375,14 +2449,14 @@ export default function AdminOrderDetail({ orders, setOrders }) {
             {/* Notes list */}
             {filteredNotes.length === 0 ? (
               <div style={{ color: 'var(--forge-text-muted)', fontSize: '13px', fontFamily: 'var(--forge-font-body)' }}>
-                {noteSearch ? 'Zadne poznamky neodpovidaji hledani.' : 'Zatim zadne poznamky.'}
+                {noteSearch ? t('admin.orderDetail.notesNoMatch', 'Zadne poznamky neodpovidaji hledani.') : t('admin.orderDetail.notesEmpty', 'Zatim zadne poznamky.')}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {filteredNotes.map((n) => {
                   const typeConf = NOTE_TYPE_CONFIG[n.type] || NOTE_TYPE_CONFIG.text;
                   const isInternal = (n.category || 'internal') === 'internal';
-                  const catColor = isInternal ? '#fbbf24' : '#22d3ee';
+                  const catColor = isInternal ? 'var(--forge-warning)' : 'var(--forge-info)';
                   const catLabel = isInternal ? 'Interni' : 'Zakaznik';
                   const isLong = (n.text || '').length > 200;
                   const isExpanded = expandedNotes[n.id];
@@ -2413,7 +2487,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                           {catLabel}
                         </span>
                         {n.pinned && (
-                          <Icon name="Pin" size={11} style={{ color: '#fbbf24', flexShrink: 0 }} />
+                          <Icon name="Pin" size={11} style={{ color: 'var(--forge-warning)', flexShrink: 0 }} />
                         )}
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
                           <button
@@ -2422,7 +2496,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                             onClick={() => toggleNotePin(n.id)}
                             style={{
                               background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
-                              color: n.pinned ? '#fbbf24' : 'var(--forge-text-muted)',
+                              color: n.pinned ? 'var(--forge-warning)' : 'var(--forge-text-muted)',
                               opacity: n.pinned ? 1 : 0.5,
                               transition: 'opacity 120ms ease',
                             }}
@@ -2569,7 +2643,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       {emailSuccess && (
         <div style={{
           position: 'fixed', bottom: '24px', right: '24px', zIndex: 1000,
-          background: 'rgba(34, 197, 94, 0.95)', color: '#fff',
+          background: 'rgba(34, 197, 94, 0.95)', color: 'var(--forge-text-primary)',
           padding: '12px 20px', borderRadius: 'var(--forge-radius-lg)',
           boxShadow: 'var(--forge-shadow-lg)',
           display: 'flex', alignItems: 'center', gap: '8px',
@@ -2628,7 +2702,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
             <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
               <div
                 style={{ fontSize: '14px', fontFamily: 'var(--forge-font-body)', color: 'var(--forge-text-primary)', lineHeight: 1.6 }}
-                dangerouslySetInnerHTML={{ __html: emailPreview.body }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtmlAllowBasic(emailPreview.body) }}
               />
             </div>
 
@@ -2637,9 +2711,9 @@ export default function AdminOrderDetail({ orders, setOrders }) {
               padding: '12px 20px', borderTop: '1px solid var(--forge-border-default)',
               display: 'flex', justifyContent: 'flex-end', gap: '8px',
             }}>
-              <button className="od-btn" type="button" onClick={() => setEmailPreview(null)}>Zrusit</button>
+              <button className="od-btn" type="button" onClick={() => setEmailPreview(null)}>{t('admin.orderDetail.cancel', 'Zrusit')}</button>
               <button className="od-btn-primary" type="button" onClick={handleSendEmail}>
-                <Icon name="Send" size={14} /> Odeslat (simulovano)
+                <Icon name="Send" size={14} /> {t('admin.orderDetail.sendSimulated', 'Odeslat (simulovano)')}
               </button>
             </div>
           </div>
@@ -2697,15 +2771,16 @@ export default function AdminOrderDetail({ orders, setOrders }) {
         toStatus={statusChangeDialog?.to || 'NEW'}
         onConfirm={confirmStatusChange}
         onCancel={() => setStatusChangeDialog(null)}
+        language={language}
       />
 
       {/* Cancel confirm */}
       <ConfirmModal
         open={confirm?.type === 'cancel'}
-        title="Zrusit objednavku"
-        message="Opravdu chcete zrusit tuto objednavku? Tato akce zmeni stav na 'Zruseno'. Data objednavky zustanou zachovana."
-        confirmText="Ano, zrusit objednavku"
-        cancelText="Ne, ponechat"
+        title={t('admin.orderDetail.cancelOrder', 'Zrusit objednavku')}
+        message={t('admin.orderDetail.cancelOrderMsg', "Opravdu chcete zrusit tuto objednavku? Tato akce zmeni stav na 'Zruseno'. Data objednavky zustanou zachovana.")}
+        confirmText={t('admin.orderDetail.cancelOrderConfirm', 'Ano, zrusit objednavku')}
+        cancelText={t('admin.orderDetail.cancelOrderNo', 'Ne, ponechat')}
         onConfirm={cancelOrder}
         onCancel={() => setConfirm(null)}
         destructive

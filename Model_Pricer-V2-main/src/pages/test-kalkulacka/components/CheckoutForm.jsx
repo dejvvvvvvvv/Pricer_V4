@@ -244,7 +244,7 @@ function generateOrderNumber() {
     String(now.getHours()).padStart(2, '0'),
     String(now.getMinutes()).padStart(2, '0'),
   ].join('');
-  const rand = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
+  const rand = crypto.randomUUID().slice(0, 8).toUpperCase();
   return `ORD-${ts}-${rand}`;
 }
 
@@ -608,6 +608,8 @@ export default function CheckoutForm({
                   <Input
                     label={t('JMENO A PRIJMENI *', 'FULL NAME *')}
                     placeholder={t('Jan Novak', 'John Doe')}
+                    autoComplete="name"
+                    aria-required="true"
                     {...register('name')}
                     error={errors.name?.message}
                   />
@@ -618,6 +620,9 @@ export default function CheckoutForm({
                     label={t('EMAIL *', 'EMAIL *')}
                     type="email"
                     placeholder="jan@example.com"
+                    autoComplete="email"
+                    inputMode="email"
+                    aria-required="true"
                     {...register('email')}
                     error={errors.email?.message}
                   />
@@ -628,6 +633,8 @@ export default function CheckoutForm({
                     label={t('TELEFON', 'PHONE')}
                     type="tel"
                     placeholder="+420 777 123 456"
+                    autoComplete="tel"
+                    inputMode="tel"
                     {...register('phone')}
                     error={errors.phone?.message}
                   />
@@ -656,6 +663,8 @@ export default function CheckoutForm({
                   <Input
                     label={t('ULICE A CISLO POPISNE *', 'STREET ADDRESS *')}
                     placeholder={t('Hlavni 123', '123 Main St')}
+                    autoComplete="street-address"
+                    aria-required="true"
                     {...register('street')}
                     error={errors.street?.message}
                   />
@@ -666,6 +675,8 @@ export default function CheckoutForm({
                     <Input
                       label={t('MESTO *', 'CITY *')}
                       placeholder={t('Praha', 'Prague')}
+                      autoComplete="address-level2"
+                      aria-required="true"
                       {...register('city')}
                       error={errors.city?.message}
                     />
@@ -674,6 +685,8 @@ export default function CheckoutForm({
                     <Input
                       label={t('PSC *', 'ZIP *')}
                       placeholder="110 00"
+                      autoComplete="postal-code"
+                      aria-required="true"
                       {...register('zip')}
                       error={errors.zip?.message}
                     />
@@ -684,6 +697,8 @@ export default function CheckoutForm({
                   <Input
                     label={t('STAT *', 'COUNTRY *')}
                     placeholder={t('Ceska republika', 'Czech Republic')}
+                    autoComplete="country-name"
+                    aria-required="true"
                     {...register('country')}
                     error={errors.country?.message}
                   />

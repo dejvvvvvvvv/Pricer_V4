@@ -5,6 +5,7 @@
 // Storage: tenant-scoped V3 (namespace: fees:v3) via adminFeesStorage helpers.
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { debug } from '@/lib/debug';
 import Icon from '../../components/AppIcon';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
@@ -14,7 +15,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { loadFeesConfigV3, saveFeesConfigV3, normalizeFeesConfigV3 } from '../../utils/adminFeesStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
-import { getHelpText, getLearnMore } from './helpTexts';
+import { getHelpText } from './helpTexts';
+import { safeNum } from '@/utils/formatters';
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -152,11 +154,6 @@ const FEE_TEMPLATES = [
 /* Helpers                                                             */
 /* ================================================================== */
 
-function safeNum(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function clampMin1(v) {
   const n = Math.floor(safeNum(v, 1));
   return n < 1 ? 1 : n;
@@ -170,7 +167,7 @@ function createId(prefix = 'fee') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
   } catch { /* fallback */ }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function normalizeFeeUi(fee, idx = 0) {
@@ -358,7 +355,7 @@ const AdminFees = () => {
       const cfg = loadFeesConfigV3();
       const normalized = normalizeFeesConfigV3(cfg);
       setFees(normalized.fees || []);
-      setSavedSnapshot(JSON.stringify(normalized.fees || []));
+      setSavedSnapshot(JSON.stringify((normalized.fees || []).map((f, idx) => normalizeFeeUi(f, idx))));
       const pricing = loadPricingConfigV3();
       const mats = Array.isArray(pricing?.materials) ? pricing.materials.filter((m) => m?.enabled !== false) : [];
       setMaterials(mats);
@@ -366,9 +363,9 @@ const AdminFees = () => {
       setSim((prev) => ({ ...prev, material: prev.material || firstKey }));
       setLoading(false);
     } catch (e) {
-      console.error('[AdminFees] Failed to init', e);
+      debug('[AdminFees] Failed to init', e);
       setLoading(false);
-      setBanner({ type: 'error', text: cs ? 'Nepodarilo se nacist Fees konfiguraci.' : 'Failed to load fees config.' });
+      setBanner({ type: 'error', text: t('admin.fees.loadError', 'Failed to load fees config.') });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -519,7 +516,7 @@ const AdminFees = () => {
   const addFee = useCallback((overrides) => {
     const id = createId('fee');
     const next = normalizeFeeUi({
-      id, name: cs ? 'Novy poplatek' : 'New fee', active: true,
+      id, name: t('admin.fees.newFee', 'New fee'), active: true,
       type: 'flat', value: 0, scope: 'MODEL', charge_basis: 'PER_FILE',
       required: false, selectable: true, selected_by_default: false,
       apply_to_selected_models_enabled: false, category: 'custom', description: '', conditions: [],
@@ -538,7 +535,7 @@ const AdminFees = () => {
   };
 
   const removeFee = async (id) => {
-    const ok = await confirm({ title: cs ? 'Smazat poplatek' : 'Delete fee', message: cs ? 'Smazat tento poplatek?' : 'Delete this fee?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
+    const ok = await confirm({ title: t('admin.fees.deleteTitle', 'Delete fee'), message: t('admin.fees.deleteMsg', 'Delete this fee?'), confirmLabel: t('admin.fees.deleteConfirm', 'Delete'), destructive: true });
     if (!ok) return;
     setFees((prev) => (prev || []).filter((f) => f?.id !== id));
     setSelectedIds((prev) => prev.filter((x) => x !== id));
@@ -615,25 +612,38 @@ const AdminFees = () => {
   const bulkEnableDisable = (enabled) => {
     if (!selectedIds.length) return;
     setFees(prev => (prev || []).map((raw, idx) => { const f = normalizeFeeUi(raw, idx); if (!selectedSet.has(f.id)) return raw; return { ...f, active: !!enabled }; }));
-    setBanner({ type: 'success', text: enabled ? (cs ? 'Zapnuto.' : 'Enabled.') : (cs ? 'Vypnuto.' : 'Disabled.') });
+    setBanner({ type: 'success', text: enabled ? t('admin.fees.enabled', 'Enabled.') : t('admin.fees.disabled', 'Disabled.') });
   };
 
   const bulkDuplicate = () => {
     if (!selectedIds.length) return;
-    const copies = filteredFees.filter(f => selectedSet.has(f.id)).map(f => duplicateFee(f));
+    const sourceIds = new Set(selectedIds);
+    const copies = filteredFees.filter(f => sourceIds.has(f.id)).map(f => duplicateFee(f));
     if (!copies.length) return;
-    setFees(prev => [...copies, ...(prev || [])]);
-    setBanner({ type: 'success', text: cs ? 'Duplikovano.' : 'Duplicated.' });
+    // Insert each copy directly after its original to keep them in the same category
+    setFees(prev => {
+      const arr = [...(prev || [])];
+      // Insert in reverse order so indices stay valid
+      const originals = filteredFees.filter(f => sourceIds.has(f.id));
+      for (let i = originals.length - 1; i >= 0; i--) {
+        const origIdx = arr.findIndex(f => f?.id === originals[i].id);
+        if (origIdx >= 0) {
+          arr.splice(origIdx + 1, 0, copies[i]);
+        }
+      }
+      return arr;
+    });
+    setBanner({ type: 'success', text: t('admin.fees.duplicated', 'Duplicated.') });
   };
 
   const bulkDelete = async () => {
     if (!selectedIds.length) return;
-    const ok = await confirm({ title: cs ? 'Smazat vybrane' : 'Delete selected', message: cs ? 'Opravdu smazat vybrane polozky?' : 'Delete selected items?', confirmLabel: cs ? 'Smazat' : 'Delete', destructive: true });
+    const ok = await confirm({ title: t('admin.fees.deleteSelectedTitle', 'Delete selected'), message: t('admin.fees.deleteSelectedMsg', 'Delete selected items?'), confirmLabel: t('admin.fees.deleteConfirm', 'Delete'), destructive: true });
     if (!ok) return;
     setFees(prev => (prev || []).filter(f => !selectedSet.has(f?.id)));
     if (selectedSet.has(editingFeeId)) { setEditingFeeId(null); setFeeDraft(null); }
     clearSelection();
-    setBanner({ type: 'success', text: cs ? 'Smazano.' : 'Deleted.' });
+    setBanner({ type: 'success', text: t('admin.fees.deleted', 'Deleted.') });
   };
 
   const toggleGroup = (catKey) => {
@@ -648,7 +658,7 @@ const AdminFees = () => {
       if (!selectedSet.has(f.id)) return raw;
       return { ...f, category: newCategory };
     }));
-    setBanner({ type: 'success', text: cs ? 'Kategorie zmenena.' : 'Category changed.' });
+    setBanner({ type: 'success', text: t('admin.fees.categoryChanged', 'Category changed.') });
   };
 
   // Drag-and-drop within categories
@@ -698,12 +708,13 @@ const AdminFees = () => {
   /* ---------------------------------------------------------------- */
 
   const applyTemplate = async (template) => {
+    const tplLabel = cs ? template.label_cs : template.label_en;
     const ok = await confirm({
-      title: cs ? 'Pouzit sablonu' : 'Apply template',
+      title: t('admin.fees.applyTemplateTitle', 'Apply template'),
       message: cs
-        ? `Sablona "${template.label_cs}" nahradi vsechny stavajici poplatky. Pokracovat?`
-        : `Template "${template.label_en}" will replace all existing fees. Continue?`,
-      confirmLabel: cs ? 'Nahradit' : 'Replace',
+        ? `Sablona "${tplLabel}" nahradi vsechny stavajici poplatky. Pokracovat?`
+        : `Template "${tplLabel}" will replace all existing fees. Continue?`,
+      confirmLabel: t('admin.fees.applyTemplateConfirm', 'Replace'),
       destructive: true,
     });
     if (!ok) return;
@@ -713,7 +724,7 @@ const AdminFees = () => {
     setSelectedIds([]);
     setEditingFeeId(null);
     setFeeDraft(null);
-    setBanner({ type: 'success', text: cs ? `Sablona "${template.label_cs}" aplikovana.` : `Template "${template.label_en}" applied.` });
+    setBanner({ type: 'success', text: `${tplLabel} applied.` });
   };
 
   /* ---------------------------------------------------------------- */
@@ -722,19 +733,19 @@ const AdminFees = () => {
 
   const handleSave = () => {
     setBanner(null);
-    if (!validation.isValid) { setBanner({ type: 'error', text: cs ? 'Oprav chyby ve formulari.' : 'Fix form errors.' }); return; }
+    if (!validation.isValid) { setBanner({ type: 'error', text: t('admin.fees.formErrors', 'Fix form errors.') }); return; }
     try {
       setSaving(true);
       const normalized = normalizeFeesConfigV3({ schema_version: 3, fees });
       const saved = saveFeesConfigV3(normalized);
       setFees(saved.fees || []);
-      setSavedSnapshot(JSON.stringify(saved.fees || []));
+      setSavedSnapshot(JSON.stringify((saved.fees || []).map((f, idx) => normalizeFeeUi(f, idx))));
       setSaving(false);
-      setBanner({ type: 'success', text: cs ? 'Ulozeno' : 'Saved' });
+      setBanner({ type: 'success', text: t('admin.fees.savedOk', 'Saved') });
     } catch (e) {
-      console.error('[AdminFees] Save failed', e);
+      debug('[AdminFees] Save failed', e);
       setSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
+      setBanner({ type: 'error', text: t('admin.fees.saveFailed', 'Save failed.') });
     }
   };
 
@@ -762,27 +773,27 @@ const AdminFees = () => {
       {/* ---- HEADER ---- */}
       <div className="af-header">
         <div>
-          <h1>{cs ? 'Poplatky a slevy' : 'Fees & Discounts'}</h1>
+          <h1>{t('admin.fees.pageTitle', 'Fees & Discounts')}</h1>
           <p className="af-subtitle">
-            {cs ? 'Spravujte poplatky, slevy a prirucky serazene do kategorii.' : 'Manage fees, discounts and surcharges organized by category.'}
+            {t('admin.fees.pageSubtitle', 'Manage fees, discounts and surcharges organized by category.')}
           </p>
         </div>
         <div className="af-header-actions">
           <div className={`af-status-pill ${dirty ? 'dirty' : 'clean'}`}>
             <Icon name={dirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
-            <span>{dirty ? (cs ? 'Neulozeno' : 'Unsaved') : (cs ? 'Ulozeno' : 'Saved')}</span>
+            <span>{dirty ? t('admin.fees.unsaved', 'Unsaved') : t('admin.fees.saved', 'Saved')}</span>
           </div>
           <button className="af-btn af-btn-ghost" onClick={() => setShowTemplates(true)}>
             <Icon name="FileText" size={16} />
-            {cs ? 'Sablony' : 'Templates'}
+            {t('admin.fees.templates', 'Templates')}
           </button>
           <button className="af-btn af-btn-secondary" onClick={() => addFee()}>
             <Icon name="Plus" size={16} />
-            {cs ? 'Novy poplatek' : 'New fee'}
+            {t('admin.fees.newFee', 'New fee')}
           </button>
           <button className="af-btn af-btn-primary" onClick={handleSave} disabled={!dirty || saving || !validation.isValid}>
             <Icon name="Save" size={16} />
-            {saving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit' : 'Save')}
+            {saving ? t('admin.fees.saving', 'Saving...') : t('admin.fees.save', 'Save')}
           </button>
         </div>
       </div>
@@ -802,28 +813,28 @@ const AdminFees = () => {
           <div className="af-stat-icon"><Icon name="Hash" size={18} /></div>
           <div>
             <div className="af-stat-value">{summary.active} <span className="af-stat-sub">/ {summary.total}</span></div>
-            <div className="af-stat-label">{cs ? 'Aktivnich fees' : 'Active fees'}</div>
+            <div className="af-stat-label">{t('admin.fees.activeFees', 'Active fees')}</div>
           </div>
         </div>
         <div className="af-stat-card">
           <div className="af-stat-icon af-stat-icon-model"><Icon name="Cube" size={18} /></div>
           <div>
             <div className="af-stat-value">{summary.model}</div>
-            <div className="af-stat-label">{cs ? 'MODEL fees' : 'MODEL fees'} <ForgeHelpIcon text={getHelpText('fees_scope_model', language)} position="bottom" size={14} /></div>
+            <div className="af-stat-label">MODEL fees <ForgeHelpIcon text={getHelpText('fees_scope_model', language)} position="bottom" size={14} /></div>
           </div>
         </div>
         <div className="af-stat-card">
           <div className="af-stat-icon af-stat-icon-order"><Icon name="ShoppingCart" size={18} /></div>
           <div>
             <div className="af-stat-value">{summary.order}</div>
-            <div className="af-stat-label">{cs ? 'ORDER fees' : 'ORDER fees'} <ForgeHelpIcon text={getHelpText('fees_scope_order', language)} position="bottom" size={14} /></div>
+            <div className="af-stat-label">ORDER fees <ForgeHelpIcon text={getHelpText('fees_scope_order', language)} position="bottom" size={14} /></div>
           </div>
         </div>
         <div className="af-stat-card">
           <div className="af-stat-icon af-stat-icon-impact"><Icon name="TrendingUp" size={18} /></div>
           <div>
             <div className="af-stat-value">{formatMoneyCzk(summary.sampleImpact)}</div>
-            <div className="af-stat-label">{cs ? 'Dopad na vzorovku' : 'Sample order impact'}</div>
+            <div className="af-stat-label">{t('admin.fees.sampleImpact', 'Sample order impact')}</div>
           </div>
         </div>
       </div>
@@ -833,37 +844,42 @@ const AdminFees = () => {
         <div className="af-toolbar-left">
           <div className="af-search">
             <Icon name="Search" size={15} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={cs ? 'Hledat fee...' : 'Search fee...'} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('admin.fees.searchPlaceholder', 'Search fee...')} />
           </div>
           <select className="af-filter-select" value={filterScope} onChange={e => setFilterScope(e.target.value)}>
-            <option value="ALL">{cs ? 'Vse' : 'All'}</option>
+            <option value="ALL">{t('admin.fees.filterAll', 'All')}</option>
             <option value="MODEL">MODEL</option>
             <option value="ORDER">ORDER</option>
           </select>
           <select className="af-filter-select" value={filterActive} onChange={e => setFilterActive(e.target.value)}>
-            <option value="ALL">{cs ? 'Vse' : 'All'}</option>
-            <option value="ACTIVE">{cs ? 'Aktivni' : 'Active'}</option>
-            <option value="INACTIVE">{cs ? 'Neaktivni' : 'Inactive'}</option>
+            <option value="ALL">{t('admin.fees.filterAll', 'All')}</option>
+            <option value="ACTIVE">{t('admin.fees.filterActive', 'Active')}</option>
+            <option value="INACTIVE">{t('admin.fees.filterInactive', 'Inactive')}</option>
+          </select>
+          <select className="af-filter-select" value={filterRequired} onChange={e => setFilterRequired(e.target.value)}>
+            <option value="ALL">{t('admin.fees.filterRequired', 'Required')}</option>
+            <option value="REQUIRED">{t('admin.fees.filterRequiredOnly', 'Required only')}</option>
+            <option value="OPTIONAL">{t('admin.fees.filterOptionalOnly', 'Optional only')}</option>
           </select>
         </div>
         <div className="af-toolbar-right">
           {selectedIds.length > 0 && (
             <div className="af-bulk">
-              <span className="af-bulk-count">{selectedIds.length} {cs ? 'vybrano' : 'selected'}</span>
-              <button className="af-btn af-btn-xs" onClick={() => bulkEnableDisable(true)} title={cs ? 'Zapnout' : 'Enable'}><Icon name="ToggleRight" size={14} /></button>
-              <button className="af-btn af-btn-xs" onClick={() => bulkEnableDisable(false)} title={cs ? 'Vypnout' : 'Disable'}><Icon name="ToggleLeft" size={14} /></button>
-              <button className="af-btn af-btn-xs" onClick={bulkDuplicate} title={cs ? 'Duplikovat' : 'Duplicate'}><Icon name="Copy" size={14} /></button>
-              <select className="af-filter-select" style={{ fontSize: 11, padding: '3px 6px' }} value="" onChange={(e) => { if (e.target.value) bulkChangeCategory(e.target.value); e.target.value = ''; }} title={cs ? 'Zmenit kategorii' : 'Change category'}>
-                <option value="">{cs ? 'Kategorie...' : 'Category...'}</option>
+              <span className="af-bulk-count">{selectedIds.length} {t('admin.fees.selected', 'selected')}</span>
+              <button className="af-btn af-btn-xs" onClick={() => bulkEnableDisable(true)} title={t('admin.fees.enabled', 'Enable')}><Icon name="ToggleRight" size={14} /></button>
+              <button className="af-btn af-btn-xs" onClick={() => bulkEnableDisable(false)} title={t('admin.fees.disabled', 'Disable')}><Icon name="ToggleLeft" size={14} /></button>
+              <button className="af-btn af-btn-xs" onClick={bulkDuplicate} title={t('admin.fees.duplicated', 'Duplicate')}><Icon name="Copy" size={14} /></button>
+              <select className="af-filter-select" style={{ fontSize: 11, padding: '3px 6px' }} value="" onChange={(e) => { if (e.target.value) bulkChangeCategory(e.target.value); e.target.value = ''; }} title={t('admin.fees.fieldCategory', 'Change category')}>
+                <option value="">{t('admin.fees.category', 'Category...')}</option>
                 {FEE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{cs ? c.label_cs : c.label_en}</option>)}
               </select>
-              <button className="af-btn af-btn-xs af-btn-danger-xs" onClick={bulkDelete} title={cs ? 'Smazat' : 'Delete'}><Icon name="Trash2" size={14} /></button>
+              <button className="af-btn af-btn-xs af-btn-danger-xs" onClick={bulkDelete} title={t('admin.fees.delete', 'Delete')}><Icon name="Trash2" size={14} /></button>
             </div>
           )}
           <ForgeCheckbox
             checked={selectedIds.length > 0 && selectedIds.length === filteredFees.length}
             onChange={e => (e.target.checked ? selectAllFiltered() : clearSelection())}
-            label={cs ? 'Vse' : 'All'}
+            label={t('admin.fees.filterAll', 'All')}
           />
         </div>
       </div>
@@ -872,8 +888,8 @@ const AdminFees = () => {
       {filteredFees.length === 0 ? (
         <div className="af-empty">
           <Icon name="Tag" size={44} />
-          <h3>{cs ? 'Zatim zadne fees' : 'No fees yet'}</h3>
-          <p>{cs ? 'Pridejte novy poplatek nebo pouzijte sablonu.' : 'Add a new fee or use a template.'}</p>
+          <h3>{t('admin.fees.emptyTitle', 'No fees yet')}</h3>
+          <p>{t('admin.fees.emptyHint', 'Add a new fee or use a template.')}</p>
         </div>
       ) : (
         <div className="af-groups">
@@ -926,7 +942,7 @@ const AdminFees = () => {
                               <div className="af-fee-name">
                                 <span className={`af-dot ${f.active ? 'on' : 'off'}`} />
                                 <span className="af-fee-name-text">{f.name}</span>
-                                {isDiscount && <span className="af-chip af-chip-discount">{cs ? 'Sleva' : 'Discount'}</span>}
+                                {isDiscount && <span className="af-chip af-chip-discount">{t('admin.fees.discount', 'Discount')}</span>}
                               </div>
                               <div className={`af-fee-amount ${isDiscount ? 'discount' : ''}`}>
                                 {formatFeeValueShort(f)}
@@ -936,11 +952,11 @@ const AdminFees = () => {
                               <span className="af-chip">{f.scope}</span>
                               <span className="af-chip">{labelFor(FEE_TYPES, f.type, cs)}</span>
                               {f.scope === 'MODEL' && <span className="af-chip">{f.charge_basis}</span>}
-                              <span className="af-chip">{f.required ? (cs ? 'Povinne' : 'Required') : (cs ? 'Volitelne' : 'Optional')}</span>
+                              <span className="af-chip">{f.required ? t('admin.fees.required', 'Required') : t('admin.fees.optional', 'Optional')}</span>
                               {f.conditions?.length > 0 && <span className="af-chip af-chip-cond"><Icon name="Filter" size={10} /> {f.conditions.length}</span>}
                             </div>
                           </div>
-                          <button className="af-fee-del" title={cs ? 'Smazat' : 'Delete'} onClick={e => { e.stopPropagation(); removeFee(f.id); }}>
+                          <button className="af-fee-del" title={t('admin.fees.delete', 'Delete')} onClick={e => { e.stopPropagation(); removeFee(f.id); }}>
                             <Icon name="Trash2" size={14} />
                           </button>
                         </div>
@@ -960,22 +976,22 @@ const AdminFees = () => {
       <ForgeDialog
         open={!!editingFeeId}
         onClose={closeFeeDialog}
-        title={feeDraft?.name || (cs ? 'Editace fee' : 'Edit fee')}
+        title={feeDraft?.name || t('admin.fees.editFee', 'Edit fee')}
         maxWidth="800px"
         footer={
           <>
             {livePreviewAmount !== null && (
               <div className="af-dialog-preview">
-                <span className="af-dialog-preview-label">{cs ? 'Vzorek:' : 'Sample:'}</span>
+                <span className="af-dialog-preview-label">{t('admin.fees.samplePrefix', 'Sample:')}</span>
                 <span className={`af-dialog-preview-value ${livePreviewAmount < 0 ? 'discount' : ''}`}>{formatMoneyCzk(livePreviewAmount)}</span>
               </div>
             )}
             <div style={{ flex: 1 }} />
             <button className="af-btn af-btn-secondary" onClick={closeFeeDialog}>
-              <Icon name="X" size={14} /> {cs ? 'Zrusit' : 'Cancel'}
+              <Icon name="X" size={14} /> {t('admin.fees.cancel', 'Cancel')}
             </button>
             <button className="af-btn af-btn-primary" onClick={saveFeeDialog} disabled={!draftValid}>
-              <Icon name="Save" size={14} /> {cs ? 'Ulozit zmeny' : 'Save changes'}
+              <Icon name="Save" size={14} /> {t('admin.fees.saveChanges', 'Save changes')}
             </button>
           </>
         }
@@ -995,12 +1011,12 @@ const AdminFees = () => {
               <div className="tab-content">
                 <div className="af-grid2">
                   <div className="af-field">
-                    <label>{cs ? 'Nazev' : 'Name'}</label>
-                    <input className={`af-input ${!String(feeDraft.name || '').trim() ? 'af-input-error' : ''}`} value={feeDraft.name} onChange={e => updateFeeDraft({ name: e.target.value })} placeholder={cs ? 'Napr. Postprocessing' : 'e.g. Postprocessing'} />
-                    {!String(feeDraft.name || '').trim() && <div className="af-field-error">{cs ? 'Nazev je povinny' : 'Name is required'}</div>}
+                    <label>{t('admin.fees.fieldName', 'Name')}</label>
+                    <input className={`af-input ${!String(feeDraft.name || '').trim() ? 'af-input-error' : ''}`} value={feeDraft.name} onChange={e => updateFeeDraft({ name: e.target.value })} placeholder={t('admin.fees.namePlaceholder', 'e.g. Postprocessing')} />
+                    {!String(feeDraft.name || '').trim() && <div className="af-field-error">{t('admin.fees.nameRequired', 'Name is required')}</div>}
                   </div>
                   <div className="af-field">
-                    <label>{cs ? 'Kategorie' : 'Category'}</label>
+                    <label>{t('admin.fees.fieldCategory', 'Category')}</label>
                     <select className="af-input" value={mapToCategory(feeDraft.category)} onChange={e => updateFeeDraft({ category: e.target.value })}>
                       {FEE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{cs ? c.label_cs : c.label_en}</option>)}
                     </select>
@@ -1008,12 +1024,12 @@ const AdminFees = () => {
                 </div>
                 <div style={{ marginTop: 12 }}>
                   <div className="af-field">
-                    <label>{cs ? 'Popis' : 'Description'}</label>
-                    <textarea className="af-input" rows={2} value={feeDraft.description} onChange={e => updateFeeDraft({ description: e.target.value })} placeholder={cs ? 'Kratky popis...' : 'Short description...'} />
+                    <label>{t('admin.fees.fieldDescription', 'Description')}</label>
+                    <textarea className="af-input" rows={2} value={feeDraft.description} onChange={e => updateFeeDraft({ description: e.target.value })} placeholder={t('admin.fees.descPlaceholder', 'Short description...')} />
                   </div>
                 </div>
                 <div className="af-toggles" style={{ marginTop: 12 }}>
-                  <ForgeCheckbox checked={feeDraft.active} onChange={e => updateFeeDraft({ active: e.target.checked })} label={cs ? 'Aktivni' : 'Active'} />
+                  <ForgeCheckbox checked={feeDraft.active} onChange={e => updateFeeDraft({ active: e.target.checked })} label={t('admin.fees.fieldActive', 'Active')} />
                 </div>
               </div>
             )}
@@ -1037,10 +1053,10 @@ const AdminFees = () => {
                 </div>
                 <div className="af-grid2" style={{ marginTop: 12 }}>
                   <div className="af-field">
-                    <label>{cs ? 'Hodnota' : 'Value'}</label>
+                    <label>{t('admin.fees.fieldValue', 'Value')}</label>
                     <input className={`af-input ${!Number.isFinite(Number(feeDraft.value)) ? 'af-input-error' : ''}`} type="number" step="0.01" value={feeDraft.value} onChange={e => updateFeeDraft({ value: safeNum(e.target.value, 0) })} />
                     <div className="af-help">{feeDraft.type === 'percent' ? (cs ? 'Procenta (zaporne = sleva).' : 'Percent (negative = discount).') : (cs ? 'Zaporne = sleva.' : 'Negative = discount.')}</div>
-                    {!Number.isFinite(Number(feeDraft.value)) && <div className="af-field-error">{cs ? 'Zadej platne cislo' : 'Enter a valid number'}</div>}
+                    {!Number.isFinite(Number(feeDraft.value)) && <div className="af-field-error">{t('admin.fees.validNumber', 'Enter a valid number')}</div>}
                   </div>
                   <div className="af-field">
                     <label>charge_basis <ForgeHelpIcon text={feeDraft.charge_basis === 'PER_PIECE' ? getHelpText('fees_charge_basis_per_piece', language) : getHelpText('fees_charge_basis_per_file', language)} size={14} /></label>
@@ -1061,12 +1077,12 @@ const AdminFees = () => {
             {activeTab === 'widget' && (
               <div className="tab-content">
                 <div className="af-toggles">
-                  <ForgeCheckbox checked={feeDraft.required} onChange={e => updateFeeDraft({ required: e.target.checked })} label={cs ? 'Povinny (vzdy zahrnuty)' : 'Required (always included)'} />
-                  <ForgeCheckbox disabled={feeDraft.required} checked={feeDraft.selectable} onChange={e => updateFeeDraft({ selectable: e.target.checked })} label={cs ? 'Volitelny (checkbox ve widgetu)' : 'Optional (checkbox in widget)'} />
-                  <ForgeCheckbox disabled={feeDraft.required || !feeDraft.selectable} checked={feeDraft.selected_by_default} onChange={e => updateFeeDraft({ selected_by_default: e.target.checked })} label={cs ? 'Zaskrtnuto defaultne' : 'Selected by default'} />
-                  <ForgeCheckbox disabled={feeDraft.scope !== 'MODEL'} checked={feeDraft.apply_to_selected_models_enabled} onChange={e => updateFeeDraft({ apply_to_selected_models_enabled: e.target.checked })} label={cs ? 'Apply na vybrane modely' : 'Apply to selected models'} />
+                  <ForgeCheckbox checked={feeDraft.required} onChange={e => updateFeeDraft({ required: e.target.checked })} label={t('admin.fees.fieldRequired', 'Required (always included)')} />
+                  <ForgeCheckbox disabled={feeDraft.required} checked={feeDraft.selectable} onChange={e => updateFeeDraft({ selectable: e.target.checked })} label={t('admin.fees.fieldSelectable', 'Optional (checkbox in widget)')} />
+                  <ForgeCheckbox disabled={feeDraft.required || !feeDraft.selectable} checked={feeDraft.selected_by_default} onChange={e => updateFeeDraft({ selected_by_default: e.target.checked })} label={t('admin.fees.fieldSelectedDefault', 'Selected by default')} />
+                  <ForgeCheckbox disabled={feeDraft.scope !== 'MODEL'} checked={feeDraft.apply_to_selected_models_enabled} onChange={e => updateFeeDraft({ apply_to_selected_models_enabled: e.target.checked })} label={t('admin.fees.fieldApplySelected', 'Apply to selected models')} />
                 </div>
-                {feeDraft.scope !== 'MODEL' && <div className="af-help" style={{ marginTop: 8 }}>{cs ? 'Apply-to-selected se tyka pouze MODEL scope.' : 'Apply-to-selected applies to MODEL scope only.'}</div>}
+                {feeDraft.scope !== 'MODEL' && <div className="af-help" style={{ marginTop: 8 }}>{t('admin.fees.applyModelOnly', 'Apply-to-selected applies to MODEL scope only.')}</div>}
               </div>
             )}
 
@@ -1074,11 +1090,11 @@ const AdminFees = () => {
             {activeTab === 'conditions' && (
               <div className="tab-content">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div className="af-help" style={{ margin: 0 }}>{cs ? 'Vsechny podminky musi platit (AND).' : 'All conditions must match (AND).'} <ForgeHelpIcon text={getHelpText('fees_conditions', language)} size={14} /></div>
-                  <button className="af-btn af-btn-secondary" onClick={addDraftCondition}><Icon name="Plus" size={14} /> {cs ? 'Pridat' : 'Add'}</button>
+                  <div className="af-help" style={{ margin: 0 }}>{t('admin.fees.condAll', 'All conditions must match (AND).')} <ForgeHelpIcon text={getHelpText('fees_conditions', language)} size={14} /></div>
+                  <button className="af-btn af-btn-secondary" onClick={addDraftCondition}><Icon name="Plus" size={14} /> {t('admin.fees.condAdd', 'Add')}</button>
                 </div>
                 {(feeDraft.conditions || []).length === 0 ? (
-                  <div className="af-help">{cs ? 'Zadne podminky = fee plati vzdy.' : 'No conditions = fee always matches.'}</div>
+                  <div className="af-help">{t('admin.fees.condNone', 'No conditions = fee always matches.')}</div>
                 ) : (
                   <div className="af-conditions">
                     {(feeDraft.conditions || []).map((c, idx) => {
@@ -1088,7 +1104,7 @@ const AdminFees = () => {
                           <div className="af-cond-and">{idx === 0 ? '' : 'AND'}</div>
                           <div className="af-cond-grid">
                             <div className="af-field">
-                              <label>{cs ? 'Klic' : 'Key'}</label>
+                              <label>{t('admin.fees.fieldKey', 'Key')}</label>
                               <select className="af-input" value={cu.key} onChange={e => {
                                 const nk = e.target.value;
                                 if (nk === 'supports_enabled') updateDraftCondition(idx, { key: nk, op: 'eq', value: false });
@@ -1100,7 +1116,7 @@ const AdminFees = () => {
                               </select>
                             </div>
                             <div className="af-field">
-                              <label>{cs ? 'Op' : 'Op'}</label>
+                              <label>Op</label>
                               {cu.isBool || cu.key === 'quality_preset' ? (
                                 <div className="af-readonly" style={{ textAlign: 'center' }}>=</div>
                               ) : (
@@ -1110,10 +1126,10 @@ const AdminFees = () => {
                               )}
                             </div>
                             <div className="af-field">
-                              <label>{cs ? 'Hodnota' : 'Value'}</label>
+                              <label>{t('admin.fees.fieldValue', 'Value')}</label>
                               {cu.key === 'material' ? (
                                 <select className="af-input" value={String(cu.value ?? '')} onChange={e => updateDraftCondition(idx, { value: e.target.value })}>
-                                  <option value="">{cs ? '-- vyber --' : '-- select --'}</option>
+                                  <option value="">{cs ? '-- vyber --' : '-- select --'}</option>{/* TODO: t() */}
                                   {materialOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
                               ) : cu.key === 'quality_preset' ? (
@@ -1130,7 +1146,7 @@ const AdminFees = () => {
                               )}
                             </div>
                           </div>
-                          <button className="af-cond-del" title={cs ? 'Smazat' : 'Remove'} onClick={() => removeDraftCondition(idx)}><Icon name="X" size={14} /></button>
+                          <button className="af-cond-del" title={t('admin.fees.condRemove', 'Remove')} onClick={() => removeDraftCondition(idx)}><Icon name="X" size={14} /></button>
                         </div>
                       );
                     })}
@@ -1143,6 +1159,7 @@ const AdminFees = () => {
             {activeTab === 'preview' && (
               <div className="tab-content">
                 <div className="af-help" style={{ marginBottom: 12 }}>{cs ? 'Simulator pocita hodnotu jednoho fee.' : 'Simulator computes this fee only.'}</div>
+                {/* Simulator labels remain as-is (technical/data labels, not translated) */}
                 <div className="af-sim-grid">
                   <div className="af-field"><label>Material</label><select className="af-input" value={sim.material} onChange={e => setSim(p => ({ ...p, material: e.target.value }))}>{materialOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                   <div className="af-field"><label>Quality</label><select className="af-input" value={sim.quality_preset} onChange={e => setSim(p => ({ ...p, quality_preset: e.target.value }))}>{QUALITY_PRESETS.map(o => <option key={o.value} value={o.value}>{cs ? o.label_cs : o.label_en}</option>)}</select></div>
@@ -1164,7 +1181,7 @@ const AdminFees = () => {
                       <span>{simResult.match ? 'MATCH' : 'NO MATCH'}</span>
                     </div>
                     <div className="af-sim-amount">
-                      <div className="af-help">{cs ? 'Odhad' : 'Estimated'}</div>
+                      <div className="af-help">{cs ? 'Odhad' : 'Estimate'}</div>
                       <div className={`af-sim-amount-value ${simResult.amount < 0 ? 'discount' : ''}`}>{formatMoneyCzk(simResult.amount)}</div>
                       <div className="af-help">{simResult.note}</div>
                     </div>
@@ -1193,18 +1210,18 @@ const AdminFees = () => {
       <ForgeDialog
         open={showTemplates}
         onClose={() => setShowTemplates(false)}
-        title={cs ? 'Sablony poplatku' : 'Fee Templates'}
+        title={t('admin.fees.templatesTitle', 'Fee Templates')}
         maxWidth="600px"
       >
         <div className="af-templates">
-          <div className="af-help" style={{ marginBottom: 16 }}>{cs ? 'Vyber sablonu — nahradi vsechny stavajici poplatky.' : 'Pick a template — replaces all existing fees.'}</div>
+          <div className="af-help" style={{ marginBottom: 16 }}>{t('admin.fees.templatesHint', 'Pick a template — replaces all existing fees.')}</div>
           {FEE_TEMPLATES.map(tpl => (
             <div key={tpl.key} className="af-tpl-card" onClick={() => applyTemplate(tpl)}>
               <div className="af-tpl-icon"><Icon name={tpl.icon} size={22} /></div>
               <div className="af-tpl-body">
                 <div className="af-tpl-name">{cs ? tpl.label_cs : tpl.label_en}</div>
                 <div className="af-tpl-desc">{cs ? tpl.desc_cs : tpl.desc_en}</div>
-                <div className="af-tpl-fees">{tpl.fees.length} {cs ? 'poplatku' : 'fees'}</div>
+                <div className="af-tpl-fees">{tpl.fees.length} {t('admin.fees.tplFees', 'fees')}</div>
               </div>
               <Icon name="ChevronRight" size={18} />
             </div>

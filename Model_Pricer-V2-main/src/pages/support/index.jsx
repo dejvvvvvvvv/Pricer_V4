@@ -32,13 +32,20 @@ const Support = () => {
   useDocumentTitle('Support');
   const [searchQuery, setSearchQuery] = useState('');
   const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [submitStatus, setSubmitStatus] = useState(null); // null | 'success' | 'error'
 
   const handleContactSubmit = (e) => {
     e.preventDefault();
     const { name, email, subject, message } = contactForm;
-    const body = `${language === 'cs' ? 'Jmeno' : 'Name'}: ${name}\n${language === 'cs' ? 'Email' : 'Email'}: ${email}\n\n${message}`;
+    const body = `${t('support.contact.name')}: ${name}\nEmail: ${email}\n\n${message}`;
     const mailtoUrl = `mailto:support@modelpricer.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoUrl;
+    try {
+      window.location.href = mailtoUrl;
+      setSubmitStatus('success');
+      setContactForm({ name: '', email: '', subject: '', message: '' });
+    } catch {
+      setSubmitStatus('error');
+    }
   };
 
   const faqs = language === 'cs' ? [
@@ -112,15 +119,15 @@ const Support = () => {
   ];
 
   const quickLinks = language === 'cs' ? [
-    { icon: 'book', title: 'Dokumentace', desc: 'Kompletní návody a tutoriály' },
-    { icon: 'video', title: 'Video návody', desc: 'Krok za krokem videa' },
-    { icon: 'chat', title: 'Live Chat', desc: 'Okamžitá podpora online' },
-    { icon: 'mail', title: 'Email podpora', desc: 'support@modelpricer.com' },
+    { icon: 'book', title: 'Dokumentace', desc: 'Kompletní návody a tutoriály', href: null, comingSoon: true },
+    { icon: 'video', title: 'Video návody', desc: 'Krok za krokem videa', href: null, comingSoon: true },
+    { icon: 'chat', title: 'Live Chat', desc: 'Po-Pá 9:00–17:00 CET', href: null, comingSoon: false },
+    { icon: 'mail', title: 'Email podpora', desc: 'support@modelpricer.com', href: 'mailto:support@modelpricer.com', comingSoon: false },
   ] : [
-    { icon: 'book', title: 'Documentation', desc: 'Complete guides and tutorials' },
-    { icon: 'video', title: 'Video Tutorials', desc: 'Step-by-step videos' },
-    { icon: 'chat', title: 'Live Chat', desc: 'Instant online support' },
-    { icon: 'mail', title: 'Email Support', desc: 'support@modelpricer.com' },
+    { icon: 'book', title: 'Documentation', desc: 'Complete guides and tutorials', href: null, comingSoon: true },
+    { icon: 'video', title: 'Video Tutorials', desc: 'Step-by-step videos', href: null, comingSoon: true },
+    { icon: 'chat', title: 'Live Chat', desc: 'Mon–Fri 9:00–17:00 CET', href: null, comingSoon: false },
+    { icon: 'mail', title: 'Email Support', desc: 'support@modelpricer.com', href: 'mailto:support@modelpricer.com', comingSoon: false },
   ];
 
   const icons = {
@@ -203,10 +210,11 @@ const Support = () => {
                 <path d="M15 15l4 4" />
               </svg>
               <input
-                type="text"
+                type="search"
                 placeholder={t('support.search.placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label={t('support.search.placeholder')}
                 className="flex-1 bg-transparent border-none outline-none"
                 style={{
                   fontFamily: 'var(--forge-font-body)',
@@ -226,11 +234,9 @@ const Support = () => {
         </Reveal>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {quickLinks.map((link, i) => (
-            <Reveal key={i} delay={i * 0.04}>
-              <div
-                className="forge-card-interactive group p-6 text-center h-full"
-              >
+          {quickLinks.map((link, i) => {
+            const cardContent = (
+              <>
                 <div className="mb-4 inline-flex" style={{ color: 'var(--forge-accent-primary)' }}>
                   {icons[link.icon]}
                 </div>
@@ -244,13 +250,51 @@ const Support = () => {
                   }}
                 >
                   {link.title}
+                  {link.comingSoon && (
+                    <span
+                      className="ml-2"
+                      style={{
+                        fontSize: 'var(--forge-text-xs, 0.7rem)',
+                        fontFamily: 'var(--forge-font-mono)',
+                        color: 'var(--forge-text-muted)',
+                        border: '1px solid var(--forge-border-default)',
+                        borderRadius: 'var(--forge-radius-sm)',
+                        padding: '1px 5px',
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      {t('support.resources.soon')}
+                    </span>
+                  )}
                 </h3>
                 <p style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}>
                   {link.desc}
                 </p>
-              </div>
-            </Reveal>
-          ))}
+              </>
+            );
+
+            return (
+              <Reveal key={i} delay={i * 0.04}>
+                {link.href ? (
+                  <a
+                    href={link.href}
+                    className="forge-card-interactive group p-6 text-center h-full block"
+                    style={{ textDecoration: 'none' }}
+                    aria-label={link.title}
+                  >
+                    {cardContent}
+                  </a>
+                ) : (
+                  <div
+                    className="forge-card-interactive group p-6 text-center h-full"
+                    style={{ opacity: link.comingSoon ? 0.65 : 1, cursor: link.comingSoon ? 'default' : 'auto' }}
+                  >
+                    {cardContent}
+                  </div>
+                )}
+              </Reveal>
+            );
+          })}
         </div>
       </section>
 
@@ -263,13 +307,13 @@ const Support = () => {
           <Reveal>
             <ForgeSectionLabel text="FAQ" className="mb-4 block" />
             <h2 className="forge-h2 mb-10">
-              {language === 'cs' ? 'Často kladené otázky' : 'Frequently Asked Questions'}
+              {t('support.faq.title')}
             </h2>
           </Reveal>
 
           {filteredFaqs.length === 0 ? (
             <p style={{ color: 'var(--forge-text-muted)', textAlign: 'center', padding: '2rem 0' }}>
-              {language === 'cs' ? 'Žádné výsledky pro hledaný výraz.' : 'No results found for your search.'}
+              {t('support.faq.noResults')}
             </p>
           ) : (
             filteredFaqs.map((category, i) => (
@@ -297,7 +341,7 @@ const Support = () => {
       {/* ========== CONTACT FORM + INFO ========== */}
       <section className="max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-20">
         <Reveal>
-          <ForgeSectionLabel text={language === 'cs' ? 'KONTAKT' : 'CONTACT'} className="mb-4 block" />
+          <ForgeSectionLabel text={t('support.contact.label')} className="mb-4 block" />
           <h2 className="forge-h2 mb-10">
             {t('support.contact.title')}
           </h2>
@@ -321,7 +365,7 @@ const Support = () => {
                         color: 'var(--forge-text-secondary)',
                       }}
                     >
-                      {language === 'cs' ? 'Jmeno' : 'Name'}
+                      {t('support.contact.name')}
                     </label>
                     <input
                       id="contact-name"
@@ -329,7 +373,7 @@ const Support = () => {
                       required
                       value={contactForm.name}
                       onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder={language === 'cs' ? 'Vase jmeno' : 'Your name'}
+                      placeholder={t('support.contact.namePlaceholder')}
                       style={inputStyle}
                       onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
                       onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
@@ -355,7 +399,7 @@ const Support = () => {
                       required
                       value={contactForm.email}
                       onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder={language === 'cs' ? 'vas@email.cz' : 'you@email.com'}
+                      placeholder={t('support.contact.emailPlaceholder')}
                       style={inputStyle}
                       onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
                       onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
@@ -375,7 +419,7 @@ const Support = () => {
                       color: 'var(--forge-text-secondary)',
                     }}
                   >
-                    {language === 'cs' ? 'Predmet' : 'Subject'}
+                    {t('support.contact.subject')}
                   </label>
                   <input
                     id="contact-subject"
@@ -383,7 +427,7 @@ const Support = () => {
                     required
                     value={contactForm.subject}
                     onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
-                    placeholder={language === 'cs' ? 'O cem chcete napsat?' : 'What is this about?'}
+                    placeholder={t('support.contact.subjectPlaceholder')}
                     style={inputStyle}
                     onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
                     onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
@@ -402,7 +446,7 @@ const Support = () => {
                       color: 'var(--forge-text-secondary)',
                     }}
                   >
-                    {language === 'cs' ? 'Zprava' : 'Message'}
+                    {t('support.contact.message')}
                   </label>
                   <textarea
                     id="contact-message"
@@ -410,16 +454,42 @@ const Support = () => {
                     rows={5}
                     value={contactForm.message}
                     onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
-                    placeholder={language === 'cs' ? 'Popiste svuj dotaz nebo pozadavek...' : 'Describe your question or request...'}
+                    placeholder={t('support.contact.messagePlaceholder')}
                     style={{ ...inputStyle, resize: 'vertical', minHeight: 120 }}
                     onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--forge-accent-primary)'; }}
                     onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--forge-border-active)'; }}
                   />
                 </div>
 
-                <ForgeButton type="submit" variant="primary" size="lg">
-                  {language === 'cs' ? 'Odeslat zpravu' : 'Send message'}
-                </ForgeButton>
+                <div className="flex flex-col gap-3">
+                  <ForgeButton type="submit" variant="primary" size="lg">
+                    {t('support.contact.send')}
+                  </ForgeButton>
+                  {submitStatus === 'success' && (
+                    <p
+                      role="status"
+                      style={{
+                        fontSize: 'var(--forge-text-sm)',
+                        color: 'var(--forge-accent-primary)',
+                        fontFamily: 'var(--forge-font-body)',
+                      }}
+                    >
+                      {t('support.contact.successMsg')}
+                    </p>
+                  )}
+                  {submitStatus === 'error' && (
+                    <p
+                      role="alert"
+                      style={{
+                        fontSize: 'var(--forge-text-sm)',
+                        color: 'var(--forge-accent-secondary, #FF6B6B)',
+                        fontFamily: 'var(--forge-font-body)',
+                      }}
+                    >
+                      {t('support.contact.errorMsg')}
+                    </p>
+                  )}
+                </div>
               </form>
             </Reveal>
           </div>
@@ -453,7 +523,7 @@ const Support = () => {
                     support@modelpricer.com
                   </span>
                   <span className="block mt-1" style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}>
-                    {language === 'cs' ? 'Odpoved do 24 hodin' : 'Response within 24 hours'}
+                    {t('support.contact.emailReply')}
                   </span>
                 </div>
               </div>
@@ -483,7 +553,7 @@ const Support = () => {
                     Live Chat
                   </strong>
                   <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)' }}>
-                    {language === 'cs' ? 'Po-Pa 9:00-17:00 CET' : 'Mon-Fri 9:00-17:00 CET'}
+                    {t('support.contact.liveChat')}
                   </span>
                 </div>
               </div>
@@ -507,15 +577,13 @@ const Support = () => {
                     color: 'var(--forge-text-primary)',
                   }}
                 >
-                  {language === 'cs' ? 'Enterprise podpora' : 'Enterprise support'}
+                  {t('support.contact.enterprise')}
                 </strong>
                 <p style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                  {language === 'cs'
-                    ? 'Potrebujete dedicovany onboarding, SLA nebo integraci na miru?'
-                    : 'Need dedicated onboarding, SLA, or custom integration?'}
+                  {t('support.contact.enterpriseDesc')}
                 </p>
                 <ForgeButton to="/pricing" variant="outline" size="sm">
-                  {language === 'cs' ? 'Zobrazit plany' : 'View plans'}
+                  {t('support.contact.viewPlans')}
                 </ForgeButton>
               </div>
             </Reveal>

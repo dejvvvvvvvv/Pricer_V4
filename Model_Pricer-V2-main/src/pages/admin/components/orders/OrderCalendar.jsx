@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, memo } from 'react';
 import Icon from '../../../../components/AppIcon';
 import { computeOrderTotals, getStatusLabel, round2 } from '../../../../utils/adminOrdersStorage';
 import { getStatusColor } from '../kanban/statusTransitions';
@@ -102,7 +102,11 @@ function StatusDot({ status }) {
 
 function DayCell({ cell, dayOrders, busiestKey, onSelectDay, isSelected }) {
   const count = dayOrders.length;
-  const totalRevenue = dayOrders.reduce((sum, o) => sum + computeOrderTotals(o).total, 0);
+  // useMemo prevents recomputing totals on every parent render
+  const totalRevenue = useMemo(
+    () => dayOrders.reduce((sum, o) => sum + computeOrderTotals(o).total, 0),
+    [dayOrders],
+  );
 
   // Collect unique statuses for dots (max 5)
   const statuses = [...new Set(dayOrders.map(o => o.status))].slice(0, 5);
@@ -140,9 +144,23 @@ function DayCell({ cell, dayOrders, busiestKey, onSelectDay, isSelected }) {
 }
 
 function DayDetailPanel({ cell, dayOrders, onClose, onViewOrder, language }) {
-  if (!cell) return null;
+  // Pre-compute totals once per dayOrders change, not on every render
+  const orderTotalsMap = useMemo(
+    () => {
+      const map = new Map();
+      for (const o of dayOrders) {
+        map.set(o.id, computeOrderTotals(o));
+      }
+      return map;
+    },
+    [dayOrders],
+  );
+  const totalRevenue = useMemo(
+    () => dayOrders.reduce((sum, o) => sum + (orderTotalsMap.get(o.id)?.total ?? 0), 0),
+    [dayOrders, orderTotalsMap],
+  );
 
-  const totalRevenue = dayOrders.reduce((sum, o) => sum + computeOrderTotals(o).total, 0);
+  if (!cell) return null;
 
   return (
     <div className="cal-detail">
@@ -164,7 +182,7 @@ function DayDetailPanel({ cell, dayOrders, onClose, onViewOrder, language }) {
       ) : (
         <div className="cal-detail__list">
           {dayOrders.map(o => {
-            const totals = computeOrderTotals(o);
+            const totals = orderTotalsMap.get(o.id) || { total: 0 };
             return (
               <button
                 key={o.id}

@@ -9,6 +9,8 @@
 // - Auto-send: configure automatic email sending on status changes
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { debug } from '@/lib/debug';
+import { sanitizeHtmlAllowBasic } from '@/utils/sanitizeHtml';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
@@ -26,7 +28,6 @@ import {
   loadEmailLog,
   loadEmailTemplates,
   renderTemplatePreview,
-  sanitizeTemplateHtml,
   saveAutoSendRules,
   saveEmailConfigV1,
   saveEmailTemplates,
@@ -74,8 +75,10 @@ const TEMPLATE_CATEGORIES = [
 // Component
 // ---------------------------------------------------------------------------
 export default function AdminEmails() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const cs = language === 'cs';
+  const csRef = useRef(cs);
+  csRef.current = cs;
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
@@ -128,19 +131,18 @@ export default function AdminEmails() {
 
       setLoading(false);
     } catch (e) {
-      console.error('[AdminEmails] Failed to init', e);
+      debug('[AdminEmails] Failed to init', e);
       setLoading(false);
-      setBanner({ type: 'error', text: cs ? 'Nepodarilo se nacist konfiguraci.' : 'Failed to load config.' });
+      setBanner({ type: 'error', text: csRef.current ? 'Nepodarilo se nacist konfiguraci.' : 'Failed to load config.' }); // csRef used here (before t is stable)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync editor content when switching templates
+  // Sync editor content when switching templates or when templates data loads.
   useEffect(() => {
     if (editorRef.current && templates[activeTemplate]) {
       editorRef.current.innerHTML = templates[activeTemplate].body || '';
     }
-  }, [activeTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTemplate, templates]);
 
   const dirty = useMemo(() => {
     if (!config) return false;
@@ -179,7 +181,7 @@ export default function AdminEmails() {
       const tag = cmdStr.split(':')[1];
       document.execCommand('formatBlock', false, `<${tag}>`);
     } else if (cmdStr === 'createLink') {
-      const url = prompt(cs ? 'Zadejte URL odkazu:' : 'Enter link URL:', 'https://');
+      const url = prompt(t('admin.emails.prompt.linkUrl', 'Enter link URL:'), 'https://');
       if (url) {
         document.execCommand('createLink', false, url);
       }
@@ -216,11 +218,11 @@ export default function AdminEmails() {
       setConfig(saved);
       setSavedSnapshot(JSON.stringify(saved));
       setSaving(false);
-      setBanner({ type: 'success', text: cs ? 'Nastaveni ulozeno.' : 'Settings saved.' });
+      setBanner({ type: 'success', text: t('admin.emails.settingsSaved', 'Settings saved.') });
     } catch (e) {
-      console.error('[AdminEmails] Save failed', e);
+      debug('[AdminEmails] Save failed', e);
       setSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
+      setBanner({ type: 'error', text: t('admin.emails.saveFailed', 'Save failed.') });
     }
   };
 
@@ -232,18 +234,19 @@ export default function AdminEmails() {
       for (const [key, tpl] of Object.entries(templates)) {
         sanitized[key] = {
           ...tpl,
-          body: sanitizeTemplateHtml(tpl.body || ''),
+          // Use DOM-based sanitizer (consistent with preview rendering)
+          body: sanitizeHtmlAllowBasic(tpl.body || ''),
         };
       }
       const saved = saveEmailTemplates(sanitized);
       setTemplates(saved);
       setTemplatesSavedSnapshot(JSON.stringify(saved));
       setTplSaving(false);
-      setBanner({ type: 'success', text: cs ? 'Sablony ulozeny.' : 'Templates saved.' });
+      setBanner({ type: 'success', text: t('admin.emails.templatesSaved', 'Templates saved.') });
     } catch (e) {
-      console.error('[AdminEmails] Template save failed', e);
+      debug('[AdminEmails] Template save failed', e);
       setTplSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni sablon selhalo.' : 'Template save failed.' });
+      setBanner({ type: 'error', text: t('admin.emails.templateSaveFailed', 'Template save failed.') });
     }
   }, [templates, cs]);
 
@@ -255,19 +258,19 @@ export default function AdminEmails() {
       setAutoSendRules(saved);
       setAutoSendSaved(JSON.stringify(saved));
       setAutoSendSaving(false);
-      setBanner({ type: 'success', text: cs ? 'Pravidla ulozena.' : 'Rules saved.' });
+      setBanner({ type: 'success', text: t('admin.emails.rulesSaved', 'Rules saved.') });
     } catch (e) {
-      console.error('[AdminEmails] AutoSend save failed', e);
+      debug('[AdminEmails] AutoSend save failed', e);
       setAutoSendSaving(false);
-      setBanner({ type: 'error', text: cs ? 'Ulozeni pravidel selhalo.' : 'Rules save failed.' });
+      setBanner({ type: 'error', text: t('admin.emails.rulesSaveFailed', 'Rules save failed.') });
     }
   }, [autoSendRules, cs]);
 
   const handleResetTemplate = useCallback(async () => {
     const ok = await confirm({
-      title: cs ? 'Obnovit vychozi sablonu' : 'Reset to default template',
-      message: cs ? 'Opravdu chcete obnovit tuto sablonu na vychozi obsah? Neulozene zmeny budou ztraceny.' : 'Reset this template to default content? Unsaved changes will be lost.',
-      confirmLabel: cs ? 'Obnovit' : 'Reset',
+      title: t('admin.emails.tpl.resetDialog.title', 'Reset to default template'),
+      message: t('admin.emails.tpl.resetDialog.message', 'Reset this template to default content? Unsaved changes will be lost.'),
+      confirmLabel: t('admin.emails.tpl.resetDialog.confirm', 'Reset'),
       destructive: true,
     });
     if (!ok) return;
@@ -281,7 +284,7 @@ export default function AdminEmails() {
   const handleTestEmail = useCallback(() => {
     const testAddr = config?.test_email || config?.sender_email || '';
     if (!testAddr) {
-      setBanner({ type: 'error', text: cs ? 'Zadejte testovaci email v nastaveni.' : 'Enter test email in settings.' });
+      setBanner({ type: 'error', text: t('admin.emails.settings.noTestEmail', 'Enter test email in settings.') });
       return;
     }
     setTestSending(true);
@@ -300,28 +303,28 @@ export default function AdminEmails() {
       });
       setEmailLog(newLog);
       setTestSending(false);
-      setBanner({ type: 'success', text: cs ? `Testovaci email odeslan na ${testAddr} (simulace).` : `Test email sent to ${testAddr} (simulated).` });
+      setBanner({ type: 'success', text: t('admin.emails.settings.testSentSuccess', 'Test email sent to {addr} (simulated).').replace('{addr}', testAddr) });
     }, 1200);
   }, [activeTemplate, config, cs, templates]);
 
   const handleClearLog = useCallback(async () => {
     const ok = await confirm({
-      title: cs ? 'Smazat log' : 'Clear log',
-      message: cs ? 'Opravdu chcete smazat celou historii emailu?' : 'Clear entire email history?',
-      confirmLabel: cs ? 'Smazat' : 'Clear',
+      title: t('admin.emails.log.clearDialog.title', 'Clear log'),
+      message: t('admin.emails.log.clearDialog.message', 'Clear entire email history?'),
+      confirmLabel: t('admin.emails.log.clearDialog.confirm', 'Clear'),
       destructive: true,
     });
     if (!ok) return;
     const cleared = clearEmailLog();
     setEmailLog(cleared);
-    setBanner({ type: 'success', text: cs ? 'Log smazan.' : 'Log cleared.' });
+    setBanner({ type: 'success', text: t('admin.emails.logCleared', 'Log cleared.') });
   }, [confirm, cs]);
 
   const handleResetAutoSend = useCallback(async () => {
     const ok = await confirm({
-      title: cs ? 'Obnovit vychozi pravidla' : 'Reset to default rules',
-      message: cs ? 'Opravdu chcete obnovit vychozi pravidla automatickeho odesilani?' : 'Reset auto-send rules to defaults?',
-      confirmLabel: cs ? 'Obnovit' : 'Reset',
+      title: t('admin.emails.autosend.resetDialog.title', 'Reset to default rules'),
+      message: t('admin.emails.autosend.resetDialog.message', 'Reset auto-send rules to defaults?'),
+      confirmLabel: t('admin.emails.autosend.resetDialog.confirm', 'Reset'),
       destructive: true,
     });
     if (!ok) return;
@@ -338,7 +341,7 @@ export default function AdminEmails() {
         <div className="ae-card">
           <div style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Icon name="Loader2" size={18} className="ae-spin" />
-            <span>{cs ? 'Nacitam...' : 'Loading...'}</span>
+            <span>{t('admin.emails.loading', 'Loading...')}</span>
           </div>
         </div>
       </div>
@@ -361,11 +364,9 @@ export default function AdminEmails() {
             <Icon name="Mail" size={22} />
           </div>
           <div>
-            <h1 className="ae-title">{cs ? 'Emailove notifikace' : 'Email Notifications'}</h1>
+            <h1 className="ae-title">{t('admin.emails.pageTitle', 'Email Notifications')}</h1>
             <p className="ae-subtitle">
-              {cs
-                ? 'Sprava emailovych sablon, nastaveni odesilani a automatickych pravidel.'
-                : 'Manage email templates, sending settings and auto-send rules.'}
+              {t('admin.emails.pageSubtitle', 'Manage email templates, sending settings and auto-send rules.')}
             </p>
           </div>
         </div>
@@ -411,7 +412,7 @@ export default function AdminEmails() {
           <div className="ae-tpl-sidebar">
             <div className="ae-card">
               <div className="ae-card-header">
-                <h2 className="ae-card-title">{cs ? 'Sablony' : 'Templates'}</h2>
+                <h2 className="ae-card-title">{t('admin.emails.tpl.sectionTitle', 'Templates')}</h2>
               </div>
               <div className="ae-tpl-list">
                 {TEMPLATE_CATEGORIES.map((cat) => {
@@ -426,7 +427,7 @@ export default function AdminEmails() {
                         <button
                           key={tType.id}
                           className={`ae-tpl-item ${activeTemplate === tType.id ? 'ae-tpl-item--active' : ''}`}
-                          onClick={() => { setActiveTemplate(tType.id); setEditorMode('edit'); }}
+                          onClick={() => { syncEditorContent(); setActiveTemplate(tType.id); setEditorMode('edit'); }}
                         >
                           <Icon name={tType.icon} size={16} />
                           <span className="ae-tpl-item-label">{cs ? tType.label_cs : tType.label_en}</span>
@@ -461,30 +462,30 @@ export default function AdminEmails() {
                       onClick={() => setEditorMode('edit')}
                     >
                       <Icon name="Pencil" size={14} />
-                      {cs ? 'Uprava' : 'Edit'}
+                      {t('admin.emails.tpl.modeEdit', 'Edit')}
                     </button>
                     <button
                       className={`ae-mode-btn ${editorMode === 'preview' ? 'ae-mode-btn--active' : ''}`}
                       onClick={() => setEditorMode('preview')}
                     >
                       <Icon name="Eye" size={14} />
-                      {cs ? 'Nahled' : 'Preview'}
+                      {t('admin.emails.tpl.modePreview', 'Preview')}
                     </button>
                   </div>
 
-                  <button className="ae-btn ae-btn--ghost" onClick={handleResetTemplate} title={cs ? 'Obnovit vychozi' : 'Reset to default'}>
+                  <button className="ae-btn ae-btn--ghost" onClick={handleResetTemplate} title={t('admin.emails.tpl.resetToDefault', 'Reset to default')}>
                     <Icon name="RotateCcw" size={15} />
                   </button>
-                  <button className="ae-btn ae-btn--ghost" onClick={handleTestEmail} disabled={testSending} title={cs ? 'Odeslat testovaci email' : 'Send test email'}>
+                  <button className="ae-btn ae-btn--ghost" onClick={handleTestEmail} disabled={testSending} title={t('admin.emails.tpl.sendTest', 'Send test email')}>
                     <Icon name={testSending ? 'Loader2' : 'Send'} size={15} className={testSending ? 'ae-spin' : ''} />
                   </button>
                   <div className={`ae-status-pill ${templatesDirty ? 'ae-status--dirty' : 'ae-status--clean'}`}>
                     <Icon name={templatesDirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
-                    <span>{templatesDirty ? (cs ? 'Neulozeno' : 'Unsaved') : (cs ? 'Ulozeno' : 'Saved')}</span>
+                    <span>{templatesDirty ? t('admin.emails.unsaved', 'Unsaved') : t('admin.emails.saved', 'Saved')}</span>
                   </div>
                   <button className="ae-btn ae-btn--primary" onClick={handleSaveTemplates} disabled={!templatesDirty || tplSaving}>
                     <Icon name="Save" size={15} />
-                    {tplSaving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit' : 'Save')}
+                    {tplSaving ? t('admin.emails.saving', 'Saving...') : t('admin.emails.saveTemplates', 'Save')}
                   </button>
                 </div>
               </div>
@@ -497,20 +498,20 @@ export default function AdminEmails() {
                   {/* Subject line */}
                   <div className="ae-field" style={{ marginBottom: 16 }}>
                     <label className="ae-label" htmlFor="tpl-editor-subject">
-                      {cs ? 'Predmet emailu' : 'Email subject'}
+                      {t('admin.emails.tpl.subject', 'Email subject')}
                     </label>
                     <input
                       id="tpl-editor-subject"
                       className="ae-input"
                       value={currentTpl.subject || ''}
                       onChange={(e) => updateTemplateContent(activeTemplate, { subject: e.target.value })}
-                      placeholder={cs ? 'Predmet emailu...' : 'Email subject...'}
+                      placeholder={t('admin.emails.tpl.subjectPlaceholder', 'Email subject...')}
                     />
                   </div>
 
                   {/* Variable insertion buttons */}
                   <div className="ae-field" style={{ marginBottom: 14 }}>
-                    <label className="ae-label">{cs ? 'Vlozit promennou' : 'Insert variable'}</label>
+                    <label className="ae-label">{t('admin.emails.tpl.insertVariable', 'Insert variable')}</label>
                     <div className="ae-var-chips">
                       {EMAIL_TEMPLATE_VARIABLES.map((v) => (
                         <button
@@ -527,7 +528,7 @@ export default function AdminEmails() {
                   </div>
 
                   {/* Formatting toolbar */}
-                  <div className="ae-editor-toolbar" role="toolbar" aria-label={cs ? 'Formatovani' : 'Formatting'}>
+                  <div className="ae-editor-toolbar" role="toolbar" aria-label={t('admin.emails.tpl.formattingToolbar', 'Formatting')}>
                     {TOOLBAR_ACTIONS.map((action) => {
                       if (action.cmd.startsWith('sep')) {
                         return <div key={action.cmd} className="ae-toolbar-sep" />;
@@ -555,19 +556,17 @@ export default function AdminEmails() {
                     className="ae-editor-body"
                     contentEditable
                     role="textbox"
-                    aria-label={cs ? 'Telo emailu' : 'Email body'}
+                    aria-label={t('admin.emails.tpl.bodyAriaLabel', 'Email body')}
                     aria-multiline="true"
                     onInput={syncEditorContent}
                     onBlur={syncEditorContent}
                     suppressContentEditableWarning
-                    dangerouslySetInnerHTML={{ __html: currentTpl.body || '' }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtmlAllowBasic(currentTpl.body || '') }}
                   />
 
                   <div className="ae-help" style={{ marginTop: 8 }}>
                     <Icon name="Info" size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                    {cs
-                      ? 'Promenne ve formatu {{nazev}} budou nahrazeny skutecnymi hodnotami pri odeslani.'
-                      : 'Variables in {{name}} format will be replaced with actual values when sent.'}
+                    {t('admin.emails.tpl.variableHint', 'Variables in {{name}} format will be replaced with actual values when sent.')}
                   </div>
                 </div>
               </div>
@@ -594,11 +593,9 @@ export default function AdminEmails() {
           <div className="ae-card">
             <div className="ae-card-header">
               <div>
-                <h2 className="ae-card-title">{cs ? 'Emailovy provider' : 'Email Provider'}</h2>
+                <h2 className="ae-card-title">{t('admin.emails.settings.providerTitle', 'Email Provider')}</h2>
                 <p className="ae-card-desc">
-                  {cs
-                    ? 'Vyber zpusob odesilani emailu. V rezimu simulace se emaily nezasilaji, pouze se zaznamenavaji do logu.'
-                    : 'Select email sending method. In simulation mode, emails are logged but not actually sent.'}
+                  {t('admin.emails.settings.providerDesc', 'Select email sending method. In simulation mode, emails are logged but not actually sent.')}
                 </p>
               </div>
             </div>
@@ -626,16 +623,16 @@ export default function AdminEmails() {
             <div className="ae-card">
               <div className="ae-card-header">
                 <div>
-                  <h2 className="ae-card-title">{cs ? 'SMTP nastaveni' : 'SMTP Settings'}</h2>
+                  <h2 className="ae-card-title">{t('admin.emails.settings.smtpTitle', 'SMTP Settings')}</h2>
                   <p className="ae-card-desc">
-                    {cs ? 'Nastavte pripojeni k SMTP serveru.' : 'Configure SMTP server connection.'}
+                    {t('admin.emails.settings.smtpDesc', 'Configure SMTP server connection.')}
                   </p>
                 </div>
               </div>
               <div className="ae-card-body">
                 <div className="ae-grid-2">
                   <div className="ae-field">
-                    <label className="ae-label" htmlFor="smtp-host">{cs ? 'Host' : 'Host'}</label>
+                    <label className="ae-label" htmlFor="smtp-host">{t('admin.emails.settings.smtpHost', 'Host')}</label>
                     <input
                       id="smtp-host"
                       className="ae-input"
@@ -645,7 +642,7 @@ export default function AdminEmails() {
                     />
                   </div>
                   <div className="ae-field">
-                    <label className="ae-label" htmlFor="smtp-port">{cs ? 'Port' : 'Port'}</label>
+                    <label className="ae-label" htmlFor="smtp-port">{t('admin.emails.settings.smtpPort', 'Port')}</label>
                     <input
                       id="smtp-port"
                       className="ae-input"
@@ -658,20 +655,20 @@ export default function AdminEmails() {
                 </div>
                 <div className="ae-grid-2" style={{ marginTop: 12 }}>
                   <div className="ae-field">
-                    <label className="ae-label" htmlFor="smtp-user">{cs ? 'Uzivatel' : 'Username'}</label>
+                    <label className="ae-label" htmlFor="smtp-user">{t('admin.emails.settings.smtpUser', 'Username')}</label>
                     <input
                       id="smtp-user"
                       className="ae-input"
                       value={config?.smtp_user || ''}
                       onChange={(e) => updateConfig({ smtp_user: e.target.value })}
-                      placeholder={cs ? 'Uzivatelske jmeno' : 'Username'}
+                      placeholder={t('admin.emails.settings.smtpUserPlaceholder', 'Username')}
                     />
                   </div>
                   <div className="ae-field">
-                    <label className="ae-label">{cs ? 'Heslo' : 'Password'}</label>
+                    <label className="ae-label">{t('admin.emails.settings.smtpPassword', 'Password')}</label>
                     <div className="ae-security-note">
                       <Icon name="ShieldAlert" size={16} />
-                      <span>{cs ? 'Heslo se nastavuje v .env souboru na serveru (nikdy ne v prohlizeci).' : 'Password is set in .env file on server (never in browser).'}</span>
+                      <span>{t('admin.emails.settings.smtpPasswordNote', 'Password is set in .env file on server (never in browser).')}</span>
                     </div>
                   </div>
                 </div>
@@ -679,7 +676,7 @@ export default function AdminEmails() {
                   <ForgeCheckbox
                     checked={config?.smtp_secure ?? true}
                     onChange={(e) => updateConfig({ smtp_secure: e.target.checked })}
-                    label={cs ? 'Pouzit TLS/SSL' : 'Use TLS/SSL'}
+                    label={t('admin.emails.settings.smtpTls', 'Use TLS/SSL')}
                   />
                 </div>
               </div>
@@ -691,26 +688,24 @@ export default function AdminEmails() {
             <div className="ae-card">
               <div className="ae-card-header">
                 <div>
-                  <h2 className="ae-card-title">{cs ? 'API nastaveni' : 'API Settings'}</h2>
+                  <h2 className="ae-card-title">{t('admin.emails.settings.apiTitle', 'API Settings')}</h2>
                   <p className="ae-card-desc">
-                    {cs ? 'Podpora pro API providery (Resend, SendGrid) bude pridana v budouci verzi.' : 'API provider support (Resend, SendGrid) will be added in a future version.'}
+                    {t('admin.emails.settings.apiDesc', 'API provider support (Resend, SendGrid) will be added in a future version.')}
                   </p>
                 </div>
               </div>
               <div className="ae-card-body">
                 <div className="ae-field">
-                  <label className="ae-label" htmlFor="api-key-name">{cs ? 'Nazev env promenne API klice' : 'API key env variable name'}</label>
+                  <label className="ae-label" htmlFor="api-key-name">{t('admin.emails.settings.apiKeyName', 'API key env variable name')}</label>
                   <input
                     id="api-key-name"
                     className="ae-input"
                     value={config?.api_key_name || ''}
                     onChange={(e) => updateConfig({ api_key_name: e.target.value })}
-                    placeholder={cs ? 'Napr. RESEND_API_KEY' : 'e.g. RESEND_API_KEY'}
+                    placeholder={t('admin.emails.settings.apiKeyNamePlaceholder', 'e.g. RESEND_API_KEY')}
                   />
                   <div className="ae-help">
-                    {cs
-                      ? 'Samotny API klic patri do .env souboru na serveru.'
-                      : 'The actual API key belongs in .env on the server.'}
+                    {t('admin.emails.settings.apiKeyHint', 'The actual API key belongs in .env on the server.')}
                   </div>
                 </div>
               </div>
@@ -721,26 +716,26 @@ export default function AdminEmails() {
           <div className="ae-card">
             <div className="ae-card-header">
               <div>
-                <h2 className="ae-card-title">{cs ? 'Odesilatel' : 'Sender'}</h2>
+                <h2 className="ae-card-title">{t('admin.emails.settings.senderTitle', 'Sender')}</h2>
                 <p className="ae-card-desc">
-                  {cs ? 'Jmeno a email odesilatele zobrazeny v emailech.' : 'Sender name and email displayed in emails.'}
+                  {t('admin.emails.settings.senderDesc', 'Sender name and email displayed in emails.')}
                 </p>
               </div>
             </div>
             <div className="ae-card-body">
               <div className="ae-grid-2">
                 <div className="ae-field">
-                  <label className="ae-label" htmlFor="sender-name">{cs ? 'Jmeno odesilatele' : 'Sender name'}</label>
+                  <label className="ae-label" htmlFor="sender-name">{t('admin.emails.settings.senderNameLabel', 'Sender name')}</label>
                   <input
                     id="sender-name"
                     className="ae-input"
                     value={config?.sender_name || ''}
                     onChange={(e) => updateConfig({ sender_name: e.target.value })}
-                    placeholder={cs ? 'Napr. ModelPricer' : 'e.g. ModelPricer'}
+                    placeholder={t('admin.emails.settings.senderNamePlaceholder', 'e.g. ModelPricer')}
                   />
                 </div>
                 <div className="ae-field">
-                  <label className="ae-label" htmlFor="sender-email">{cs ? 'Email odesilatele' : 'Sender email'}</label>
+                  <label className="ae-label" htmlFor="sender-email">{t('admin.emails.settings.senderEmailLabel', 'Sender email')}</label>
                   <input
                     id="sender-email"
                     className="ae-input"
@@ -758,16 +753,16 @@ export default function AdminEmails() {
           <div className="ae-card">
             <div className="ae-card-header">
               <div>
-                <h2 className="ae-card-title">{cs ? 'Testovaci email' : 'Test Email'}</h2>
+                <h2 className="ae-card-title">{t('admin.emails.settings.testTitle', 'Test Email')}</h2>
                 <p className="ae-card-desc">
-                  {cs ? 'Odeslat testovaci email pro overeni nastaveni.' : 'Send a test email to verify settings.'}
+                  {t('admin.emails.settings.testDesc', 'Send a test email to verify settings.')}
                 </p>
               </div>
             </div>
             <div className="ae-card-body">
               <div className="ae-grid-2">
                 <div className="ae-field">
-                  <label className="ae-label" htmlFor="test-email-addr">{cs ? 'Testovaci email adresa' : 'Test email address'}</label>
+                  <label className="ae-label" htmlFor="test-email-addr">{t('admin.emails.settings.testAddrLabel', 'Test email address')}</label>
                   <input
                     id="test-email-addr"
                     className="ae-input"
@@ -785,14 +780,12 @@ export default function AdminEmails() {
                     style={{ marginBottom: 0 }}
                   >
                     <Icon name={testSending ? 'Loader2' : 'Send'} size={16} className={testSending ? 'ae-spin' : ''} />
-                    {testSending ? (cs ? 'Odesilam...' : 'Sending...') : (cs ? 'Odeslat test' : 'Send test')}
+                    {testSending ? t('admin.emails.settings.sending', 'Sending...') : t('admin.emails.settings.sendTest', 'Send test')}
                   </button>
                 </div>
               </div>
               <div className="ae-help" style={{ marginTop: 8 }}>
-                {cs
-                  ? 'V rezimu simulace se email nezasle, ale zaznamena do logu.'
-                  : 'In simulation mode, the email is not sent but logged.'}
+                {t('admin.emails.settings.testSimHint', 'In simulation mode, the email is not sent but logged.')}
               </div>
             </div>
           </div>
@@ -801,11 +794,11 @@ export default function AdminEmails() {
           <div className="ae-save-bar">
             <div className={`ae-status-pill ${dirty ? 'ae-status--dirty' : 'ae-status--clean'}`}>
               <Icon name={dirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
-              <span>{dirty ? (cs ? 'Neulozene zmeny' : 'Unsaved changes') : (cs ? 'Ulozeno' : 'Saved')}</span>
+              <span>{dirty ? t('admin.emails.unsavedChanges', 'Unsaved changes') : t('admin.emails.saved', 'Saved')}</span>
             </div>
             <button className="ae-btn ae-btn--primary" onClick={handleSaveConfig} disabled={!dirty || saving}>
               <Icon name="Save" size={16} />
-              {saving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit nastaveni' : 'Save settings')}
+              {saving ? t('admin.emails.saving', 'Saving...') : t('admin.emails.saveSettings', 'Save settings')}
             </button>
           </div>
         </div>
@@ -819,7 +812,7 @@ export default function AdminEmails() {
           <div className="ae-card">
             <div className="ae-card-header">
               <div>
-                <h2 className="ae-card-title">{cs ? 'Historie odeslaných emailu' : 'Email Send History'}</h2>
+                <h2 className="ae-card-title">{t('admin.emails.log.title', 'Email Send History')}</h2>
                 <p className="ae-card-desc">
                   {cs
                     ? `Posledni odeslane emaily (${emailLog.length} zaznamu).`
@@ -829,25 +822,25 @@ export default function AdminEmails() {
               {emailLog.length > 0 && (
                 <button className="ae-btn ae-btn--ghost ae-btn--danger" onClick={handleClearLog}>
                   <Icon name="Trash2" size={15} />
-                  {cs ? 'Smazat log' : 'Clear log'}
+                  {t('admin.emails.log.clearBtn', 'Clear log')}
                 </button>
               )}
             </div>
             <div className="ae-card-body" style={{ padding: 0 }}>
               {emailLog.length === 0 ? (
                 <div className="ae-empty">
-                  <Icon name="Inbox" size={44} />
-                  <h3>{cs ? 'Zadne zaznamy' : 'No records'}</h3>
-                  <p>{cs ? 'Zatim nebyly odeslany zadne emaily.' : 'No emails have been sent yet.'}</p>
+                  <Icon name="Mail" size={44} />
+                  <h3>{t('admin.emails.log.emptyTitle', 'No emails sent yet')}</h3>
+                  <p>{t('admin.emails.log.emptyDesc', 'Emails sent from templates or test sends will appear here.')}</p>
                 </div>
               ) : (
                 <div className="ae-log-table">
                   <div className="ae-log-header">
-                    <span>{cs ? 'Datum' : 'Date'}</span>
-                    <span>{cs ? 'Sablona' : 'Template'}</span>
-                    <span>{cs ? 'Prijemce' : 'Recipient'}</span>
-                    <span>{cs ? 'Objednavka' : 'Order'}</span>
-                    <span>{cs ? 'Stav' : 'Status'}</span>
+                    <span>{t('admin.emails.log.colDate', 'Date')}</span>
+                    <span>{t('admin.emails.log.colTemplate', 'Template')}</span>
+                    <span>{t('admin.emails.log.colRecipient', 'Recipient')}</span>
+                    <span>{t('admin.emails.log.colOrder', 'Order')}</span>
+                    <span>{t('admin.emails.log.colStatus', 'Status')}</span>
                   </div>
                   {emailLog.map((entry) => {
                     const tplMeta = EMAIL_TEMPLATE_TYPES.find((t) => t.id === entry.template);
@@ -864,7 +857,7 @@ export default function AdminEmails() {
                         <span className="ae-log-order">{entry.orderId || '\u2014'}</span>
                         <span className={`ae-log-status ae-log-status--${entry.status === 'sent' ? 'sent' : 'failed'}`}>
                           <Icon name={entry.status === 'sent' ? 'CheckCircle2' : 'XCircle'} size={14} />
-                          {entry.status === 'sent' ? (cs ? 'Odeslano' : 'Sent') : (cs ? 'Selhalo' : 'Failed')}
+                          {entry.status === 'sent' ? t('admin.emails.log.statusSent', 'Sent') : t('admin.emails.log.statusFailed', 'Failed')}
                         </span>
                       </div>
                     );
@@ -884,22 +877,29 @@ export default function AdminEmails() {
           <div className="ae-card">
             <div className="ae-card-header">
               <div>
-                <h2 className="ae-card-title">{cs ? 'Automaticke odesilani' : 'Auto-send Rules'}</h2>
+                <h2 className="ae-card-title">{t('admin.emails.autosend.title', 'Auto-send Rules')}</h2>
                 <p className="ae-card-desc">
-                  {cs
-                    ? 'Nastavte, ktere emaily se maji automaticky odesilat pri zmene stavu objednavky.'
-                    : 'Configure which emails are sent automatically when order status changes.'}
+                  {t('admin.emails.autosend.desc', 'Configure which emails are sent automatically when order status changes.')}
                 </p>
               </div>
               <div className="ae-card-header-actions">
                 <button className="ae-btn ae-btn--ghost" onClick={handleResetAutoSend}>
                   <Icon name="RotateCcw" size={15} />
-                  {cs ? 'Vychozi' : 'Reset'}
+                  {t('admin.emails.autosend.resetBtn', 'Reset')}
                 </button>
               </div>
             </div>
             <div className="ae-card-body" style={{ padding: 0 }}>
               <div className="ae-autosend-list">
+                {autoSendRules.length === 0 && (
+                  <div className="ae-empty" style={{ padding: '32px 24px' }}>
+                    <Icon name="Zap" size={40} />
+                    <h3>{t('admin.emails.autosend.emptyTitle', 'No auto-send rules')}</h3>
+                    <p>
+                      {t('admin.emails.autosend.emptyDesc', 'Click "Reset" to load the default set of rules.')}
+                    </p>
+                  </div>
+                )}
                 {autoSendRules.map((rule, idx) => {
                   const tplMeta = EMAIL_TEMPLATE_TYPES.find((t) => t.id === rule.template_id);
                   return (
@@ -923,7 +923,7 @@ export default function AdminEmails() {
                       </div>
                       <div className="ae-autosend-right">
                         <span className="ae-autosend-arrow-label">
-                          {cs ? 'Odeslat pri zmene na:' : 'Send when status becomes:'}
+                          {t('admin.emails.autosend.sendWhen', 'Send when status becomes:')}
                         </span>
                         <select
                           className="ae-input ae-autosend-select"
@@ -934,7 +934,7 @@ export default function AdminEmails() {
                             setAutoSendRules(next);
                           }}
                         >
-                          <option value="">{cs ? '-- Nevybrano --' : '-- None --'}</option>
+                          <option value="">{t('admin.emails.autosend.noneOption', '-- None --')}</option>
                           {ORDER_STATUSES.map((s) => (
                             <option key={s.value} value={s.value}>{cs ? s.label_cs : s.label_en}</option>
                           ))}
@@ -951,11 +951,11 @@ export default function AdminEmails() {
           <div className="ae-save-bar">
             <div className={`ae-status-pill ${autoSendDirty ? 'ae-status--dirty' : 'ae-status--clean'}`}>
               <Icon name={autoSendDirty ? 'AlertCircle' : 'CheckCircle2'} size={14} />
-              <span>{autoSendDirty ? (cs ? 'Neulozene zmeny' : 'Unsaved changes') : (cs ? 'Ulozeno' : 'Saved')}</span>
+              <span>{autoSendDirty ? t('admin.emails.unsavedChanges', 'Unsaved changes') : t('admin.emails.saved', 'Saved')}</span>
             </div>
             <button className="ae-btn ae-btn--primary" onClick={handleSaveAutoSend} disabled={!autoSendDirty || autoSendSaving}>
               <Icon name="Save" size={16} />
-              {autoSendSaving ? (cs ? 'Ukladam...' : 'Saving...') : (cs ? 'Ulozit pravidla' : 'Save rules')}
+              {autoSendSaving ? t('admin.emails.saving', 'Saving...') : t('admin.emails.saveRules', 'Save rules')}
             </button>
           </div>
         </div>

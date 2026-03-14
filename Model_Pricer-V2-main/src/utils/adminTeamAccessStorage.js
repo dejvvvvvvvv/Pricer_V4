@@ -1,32 +1,13 @@
 // Demo-only (Varianta A) Team & Access storage (users, invites) with seat limits.
-// Uses localStorage and is tenant-scoped.
+// Uses tenant-scoped localStorage helpers — no direct window.localStorage access.
 
-import { getTenantId } from './adminTenantStorage';
+import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
 import { getPlanFeatures } from './adminBrandingWidgetStorage';
 import { appendAuditEntry } from './adminAuditLogStorage';
 import { generateId } from './generateId';
-import { storageAdapter } from '../lib/supabase/storageAdapter';
-import { getStorageMode } from '../lib/supabase/featureFlags';
-import { isSupabaseAvailable } from '../lib/supabase/client';
 
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && !!window.localStorage;
-  } catch {
-    return false;
-  }
-}
-
-const USERS_KEY = (tenantId) => `modelpricer:${tenantId}:team_users`;
-const INVITES_KEY = (tenantId) => `modelpricer:${tenantId}:team_invites`;
-
-function safeParse(json, fallback) {
-  try {
-    return JSON.parse(json);
-  } catch {
-    return fallback;
-  }
-}
+const NS_USERS = 'team_users';
+const NS_INVITES = 'team_invites';
 
 function nowIso() {
   return new Date().toISOString();
@@ -42,9 +23,8 @@ function isValidEmail(email) {
 }
 
 function seedUsersIfNeeded(tenantId) {
-  if (!canUseLocalStorage()) return;
-  const raw = window.localStorage.getItem(USERS_KEY(tenantId));
-  if (raw) return;
+  const existing = readTenantJson(NS_USERS, null, tenantId);
+  if (existing !== null) return;
   const seeded = [
     {
       id: 'u_admin_demo',
@@ -56,38 +36,27 @@ function seedUsersIfNeeded(tenantId) {
       createdAt: nowIso(),
     },
   ];
-  window.localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(seeded));
+  writeTenantJson(NS_USERS, seeded, tenantId);
 }
 
 function seedInvitesIfNeeded(tenantId) {
-  if (!canUseLocalStorage()) return;
-  const raw = window.localStorage.getItem(INVITES_KEY(tenantId));
-  if (raw) return;
-  window.localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify([]));
+  const existing = readTenantJson(NS_INVITES, null, tenantId);
+  if (existing !== null) return;
+  writeTenantJson(NS_INVITES, [], tenantId);
 }
 
 function readUsers(tenantId) {
-  if (!canUseLocalStorage()) return [];
   seedUsersIfNeeded(tenantId);
-  return safeParse(window.localStorage.getItem(USERS_KEY(tenantId)), []);
+  return readTenantJson(NS_USERS, [], tenantId);
 }
 
 function writeUsers(tenantId, users) {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.setItem(USERS_KEY(tenantId), JSON.stringify(users));
-
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('team_users');
-  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('team_members', tenantId, 'team_users', users)
-      .catch(err => console.warn('[teamAccess] Supabase users write failed:', err.message));
-  }
+  writeTenantJson(NS_USERS, users, tenantId);
 }
 
 function readInvites(tenantId) {
-  if (!canUseLocalStorage()) return [];
   seedInvitesIfNeeded(tenantId);
-  const invites = safeParse(window.localStorage.getItem(INVITES_KEY(tenantId)), []);
+  const invites = readTenantJson(NS_INVITES, [], tenantId);
   // Auto-expire.
   const now = Date.now();
   let changed = false;
@@ -98,20 +67,12 @@ function readInvites(tenantId) {
     }
     return i;
   });
-  if (changed) window.localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(updated));
+  if (changed) writeTenantJson(NS_INVITES, updated, tenantId);
   return updated;
 }
 
 function writeInvites(tenantId, invites) {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.setItem(INVITES_KEY(tenantId), JSON.stringify(invites));
-
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('team_invites');
-  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('team_members', tenantId, 'team_invites', invites)
-      .catch(err => console.warn('[teamAccess] Supabase invites write failed:', err.message));
-  }
+  writeTenantJson(NS_INVITES, invites, tenantId);
 }
 
 export function getTenantForTeam() {

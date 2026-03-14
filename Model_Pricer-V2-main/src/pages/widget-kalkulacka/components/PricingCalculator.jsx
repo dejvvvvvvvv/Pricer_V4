@@ -273,7 +273,7 @@ export default function PricingCalculator({
 
         {/* Main totals */}
         {quote && (() => {
-          const displayTotal = Number.isFinite(quote.simple?.grandTotal) ? quote.simple.grandTotal : quote.total;
+          const displayTotal = Number.isFinite(quote?.grandTotal) ? quote.grandTotal : quote.total;
           const totalQty = readyModels.reduce((sum, f) => {
             const q = printConfigs?.[f.id]?.quantity;
             return sum + (Number.isFinite(Number(q)) ? Math.max(1, Number(q)) : 1);

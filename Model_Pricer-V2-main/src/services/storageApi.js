@@ -7,6 +7,22 @@ import { getTenantId } from "../utils/adminTenantStorage";
 
 const BASE = "/api/storage";
 
+/**
+ * Sanitize a file/folder path to prevent path traversal attacks.
+ * Removes ".." segments, "." segments, null bytes, and backslashes.
+ * @param {string} path
+ * @returns {string}
+ */
+function sanitizePath(path) {
+  if (!path) return '';
+  return String(path)
+    .replace(/\\/g, '/')
+    .replace(/\0/g, '')
+    .split('/')
+    .filter(seg => seg !== '..' && seg !== '.')
+    .join('/');
+}
+
 async function authHeaders(extra = {}) {
   const h = { "x-tenant-id": getTenantId(), ...extra };
   if (window.__authGetToken) {
@@ -63,6 +79,7 @@ export async function saveOrderFiles(orderData, modelFiles) {
  * @returns {Promise<{path, items}>}
  */
 export async function browseFolder(folderPath = "") {
+  folderPath = sanitizePath(folderPath);
   const params = new URLSearchParams();
   if (folderPath) params.set("path", folderPath);
 
@@ -76,6 +93,7 @@ export async function browseFolder(folderPath = "") {
  * @returns {Promise<string>} Blob URL
  */
 export async function downloadFile(filePath) {
+  filePath = sanitizePath(filePath);
   const params = new URLSearchParams({ path: filePath });
   const res = await fetch(`${BASE}/file?${params}`, { headers: await authHeaders() });
   if (!res.ok) {
@@ -96,6 +114,7 @@ export async function downloadFile(filePath) {
  * @returns {string} Preview URL
  */
 export function getPreviewUrl(filePath) {
+  filePath = sanitizePath(filePath);
   const params = new URLSearchParams({ path: filePath });
   return `${BASE}/file/preview?${params}`;
 }
@@ -106,6 +125,7 @@ export function getPreviewUrl(filePath) {
  * @returns {string} Download URL
  */
 export function getDownloadUrl(filePath) {
+  filePath = sanitizePath(filePath);
   const params = new URLSearchParams({ path: filePath });
   return `${BASE}/file?${params}`;
 }
@@ -160,6 +180,7 @@ export async function createZip(paths) {
  * @returns {Promise<{uploaded: Array}>}
  */
 export async function uploadFiles(files, targetPath = "CompanyLibrary") {
+  targetPath = sanitizePath(targetPath) || "CompanyLibrary";
   const form = new FormData();
   form.append("targetPath", targetPath);
   for (const file of files) {
@@ -181,6 +202,7 @@ export async function uploadFiles(files, targetPath = "CompanyLibrary") {
  * @returns {Promise<{trashPath}>}
  */
 export async function deleteFile(filePath) {
+  filePath = sanitizePath(filePath);
   const res = await fetch(`${BASE}/file`, {
     method: "DELETE",
     headers: await authHeaders({ "Content-Type": "application/json" }),
@@ -209,6 +231,7 @@ export async function restoreFile(trashPath) {
  * @returns {Promise<{path}>}
  */
 export async function createFolder(folderPath) {
+  folderPath = sanitizePath(folderPath);
   const res = await fetch(`${BASE}/folder`, {
     method: "POST",
     headers: await authHeaders({ "Content-Type": "application/json" }),
@@ -224,6 +247,7 @@ export async function createFolder(folderPath) {
  * @returns {Promise<{newPath}>}
  */
 export async function renameItem(filePath, newName) {
+  filePath = sanitizePath(filePath);
   const res = await fetch(`${BASE}/rename`, {
     method: "POST",
     headers: await authHeaders({ "Content-Type": "application/json" }),
@@ -239,6 +263,8 @@ export async function renameItem(filePath, newName) {
  * @returns {Promise<{newPath}>}
  */
 export async function moveItem(filePath, destination) {
+  filePath = sanitizePath(filePath);
+  destination = sanitizePath(destination);
   const res = await fetch(`${BASE}/move`, {
     method: "POST",
     headers: await authHeaders({ "Content-Type": "application/json" }),

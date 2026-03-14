@@ -13,9 +13,27 @@
  */
 
 import { Router } from "express";
+import { logInfo } from "../util/logger.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { ensureDir } from "../util/fsSafe.js";
+
+/**
+ * Assert that a resolved path stays within the given base directory.
+ * Throws a 400 error if a path traversal is detected.
+ *
+ * @param {string} resolvedPath
+ * @param {string} base
+ */
+function assertInWorkspace(resolvedPath, base) {
+  const abs = path.resolve(resolvedPath);
+  const absBase = path.resolve(base);
+  if (!abs.startsWith(absBase + path.sep) && abs !== absBase) {
+    const err = new Error("Path traversal detected");
+    err.status = 400;
+    throw err;
+  }
+}
 
 /**
  * All config sections that can be exported/imported.
@@ -50,12 +68,28 @@ export function createConfigRouter({ workspaceRoot, getTenantIdFromReq }) {
   }
 
   /**
+   * Validate that a tenantId contains no path traversal characters.
+   * @param {string} tenantId
+   */
+  function validateTenantId(tenantId) {
+    if (!tenantId || typeof tenantId !== "string" || /[./\\]/.test(tenantId)) {
+      const err = new Error("Invalid tenant ID");
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  /**
    * Resolve the config directory for a tenant.
+   * Guards against path traversal via tenantId.
    * @param {string} tenantId
    * @returns {string}
    */
   function configDir(tenantId) {
-    return path.join(workspaceRoot, "config", tenantId);
+    validateTenantId(tenantId);
+    const dir = path.join(workspaceRoot, "config", tenantId);
+    assertInWorkspace(dir, path.join(workspaceRoot, "config"));
+    return dir;
   }
 
   /**
@@ -232,7 +266,7 @@ export function createConfigRouter({ workspaceRoot, getTenantIdFromReq }) {
         importedSections.push(section);
       }
 
-      console.log(
+      logInfo(
         `[config] Imported ${importedSections.length} sections for tenant ${tenantId}: ${importedSections.join(", ")}`
       );
 

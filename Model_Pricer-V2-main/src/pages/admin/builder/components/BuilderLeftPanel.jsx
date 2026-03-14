@@ -97,7 +97,7 @@ const BuilderLeftPanel = ({
   return (
     <div style={styles.panel}>
       {/* TAB BAR */}
-      <div style={styles.tabBar}>
+      <div style={styles.tabBar} role="tablist">
         {TABS.map(({ id, label, icon: Icon }) => {
           const isActive = activeTab === id;
           return (
@@ -108,8 +108,10 @@ const BuilderLeftPanel = ({
                 ...styles.tab,
                 ...(isActive ? styles.tabActive : {}),
               }}
-              aria-selected={isActive}
               role="tab"
+              id={`blp-tab-${id}`}
+              aria-selected={isActive}
+              aria-controls={`blp-panel-${id}`}
             >
               <Icon
                 size={14}
@@ -127,7 +129,12 @@ const BuilderLeftPanel = ({
       </div>
 
       {/* CONTENT AREA */}
-      <div style={styles.content}>
+      <div
+        style={styles.content}
+        role="tabpanel"
+        id={`blp-panel-${activeTab}`}
+        aria-labelledby={`blp-tab-${activeTab}`}
+      >
         {resolvedContent || <FallbackPlaceholder />}
       </div>
     </div>

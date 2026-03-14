@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import { SAMPLE_MODELS } from '../../../lib/sampleModels';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_EXTENSIONS = ['.stl', '.obj', '.3mf'];
@@ -373,6 +374,7 @@ function ensureKeyframes() {
 }
 
 const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
+  const { t } = useLanguage();
   const [uploadProgress, setUploadProgress] = useState({});
   const [validationErrors, setValidationErrors] = useState([]);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -408,7 +410,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
         errors.push({
           type: 'format',
-          message: `"${file.name}" - nepodporovany format. Povolene: ${ACCEPTED_EXTENSIONS.join(', ')}`,
+          message: `"${file.name}" - ${t('calc.upload.errFormat')}: ${ACCEPTED_EXTENSIONS.join(', ')}`,
         });
       }
 
@@ -417,7 +419,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         errors.push({
           type: 'size',
-          message: `"${file.name}" (${sizeMB} MB) - prekracuje limit 50 MB`,
+          message: `"${file.name}" (${sizeMB} MB) - ${t('calc.upload.errSize')}`,
         });
       }
 
@@ -425,7 +427,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
       if (uploadedFiles?.some((f) => f.name === file.name)) {
         errors.push({
           type: 'duplicate',
-          message: `"${file.name}" - soubor se stejnym nazvem jiz existuje`,
+          message: `"${file.name}" - ${t('calc.upload.errDuplicate')}`,
         });
       }
 
@@ -442,7 +444,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
     successTimerRef.current = setTimeout(() => setShowSuccess(false), 1200);
     // Announce to screen readers
     const announcer = document.getElementById('tk-upload-announcer');
-    if (announcer) announcer.textContent = 'Soubor byl uspesne nahran.';
+    if (announcer) announcer.textContent = t('calc.upload.announceSuccess');
   }, []);
 
   // --- Show validation errors with auto-dismiss ---
@@ -478,7 +480,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
         showValidationErrors([{
           type: 'format',
-          message: `URL soubor "${fileName}" - nepodporovany format. Povolene: ${ACCEPTED_EXTENSIONS.join(', ')}`,
+          message: `URL: "${fileName}" - ${t('calc.upload.errUrlFormat')}: ${ACCEPTED_EXTENSIONS.join(', ')}`,
         }]);
         return;
       }
@@ -501,7 +503,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
           const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
           showValidationErrors([{
             type: 'size',
-            message: `URL soubor "${fileName}" (${sizeMB} MB) - prekracuje limit 50 MB`,
+            message: `URL: "${fileName}" (${sizeMB} MB) - ${t('calc.upload.errUrlSize')}`,
           }]);
           setUrlDownloading(null);
           return;
@@ -540,7 +542,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
             const sizeMB = (receivedLength / (1024 * 1024)).toFixed(1);
             showValidationErrors([{
               type: 'size',
-              message: `URL soubor "${fileName}" (${sizeMB}+ MB) - prekracuje limit 50 MB`,
+              message: `URL: "${fileName}" (${sizeMB}+ MB) - ${t('calc.upload.errUrlSize')}`,
             }]);
             setUrlDownloading(null);
             return;
@@ -560,8 +562,8 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         showValidationErrors([{
           type: 'error',
           message: isCors
-            ? `Nelze stahnout soubor z URL - server nepovoluje pristup z jine domeny (CORS)`
-            : `Chyba pri stahovani souboru z URL: ${err.message}`,
+            ? t('calc.upload.errUrlCors')
+            : `${t('calc.upload.errUrlGeneral')}: ${err.message}`,
         }]);
       }
     },
@@ -587,7 +589,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
             // Generic rejection
             allErrors.push({
               type: 'rejected',
-              message: `"${file.name}" byl odmitnut`,
+              message: `"${file.name}" ${t('calc.upload.errRejected')}`,
             });
           }
         });
@@ -613,10 +615,17 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
       // Process valid files
       filesToProcess.forEach((file) => {
-        const fileId = Date.now() + Math.random();
+        const fileId = crypto.randomUUID();
         setUploadProgress((prev) => ({ ...prev, [fileId]: { progress: 0, name: file.name } }));
 
         let progress = 0;
+        // Phase labels shown during the fake progress animation
+        const phaseLabel = (pct) => {
+          if (pct < 30) return t('calc.pricing.processingStepUpload') + '…';
+          if (pct < 60) return t('calc.pricing.processingStepAnalyze') + '…';
+          if (pct < 90) return t('calc.pricing.processingStepCalculate') + '…';
+          return t('calc.pricing.processingStepCalculate') + '…';
+        };
         const interval = setInterval(() => {
           progress += 10;
 
@@ -646,9 +655,9 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
           setUploadProgress((prev) => ({
             ...prev,
-            [fileId]: { progress, name: file.name },
+            [fileId]: { progress, name: file.name, phase: phaseLabel(progress) },
           }));
-        }, 200);
+        }, 120);
       });
     },
     [onFilesUploaded, validateFile, triggerSuccess, showValidationErrors]
@@ -703,7 +712,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         if (invalidFiles.length > 0 && validFiles.length === 0) {
           showValidationErrors([{
             type: 'format',
-            message: `Vlozeny soubor neni 3D model. Povolene formaty: ${ACCEPTED_EXTENSIONS.join(', ')}`,
+            message: `${t('calc.upload.errImage')}`,
           }]);
           return;
         }
@@ -742,7 +751,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         if (document.activeElement === zoneRef.current || zoneRef.current?.contains(document.activeElement)) {
           showValidationErrors([{
             type: 'format',
-            message: 'Obrazky nelze pouzit jako 3D model. Nahrajte STL, OBJ nebo 3MF soubor.',
+            message: t('calc.upload.errImage'),
           }]);
         }
       }
@@ -796,7 +805,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
           onDrop([file], []);
         } catch (err) {
           showValidationErrors([
-            { type: 'error', message: `Chyba pri generovani modelu: ${err.message}` },
+            { type: 'error', message: `${t('calc.upload.errSampleGen')}: ${err.message}` },
           ]);
         } finally {
           setGeneratingSample(null);
@@ -840,7 +849,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
     .join(' ');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} role="region" aria-label="Nahrani souboru">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} role="region" aria-label={t('calc.upload.ariaRegion')}>
       {/* Screen reader announcements */}
       <div
         aria-live="assertive"
@@ -871,9 +880,9 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         style={zoneStyle}
         tabIndex={0}
         role="button"
-        aria-label="Oblast pro nahrani souboru. Podpora drag-and-drop, kliknuti a Ctrl+V. Povolene formaty: STL, OBJ, 3MF. Maximalni velikost 50 MB."
+        aria-label={t('calc.upload.ariaZone')}
       >
-        <input {...getInputProps()} aria-label="Vyber soubory pro nahrani" />
+        <input {...getInputProps()} aria-label={t('calc.upload.ariaInput')} />
 
         {/* Success overlay */}
         {showSuccess && (
@@ -902,7 +911,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                 fontFamily: 'var(--forge-font-body)',
                 fontWeight: 500,
               }}>
-                Soubor vlozen ze schranky
+                {t('calc.upload.pasteSuccess')}
               </span>
             </div>
           </div>
@@ -924,19 +933,19 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <h3 className="tk-upload-zone-heading" style={forgeStyles.heading}>
               {showSuccess
-                ? 'Soubor nahran'
+                ? t('calc.upload.headingSuccess')
                 : pasteFlash
-                  ? 'Soubor vlozen'
+                  ? t('calc.upload.headingPaste')
                   : isDragActive
-                    ? 'Pustte soubory zde'
-                    : 'Nahrajte 3D modely'}
+                    ? t('calc.upload.headingDrag')
+                    : t('calc.upload.heading')}
             </h3>
             <p className="tk-upload-zone-sub" style={forgeStyles.subText}>
               {isDragActive
-                ? 'Uvolnete pro nahrani souboru'
-                : 'Pretahnete STL, OBJ nebo 3MF soubory nebo kliknete pro vyber'}
+                ? t('calc.upload.subDrag')
+                : t('calc.upload.subDefault')}
             </p>
-            <p style={forgeStyles.mutedText}>Maximalni velikost: 50 MB na soubor</p>
+            <p style={forgeStyles.mutedText}>{t('calc.upload.maxSize')}</p>
             {/* Paste hint */}
             {!isDragActive && !showSuccess && !pasteFlash && (
               <p className="tk-paste-hint" style={{
@@ -948,7 +957,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                 marginTop: '0.125rem',
               }}>
                 <Icon name="Clipboard" size={12} />
-                <span>nebo Ctrl+V pro vlozeni</span>
+                <span>{t('calc.upload.pasteHint')}</span>
               </p>
             )}
           </div>
@@ -962,7 +971,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
 
           <Button variant="outline" size="sm" tabIndex={-1} aria-hidden="true">
             <Icon name="FolderOpen" size={16} className="mr-2" />
-            Vybrat soubory
+            {t('calc.upload.selectFiles')}
           </Button>
 
           {/* Sample Models Section */}
@@ -975,7 +984,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                 marginBottom: '0.625rem',
               }}
             >
-              Nemate model? Vyzkousejte ukazkovy:
+              {t('calc.upload.samplePrompt')}
             </p>
             <div
               style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
@@ -1000,7 +1009,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                     minHeight: '44px',
                     minWidth: '44px',
                   }}
-                  aria-label={`Nahrat ukazkovy model: ${sample.name} (${sample.description})`}
+                  aria-label={`${t('calc.upload.ariaRegion')}: ${sample.name} (${sample.description})`}
                 >
                   <ShapeIcon shape={sample.icon} />
                   <span
@@ -1062,7 +1071,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                   padding: '0.125rem',
                   display: 'flex',
                 }}
-                aria-label="Zavrít chybovou hlasku"
+                aria-label={t('calc.upload.closeError')}
               >
                 <Icon name="X" size={14} />
               </button>
@@ -1086,7 +1095,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}>
-                  Stahuji: {urlDownloading.name}
+                  {t('calc.upload.downloading')}: {urlDownloading.name}
                 </span>
                 <span style={{
                   fontSize: 'var(--forge-text-sm)',
@@ -1104,7 +1113,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                 aria-valuenow={urlDownloading.progress}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label={`Stahovani ${urlDownloading.name}: ${urlDownloading.progress}%`}
+                aria-label={`${t('calc.upload.downloading')} ${urlDownloading.name}: ${urlDownloading.progress}%`}
               >
                 <div
                   className="tk-url-progress-bar"
@@ -1138,7 +1147,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
                 display: 'flex',
                 flexShrink: 0,
               }}
-              aria-label="Zrusit stahovani"
+              aria-label={t('calc.upload.cancelDownload')}
             >
               <Icon name="X" size={14} />
             </button>
@@ -1149,24 +1158,29 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
       {/* Upload Progress */}
       {Object.keys(uploadProgress).length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <h4 style={forgeStyles.sectionLabel}>Nahravani souboru</h4>
+          <h4 style={forgeStyles.sectionLabel}>{t('calc.upload.progressSection')}</h4>
           {Object.entries(uploadProgress).map(([fileId, data]) => (
             <div key={fileId} style={forgeStyles.card}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)' }}>
-                  {data.name || 'Nahravani...'}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                  {data.name || t('calc.upload.progressFallback')}
                 </span>
-                <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)' }} aria-hidden="true">
+                <span style={{ fontSize: 'var(--forge-text-sm)', color: 'var(--forge-accent-primary)', fontFamily: 'var(--forge-font-mono)', flexShrink: 0 }} aria-hidden="true">
                   {data.progress}%
                 </span>
               </div>
+              {data.phase && (
+                <p style={{ fontSize: '10px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)', marginBottom: '0.375rem' }}>
+                  {data.phase}
+                </p>
+              )}
               <div
                 style={forgeStyles.progressBar}
                 role="progressbar"
                 aria-valuenow={data.progress}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label={`Nahravani ${data.name || 'souboru'}: ${data.progress}%`}
+                aria-label={`${t('calc.upload.progressSection')} ${data.name || ''}: ${data.progress}%`}
               >
                 <div style={{ ...forgeStyles.progressFill, width: `${data.progress}%` }} />
               </div>
@@ -1180,9 +1194,9 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h4 style={forgeStyles.sectionLabel}>
-              Nahrane soubory ({uploadedFiles.length})
+              {t('calc.upload.uploadedSection')} ({uploadedFiles.length})
             </h4>
-            <Button variant="ghost" size="sm" aria-label="Dalsi moznosti pro nahrane soubory">
+            <Button variant="ghost" size="sm" aria-label={t('calc.upload.ariaMoreOptions')}>
               <Icon name="MoreHorizontal" size={16} />
             </Button>
           </div>

@@ -48,8 +48,8 @@ export default function KanbanFilters({
     onFiltersChange?.({ ...filters, [key]: value });
   };
 
-  const hasAnyFilter = filters.status || filters.search || filters.dateFrom || filters.dateTo || filters.material || filters.priority;
-  const activeFilterCount = [filters.status, filters.search, filters.dateFrom || filters.dateTo, filters.material, filters.priority].filter(Boolean).length;
+  const hasAnyFilter = filters.status || filters.search || filters.dateFrom || filters.dateTo || filters.material || filters.priority || filters.overdueOnly;
+  const activeFilterCount = [filters.status, filters.search, !!filters.dateFrom, !!filters.dateTo, filters.material, filters.priority, filters.overdueOnly].filter(Boolean).length;
 
   return (
     <div style={{ marginBottom: '12px' }}>

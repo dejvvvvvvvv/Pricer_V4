@@ -14,21 +14,14 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { loadExpressConfigV1, saveExpressConfigV1, validateExpressConfigV1 } from '../../utils/adminExpressStorage';
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
 import { getHelpText } from './helpTexts';
-
-function safeNum(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
-}
+import { debug } from '../../lib/debug';
+import { safeNum } from '@/utils/formatters';
 
 function createId(prefix = 'tier') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
   } catch {}
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 const SURCHARGE_TYPES = [
@@ -57,7 +50,7 @@ export default function AdminExpress() {
       if (cfg.tiers?.length) setSelectedTierId(cfg.tiers[0].id);
       setLoading(false);
     } catch (e) {
-      console.error('[AdminExpress] Failed to init', e);
+      debug('[AdminExpress] Failed to init', e);
       setLoading(false);
       setBanner({ type: 'error', text: cs ? 'Nepodarilo se nacist konfiguraci.' : 'Failed to load config.' });
     }
@@ -71,7 +64,7 @@ export default function AdminExpress() {
 
   const selectedTier = useMemo(() => {
     if (!config?.tiers || !selectedTierId) return null;
-    return config.tiers.find((t) => t.id === selectedTierId) || null;
+    return config.tiers.find((tier) => tier.id === selectedTierId) || null;
   }, [config, selectedTierId]);
 
   const ui = useMemo(() => ({
@@ -125,7 +118,7 @@ export default function AdminExpress() {
   };
 
   const removeTier = async (id) => {
-    const tier = config?.tiers?.find((t) => t.id === id);
+    const tier = config?.tiers?.find((item) => item.id === id);
     if (tier?.is_default) {
       setBanner({ type: 'error', text: cs ? 'Nelze smazat vychozi uroven.' : 'Cannot delete default tier.' });
       return;
@@ -134,7 +127,7 @@ export default function AdminExpress() {
     if (!ok) return;
     setConfig((prev) => ({
       ...prev,
-      tiers: (prev.tiers || []).filter((t) => t.id !== id),
+      tiers: (prev.tiers || []).filter((item) => item.id !== id),
     }));
     if (selectedTierId === id) setSelectedTierId(null);
   };
@@ -142,9 +135,9 @@ export default function AdminExpress() {
   const setAsDefault = (tierId) => {
     setConfig((prev) => ({
       ...prev,
-      tiers: (prev.tiers || []).map((t) => ({
-        ...t,
-        is_default: t.id === tierId,
+      tiers: (prev.tiers || []).map((item) => ({
+        ...item,
+        is_default: item.id === tierId,
       })),
     }));
   };
@@ -152,12 +145,12 @@ export default function AdminExpress() {
   const moveTier = (tierId, direction) => {
     setConfig((prev) => {
       const tiers = [...(prev.tiers || [])];
-      const idx = tiers.findIndex((t) => t.id === tierId);
+      const idx = tiers.findIndex((item) => item.id === tierId);
       if (idx < 0) return prev;
       const swapIdx = idx + direction;
       if (swapIdx < 0 || swapIdx >= tiers.length) return prev;
       [tiers[idx], tiers[swapIdx]] = [tiers[swapIdx], tiers[idx]];
-      return { ...prev, tiers: tiers.map((t, i) => ({ ...t, sort_order: i })) };
+      return { ...prev, tiers: tiers.map((item, i) => ({ ...item, sort_order: i })) };
     });
   };
 
@@ -196,7 +189,7 @@ export default function AdminExpress() {
       setSaving(false);
       setBanner({ type: 'success', text: ui.saved });
     } catch (e) {
-      console.error('[AdminExpress] Save failed', e);
+      debug('[AdminExpress] Save failed', e);
       setSaving(false);
       setBanner({ type: 'error', text: cs ? 'Ulozeni selhalo.' : 'Save failed.' });
     }
@@ -216,6 +209,19 @@ export default function AdminExpress() {
     }
   };
 
+  const tiers = config?.tiers || [];
+
+  // Per-tier name validation for inline errors
+  // NOTE: must be before any early return to comply with Rules of Hooks
+  const nameErrorForSelected = useMemo(() => {
+    if (!selectedTier) return '';
+    const name = (selectedTier.name || '').trim();
+    if (!name) return cs ? 'Nazev je povinny.' : 'Name is required.';
+    const isDuplicate = tiers.some((item) => item.id !== selectedTier.id && (item.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (isDuplicate) return cs ? 'Nazev je duplicitni.' : 'Name is duplicate.';
+    return '';
+  }, [selectedTier, tiers, cs]);
+
   if (loading) {
     return (
       <div className="admin-page">
@@ -230,18 +236,6 @@ export default function AdminExpress() {
       </div>
     );
   }
-
-  const tiers = config?.tiers || [];
-
-  // Per-tier name validation for inline errors
-  const nameErrorForSelected = useMemo(() => {
-    if (!selectedTier) return '';
-    const name = (selectedTier.name || '').trim();
-    if (!name) return cs ? 'Nazev je povinny.' : 'Name is required.';
-    const isDuplicate = tiers.some((t) => t.id !== selectedTier.id && (t.name || '').trim().toLowerCase() === name.toLowerCase());
-    if (isDuplicate) return cs ? 'Nazev je duplicitni.' : 'Name is duplicate.';
-    return '';
-  }, [selectedTier, tiers, cs]);
 
   return (
     <div className="admin-page">
@@ -517,7 +511,7 @@ export default function AdminExpress() {
                 </div>
                 <div className="card-body">
                   <div className="preview-tiers">
-                    {tiers.filter((t) => t.active).map((tier) => (
+                    {tiers.filter((item) => item.active).map((tier) => (
                       <div key={tier.id} className={`preview-card ${tier.id === selectedTier.id ? 'highlighted' : ''} ${tier.is_default ? 'default' : ''}`}>
                         <div className="preview-name">{tier.name}</div>
                         <div className="preview-surcharge">

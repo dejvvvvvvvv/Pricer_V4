@@ -1,20 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Icon from '../../../components/AppIcon';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const LanguageToggle = () => {
-  const [currentLanguage, setCurrentLanguage] = useState('cs');
-
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem('language') || 'cs';
-    setCurrentLanguage(savedLanguage);
-  }, []);
-
-  const toggleLanguage = () => {
-    const newLanguage = currentLanguage === 'cs' ? 'en' : 'cs';
-    setCurrentLanguage(newLanguage);
-    localStorage.setItem('language', newLanguage);
-    window.location?.reload();
-  };
+  const { language, toggleLanguage } = useLanguage();
+  const currentLanguage = language;
 
   return (
     <div style={{ position: 'absolute', top: '16px', right: '16px' }}>

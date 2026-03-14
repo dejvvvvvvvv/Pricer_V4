@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import { loadOrders, computeOrderTotals, extractOrderMaterials } from '../../../utils/adminOrdersStorage';
 
@@ -51,7 +50,7 @@ const STATUS_LABELS_EN = {
   CANCELED: 'Canceled',
 };
 
-/* ── Demo data generator ──────────────────────────────────────────────── */
+/* ── Demo data generator — DEMO: mock data only, all Math.random() calls below are for chart demo ── */
 function generateDemoOrdersOverTime() {
   const data = [];
   const now = new Date();

@@ -40,6 +40,20 @@ const NAMESPACE_TABLE_MAP = {
   'widgets': 'widget_configs',
   'plan_features': 'tenants',
   'widget_theme': 'widget_configs',
+  'settings:v1': 'settings',
+  'payment:v1': 'payment_configs',
+  'ecommerce': 'ecommerce_configs',
+  'notifications': 'notifications',
+  'notification-prefs:v1': 'notifications',
+  'print-queue:v1': 'print_queue',
+  'print-stats:v1': 'print_queue',
+  'invoices:v1': 'invoices',
+  'company:v1': 'company_data',
+  'order-views:v1': 'order_views',
+  'order-tags:v1': 'order_tags',
+  'order-tag-assignments:v1': 'order_tags',
+  'email-send-log:v1': 'email_send_log',
+  'activityLog': 'activity_log',
 };
 
 /**

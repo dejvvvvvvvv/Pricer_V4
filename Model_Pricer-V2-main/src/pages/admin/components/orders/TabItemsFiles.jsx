@@ -1,28 +1,11 @@
 import React from 'react';
+import { debug } from '@/lib/debug';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../../components/AppIcon';
 import StorageStatusBadge from './StorageStatusBadge';
 import { downloadFile, createZip } from '../../../../services/storageApi';
 import { round2 } from '../../../../utils/adminOrdersStorage';
-
-function formatMoney(amount) {
-  return `${round2(amount).toFixed(2)} Kc`;
-}
-
-function formatTime(min) {
-  const m = Math.max(0, Math.round(Number(min) || 0));
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (h <= 0) return `${r}m`;
-  return `${h}h ${r}m`;
-}
-
-function formatSize(bytes) {
-  if (!bytes) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { formatMoney, formatTime, formatSize } from '../../../../utils/formatters';
 
 export default function TabItemsFiles({ order, onClose }) {
   const navigate = useNavigate();
@@ -39,13 +22,25 @@ export default function TabItemsFiles({ order, onClose }) {
 
   const handleDownloadZip = () => {
     if (!hasStorage) return;
-    createZip([storage.storagePath]).catch(console.error);
+    createZip([storage.storagePath]).catch((err) => debug('[TabItemsFiles] ZIP download failed:', err));
   };
 
   const handleDownloadFile = async (filePath) => {
     try {
-      const filename = filePath.split('/').pop() || 'download';
-      const blobUrl = await downloadFile(filePath);
+      // Defense-in-depth: sanitize path before passing to downloadFile
+      // Reject null bytes, backslashes, and ".." path traversal segments
+      const sanitized = String(filePath || '')
+        .replace(/\\/g, '/')
+        .replace(/\0/g, '')
+        .split('/')
+        .filter(seg => seg !== '..' && seg !== '.')
+        .join('/');
+      if (!sanitized) {
+        debug('[TabItemsFiles] Invalid file path rejected');
+        return;
+      }
+      const filename = sanitized.split('/').pop() || 'download';
+      const blobUrl = await downloadFile(sanitized);
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = filename;
@@ -54,7 +49,7 @@ export default function TabItemsFiles({ order, onClose }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.error('Download failed:', err);
+      debug('[TabItemsFiles] Download failed:', err);
     }
   };
 
@@ -209,7 +204,7 @@ export default function TabItemsFiles({ order, onClose }) {
                   borderRadius: 'var(--forge-radius-md)',
                   border: '1px solid var(--forge-accent-primary)',
                   background: 'var(--forge-accent-primary)',
-                  color: '#08090C',
+                  color: 'var(--forge-bg-void)',
                   fontFamily: 'var(--forge-font-body)',
                   fontSize: '12px',
                   fontWeight: 600,

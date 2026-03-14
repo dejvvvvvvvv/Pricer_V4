@@ -26,6 +26,7 @@ import {
   saveNotificationPrefs,
   NOTIFICATION_UPDATED_EVENT,
 } from '../../../utils/adminNotificationStorage';
+import { formatRelativeTime } from '../../../utils/formatters';
 
 // ---- Icon & color mapping per notification type ----
 const TYPE_CONFIG = {
@@ -37,25 +38,6 @@ const TYPE_CONFIG = {
   info:    { icon: 'Info',        color: 'var(--forge-info)',           label: 'Informace' },
 };
 
-// ---- Relative time in Czech ----
-function formatRelativeTime(timestamp) {
-  const now = Date.now();
-  const diff = now - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (seconds < 60) return 'prave ted';
-  if (minutes === 1) return 'pred 1 min';
-  if (minutes < 60) return `pred ${minutes} min`;
-  if (hours === 1) return 'pred 1 hodinou';
-  if (hours < 24) return `pred ${hours} hod`;
-  if (days === 1) return 'vcera';
-  if (days < 7) return `pred ${days} dny`;
-  const d = new Date(timestamp);
-  return `${d.getDate()}.${d.getMonth() + 1}.`;
-}
 
 // ---- Badge count formatter ----
 function formatBadge(count) {

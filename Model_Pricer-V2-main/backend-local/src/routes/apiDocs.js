@@ -31,18 +31,32 @@ const RATE_LIMITS = {
 // ── Error Codes ──
 const ERROR_CODES = [
   { code: "MP_VALIDATION_ERROR", status: 400, description: "Request validation failed (missing/invalid fields)" },
+  { code: "MP_BAD_REQUEST", status: 400, description: "Malformed request (bad format, invalid parameter)" },
   { code: "MP_AUTH_ERROR", status: 401, description: "Authentication failed (missing or invalid token)" },
   { code: "MP_FORBIDDEN", status: 403, description: "Access denied (insufficient permissions or tenant mismatch)" },
   { code: "MP_CORS_BLOCKED", status: 403, description: "CORS origin not in allowlist" },
   { code: "MP_NOT_FOUND", status: 404, description: "Resource or endpoint not found" },
+  { code: "MP_CONFLICT", status: 409, description: "State conflict (e.g. job already completed, channel disabled)" },
+  { code: "MP_NOTIFICATION_CHANNEL_DISABLED", status: 409, description: "Notification channel is currently disabled in preferences" },
   { code: "MP_UPLOAD_TOO_LARGE", status: 413, description: "Uploaded file exceeds size limit (250MB)" },
-  { code: "MP_SLICER_TIMEOUT", status: 504, description: "PrusaSlicer operation timed out (300s default)" },
-  { code: "MP_SLICING_FAILED", status: 500, description: "PrusaSlicer failed to produce output" },
-  { code: "MP_SLICER_NOT_FOUND", status: 500, description: "PrusaSlicer binary not found on server" },
   { code: "MP_QUEUE_FULL", status: 429, description: "Slicing queue is at capacity" },
+  { code: "MP_SLICER_NOT_CONFIGURED", status: 500, description: "PRUSA_SLICER_CMD not set and auto-detect failed" },
+  { code: "MP_SLICER_NOT_FOUND", status: 503, description: "PrusaSlicer binary path resolved but file not found on disk" },
+  { code: "MP_SLICER_CHECK_FAILED", status: 500, description: "Error while running PrusaSlicer health check" },
+  { code: "MP_SLICING_FAILED", status: 500, description: "PrusaSlicer failed to produce output (out.gcode missing)" },
   { code: "MP_QUEUE_SUBMIT_FAILED", status: 500, description: "Failed to submit job to slicing queue" },
+  { code: "MP_CONFIG_READ_FAILED", status: 500, description: "Failed to read tenant configuration file" },
+  { code: "MP_CONFIG_EXPORT_FAILED", status: 500, description: "Failed to export tenant configuration" },
+  { code: "MP_CONFIG_IMPORT_FAILED", status: 500, description: "Failed to write imported configuration to disk" },
+  { code: "MP_STATS_ORDERS_FAILED", status: 500, description: "Failed to aggregate order statistics" },
+  { code: "MP_STATS_MODELS_FAILED", status: 500, description: "Failed to aggregate model/slicing statistics" },
+  { code: "MP_STATS_USAGE_FAILED", status: 500, description: "Failed to retrieve system usage statistics" },
+  { code: "MP_NOTIFICATIONS_READ_FAILED", status: 500, description: "Failed to read notification preferences" },
+  { code: "MP_NOTIFICATIONS_UPDATE_FAILED", status: 500, description: "Failed to write updated notification preferences" },
+  { code: "MP_NOTIFICATION_TEST_FAILED", status: 500, description: "Failed to process test notification request" },
+  { code: "MP_HEALTH_CHECK_FAILED", status: 500, description: "Detailed health check encountered an unexpected error" },
   { code: "MP_INTERNAL_ERROR", status: 500, description: "Unexpected internal server error" },
-  { code: "MP_HEALTH_CHECK_FAILED", status: 500, description: "Health check encountered an error" },
+  { code: "MP_SLICER_TIMEOUT", status: 504, description: "PrusaSlicer operation timed out (300s default)" },
 ];
 
 // ── Endpoint Definitions ──
@@ -98,7 +112,7 @@ const ENDPOINTS = [
     response: {
       status: 200,
       description: "Slicer availability status",
-      example: { ok: true, checkMethod: "--help", exitCode: 0, version: "2.7.1" },
+      example: { ok: true, data: { available: true, checkMethod: "--help", exitCode: 0, version: "2.7.1" } },
     },
     curl: 'curl http://localhost:3001/api/health/prusa',
   },
@@ -196,7 +210,7 @@ const ENDPOINTS = [
     response: {
       status: 200,
       description: "Slicing results with metrics",
-      example: { success: true, jobId: "job-abc123", cached: false, durationMs: 4500, usedPreset: "default-pla-02", modelUsed: "test.stl", modelInfo: { volume: 1234.5, boundingBox: { min: [0, 0, 0], max: [50, 50, 30] } }, metrics: { estimatedTime: "1h 23m", filamentUsed: "12.5m", layers: 150 } },
+      example: { ok: true, data: { jobId: "job-abc123", cached: false, durationMs: 4500, usedPreset: "default-pla-02", modelUsed: "test.stl", modelInfo: { volume: 1234.5, boundingBox: { min: [0, 0, 0], max: [50, 50, 30] } }, metrics: { estimatedTime: "1h 23m", filamentUsed: "12.5m", layers: 150 } } },
     },
     errorResponses: [
       { status: 400, errorCode: "MP_VALIDATION_ERROR", description: "Missing model file or invalid file type" },
@@ -637,7 +651,7 @@ const ENDPOINTS = [
     response: {
       status: 200,
       description: "Widget-visible presets (filtered fields)",
-      example: { presets: [{ id: "p_abc", name: "PLA 0.2mm" }], defaultPresetId: "p_abc" },
+      example: { ok: true, data: { presets: [{ id: "p_abc", name: "PLA 0.2mm" }], defaultPresetId: "p_abc" } },
     },
     curl: 'curl http://localhost:3001/api/widget/presets \\\n  -H "x-tenant-id: demo-tenant"',
   },
@@ -1083,6 +1097,186 @@ const ENDPOINTS = [
     },
     curl: 'curl http://localhost:3001/api/config/company \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
   },
+  {
+    group: "Config",
+    method: "GET",
+    path: "/api/config/export",
+    summary: "Export all config",
+    description: "Export all tenant configuration sections (branding, company, pricing, fees, shipping, parameters, widget, ecommerce) as a single JSON object. Useful for backup, migration, or cloning tenant settings.",
+    auth: true,
+    rateLimit: "global",
+    params: [],
+    requestBody: null,
+    response: {
+      status: 200,
+      description: "Full config export with metadata",
+      example: { ok: true, data: { _meta: { exportedAt: "2026-03-13T10:00:00Z", tenantId: "demo-tenant", version: 1, sections: ["branding", "pricing"] }, branding: { companyName: "My Shop" }, pricing: {} } },
+    },
+    curl: 'curl http://localhost:3001/api/config/export \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "x-tenant-id: demo-tenant"',
+  },
+  {
+    group: "Config",
+    method: "POST",
+    path: "/api/config/import",
+    summary: "Import config",
+    description: "Import a previously exported config JSON, overwriting matching sections. Validates structure before writing. Use ?sections=branding,pricing to import only specific sections.",
+    auth: true,
+    rateLimit: "write",
+    params: [
+      { name: "sections", in: "query", type: "string", required: false, description: "Comma-separated list of sections to import (default: all). Valid: branding, company, pricing, fees, shipping, parameters, widget, ecommerce" },
+    ],
+    requestBody: {
+      contentType: "application/json",
+      schema: {
+        _meta: { type: "object", required: true, description: "Export metadata object (must have version: 1)" },
+        branding: { type: "object", required: false },
+        company: { type: "object", required: false },
+        pricing: { type: "object", required: false },
+        fees: { type: "object", required: false },
+      },
+    },
+    response: {
+      status: 200,
+      description: "Import result with imported sections list",
+      example: { ok: true, data: { importedSections: ["branding", "pricing"], importedAt: "2026-03-13T10:00:00Z", tenantId: "demo-tenant" } },
+    },
+    errorResponses: [
+      { status: 400, errorCode: "MP_VALIDATION_ERROR", description: "Missing _meta, unsupported version, or invalid section data" },
+    ],
+    curl: 'curl -X POST http://localhost:3001/api/config/import \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"_meta":{"version":1},"branding":{"companyName":"My Shop"}}\'',
+  },
+
+  // ── Stats ──
+  {
+    group: "Stats",
+    method: "GET",
+    path: "/api/stats/orders",
+    summary: "Order statistics",
+    description: "Order statistics broken down by status, revenue, and time period. Supports period filters (day/week/month/year/all) and custom date ranges.",
+    auth: true,
+    rateLimit: "global",
+    params: [
+      { name: "period", in: "query", type: "string", required: false, description: "Time period for aggregation", enum: ["day", "week", "month", "year", "all"] },
+      { name: "dateFrom", in: "query", type: "string", required: false, description: "Custom range start (ISO 8601, overrides period)" },
+      { name: "dateTo", in: "query", type: "string", required: false, description: "Custom range end (ISO 8601)" },
+    ],
+    requestBody: null,
+    response: {
+      status: 200,
+      description: "Order statistics with revenue breakdown and trend data",
+      example: { ok: true, data: { period: "month", dateRange: { from: "2026-03-01T00:00:00Z", to: "2026-03-13T00:00:00Z" }, totalOrders: 12, byStatus: { new: 2, processing: 3, completed: 7 }, totalRevenue: 5400, avgOrderValue: 450, currency: "CZK", trend: [{ date: "2026-03-01", revenue: 900, count: 2 }] } },
+    },
+    curl: 'curl "http://localhost:3001/api/stats/orders?period=month" \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "x-tenant-id: demo-tenant"',
+  },
+  {
+    group: "Stats",
+    method: "GET",
+    path: "/api/stats/models",
+    summary: "Model statistics",
+    description: "Model and slicing statistics aggregated from order items: total models sliced, average print time, total filament usage, and top materials.",
+    auth: true,
+    rateLimit: "global",
+    params: [],
+    requestBody: null,
+    response: {
+      status: 200,
+      description: "Model and material statistics",
+      example: { ok: true, data: { totalModelsSliced: 145, totalOrders: 42, avgModelsPerOrder: 3.5, printTime: { totalMinutes: 14500, totalHours: 241.7, avgMinutesPerModel: 100 }, filament: { totalGrams: 3600, totalMeters: 1200 }, topMaterials: [{ name: "PLA", count: 90 }, { name: "PETG", count: 40 }] } },
+    },
+    curl: 'curl http://localhost:3001/api/stats/models \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
+  },
+  {
+    group: "Stats",
+    method: "GET",
+    path: "/api/stats/usage",
+    summary: "System usage statistics",
+    description: "System-level usage statistics: process uptime, memory consumption, slicer cache hit rate, and slicing queue status. Does not expose sensitive paths.",
+    auth: true,
+    rateLimit: "global",
+    params: [],
+    requestBody: null,
+    response: {
+      status: 200,
+      description: "System resource and cache statistics",
+      example: { ok: true, data: { tenantId: "demo-tenant", uptime: { seconds: 3600, formatted: "1h 0m 0s" }, memory: { heapUsedMB: 45.2, heapTotalMB: 80, rssMB: 120 }, slicerCache: { size: 12, hits: 45, misses: 10, hitRate: "81.8%" }, slicingQueue: { pending: 0, processing: 0, completed: 55 } } },
+    },
+    curl: 'curl http://localhost:3001/api/stats/usage \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
+  },
+
+  // ── Notifications ──
+  {
+    group: "Notifications",
+    method: "GET",
+    path: "/api/notifications/preferences",
+    summary: "Get notification preferences",
+    description: "Get the current notification preferences for the tenant. Returns preferences for all three channels (email, webhook, inApp). Missing fields are filled with system defaults.",
+    auth: true,
+    rateLimit: "global",
+    params: [],
+    requestBody: null,
+    response: {
+      status: 200,
+      description: "Notification preferences for all channels",
+      example: { ok: true, data: { email: { enabled: true, orderCreated: true, orderCompleted: true, dailyDigest: false, recipientEmail: "admin@shop.cz" }, webhook: { enabled: false, orderEvents: true }, inApp: { enabled: true, orderEvents: true, systemEvents: true } } },
+    },
+    curl: 'curl http://localhost:3001/api/notifications/preferences \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
+  },
+  {
+    group: "Notifications",
+    method: "PUT",
+    path: "/api/notifications/preferences",
+    summary: "Update notification preferences",
+    description: "Update notification preferences. Supports partial updates per channel — only the provided channels are updated, others are left unchanged. Each channel is shallow-merged with existing values.",
+    auth: true,
+    rateLimit: "write",
+    params: [],
+    requestBody: {
+      contentType: "application/json",
+      schema: {
+        email: { type: "object", required: false, description: "Email channel preferences (enabled, orderCreated, orderCompleted, dailyDigest, recipientEmail, ...)" },
+        webhook: { type: "object", required: false, description: "Webhook channel preferences (enabled, orderEvents, slicingEvents)" },
+        inApp: { type: "object", required: false, description: "In-app channel preferences (enabled, orderEvents, systemEvents)" },
+      },
+    },
+    response: {
+      status: 200,
+      description: "Updated channels and full merged preferences",
+      example: { ok: true, data: { updatedChannels: ["email"], preferences: { email: { enabled: false }, webhook: { enabled: false }, inApp: { enabled: true } } } },
+    },
+    errorResponses: [
+      { status: 400, errorCode: "MP_VALIDATION_ERROR", description: "No valid notification channels provided in body" },
+    ],
+    curl: 'curl -X PUT http://localhost:3001/api/notifications/preferences \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"email":{"enabled":false,"dailyDigest":true}}\'',
+  },
+  {
+    group: "Notifications",
+    method: "POST",
+    path: "/api/notifications/test",
+    summary: "Send test notification",
+    description: "Send a test notification for the specified channel. In the current implementation the notification is logged but not actually delivered. Channel must be enabled in preferences first.",
+    auth: true,
+    rateLimit: "write",
+    params: [
+      { name: "channel", in: "body", type: "string", required: true, description: "Channel to test", enum: ["email", "webhook", "inApp"] },
+      { name: "message", in: "body", type: "string", required: false, description: "Custom test message (max 500 chars)" },
+    ],
+    requestBody: {
+      contentType: "application/json",
+      schema: {
+        channel: { type: "string", required: true, enum: ["email", "webhook", "inApp"] },
+        message: { type: "string", required: false, maxLength: 500 },
+      },
+    },
+    response: {
+      status: 200,
+      description: "Test notification result",
+      example: { ok: true, data: { testId: "test-1234567890-abcd1234", channel: "email", message: "Test notification from ModelPricer", sentAt: "2026-03-13T10:00:00Z", delivered: true } },
+    },
+    errorResponses: [
+      { status: 409, errorCode: "MP_NOTIFICATION_CHANNEL_DISABLED", description: "The specified channel is disabled in preferences" },
+    ],
+    curl: 'curl -X POST http://localhost:3001/api/notifications/test \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"channel":"email","message":"Hello from test"}\'',
+  },
 
   // ── Auth ──
   {
@@ -1285,7 +1479,9 @@ function generateOpenApiSchema(pkgVersion) {
       { name: "Webhooks", description: "Webhook registration and event delivery" },
       { name: "Email", description: "Email templates and sending" },
       { name: "Invoices", description: "Invoice generation" },
-      { name: "Config", description: "Tenant configuration (branding, company)" },
+      { name: "Config", description: "Tenant configuration (branding, company, export/import)" },
+      { name: "Stats", description: "Order, model, and system usage statistics" },
+      { name: "Notifications", description: "Notification preferences and test delivery" },
       { name: "Auth", description: "Authentication and claims" },
       { name: "Storage", description: "Tenant-scoped file storage" },
     ],
@@ -1309,7 +1505,7 @@ function generateHtmlDocs(pkgVersion) {
     groups[ep.group].push(ep);
   }
 
-  const groupOrder = ["System", "Slicing", "Mesh", "Presets", "Widget", "Orders", "Invoices", "Email", "Config", "Webhooks", "Auth", "Storage"];
+  const groupOrder = ["System", "Slicing", "Mesh", "Presets", "Widget", "Orders", "Invoices", "Email", "Config", "Stats", "Notifications", "Webhooks", "Auth", "Storage"];
   const groupIcons = {
     System: "&#9881;",
     Slicing: "&#9986;",
@@ -1320,6 +1516,8 @@ function generateHtmlDocs(pkgVersion) {
     Invoices: "&#128196;",
     Email: "&#9993;",
     Config: "&#9881;",
+    Stats: "&#128202;",
+    Notifications: "&#128276;",
     Webhooks: "&#128279;",
     Auth: "&#128274;",
     Storage: "&#128451;",

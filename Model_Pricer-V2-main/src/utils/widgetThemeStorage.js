@@ -1,37 +1,38 @@
 /**
  * Widget Theme Storage - manages CSS theme configuration for embeddable widgets.
- * Uses localStorage as source of truth (Varianta A demo).
+ * Uses tenant-scoped localStorage via adminTenantStorage helpers.
+ *
+ * Key format: modelpricer:<tenantId>:widget_theme:v1
+ * Legacy key (migrated on first read): modelpricer:widget_theme:<tenantId>
  */
 
-import { getTenantId } from './adminTenantStorage';
-import { storageAdapter } from '../lib/supabase/storageAdapter';
-import { getStorageMode } from '../lib/supabase/featureFlags';
-import { isSupabaseAvailable } from '../lib/supabase/client';
+import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { debug } from '@/lib/debug';
 
-const THEME_KEY_PREFIX = 'modelpricer:widget_theme';
+const WIDGET_THEME_NAMESPACE = 'widget_theme:v1';
 
-function getThemeKey(tenantId) {
-  return `${THEME_KEY_PREFIX}:${tenantId}`;
-}
-
-function safeJsonParse(raw, fallback) {
+/**
+ * One-time migration: reads legacy key `modelpricer:widget_theme:<tenantId>`
+ * and writes the data into the new namespace, then removes the legacy key.
+ * Idempotent — safe to call on every read.
+ */
+function migrateWidgetThemeLegacyKey(tenantId) {
+  if (typeof window === 'undefined' || !tenantId) return;
+  const legacyKey = `modelpricer:widget_theme:${tenantId}`;
+  const raw = window.localStorage.getItem(legacyKey);
+  if (!raw) return;
   try {
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
+    const parsed = JSON.parse(raw);
+    // Write into new namespace only if new key does not exist yet
+    const newKey = `modelpricer:${tenantId}:${WIDGET_THEME_NAMESPACE}`;
+    if (!window.localStorage.getItem(newKey)) {
+      writeTenantJson(WIDGET_THEME_NAMESPACE, parsed, tenantId);
+      debug('[widgetTheme] Migrated legacy key to new namespace for tenant:', tenantId);
+    }
+    window.localStorage.removeItem(legacyKey);
+  } catch (e) {
+    debug('[widgetTheme] Failed to migrate legacy key:', e.message);
   }
-}
-
-function lsGet(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
-  const raw = window.localStorage.getItem(key);
-  if (!raw) return fallback;
-  return safeJsonParse(raw, fallback);
-}
-
-function lsSet(key, value) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(key, JSON.stringify(value));
 }
 
 /**
@@ -149,10 +150,12 @@ export function getDefaultWidgetTheme() {
 /**
  * Get widget theme for current tenant.
  * Falls back to defaults if not set.
+ * Migrates legacy key on first read (idempotent).
  */
 export function getWidgetTheme(tenantIdOverride = null) {
   const tenantId = tenantIdOverride || getTenantId();
-  const stored = lsGet(getThemeKey(tenantId), null);
+  migrateWidgetThemeLegacyKey(tenantId);
+  const stored = readTenantJson(WIDGET_THEME_NAMESPACE, null, tenantId);
 
   if (stored) {
     // Merge with defaults to ensure all keys exist
@@ -165,6 +168,7 @@ export function getWidgetTheme(tenantIdOverride = null) {
 /**
  * Save widget theme for current tenant.
  * Merges with existing theme to preserve unset values.
+ * Supabase dual-write is handled by writeTenantJson based on feature flags.
  */
 export function saveWidgetTheme(themeUpdate, tenantIdOverride = null) {
   const tenantId = tenantIdOverride || getTenantId();
@@ -176,33 +180,19 @@ export function saveWidgetTheme(themeUpdate, tenantIdOverride = null) {
     updatedAt: new Date().toISOString(),
   };
 
-  lsSet(getThemeKey(tenantId), next);
-
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('widget_theme');
-  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('widget_configs', tenantId, 'widget_theme', next)
-      .catch(err => console.warn('[widgetTheme] Supabase write failed:', err.message));
-  }
+  writeTenantJson(WIDGET_THEME_NAMESPACE, next, tenantId);
 
   return next;
 }
 
 /**
  * Reset widget theme to defaults.
+ * Supabase dual-write is handled by writeTenantJson based on feature flags.
  */
 export function resetWidgetTheme(tenantIdOverride = null) {
   const tenantId = tenantIdOverride || getTenantId();
   const defaults = getDefaultWidgetTheme();
-  lsSet(getThemeKey(tenantId), defaults);
-
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('widget_theme');
-  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('widget_configs', tenantId, 'widget_theme', defaults)
-      .catch(err => console.warn('[widgetTheme] Supabase write failed:', err.message));
-  }
-
+  writeTenantJson(WIDGET_THEME_NAMESPACE, defaults, tenantId);
   return defaults;
 }
 
@@ -221,6 +211,8 @@ export function themeToCssVars(theme) {
     '--widget-text': t.textColor,
     '--widget-muted': t.mutedColor,
     '--widget-btn-primary': t.buttonPrimaryColor,
+    // Alias used in BatchProgressBar and FileUploadZone focus style
+    '--widget-btn-bg': t.buttonPrimaryColor,
     '--widget-btn-text': t.buttonTextColor,
     '--widget-btn-hover': t.buttonHoverColor,
     '--widget-input-bg': t.inputBgColor,

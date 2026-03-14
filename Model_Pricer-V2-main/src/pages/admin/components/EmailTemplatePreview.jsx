@@ -64,7 +64,7 @@ function buildEmailHtml(bodyHtml, subjectRendered) {
     .email-body td { padding: 8px; border-bottom: 1px solid #e8e8e8; }
     .email-footer {
       padding: 16px 24px; border-top: 1px solid #e8e8e8;
-      font-size: 12px; color: #999; text-align: center;
+      font-size: 12px; color: var(--forge-text-muted, #7A8291); text-align: center;
     }
   </style>
 </head>
@@ -138,7 +138,7 @@ export default function EmailTemplatePreview({ subject, body, cs }) {
             <iframe
               ref={iframeRef}
               title="Email preview"
-              sandbox="allow-same-origin"
+              sandbox=""
               className="etp-iframe"
               style={{ width: iframeWidth }}
             />
@@ -183,19 +183,19 @@ export default function EmailTemplatePreview({ subject, body, cs }) {
           color: var(--forge-bg-void);
         }
         .etp-preview-container {
-          background: #e8e8ec;
+          background: var(--forge-bg-elevated);
           min-height: 320px;
           padding: 16px;
         }
         .etp-iframe-wrap { transition: max-width 0.2s ease; }
         .etp-iframe {
           border: none; width: 100%; min-height: 400px;
-          background: #ffffff; border-radius: 6px;
+          background: var(--forge-bg-void, #ffffff); border-radius: 6px;
           display: block;
         }
         .etp-plaintext {
           font-family: var(--forge-font-mono, monospace);
-          font-size: 13px; color: #1a1a2e; background: #ffffff;
+          font-size: 13px; color: var(--forge-text-primary); background: var(--forge-bg-void, #ffffff);
           padding: 16px; border-radius: 6px;
           white-space: pre-wrap; word-break: break-word;
           min-height: 300px; line-height: 1.6;

@@ -16,7 +16,7 @@ je implementovana rucne pomoci React Context API.
 - Prepinani mezi cestinou (`cs`) a anglictinou (`en`)
 - Persistentni ulozeni jazykove preference do `localStorage`
 - Prekladova funkce `t(key)` s fallbackem na samotny klic
-- 462 prekladovych klicu v kazdem jazyce (CS i EN plne pokryty)
+- 580+ prekladovych klicu v kazdem jazyce (CS i EN plne pokryty)
 
 **Pouziti v projektu:** 29 komponent importuje `useLanguage()` hook -- je to
 nejrozsirenejsi sdileny context v cele aplikaci, pouzivany ve vsech vrstvach
@@ -94,13 +94,14 @@ AuthProvider a vsech jeho potomku.
 
 `useLanguage()` je importovany v nasledujicich souborech (abecedne po oblastech):
 
-#### Marketing pages (4)
+#### Marketing pages (5)
 
 | Soubor | Pouziti |
 |--------|---------|
-| `src/pages/home/index.jsx` | Preklady hero, features, FAQ, plans |
-| `src/pages/pricing/index.jsx` | Preklady cenovych planu |
-| `src/pages/support/index.jsx` | Preklady support stranky |
+| `src/pages/home/index.jsx` | Preklady hero, features, FAQ, plans, trust strip |
+| `src/pages/pricing/index.jsx` | Preklady cenovych planu, KPI, FAQ, CTA |
+| `src/pages/support/index.jsx` | Preklady support stranky, kontaktni formular |
+| `src/pages/model-upload/index.jsx` | Preklady upload stranky, dropzone, nahled, soubory |
 | `src/pages/account/index.jsx` | Preklady ucetni stranky |
 
 #### Sdilene UI komponenty (2)
@@ -203,9 +204,10 @@ Priklady:
 | `calc.*` | 43 | Kalkulacka + checkout (9.3%) |
 | `nav.*` | 9 | Navigacni menu (1.9%) |
 | `common.*` | 9 | Sdilene texty (1.9%) |
-| `pricing.*` | 8 | Cenova stranka (1.7%) |
+| `pricing.*` | 30+ | Cenova stranka -- plany, KPI, FAQ, CTA (pridano 2026-03-14) |
+| `support.*` | 25+ | Support stranka -- formular, FAQ, kontakty (pridano 2026-03-14) |
+| `modelUpload.*` | 40+ | Model upload stranka -- dropzone, soubory, nahled (pridano 2026-03-14) |
 | `footer.*` | 6 | Paticka (1.3%) |
-| `support.*` | 5 | Support stranka (1.1%) |
 | `checkout.*` | 5 | Dodaci adresa (1.1%) |
 | `widget.*` | 5 | Widget komponenty (1.1%) |
 

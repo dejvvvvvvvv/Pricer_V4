@@ -5,17 +5,27 @@ import Button from '../../../components/ui/Button';
 
 const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme }) => {
   const [uploadProgress, setUploadProgress] = useState({});
+  const [rejectionMessages, setRejectionMessages] = useState([]);
 
   const onDrop = useCallback(
     (acceptedFiles, rejectedFiles) => {
       if (rejectedFiles?.length > 0) {
-        rejectedFiles.forEach((file) => {
-          console.error(`File ${file?.file?.name} was rejected:`, file?.errors);
+        const messages = rejectedFiles.map((rf) => {
+          const name = rf?.file?.name || 'soubor';
+          const err = rf?.errors?.[0];
+          if (err?.code === 'file-too-large') return `${name}: soubor je vetsi nez 50 MB`;
+          if (err?.code === 'file-invalid-type') return `${name}: nepodporovany format (STL, OBJ, 3MF)`;
+          return `${name}: soubor byl odmitnout`;
         });
+        setRejectionMessages(messages);
+        // Auto-clear after 6 s
+        setTimeout(() => setRejectionMessages([]), 6000);
+      } else {
+        setRejectionMessages([]);
       }
 
       acceptedFiles?.forEach((file) => {
-        const fileId = Date.now() + Math.random();
+        const fileId = crypto.randomUUID();
         setUploadProgress((prev) => ({ ...prev, [fileId]: 0 }));
 
         let progress = 0;
@@ -54,10 +64,12 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme })
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/octet-stream': ['.stl'],
+      'application/octet-stream': ['.stl', '.3mf'],
       'application/x-tgif': ['.obj'],
       'model/stl': ['.stl'],
       'model/obj': ['.obj'],
+      'model/3mf': ['.3mf'],
+      'application/vnd.ms-package.3dmanufacturing-3dmodel+xml': ['.3mf'],
     },
     maxSize: 50 * 1024 * 1024,
     multiple: true,
@@ -114,7 +126,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme })
               Pretahnete STL nebo OBJ soubory nebo kliknete pro vyber
             </p>
             <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>
-              Maximalni velikost: 50MB na soubor
+              STL, OBJ, 3MF &mdash; max 50 MB
             </p>
           </div>
 
@@ -124,6 +136,23 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme })
           </Button>
         </div>
       </div>
+
+      {/* Rejection messages */}
+      {rejectionMessages.length > 0 && (
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            borderRadius: theme?.cornerRadius ? `${theme.cornerRadius}px` : '8px',
+            backgroundColor: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.25)',
+          }}
+        >
+          {rejectionMessages.map((msg, i) => (
+            <p key={i} style={{ fontSize: 13, color: '#DC2626', margin: i > 0 ? '4px 0 0' : 0 }}>{msg}</p>
+          ))}
+        </div>
+      )}
 
       {/* Upload Progress */}
       {Object.keys(uploadProgress).length > 0 && (
@@ -232,7 +261,7 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme })
               Podporovane formaty
             </p>
             <p className="text-xs" style={{ color: 'var(--widget-muted, #6B7280)' }}>
-              STL, OBJ soubory • Maximalni velikost 50MB • Vice souboru najednou
+              STL, OBJ, 3MF • Max 50 MB na soubor • Vice souboru najednou
             </p>
           </div>
         </div>

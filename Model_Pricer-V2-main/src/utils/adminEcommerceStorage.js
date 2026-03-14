@@ -1,51 +1,64 @@
 // Ecommerce integration storage helpers (Shopify, future: WooCommerce).
 //
-// Phase (Varianta A):
-// - Uses localStorage as the source of truth.
-// - Shapes mirror the spec so later you can swap for real API calls.
-// - Supabase dual-write (fire-and-forget) when feature flag enabled.
+// Storage: tenant-scoped via readTenantJson/writeTenantJson from adminTenantStorage.
+// Namespace: ecommerce:v1
+// Legacy key: modelpricer_ecommerce__${tenantId} (migrated on first read)
 
-import { storageAdapter } from '../lib/supabase/storageAdapter';
-import { getStorageMode } from '../lib/supabase/featureFlags';
-import { isSupabaseAvailable } from '../lib/supabase/client';
-import { getTenantId } from './adminTenantStorage';
+import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
 
-const KEY = {
-  ecommerce: (tenantId) => `modelpricer_ecommerce__${tenantId}`,
-};
+const NAMESPACE = 'ecommerce:v1';
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function safeJsonParse(raw, fallback) {
+function rand(n = 8) {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const array = new Uint8Array(n);
+  crypto.getRandomValues(array);
+  return Array.from(array, b => chars[b % chars.length]).join('');
+}
+
+// ─── Legacy Migration ─────────────────────────────────────────
+
+/**
+ * One-time migration from legacy key format to tenant-scoped namespace.
+ * Idempotent: skips if new key already has data.
+ * Legacy key: modelpricer_ecommerce__${tenantId}
+ */
+function migrateLegacyEcommerceKey(tenantId) {
+  if (typeof window === 'undefined') return;
+
+  // Skip if new key already has data (idempotent)
+  const existing = readTenantJson(NAMESPACE, null, tenantId);
+  if (existing !== null) return;
+
+  // Attempt to read legacy key
+  const legacyKey = `modelpricer_ecommerce__${tenantId}`;
+  const raw = window.localStorage.getItem(legacyKey);
+  if (!raw) return;
+
+  let legacyData;
   try {
-    return JSON.parse(raw);
+    legacyData = JSON.parse(raw);
   } catch {
-    return fallback;
+    return;
+  }
+
+  if (!legacyData) return;
+
+  // Write to new namespace (idempotent — already confirmed new key is empty)
+  writeTenantJson(NAMESPACE, legacyData, tenantId);
+
+  // Remove legacy key to avoid stale data
+  try {
+    window.localStorage.removeItem(legacyKey);
+  } catch {
+    // Non-fatal: legacy key will simply be ignored from now on
   }
 }
 
-function lsGet(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
-  const raw = window.localStorage.getItem(key);
-  if (!raw) return fallback;
-  return safeJsonParse(raw, fallback);
-}
-
-function lsSet(key, value) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
-
-function rand(n = 8) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let out = '';
-  for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
-}
-
-// ─── Default Config ──────────────────────────────────────────
+// ─── Default Config ───────────────────────────────────────────
 
 export function getDefaultEcommerceConfig() {
   return {
@@ -72,14 +85,19 @@ export function getDefaultEcommerceConfig() {
   };
 }
 
-// ─── Full Config CRUD ────────────────────────────────────────
+// ─── Full Config CRUD ─────────────────────────────────────────
 
 export function getEcommerceConfig(tenantId) {
   const tid = tenantId || getTenantId();
-  const stored = lsGet(KEY.ecommerce(tid), null);
+
+  // Migrate legacy key before first read (idempotent)
+  if (tid) migrateLegacyEcommerceKey(tid);
+
+  const stored = readTenantJson(NAMESPACE, null, tid);
   if (stored) return stored;
+
   const seed = getDefaultEcommerceConfig();
-  lsSet(KEY.ecommerce(tid), seed);
+  writeTenantJson(NAMESPACE, seed, tid);
   return seed;
 }
 
@@ -92,19 +110,11 @@ export function saveEcommerceConfig(config, tenantId) {
       updated_at: nowIso(),
     },
   };
-  lsSet(KEY.ecommerce(tid), data);
-
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('ecommerce');
-  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('tenant_configs', tid, 'ecommerce', data)
-      .catch(err => console.warn('[ecommerce] Supabase write failed:', err.message));
-  }
-
+  writeTenantJson(NAMESPACE, data, tid);
   return data;
 }
 
-// ─── Shopify Config Shortcuts ────────────────────────────────
+// ─── Shopify Config Shortcuts ─────────────────────────────────
 
 export function getShopifyConfig(tenantId) {
   const config = getEcommerceConfig(tenantId);
@@ -123,7 +133,7 @@ export function saveShopifyConfig(shopifyConfig, tenantId) {
   }, tenantId);
 }
 
-// ─── Variant Mappings CRUD ───────────────────────────────────
+// ─── Variant Mappings CRUD ────────────────────────────────────
 
 export function getVariantMappings(tenantId) {
   const shopify = getShopifyConfig(tenantId);
@@ -168,7 +178,7 @@ export function deleteVariantMapping(id, tenantId) {
   return next;
 }
 
-// ─── Variant Lookup ──────────────────────────────────────────
+// ─── Variant Lookup ───────────────────────────────────────────
 
 /**
  * Find the best matching Shopify variant for a given material+quality combo.
@@ -207,7 +217,7 @@ export function findVariantForConfig(materialKey, qualityKey, tenantId) {
   return null;
 }
 
-// ─── Integration Meta ────────────────────────────────────────
+// ─── Integration Meta ─────────────────────────────────────────
 
 export function updateIntegrationsMeta(patch, tenantId) {
   const config = getEcommerceConfig(tenantId);

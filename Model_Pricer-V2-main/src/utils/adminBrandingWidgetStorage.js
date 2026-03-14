@@ -3,16 +3,31 @@
 // Phase (Varianta A):
 // - Uses localStorage as the source of truth so Admin UI works without backend.
 // - Shapes mirror the spec so later you can swap these helpers for real API calls.
+//
+// Migration (2026-03):
+// - Migrated from direct localStorage (lsGet/lsSet) to readTenantJson/writeTenantJson
+//   from adminTenantStorage, which provides tenant-scoped namespaced keys, idempotent
+//   writes, and Supabase dual-write out of the box.
+// - Modern key namespaces: branding:v1, widgets:v1, plan_features:v1
+// - Legacy keys (modelpricer_branding__<id> etc.) are migrated on first read via
+//   migrateLegacyBrandingWidgetKeys(tenantId) — call once per session.
 
 // Single source of truth for widget theme defaults — re-exported for backward compatibility.
 import { getDefaultWidgetTheme } from './widgetThemeStorage';
 export { getDefaultWidgetTheme };
 
-import { storageAdapter } from '../lib/supabase/storageAdapter';
-import { getStorageMode } from '../lib/supabase/featureFlags';
-import { isSupabaseAvailable } from '../lib/supabase/client';
+import { readTenantJson, writeTenantJson } from '@/utils/adminTenantStorage';
 
-const KEY = {
+// Namespace constants for modern tenant-scoped keys.
+// Resulting localStorage key: modelpricer:<tenantId>:<NS.*>
+const NS = {
+  branding: 'branding:v1',
+  widgets: 'widgets:v1',
+  plan: 'plan_features:v1',
+};
+
+// Legacy key builders — used ONLY for migration reads.
+const LEGACY_KEY = {
   branding: (tenantId) => `modelpricer_branding__${tenantId}`,
   widgets: (tenantId) => `modelpricer_widgets__${tenantId}`,
   plan: (tenantId) => `modelpricer_plan_features__${tenantId}`,
@@ -22,39 +37,55 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function safeJsonParse(raw, fallback) {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-function lsGet(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
-  const raw = window.localStorage.getItem(key);
-  if (!raw) return fallback;
-  return safeJsonParse(raw, fallback);
-}
-
-function lsSet(key, value) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
-
 function rand(n = 8) {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let out = '';
-  // Use crypto.getRandomValues for unpredictable widget IDs; fall back to Math.random
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    const buf = new Uint32Array(n);
-    crypto.getRandomValues(buf);
-    for (let i = 0; i < n; i++) out += chars[buf[i] % chars.length];
-  } else {
-    for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return out;
+  const array = new Uint8Array(n);
+  crypto.getRandomValues(array);
+  return Array.from(array, b => chars[b % chars.length]).join('');
 }
+
+// ---------------------------------------------------------------------------
+// Legacy migration
+// ---------------------------------------------------------------------------
+
+/**
+ * One-time migration of legacy localStorage keys to the modern tenant-namespaced
+ * format used by readTenantJson/writeTenantJson.
+ *
+ * Safe to call multiple times — if the modern key already has data the legacy
+ * key is skipped (no overwrite). Call this once during admin session init.
+ *
+ * @param {string} tenantId
+ */
+export function migrateLegacyBrandingWidgetKeys(tenantId) {
+  if (typeof window === 'undefined' || !tenantId) return;
+
+  const migrations = [
+    { legacy: LEGACY_KEY.branding(tenantId), ns: NS.branding },
+    { legacy: LEGACY_KEY.widgets(tenantId),  ns: NS.widgets },
+    { legacy: LEGACY_KEY.plan(tenantId),      ns: NS.plan },
+  ];
+
+  for (const { legacy, ns } of migrations) {
+    // Only migrate if modern key has no data yet.
+    const alreadyMigrated = readTenantJson(ns, null, tenantId);
+    if (alreadyMigrated !== null) continue;
+
+    const raw = window.localStorage.getItem(legacy);
+    if (!raw) continue;
+
+    try {
+      const parsed = JSON.parse(raw);
+      writeTenantJson(ns, parsed, tenantId);
+    } catch {
+      // Corrupt legacy data — skip silently.
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Plan features
+// ---------------------------------------------------------------------------
 
 export function getDefaultPlanFeatures() {
   return {
@@ -71,10 +102,10 @@ export function getDefaultPlanFeatures() {
 }
 
 export function getPlanFeatures(tenantId) {
-  const stored = lsGet(KEY.plan(tenantId), null);
+  const stored = readTenantJson(NS.plan, null, tenantId);
   if (stored) return stored;
   const seed = getDefaultPlanFeatures();
-  lsSet(KEY.plan(tenantId), seed);
+  writeTenantJson(NS.plan, seed, tenantId);
   return seed;
 }
 
@@ -83,17 +114,13 @@ export function setPlanFeatures(tenantId, next) {
     ...next,
     updated_at: nowIso(),
   };
-  lsSet(KEY.plan(tenantId), data);
-
-  // Fire-and-forget Supabase dual-write
-  const modeP = getStorageMode('plan_features');
-  if ((modeP === 'supabase' || modeP === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('tenants', tenantId, 'plan_features', data)
-      .catch(err => console.warn('[planFeatures] Supabase write failed:', err.message));
-  }
-
+  writeTenantJson(NS.plan, data, tenantId);
   return data;
 }
+
+// ---------------------------------------------------------------------------
+// Branding
+// ---------------------------------------------------------------------------
 
 export function getDefaultBranding() {
   return {
@@ -115,7 +142,7 @@ export function getDefaultBranding() {
 }
 
 export function getBranding(tenantId) {
-  const stored = lsGet(KEY.branding(tenantId), null);
+  const stored = readTenantJson(NS.branding, null, tenantId);
   const plan = getPlanFeatures(tenantId);
 
   const base = stored || getDefaultBranding();
@@ -124,12 +151,12 @@ export function getBranding(tenantId) {
   if (!plan?.features?.can_hide_powered_by) {
     if (base.showPoweredBy !== true) {
       const enforced = { ...base, showPoweredBy: true };
-      lsSet(KEY.branding(tenantId), enforced);
+      writeTenantJson(NS.branding, enforced, tenantId);
       return enforced;
     }
   }
 
-  if (!stored) lsSet(KEY.branding(tenantId), base);
+  if (!stored) writeTenantJson(NS.branding, base, tenantId);
   return base;
 }
 
@@ -147,15 +174,7 @@ export function saveBranding(tenantId, brandingInput, updatedBy = 'admin') {
     next.showPoweredBy = true;
   }
 
-  lsSet(KEY.branding(tenantId), next);
-
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('branding');
-  if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('branding', tenantId, 'branding', next)
-      .catch(err => console.warn('[branding] Supabase write failed:', err.message));
-  }
-
+  writeTenantJson(NS.branding, next, tenantId);
   return next;
 }
 
@@ -165,14 +184,18 @@ export function resetBrandingToDefaults(tenantId) {
   if (!plan?.features?.can_hide_powered_by) {
     defaults.showPoweredBy = true;
   }
-  lsSet(KEY.branding(tenantId), defaults);
+  writeTenantJson(NS.branding, defaults, tenantId);
   return defaults;
 }
+
+// ---------------------------------------------------------------------------
+// Widgets
+// ---------------------------------------------------------------------------
 
 // getDefaultWidgetTheme is imported and re-exported from widgetThemeStorage.js (top of file).
 
 export function getWidgets(tenantId) {
-  const stored = lsGet(KEY.widgets(tenantId), null);
+  const stored = readTenantJson(NS.widgets, null, tenantId);
   if (stored && Array.isArray(stored)) return stored;
 
   // Seed with a default widget instance so the page isn't empty.
@@ -196,7 +219,7 @@ export function getWidgets(tenantId) {
       updated_at: nowIso(),
     },
   ];
-  lsSet(KEY.widgets(tenantId), seed);
+  writeTenantJson(NS.widgets, seed, tenantId);
   return seed;
 }
 
@@ -206,15 +229,7 @@ export function saveWidgets(tenantId, widgets) {
     tenantId,
     updated_at: nowIso(),
   }));
-  lsSet(KEY.widgets(tenantId), next);
-
-  // Fire-and-forget Supabase dual-write
-  const modeW = getStorageMode('widgets');
-  if ((modeW === 'supabase' || modeW === 'dual-write') && isSupabaseAvailable()) {
-    storageAdapter.supabase.writeConfig('widget_configs', tenantId, 'widgets', next)
-      .catch(err => console.warn('[widgets] Supabase write failed:', err.message));
-  }
-
+  writeTenantJson(NS.widgets, next, tenantId);
   return next;
 }
 
@@ -425,17 +440,50 @@ export function isDomainAllowedByWhitelist(hostname, domains) {
 
 /**
  * Get widget by its public ID (for public widget route).
- * Searches all tenants (for demo; in production this would be a server lookup).
+ *
+ * Scans both modern keys (modelpricer:<tenantId>:widgets:v1) and legacy keys
+ * (modelpricer_widgets__<tenantId>) during the transition period so existing
+ * embedded widgets continue to resolve while legacy data is still present.
+ *
+ * @param {string} publicWidgetId — the widget's public identifier.
+ * @param {string|null} scopeTenantId — when provided, only this tenant's
+ *   widgets are searched (tenant-scoped lookup). When null, all tenants are
+ *   scanned (demo/localStorage only; production should use Supabase RLS query).
  */
-export function getWidgetByPublicId(publicWidgetId) {
+export function getWidgetByPublicId(publicWidgetId, scopeTenantId = null) {
   if (!publicWidgetId) return null;
+  if (typeof window === 'undefined') return null;
 
-  // In demo mode, we need to scan all known tenants
-  // This is simplified - in production, the server would handle this lookup
-  const allKeys = Object.keys(localStorage).filter((k) => k.startsWith('modelpricer_widgets__'));
+  if (scopeTenantId) {
+    // Fast path: scoped lookup — check modern key only (legacy was already migrated
+    // for this tenant via migrateLegacyBrandingWidgetKeys if called at session start).
+    const widgets = getWidgets(scopeTenantId);
+    const match = widgets.find((w) => w.publicId === publicWidgetId);
+    return match ? { widget: match, tenantId: scopeTenantId } : null;
+  }
 
-  for (const key of allKeys) {
-    const tenantId = key.replace('modelpricer_widgets__', '');
+  // Public route lookup — scan all tenants present in localStorage.
+  // Collect tenant IDs from both modern and legacy key formats.
+  const tenantIds = new Set();
+
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const k = window.localStorage.key(i);
+    if (!k) continue;
+
+    // Modern format: modelpricer:<tenantId>:widgets:v1
+    const modernMatch = k.match(/^modelpricer:([^:]+):widgets:v1$/);
+    if (modernMatch) {
+      tenantIds.add(modernMatch[1]);
+      continue;
+    }
+
+    // Legacy format: modelpricer_widgets__<tenantId>
+    if (k.startsWith('modelpricer_widgets__')) {
+      tenantIds.add(k.slice('modelpricer_widgets__'.length));
+    }
+  }
+
+  for (const tenantId of tenantIds) {
     const widgets = getWidgets(tenantId);
     const match = widgets.find((w) => w.publicId === publicWidgetId);
     if (match) {

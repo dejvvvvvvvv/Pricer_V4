@@ -135,15 +135,13 @@ app.use("/api/auth", rateLimit({
 }));
 
 // Write operations (POST/PATCH/PUT/DELETE) — 30 req/min per IP (lower than read)
+// GET/HEAD/OPTIONS are skipped entirely — they never consume a bucket slot.
 app.use("/api", rateLimit({
   windowMs: 60_000,
   max: 30,
   message: "Too many write requests, please try again later",
-  keyGenerator: (req) => {
-    // Only apply to write methods; let reads pass through
-    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return "__skip__";
-    return `write:${req.ip || req.connection?.remoteAddress || "unknown"}`;
-  },
+  skip: (req) => ["GET", "HEAD", "OPTIONS"].includes(req.method),
+  keyGenerator: (req) => `write:${req.ip || req.connection?.remoteAddress || "unknown"}`,
 }));
 
 /**
@@ -152,7 +150,11 @@ app.use("/api", rateLimit({
  * Does NOT expose: file paths, env vars, IPs, credentials.
  */
 app.get("/api/health", async (_req, res) => {
-  const health = getHealthStatus({ version: PKG_VERSION });
+  const health = getHealthStatus({
+    version: PKG_VERSION,
+    getCacheStats: () => slicerCache.getStats(),
+    getQueueStats: () => slicingQueue.getQueueStats(),
+  });
   res.json({ ok: true, data: health });
 });
 
@@ -256,9 +258,9 @@ app.get("/api/widget/presets", async (req, res) => {
       .filter((p) => !!p.visibleInWidget)
       .sort((a, b) => (b.order ?? 0) - (a.order ?? 0));
 
-    return res.json({ presets, defaultPresetId: state.defaultPresetId || null });
+    return res.json({ ok: true, data: { presets, defaultPresetId: state.defaultPresetId || null } });
   } catch (e) {
-    return res.status(500).json({ presets: [], defaultPresetId: null, error: String(e?.message || e) });
+    return res.status(500).json({ ok: false, errorCode: "MP_PRESETS_LIST_FAILED", message: String(e?.message || e) });
   }
 });
 
@@ -267,9 +269,10 @@ app.get("/api/health/prusa", async (_req, res) => {
     const isProd = process.env.NODE_ENV === 'production';
     const slicerCmd = await resolveSlicerCmd();
     if (!slicerCmd) {
-      return res.status(500).json({
+      return res.status(503).json({
         ok: false,
-        error: "PRUSA_SLICER_CMD not set and auto-detect failed.",
+        errorCode: "MP_SLICER_NOT_CONFIGURED",
+        message: "PRUSA_SLICER_CMD not set and auto-detect failed.",
         // Only expose filesystem hint in development
         ...(!isProd && {
           hint: `Put PrusaSlicer portable into ${path.join(projectRoot, "tools", "prusaslicer")} and/or set PRUSA_SLICER_CMD in backend-local/.env`
@@ -278,9 +281,10 @@ app.get("/api/health/prusa", async (_req, res) => {
     }
 
     if (!(await fileExists(slicerCmd))) {
-      return res.status(500).json({
+      return res.status(503).json({
         ok: false,
-        error: isProd ? "Slicer binary not found." : `Slicer not found at: ${slicerCmd}`
+        errorCode: "MP_SLICER_NOT_FOUND",
+        message: isProd ? "Slicer binary not found." : `Slicer not found at: ${slicerCmd}`,
       });
     }
 
@@ -294,20 +298,25 @@ app.get("/api/health/prusa", async (_req, res) => {
     // Parse version from help output
     const version = parseSlicerVersion(final.stdout) || parseSlicerVersion(final.stderr) || null;
 
-    res.json({
-      ok: final.exitCode === 0,
-      checkMethod,
-      exitCode: final.exitCode,
-      version,
-      // Only expose paths and raw output in development
-      ...(!isProd && {
-        slicerCmd,
-        stdout,
-        stderr
-      })
+    const slicerOk = final.exitCode === 0;
+
+    res.status(slicerOk ? 200 : 503).json({
+      ok: slicerOk,
+      data: {
+        available: slicerOk,
+        checkMethod,
+        exitCode: final.exitCode,
+        version,
+        // Only expose paths and raw output in development
+        ...(!isProd && {
+          slicerCmd,
+          stdout,
+          stderr,
+        }),
+      },
     });
   } catch (e) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    res.status(500).json({ ok: false, errorCode: "MP_SLICER_CHECK_FAILED", message: String(e?.message || e) });
   }
 });
 
@@ -398,15 +407,16 @@ app.post(
       const slicerCmd = await resolveSlicerCmd();
       if (!slicerCmd) {
         return res.status(500).json({
-          success: false,
-          error: "PrusaSlicer CLI not configured.",
+          ok: false,
+          errorCode: "MP_SLICER_NOT_CONFIGURED",
+          message: "PrusaSlicer CLI not configured.",
           hint: "Set PRUSA_SLICER_CMD in backend-local/.env or place portable in ../tools/prusaslicer"
         });
       }
 
       const modelFile = req.files?.model?.[0];
       if (!modelFile?.path) {
-        return res.status(400).json({ success: false, error: "Missing file field 'model' (multipart)." });
+        return res.status(400).json({ ok: false, errorCode: "MP_VALIDATION_ERROR", message: "Missing file field 'model' (multipart)." });
       }
 
       const iniFile = req.files?.ini?.[0];
@@ -443,13 +453,14 @@ app.post(
 
       if (!iniPath) {
         return res.status(400).json({
-          success: false,
-          error: "No .ini profile provided.",
+          ok: false,
+          errorCode: "MP_VALIDATION_ERROR",
+          message: "No .ini profile provided.",
           hint: "Upload an 'ini' file OR create presets via /api/presets OR set PRUSA_DEFAULT_INI in backend-local/.env"
         });
       }
       if (!(await fileExists(iniPath))) {
-        return res.status(400).json({ success: false, error: `INI not found: ${iniPath}` });
+        return res.status(400).json({ ok: false, errorCode: "MP_VALIDATION_ERROR", message: `INI not found: ${iniPath}` });
       }
 
       // ===== Check slicer result cache =====
@@ -460,10 +471,12 @@ app.post(
         if (cached) {
           console.log(`[slice] Cache HIT for job ${req.jobId} (key: ${cacheKey.slice(0, 12)}...)`);
           return res.json({
-            success: true,
-            jobId: req.jobId,
-            cached: true,
-            ...cached,
+            ok: true,
+            data: {
+              jobId: req.jobId,
+              cached: true,
+              ...cached,
+            },
           });
         }
       } catch {
@@ -512,11 +525,13 @@ app.post(
         const classified = classifySlicerError({ error: err, context: "slice" });
         const isProd = process.env.NODE_ENV === 'production';
         return res.status(classified.httpStatus).json({
-          success: false,
+          ok: false,
           errorCode: classified.errorCode,
-          error: classified.message,
-          jobId: req.jobId,
-          ...(!isProd && { hint: classified.hint, jobDir: req.jobDir }),
+          message: classified.message,
+          data: {
+            jobId: req.jobId,
+            ...(!isProd && { hint: classified.hint, jobDir: req.jobDir }),
+          },
         });
       }
 
@@ -533,29 +548,33 @@ app.post(
       if (run.exitCode !== 0) {
         const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "slice" });
         return res.status(classified.httpStatus).json({
-          success: false,
+          ok: false,
           errorCode: classified.errorCode,
-          error: classified.message,
-          exitCode: run.exitCode,
-          jobId: req.jobId,
-          ...(!isProd && {
-            jobDir: req.jobDir,
-            stderr: run.stderr.slice(0, 5000),
-            hint: classified.hint,
-          })
+          message: classified.message,
+          data: {
+            exitCode: run.exitCode,
+            jobId: req.jobId,
+            ...(!isProd && {
+              jobDir: req.jobDir,
+              stderr: run.stderr.slice(0, 5000),
+              hint: classified.hint,
+            }),
+          },
         });
       }
 
       if (!(await fileExists(run.outGcodePath))) {
         return res.status(500).json({
-          success: false,
+          ok: false,
           errorCode: "MP_SLICING_FAILED",
-          error: "out.gcode was not produced.",
-          jobId: req.jobId,
-          ...(!isProd && {
-            jobDir: req.jobDir,
-            stderr: run.stderr.slice(0, 5000)
-          })
+          message: "out.gcode was not produced.",
+          data: {
+            jobId: req.jobId,
+            ...(!isProd && {
+              jobDir: req.jobDir,
+              stderr: run.stderr.slice(0, 5000),
+            }),
+          },
         });
       }
 
@@ -577,28 +596,30 @@ app.post(
       }
 
       res.json({
-        success: true,
-        jobId: req.jobId,
-        cached: false,
-        ...responseData,
-        // Only expose internal paths in development
-        ...(!isProd && {
-          jobDir: req.jobDir,
-          outGcodePath: run.outGcodePath,
-          slicerCmd,
-          iniUsed: iniPath
-        })
+        ok: true,
+        data: {
+          jobId: req.jobId,
+          cached: false,
+          ...responseData,
+          // Only expose internal paths in development
+          ...(!isProd && {
+            jobDir: req.jobDir,
+            outGcodePath: run.outGcodePath,
+            slicerCmd,
+            iniUsed: iniPath,
+          }),
+        },
       });
     } catch (e) {
       const isProdCatch = process.env.NODE_ENV === 'production';
       res.status(500).json({
-        success: false,
-        jobId: req.jobId,
-        error: String(e?.message || e),
-        // Only expose paths in development
-        ...(!isProdCatch && {
-          jobDir: req.jobDir
-        })
+        ok: false,
+        errorCode: "MP_INTERNAL_ERROR",
+        message: String(e?.message || e),
+        data: {
+          jobId: req.jobId,
+          ...(!isProdCatch && { jobDir: req.jobDir }),
+        },
       });
     }
   }

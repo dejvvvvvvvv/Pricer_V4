@@ -11,6 +11,7 @@
 */
 
 import { getTenantId, readTenantJson, writeTenantJson } from './adminTenantStorage';
+import { debug } from '@/lib/debug';
 import { generateId } from './generateId';
 import { logSecurityEvent } from './securityAuditLog';
 
@@ -47,7 +48,7 @@ function safeReadJsonFromKey(storageKey) {
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) {
-    console.warn('[adminFeesStorage] Failed to read legacy key', storageKey, e);
+    debug('[adminFeesStorage] Failed to read legacy key', storageKey, e);
     return null;
   }
 }
@@ -61,7 +62,7 @@ function listLocalStorageKeysStartingWith(prefix) {
       if (k && k.startsWith(prefix)) out.push(k);
     }
   } catch (e) {
-    console.warn('[adminFeesStorage] Failed to enumerate localStorage', e);
+    debug('[adminFeesStorage] Failed to enumerate localStorage', e);
   }
   return out;
 }

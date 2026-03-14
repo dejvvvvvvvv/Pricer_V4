@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { debug } from '@/lib/debug';
 import Icon from '../../components/AppIcon';
+import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   getBranding,
@@ -10,6 +12,7 @@ import {
   writeCompanyData,
 } from '../../utils/adminCompanyStorage';
 import { getTenantId } from '../../utils/adminTenantStorage';
+import { sanitizeSvg } from '../../utils/sanitizeHtml';
 
 /* ------------------------------------------------------------------ */
 /*  Debounce helper                                                    */
@@ -30,12 +33,14 @@ function useDebouncedSave(saveFn, delay = 800) {
     [saveFn, delay],
   );
 
-  // Flush on unmount
+  // Flush on unmount — guard against null payload to prevent overwriting with empty data
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
-        saveFn(latestRef.current);
+        if (latestRef.current !== null) {
+          saveFn(latestRef.current);
+        }
       }
     };
   }, [saveFn]);
@@ -58,8 +63,22 @@ function readFileAsDataUrl(f) {
   });
 }
 
+function readFileAsText(f) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsText(f);
+  });
+}
+
 async function optimizeLogo(f) {
-  if (f.type === 'image/svg+xml') return readFileAsDataUrl(f);
+  if (f.type === 'image/svg+xml') {
+    const raw = await readFileAsText(f);
+    const clean = sanitizeSvg(raw);
+    if (!clean) return null;
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(clean)));
+  }
   try {
     const MAX = 512;
     const bitmap = await createImageBitmap(f);
@@ -84,6 +103,8 @@ async function optimizeLogo(f) {
 /*  AdminBranding Component                                            */
 /* ================================================================== */
 const AdminBranding = () => {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const { t } = useLanguage();
   const tenantId = getTenantId();
   const logoInputRef = useRef(null);
@@ -131,6 +152,8 @@ const AdminBranding = () => {
       });
       const c = readCompanyData();
       setCompany((prev) => ({ ...prev, ...c }));
+    } catch (e) {
+      debug('[AdminBranding] Failed to load data', e);
     } finally {
       setLoading(false);
     }
@@ -142,7 +165,7 @@ const AdminBranding = () => {
       setSaveStatus('saving');
       // Merge with existing stored branding to preserve fields we don't edit here
       const existing = getBranding(tenantId);
-      saveBranding(tenantId, { ...existing, ...b }, 'admin');
+      saveBranding(tenantId, { ...existing, ...b }, currentUser);
       setTimeout(() => setSaveStatus('saved'), 300);
       setTimeout(() => setSaveStatus('idle'), 2000);
     },
@@ -189,6 +212,10 @@ const AdminBranding = () => {
     setLogoError(null);
     try {
       const dataUrl = await optimizeLogo(file);
+      if (!dataUrl) {
+        setLogoError('SVG soubor obsahuje nepovoleny obsah a byl odmitnut.');
+        return;
+      }
       updateBranding('logo', dataUrl);
     } catch {
       setLogoError('Logo se nepodarilo nacist.');
@@ -438,7 +465,7 @@ const AdminBranding = () => {
         : { backgroundColor: 'transparent', color: 'var(--forge-text-muted)' };
 
   const indicatorText =
-    saveStatus === 'saving' ? 'Ukladam...' : saveStatus === 'saved' ? 'Ulozeno' : '';
+    saveStatus === 'saving' ? t('admin.branding.saving', 'Ukladam...') : saveStatus === 'saved' ? t('admin.branding.saved', 'Ulozeno') : '';
 
   /* ================================================================ */
   /*  RENDER                                                           */
@@ -446,7 +473,7 @@ const AdminBranding = () => {
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--forge-text-muted)' }}>
-        Nacitam...
+        {t('admin.branding.loading', 'Nacitam...')}
       </div>
     );
   }
@@ -459,8 +486,8 @@ const AdminBranding = () => {
       {/* Header */}
       <div style={s.header}>
         <div>
-          <h1 style={s.h1}>{t('admin.branding.title') || 'Branding'}</h1>
-          <p style={s.subtitle}>Nastaveni vizualni identity a kontaktnich udaju firmy</p>
+          <h1 style={s.h1}>{t('admin.branding.title', 'Branding')}</h1>
+          <p style={s.subtitle}>{t('admin.branding.pageSubtitle', 'Nastaveni vizualni identity a kontaktnich udaju firmy')}</p>
         </div>
         {indicatorText && (
           <span style={{ ...s.saveIndicator, ...indicatorStyle }}>
@@ -477,7 +504,7 @@ const AdminBranding = () => {
         {/* LEFT: Live Preview */}
         <div style={s.previewSticky}>
           <div style={s.previewCard}>
-            <p style={s.previewLabel}>Nahled</p>
+            <p style={s.previewLabel}>{t('admin.branding.preview', 'Nahled')}</p>
 
             {/* Simulated header */}
             <div
@@ -527,7 +554,7 @@ const AdminBranding = () => {
                 <div>
                   <div
                     style={{
-                      color: '#fff',
+                      color: 'var(--forge-text-primary)',
                       fontWeight: 600,
                       fontSize: 14,
                       fontFamily: 'var(--forge-font-heading)',
@@ -663,7 +690,7 @@ const AdminBranding = () => {
           {/* Company invoice mini-preview */}
           {(company.companyName || company.ico) && (
             <div style={{ ...s.previewCard, marginTop: 16 }}>
-              <p style={s.previewLabel}>Fakturacni udaje</p>
+              <p style={s.previewLabel}>{t('admin.branding.invoicePreview', 'Fakturacni udaje')}</p>
               <div
                 style={{
                   fontSize: 'var(--forge-text-sm)',
@@ -697,10 +724,10 @@ const AdminBranding = () => {
         <div>
           {/* Card 1: Company Info */}
           <div style={s.card}>
-            <h3 style={s.cardTitle}>Zakladni informace</h3>
+            <h3 style={s.cardTitle}>{t('admin.branding.sectionBasic', 'Zakladni informace')}</h3>
 
             <div style={s.field}>
-              <label style={s.label}>Nazev firmy / znacky</label>
+              <label style={s.label}>{t('admin.branding.labelBusinessName', 'Nazev firmy / znacky')}</label>
               <input
                 type="text"
                 value={branding.businessName}
@@ -711,11 +738,11 @@ const AdminBranding = () => {
                 onFocus={onFocus}
                 onBlur={onBlur}
               />
-              <p style={s.helper}>Zobrazuje se v hlavicce widgetu a na fakturach</p>
+              <p style={s.helper}>{t('admin.branding.helpBusinessName', 'Zobrazuje se v hlavicce widgetu a na fakturach')}</p>
             </div>
 
             <div style={s.field}>
-              <label style={s.label}>Popisek / tagline</label>
+              <label style={s.label}>{t('admin.branding.labelTagline', 'Popisek / tagline')}</label>
               <input
                 type="text"
                 value={branding.tagline}
@@ -726,11 +753,11 @@ const AdminBranding = () => {
                 onFocus={onFocus}
                 onBlur={onBlur}
               />
-              <p style={s.helper}>Kratky popis pod nazvem firmy</p>
+              <p style={s.helper}>{t('admin.branding.helpTagline', 'Kratky popis pod nazvem firmy')}</p>
             </div>
 
             <div style={s.fieldLast}>
-              <label style={s.label}>Logo</label>
+              <label style={s.label}>{t('admin.branding.labelLogo', 'Logo')}</label>
               {branding.logo ? (
                 <div style={s.logoPreviewRow}>
                   <div style={s.logoThumb}>
@@ -750,7 +777,7 @@ const AdminBranding = () => {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    Odebrat logo
+                    {t('admin.branding.removeLogoBtn', 'Odebrat logo')}
                   </button>
                 </div>
               ) : null}
@@ -786,8 +813,8 @@ const AdminBranding = () => {
                 {...uploadHover}
               >
                 <Icon name="Upload" size={24} style={{ color: 'var(--forge-text-muted)' }} />
-                <p style={s.uploadText}>Pretahni sem logo nebo klikni</p>
-                <p style={s.uploadHint}>PNG, JPG, SVG, WEBP do 2 MB</p>
+                <p style={s.uploadText}>{t('admin.branding.uploadText', 'Pretahni sem logo nebo klikni')}</p>
+                <p style={s.uploadHint}>{t('admin.branding.uploadHint', 'PNG, JPG, SVG, WEBP do 2 MB')}</p>
               </div>
               {logoError && <p style={s.errorMsg}>{logoError}</p>}
             </div>
@@ -795,10 +822,10 @@ const AdminBranding = () => {
 
           {/* Card 2: Visual Identity */}
           <div style={s.card}>
-            <h3 style={s.cardTitle}>Vizualni identita</h3>
+            <h3 style={s.cardTitle}>{t('admin.branding.sectionVisual', 'Vizualni identita')}</h3>
 
             <div style={s.field}>
-              <label style={s.label}>Primarni barva</label>
+              <label style={s.label}>{t('admin.branding.labelPrimaryColor', 'Primarni barva')}</label>
               <div style={s.colorRow}>
                 <div style={{ ...s.colorSwatch, backgroundColor: branding.primaryColor }}>
                   <input
@@ -828,11 +855,11 @@ const AdminBranding = () => {
               {branding.primaryColor && !isHex(branding.primaryColor) && (
                 <p style={s.errorMsg}>Format: #RRGGBB</p>
               )}
-              <p style={s.helper}>Pouziva se pro hlavicku, tlacitka a hlavni akcenty</p>
+              <p style={s.helper}>{t('admin.branding.helpPrimaryColor', 'Pouziva se pro hlavicku, tlacitka a hlavni akcenty')}</p>
             </div>
 
             <div style={s.fieldLast}>
-              <label style={s.label}>Sekundarni / akcentova barva</label>
+              <label style={s.label}>{t('admin.branding.labelSecondaryColor', 'Sekundarni / akcentova barva')}</label>
               <div style={s.colorRow}>
                 <div style={{ ...s.colorSwatch, backgroundColor: branding.secondaryColor }}>
                   <input
@@ -862,16 +889,16 @@ const AdminBranding = () => {
               {branding.secondaryColor && !isHex(branding.secondaryColor) && (
                 <p style={s.errorMsg}>Format: #RRGGBB</p>
               )}
-              <p style={s.helper}>Pro sekundarni elementy, badges, hover stavy</p>
+              <p style={s.helper}>{t('admin.branding.helpSecondaryColor', 'Pro sekundarni elementy, badges, hover stavy')}</p>
             </div>
           </div>
 
           {/* Card 3: Contact */}
           <div style={s.card}>
-            <h3 style={s.cardTitle}>Kontaktni udaje</h3>
+            <h3 style={s.cardTitle}>{t('admin.branding.sectionContact', 'Kontaktni udaje')}</h3>
 
             <div style={s.field}>
-              <label style={s.label}>E-mail</label>
+              <label style={s.label}>{t('admin.branding.labelEmail', 'E-mail')}</label>
               <input
                 type="email"
                 value={company.contactEmail}
@@ -885,7 +912,7 @@ const AdminBranding = () => {
 
             <div style={s.row}>
               <div style={s.field}>
-                <label style={s.label}>Telefon</label>
+                <label style={s.label}>{t('admin.branding.labelPhone', 'Telefon')}</label>
                 <input
                   type="tel"
                   value={company.contactPhone}
@@ -897,7 +924,7 @@ const AdminBranding = () => {
                 />
               </div>
               <div style={s.field}>
-                <label style={s.label}>Web</label>
+                <label style={s.label}>{t('admin.branding.labelWebsite', 'Web')}</label>
                 <input
                   type="url"
                   value={company.website}
@@ -913,10 +940,10 @@ const AdminBranding = () => {
 
           {/* Card 4: Legal & Invoicing */}
           <div style={s.card}>
-            <h3 style={s.cardTitle}>Fakturacni a pravni udaje</h3>
+            <h3 style={s.cardTitle}>{t('admin.branding.sectionLegal', 'Fakturacni a pravni udaje')}</h3>
 
             <div style={s.field}>
-              <label style={s.label}>Nazev spolecnosti</label>
+              <label style={s.label}>{t('admin.branding.labelCompanyName', 'Nazev spolecnosti')}</label>
               <input
                 type="text"
                 value={company.companyName}
@@ -927,11 +954,11 @@ const AdminBranding = () => {
                 onFocus={onFocus}
                 onBlur={onBlur}
               />
-              <p style={s.helper}>Pravni nazev pro faktury (muze se lisit od nazvu znacky)</p>
+              <p style={s.helper}>{t('admin.branding.helpCompanyName', 'Pravni nazev pro faktury (muze se lisit od nazvu znacky)')}</p>
             </div>
 
             <div style={s.field}>
-              <label style={s.label}>Adresa sidla</label>
+              <label style={s.label}>{t('admin.branding.labelAddress', 'Adresa sidla')}</label>
               <input
                 type="text"
                 value={company.address}
@@ -945,7 +972,7 @@ const AdminBranding = () => {
 
             <div style={{ ...s.row3, ...s.field }}>
               <div>
-                <label style={s.label}>PSC</label>
+                <label style={s.label}>{t('admin.branding.labelZip', 'PSC')}</label>
                 <input
                   type="text"
                   value={company.zip}
@@ -958,7 +985,7 @@ const AdminBranding = () => {
                 />
               </div>
               <div>
-                <label style={s.label}>Mesto</label>
+                <label style={s.label}>{t('admin.branding.labelCity', 'Mesto')}</label>
                 <input
                   type="text"
                   value={company.city}
@@ -970,7 +997,7 @@ const AdminBranding = () => {
                 />
               </div>
               <div>
-                <label style={s.label}>Stat</label>
+                <label style={s.label}>{t('admin.branding.labelCountry', 'Stat')}</label>
                 <input
                   type="text"
                   value={company.country}
@@ -986,7 +1013,7 @@ const AdminBranding = () => {
 
             <div style={{ ...s.row, ...s.field }}>
               <div>
-                <label style={s.label}>ICO</label>
+                <label style={s.label}>{t('admin.branding.labelIco', 'ICO')}</label>
                 <input
                   type="text"
                   value={company.ico}
@@ -999,7 +1026,7 @@ const AdminBranding = () => {
                 />
               </div>
               <div>
-                <label style={s.label}>DIC</label>
+                <label style={s.label}>{t('admin.branding.labelDic', 'DIC')}</label>
                 <input
                   type="text"
                   value={company.dic}
@@ -1014,7 +1041,7 @@ const AdminBranding = () => {
             </div>
 
             <div style={s.field}>
-              <label style={s.label}>Cislo uctu</label>
+              <label style={s.label}>{t('admin.branding.labelBankAccount', 'Cislo uctu')}</label>
               <input
                 type="text"
                 value={company.bankAccount}
@@ -1028,7 +1055,7 @@ const AdminBranding = () => {
 
             <div style={{ ...s.row, ...s.fieldLast }}>
               <div>
-                <label style={s.label}>Nazev banky</label>
+                <label style={s.label}>{t('admin.branding.labelBankName', 'Nazev banky')}</label>
                 <input
                   type="text"
                   value={company.bankName}
@@ -1040,7 +1067,7 @@ const AdminBranding = () => {
                 />
               </div>
               <div>
-                <label style={s.label}>IBAN</label>
+                <label style={s.label}>{t('admin.branding.labelIban', 'IBAN')}</label>
                 <input
                   type="text"
                   value={company.iban}

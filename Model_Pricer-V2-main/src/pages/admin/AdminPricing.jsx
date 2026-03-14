@@ -8,11 +8,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { SkeletonCard, SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { loadPricingConfigV3, savePricingConfigV3 } from '../../utils/adminPricingStorage';
+import { getTenantId } from '../../utils/adminTenantStorage';
+import { safeJsonParse } from '../../utils/sanitizeJson';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { addNotification } from '../../utils/adminNotificationStorage';
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
@@ -61,16 +64,19 @@ const PRICING_TABS = [
   { id: 'preview', icon: 'Eye', label_cs: 'Nahled', label_en: 'Preview' },
 ];
 
-// --- Collapsible section state (non-tenant, UI-only) ---
-const COLLAPSED_KEY = 'mp_pricing_ui_collapsed';
+// --- Collapsible section state (tenant-scoped UI preference) ---
+function getCollapsedKey() {
+  const tenantId = getTenantId() || 'default';
+  return `modelpricer:${tenantId}:pricing:ui:collapsed`;
+}
 function loadCollapsedState() {
   try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
+    const raw = localStorage.getItem(getCollapsedKey());
     return raw ? JSON.parse(raw) : {};
   } catch { return {}; }
 }
 function saveCollapsedState(state) {
-  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(getCollapsedKey(), JSON.stringify(state)); } catch {}
 }
 
 // --- Number Stepper component ---
@@ -124,6 +130,15 @@ function clampMin0(n) {
   return x < 0 ? 0 : x;
 }
 
+const MAX_NUMERIC_BOUND = 999999;
+
+function clampBounded(n, fallback = 0) {
+  const x = safeNum(n, fallback);
+  if (x < 0) return 0;
+  if (x > MAX_NUMERIC_BOUND) return MAX_NUMERIC_BOUND;
+  return x;
+}
+
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
@@ -135,7 +150,7 @@ function createStableId(prefix = 'id') {
   } catch {
     // ignore
   }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 function slugifyMaterialKey(input) {
@@ -358,6 +373,7 @@ const AdminPricing = () => {
   const { t, language } = useLanguage();
   const cs = language === 'cs';
   const { copyToClipboard: copyText } = useCopyToClipboard();
+  const { confirm, ConfirmDialogPortal } = useConfirmDialog();
 
   // Tenant-scoped V3 storage is the single source of truth.
 
@@ -410,31 +426,28 @@ const AdminPricing = () => {
   const [quickTestOpen, setQuickTestOpen] = useState(false);
 
   const ui = useMemo(() => {
-    const cs = language === 'cs';
     return {
-      title: cs ? 'Pricing' : 'Pricing',
-      subtitle: cs
-        ? 'Nastav cenu času, minima, zaokrouhlování, přirážku a materiály (včetně barev). Ukládá se tenantově do V3 storage.'
-        : 'Configure time rate, minimums, rounding, markup and materials (including colors). Saved per-tenant in V3 storage.',
-      save: cs ? 'Uložit změny' : 'Save changes',
-      saved: cs ? 'Uloženo' : 'Saved',
-      unsaved: cs ? 'Neuložené změny' : 'Unsaved changes',
-      reset: cs ? 'Reset na default' : 'Reset to defaults',
-      export: cs ? 'Exportovat JSON' : 'Export JSON',
-      import: cs ? 'Importovat JSON' : 'Import JSON',
-      copyOk: cs ? 'Zkopírováno do schránky.' : 'Copied to clipboard.',
-      copyFail: cs ? 'Nepodařilo se zkopírovat – zkopíruj ručně z dialogu.' : 'Copy failed – copy manually from the dialog.',
-      loadOk: cs ? 'Konfigurace načtena.' : 'Configuration loaded.',
-      saveOk: cs ? 'Uloženo.' : 'Saved.',
-      saveError: cs ? 'Uložení se nepodařilo.' : 'Save failed.',
-      exportOk: cs ? 'JSON zkopírován do schránky.' : 'JSON copied to clipboard.',
-      importOk: cs ? 'Konfigurace importována (nezapomeň uložit).' : "Configuration imported (don't forget to save).",
-      resetOk: cs ? 'Resetováno na default (nezapomeň uložit).' : "Reset to defaults (don't forget to save).",
-      invalid: cs ? 'Oprav chyby ve formuláři (hodnoty musí být ≥ 0).' : 'Fix validation errors (values must be ≥ 0).',
-      preview: cs ? 'Testovací kalkulace' : 'Pricing sandbox',
-      previewToggle: cs ? 'Testovat na příkladu' : 'Test with example',
+      title: t('admin.pricing.title', 'Pricing'),
+      subtitle: t('admin.pricing.subtitle', 'Configure time rate, minimums, rounding, markup and materials (including colors). Saved per-tenant in V3 storage.'),
+      save: t('admin.pricing.save', 'Save changes'),
+      saved: t('admin.pricing.saved', 'Saved'),
+      unsaved: t('admin.pricing.unsaved', 'Unsaved changes'),
+      reset: t('admin.pricing.reset', 'Reset to defaults'),
+      export: t('admin.pricing.export', 'Export JSON'),
+      import: t('admin.pricing.import', 'Import JSON'),
+      copyOk: t('admin.pricing.copyOk', 'Copied to clipboard.'),
+      copyFail: t('admin.pricing.copyFail', 'Copy failed – copy manually from the dialog.'),
+      loadOk: t('admin.pricing.loadOk', 'Configuration loaded.'),
+      saveOk: t('admin.pricing.saveOk', 'Saved.'),
+      saveError: t('admin.pricing.saveError', 'Save failed.'),
+      exportOk: t('admin.pricing.exportOk', 'JSON copied to clipboard.'),
+      importOk: t('admin.pricing.importOk', "Configuration imported (don't forget to save)."),
+      resetOk: t('admin.pricing.resetOk', "Reset to defaults (don't forget to save)."),
+      invalid: t('admin.pricing.invalid', 'Fix validation errors (values must be ≥ 0).'),
+      preview: t('admin.pricing.preview', 'Pricing sandbox'),
+      previewToggle: t('admin.pricing.previewToggle', 'Test with example'),
     };
-  }, [language]);
+  }, [t, language]);
 
   // Pricing summary bar data
   const pricingSummary = useMemo(() => {
@@ -1016,11 +1029,33 @@ const AdminPricing = () => {
   };
 
   const handleImport = () => {
-    const cs = language === 'cs';
-    const raw = window.prompt(cs ? 'Vlož JSON konfigurace:' : 'Paste JSON configuration:');
+    const raw = window.prompt(t('admin.pricing.importPrompt', 'Paste JSON configuration:'));
     if (!raw) return;
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = safeJsonParse(raw);
+
+      // Sanitize: prevent prototype pollution and strip dangerous string values
+      if (parsed && typeof parsed === 'object') {
+        delete parsed.__proto__;
+        delete parsed.constructor;
+        if (Array.isArray(parsed.materials)) {
+          parsed.materials.forEach((m) => {
+            if (m && typeof m === 'object') {
+              delete m.__proto__;
+              if (m.name) m.name = String(m.name).slice(0, 100);
+              if (m.color) m.color = String(m.color).replace(/[<>"'&]/g, '');
+              if (Array.isArray(m.colors)) {
+                m.colors.forEach((c) => {
+                  if (c && typeof c === 'object') {
+                    if (c.name) c.name = String(c.name).slice(0, 100);
+                    if (c.hex) c.hex = String(c.hex).replace(/[^#0-9a-fA-F]/g, '').slice(0, 7);
+                  }
+                });
+              }
+            }
+          });
+        }
+      }
 
       // Accept both new and older shapes.
       // Preferred V3: { materials[], tenant_pricing, ... }
@@ -1057,21 +1092,21 @@ const AdminPricing = () => {
           name: String(m?.name || '').trim(),
           type: m?.type || '',
           enabled: m?.enabled !== false,
-          price_per_gram: clampMin0(m?.price_per_gram ?? m?.price ?? 0),
-          density: safeNum(m?.density, typeDefaults.density),
-          temp_nozzle_min: safeNum(m?.temp_nozzle_min, typeDefaults.temp_nozzle_min),
-          temp_nozzle_max: safeNum(m?.temp_nozzle_max, typeDefaults.temp_nozzle_max),
-          temp_bed_min: safeNum(m?.temp_bed_min, typeDefaults.temp_bed_min),
-          temp_bed_max: safeNum(m?.temp_bed_max, typeDefaults.temp_bed_max),
-          cooling_fan: m?.cooling_fan != null ? safeNum(m.cooling_fan, typeDefaults.cooling_fan) : typeDefaults.cooling_fan,
-          speed_min: safeNum(m?.speed_min, typeDefaults.speed_min),
-          speed_max: safeNum(m?.speed_max, typeDefaults.speed_max),
+          price_per_gram: clampBounded(m?.price_per_gram ?? m?.price ?? 0),
+          density: clampBounded(m?.density, typeDefaults.density),
+          temp_nozzle_min: clampBounded(m?.temp_nozzle_min, typeDefaults.temp_nozzle_min),
+          temp_nozzle_max: clampBounded(m?.temp_nozzle_max, typeDefaults.temp_nozzle_max),
+          temp_bed_min: clampBounded(m?.temp_bed_min, typeDefaults.temp_bed_min),
+          temp_bed_max: clampBounded(m?.temp_bed_max, typeDefaults.temp_bed_max),
+          cooling_fan: m?.cooling_fan != null ? clampBounded(m.cooling_fan, typeDefaults.cooling_fan) : typeDefaults.cooling_fan,
+          speed_min: clampBounded(m?.speed_min, typeDefaults.speed_min),
+          speed_max: clampBounded(m?.speed_max, typeDefaults.speed_max),
           colors: Array.isArray(m?.colors) && m.colors.length > 0
             ? m.colors.map((c) => ({
                 id: c?.id || createStableId('clr'),
                 name: String(c?.name || '').trim(),
                 hex: normalizeHex(c?.hex),
-                price_per_gram: c?.price_per_gram != null ? clampMin0(c.price_per_gram) : null,
+                price_per_gram: c?.price_per_gram != null ? clampBounded(c.price_per_gram) : null,
               }))
             : [createDefaultWhiteColor(`clr-${id}-white`)],
         };
@@ -1099,15 +1134,28 @@ const AdminPricing = () => {
 
       setMaterials(nextMaterials);
       setDefaultMaterialKey(String(defKey).toLowerCase());
+
+      // Clamp all numeric rule fields to [0, 999999] to prevent abuse via crafted JSON
+      const clampedPricing = { ...tenantPricing };
+      const NUMERIC_RULE_KEYS = [
+        'rate_per_hour', 'min_billed_minutes_value', 'min_price_per_model_value',
+        'min_order_total_value', 'rounding_step', 'markup_value',
+      ];
+      for (const k of NUMERIC_RULE_KEYS) {
+        if (clampedPricing[k] != null) {
+          clampedPricing[k] = clampBounded(clampedPricing[k]);
+        }
+      }
+
       setRules({
         ...deepClone(DEFAULT_RULES),
-        ...tenantPricing,
-        rate_per_hour: clampMin0(tenantPricing.rate_per_hour ?? timeRate),
+        ...clampedPricing,
+        rate_per_hour: clampBounded(clampedPricing.rate_per_hour ?? timeRate),
       });
       setTouched(true);
-      setBanner({ type: 'success', text: cs ? 'Import dokončen.' : 'Import complete.' });
+      setBanner({ type: 'success', text: t('admin.pricing.importOk', "Configuration imported (don't forget to save).") });
     } catch (e) {
-      setBanner({ type: 'error', text: cs ? 'Neplatný JSON.' : 'Invalid JSON.' });
+      setBanner({ type: 'error', text: t('admin.pricing.importInvalid', 'Invalid JSON.') });
     }
   };
 
@@ -1167,21 +1215,21 @@ const AdminPricing = () => {
           name: String(m?.name || '').trim(),
           type: m?.type || '',
           enabled: m?.enabled !== false,
-          price_per_gram: clampMin0(m?.price_per_gram ?? m?.price ?? 0),
-          density: safeNum(m?.density, typeDefaults.density),
-          temp_nozzle_min: safeNum(m?.temp_nozzle_min, typeDefaults.temp_nozzle_min),
-          temp_nozzle_max: safeNum(m?.temp_nozzle_max, typeDefaults.temp_nozzle_max),
-          temp_bed_min: safeNum(m?.temp_bed_min, typeDefaults.temp_bed_min),
-          temp_bed_max: safeNum(m?.temp_bed_max, typeDefaults.temp_bed_max),
-          cooling_fan: m?.cooling_fan != null ? safeNum(m.cooling_fan, typeDefaults.cooling_fan) : typeDefaults.cooling_fan,
-          speed_min: safeNum(m?.speed_min, typeDefaults.speed_min),
-          speed_max: safeNum(m?.speed_max, typeDefaults.speed_max),
+          price_per_gram: clampBounded(m?.price_per_gram ?? m?.price ?? 0),
+          density: clampBounded(m?.density, typeDefaults.density),
+          temp_nozzle_min: clampBounded(m?.temp_nozzle_min, typeDefaults.temp_nozzle_min),
+          temp_nozzle_max: clampBounded(m?.temp_nozzle_max, typeDefaults.temp_nozzle_max),
+          temp_bed_min: clampBounded(m?.temp_bed_min, typeDefaults.temp_bed_min),
+          temp_bed_max: clampBounded(m?.temp_bed_max, typeDefaults.temp_bed_max),
+          cooling_fan: m?.cooling_fan != null ? clampBounded(m.cooling_fan, typeDefaults.cooling_fan) : typeDefaults.cooling_fan,
+          speed_min: clampBounded(m?.speed_min, typeDefaults.speed_min),
+          speed_max: clampBounded(m?.speed_max, typeDefaults.speed_max),
           colors: Array.isArray(m?.colors) && m.colors.length > 0
             ? m.colors.map((c) => ({
                 id: c?.id || createStableId('clr'),
                 name: String(c?.name || '').trim(),
                 hex: normalizeHex(c?.hex),
-                price_per_gram: c?.price_per_gram != null ? clampMin0(c.price_per_gram) : null,
+                price_per_gram: c?.price_per_gram != null ? clampBounded(c.price_per_gram) : null,
               }))
             : [createDefaultWhiteColor(`clr-${id}-white`)],
         };
@@ -1258,8 +1306,8 @@ const AdminPricing = () => {
       setTouched(false);
       setLoading(false);
 
-      // Ensure config exists (default material if needed)
-      savePricingConfigV3(normalized);
+      // Ensure config exists (default material if needed) — guard: only if still mounted
+      if (isMounted) savePricingConfigV3(normalized);
     };
 
     load();
@@ -1439,27 +1487,27 @@ const AdminPricing = () => {
       {/* PRICING SUMMARY BAR */}
       <div className="pricing-summary-bar">
         <div className="psb-item">
-          <span className="psb-label">{cs ? 'Sazba' : 'Rate'} <ForgeHelpIcon text={getHelpText('pricing_rate_per_hour', language)} position="bottom" size={14} /></span>
+          <span className="psb-label">{t('admin.pricing.summaryRate', 'Rate')} <ForgeHelpIcon text={getHelpText('pricing_rate_per_hour', language)} position="bottom" size={14} /></span>
           <span className="psb-value">{pricingSummary.baseRate} Kč/h</span>
         </div>
         <div className="psb-sep" />
         <div className="psb-item">
-          <span className="psb-label">{cs ? 'Markup' : 'Markup'} <ForgeHelpIcon text={getHelpText('pricing_markup', language)} position="bottom" size={14} /></span>
+          <span className="psb-label">{t('admin.pricing.summaryMarkup', 'Markup')} <ForgeHelpIcon text={getHelpText('pricing_markup', language)} position="bottom" size={14} /></span>
           <span className="psb-value">{pricingSummary.avgMarkup}</span>
         </div>
         <div className="psb-sep" />
         <div className="psb-item">
-          <span className="psb-label">{cs ? 'Min. obj.' : 'Min order'} <ForgeHelpIcon text={getHelpText('pricing_min_order_total', language)} position="bottom" size={14} /></span>
+          <span className="psb-label">{t('admin.pricing.summaryMinOrder', 'Min order')} <ForgeHelpIcon text={getHelpText('pricing_min_order_total', language)} position="bottom" size={14} /></span>
           <span className="psb-value">{pricingSummary.minOrder}</span>
         </div>
         <div className="psb-sep" />
         <div className="psb-item">
-          <span className="psb-label">{cs ? 'Zaokr.' : 'Round'} <ForgeHelpIcon text={getHelpText('pricing_rounding', language)} position="bottom" size={14} /></span>
+          <span className="psb-label">{t('admin.pricing.summaryRound', 'Round')} <ForgeHelpIcon text={getHelpText('pricing_rounding', language)} position="bottom" size={14} /></span>
           <span className="psb-value">{pricingSummary.rounding}</span>
         </div>
         <div className="psb-sep" />
         <div className="psb-item">
-          <span className="psb-label">{cs ? 'Materialy' : 'Materials'}</span>
+          <span className="psb-label">{t('admin.pricing.summaryMaterials', 'Materials')}</span>
           <span className="psb-value">{pricingSummary.matCount}</span>
         </div>
       </div>
@@ -1509,12 +1557,12 @@ const AdminPricing = () => {
             {/* Sort controls */}
             {materials.length > 1 && (
               <div className="mat-sort-bar">
-                <span className="mat-sort-label">{cs ? 'Radit:' : 'Sort:'}</span>
+                <span className="mat-sort-label">{t('admin.pricing.sortLabel', 'Sort:')}</span>
                 {[
-                  { id: 'name', label: cs ? 'Nazev' : 'Name' },
-                  { id: 'type', label: cs ? 'Typ' : 'Type' },
-                  { id: 'price', label: cs ? 'Cena' : 'Price' },
-                  { id: 'status', label: cs ? 'Stav' : 'Status' },
+                  { id: 'name', label: t('admin.pricing.sortName', 'Name') },
+                  { id: 'type', label: t('admin.pricing.sortType', 'Type') },
+                  { id: 'price', label: t('admin.pricing.sortPrice', 'Price') },
+                  { id: 'status', label: t('admin.pricing.sortStatus', 'Status') },
                 ].map(s => (
                   <button
                     key={s.id}
@@ -1530,7 +1578,7 @@ const AdminPricing = () => {
                 {compareIds.length > 0 && (
                   <button className="mat-sort-btn" onClick={() => setCompareIds([])} style={{ marginLeft: 'auto' }}>
                     <Icon name="X" size={12} />
-                    {cs ? 'Zrusit vyber' : 'Clear selection'}
+                    {t('admin.pricing.clearSelection', 'Clear selection')}
                   </button>
                 )}
               </div>
@@ -1539,8 +1587,8 @@ const AdminPricing = () => {
             {materials.length === 0 ? (
               <div className="empty-state">
                 <Icon name="Package" size={48} />
-                <h3>{cs ? 'Zadne materialy nenakonfigurovany' : 'No materials configured'}</h3>
-                <p>{cs ? 'Klikni na "Pridat material" a vytvor prvni material.' : 'Click "Add Material" to create your first material.'}</p>
+                <h3>{t('admin.pricing.noMaterials', 'No materials configured')}</h3>
+                <p>{t('admin.pricing.noMaterialsHint', 'Click "Add Material" to create your first material.')}</p>
               </div>
             ) : (
               <div className="materials-compact-grid">
@@ -1576,23 +1624,27 @@ const AdminPricing = () => {
                         <div className="mcc-header">
                           <div className="mcc-name-row">
                             {firstColorHex && <span className="mcc-swatch" style={{ backgroundColor: firstColorHex }} />}
-                            <div className="mcc-name">{material.name || (cs ? '(bez nazvu)' : '(unnamed)')}</div>
+                            <div className="mcc-name">{material.name || t('admin.pricing.unnamed', '(unnamed)')}</div>
                           </div>
                           <div className="mcc-card-actions">
                             <button
                               className="icon-btn-sm"
-                              title={cs ? 'Duplikovat' : 'Duplicate'}
+                              title={t('admin.pricing.duplicate', 'Duplicate')}
                               onClick={(e) => { e.stopPropagation(); addMaterial(material); }}
                             >
                               <Icon name="Copy" size={13} />
                             </button>
                             <button
                               className="icon-btn-sm"
-                              title={cs ? 'Smazat' : 'Delete'}
-                              onClick={(e) => {
+                              title={t('admin.pricing.delete', 'Delete')}
+                              onClick={async (e) => {
                                 e.stopPropagation();
                                 if (materials.length <= 1) return;
-                                if (!window.confirm(cs ? `Opravdu smazat material "${material.name}"?` : `Really delete material "${material.name}"?`)) return;
+                                const ok = await confirm({
+                                  title: t('admin.pricing.deleteMaterial', 'Delete material'),
+                                  message: t('admin.pricing.deleteMaterialConfirm', `Really delete material "${material.name}"?`),
+                                });
+                                if (!ok) return;
                                 deleteMaterial(index);
                               }}
                               disabled={materials.length <= 1}
@@ -1605,11 +1657,11 @@ const AdminPricing = () => {
                         <div className="mcc-key">{material.key || '\u2014'}</div>
                         <div className="mcc-badges">
                           {material.type && <span className="mcc-badge type">{material.type}</span>}
-                          {isDefault && <span className="mcc-badge default">{cs ? 'Vychozi' : 'Default'}</span>}
+                          {isDefault && <span className="mcc-badge default">{t('admin.pricing.badgeDefault', 'Default')}</span>}
                           <span className={`mcc-badge ${material.enabled ? 'active' : 'inactive'}`}>
-                            {material.enabled ? (cs ? 'Aktivni' : 'Active') : (cs ? 'Neaktivni' : 'Inactive')}
+                            {material.enabled ? t('admin.pricing.badgeActive', 'Active') : t('admin.pricing.badgeInactive', 'Inactive')}
                           </span>
-                          {hasIssue && <span className="mcc-badge error">{cs ? 'Chyba' : 'Error'}</span>}
+                          {hasIssue && <span className="mcc-badge error">{t('admin.pricing.badgeError', 'Error')}</span>}
                         </div>
                         <div className="mcc-price-row">
                           <div className="mcc-price">
@@ -1646,14 +1698,14 @@ const AdminPricing = () => {
                         onClick={(e) => { e.stopPropagation(); setShowPropsFor(prev => ({ ...prev, [material.id]: !prev[material.id] })); }}
                       >
                         <Icon name={isExpanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
-                        <span>{cs ? 'Vlastnosti' : 'Properties'}</span>
+                        <span>{t('admin.pricing.properties', 'Properties')}</span>
                       </button>
                       {isExpanded && (
                         <div className="mcc-props-grid">
-                          <div className="mcc-prop"><span>{cs ? 'Tryska' : 'Nozzle'}</span><strong>{material.temp_nozzle_min || '?'}-{material.temp_nozzle_max || '?'} °C</strong></div>
-                          <div className="mcc-prop"><span>{cs ? 'Podlozka' : 'Bed'}</span><strong>{material.temp_bed_min || '?'}-{material.temp_bed_max || '?'} °C</strong></div>
-                          <div className="mcc-prop"><span>{cs ? 'Chlazeni' : 'Fan'}</span><strong>{material.cooling_fan != null ? `${material.cooling_fan}%` : '?'}</strong></div>
-                          <div className="mcc-prop"><span>{cs ? 'Rychlost' : 'Speed'}</span><strong>{material.speed_min || '?'}-{material.speed_max || '?'} mm/s</strong></div>
+                          <div className="mcc-prop"><span>{t('admin.pricing.propNozzle', 'Nozzle')}</span><strong>{material.temp_nozzle_min || '?'}-{material.temp_nozzle_max || '?'} °C</strong></div>
+                          <div className="mcc-prop"><span>{t('admin.pricing.propBed', 'Bed')}</span><strong>{material.temp_bed_min || '?'}-{material.temp_bed_max || '?'} °C</strong></div>
+                          <div className="mcc-prop"><span>{t('admin.pricing.propFan', 'Fan')}</span><strong>{material.cooling_fan != null ? `${material.cooling_fan}%` : '?'}</strong></div>
+                          <div className="mcc-prop"><span>{t('admin.pricing.propSpeed', 'Speed')}</span><strong>{material.speed_min || '?'}-{material.speed_max || '?'} mm/s</strong></div>
                         </div>
                       )}
                     </div>
@@ -1760,16 +1812,16 @@ const AdminPricing = () => {
           <ForgeDialog
             open={editingMaterialIndex != null && dialogDraft != null}
             onClose={closeMaterialDialog}
-            title={dialogDraft?.name || (cs ? 'Novy material' : 'New material')}
+            title={dialogDraft?.name || t('admin.pricing.newMaterial', 'New material')}
             maxWidth="56vw"
             footer={
               <>
                 <button className="btn-secondary" onClick={closeMaterialDialog}>
-                  {cs ? 'Zrusit' : 'Cancel'}
+                  {t('admin.pricing.cancel', 'Cancel')}
                 </button>
                 <button className="btn-primary" onClick={saveMaterialDialog}>
                   <Icon name="Save" size={16} />
-                  {cs ? 'Ulozit zmeny' : 'Save changes'}
+                  {t('admin.pricing.saveChanges', 'Save changes')}
                 </button>
               </>
             }
@@ -1787,24 +1839,24 @@ const AdminPricing = () => {
                   {/* Row 1: Name + Type */}
                   <div className="dialog-row-2">
                     <div className="field" style={{ flex: 2 }}>
-                      <label>{cs ? 'Nazev materialu' : 'Material name'}</label>
+                      <label>{t('admin.pricing.fieldMaterialName', 'Material name')}</label>
                       <input
                         className={`input ${nameError ? 'input-error' : ''}`}
-                        placeholder={cs ? 'Nazev materialu (napr. PLA, ABS)' : 'Material name (e.g. PLA, ABS)'}
+                        placeholder={t('admin.pricing.fieldMaterialNamePlaceholder', 'Material name (e.g. PLA, ABS)')}
                         value={mat.name || ''}
                         onChange={(e) => updateDialogDraft('name', e.target.value)}
                       />
-                      {nameError && <div className="field-error">{cs ? 'Nazev je povinny' : 'Name is required'}</div>}
+                      {nameError && <div className="field-error">{t('admin.pricing.errorNameRequired', 'Name is required')}</div>}
                     </div>
                     <div className="field" style={{ flex: 1 }}>
-                      <label>{cs ? 'Typ materialu' : 'Material type'}</label>
+                      <label>{t('admin.pricing.fieldMaterialType', 'Material type')}</label>
                       <select
                         className="select"
                         value={mat.type || ''}
                         onChange={(e) => updateDialogDraft('type', e.target.value)}
                       >
-                        <option value="">{cs ? '-- vyber typ --' : '-- select type --'}</option>
-                        {MATERIAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        <option value="">{t('admin.pricing.selectType', '-- select type --')}</option>
+                        {MATERIAL_TYPES.map(tp => <option key={tp} value={tp}>{tp}</option>)}
                       </select>
                     </div>
                   </div>
@@ -1812,19 +1864,19 @@ const AdminPricing = () => {
                   {/* Row 2: Key + Active + Price + Density */}
                   <div className="dialog-row-2">
                     <div className="field" style={{ flex: 1 }}>
-                      <label>{cs ? 'Klic (slug)' : 'Key (slug)'}</label>
+                      <label>{t('admin.pricing.fieldKey', 'Key (slug)')}</label>
                       <input
                         className={`input ${keyError ? 'input-error' : ''}`}
-                        placeholder={cs ? 'napr. pla, petg_carbon' : 'e.g. pla, petg_carbon'}
+                        placeholder={t('admin.pricing.fieldKeyPlaceholder', 'e.g. pla, petg_carbon')}
                         value={mat.key || ''}
                         onChange={(e) => updateDialogDraft('key', e.target.value)}
                       />
-                      {draftIssues.keyMissing && <div className="field-error">{cs ? 'Klic je povinny' : 'Key is required'}</div>}
-                      {draftIssues.keyInvalid && <div className="field-error">{cs ? 'Klic musi obsahovat jen a-z, 0-9 a podtrzitka.' : 'Key may contain only a-z, 0-9 and underscores.'}</div>}
-                      {draftIssues.keyDuplicate && <div className="field-error">{cs ? 'Klic musi byt unikatni' : 'Key must be unique'}</div>}
+                      {draftIssues.keyMissing && <div className="field-error">{t('admin.pricing.errorKeyRequired', 'Key is required')}</div>}
+                      {draftIssues.keyInvalid && <div className="field-error">{t('admin.pricing.errorKeyInvalid', 'Key may contain only a-z, 0-9 and underscores.')}</div>}
+                      {draftIssues.keyDuplicate && <div className="field-error">{t('admin.pricing.errorKeyDuplicate', 'Key must be unique')}</div>}
                     </div>
                     <div className="field" style={{ flex: 1 }}>
-                      <label>{cs ? 'Cena za gram' : 'Price per gram'} <ForgeHelpIcon text={getHelpText('pricing_material_price_per_gram', language)} size={14} /></label>
+                      <label>{t('admin.pricing.fieldPricePerGram', 'Price per gram')} <ForgeHelpIcon text={getHelpText('pricing_material_price_per_gram', language)} size={14} /></label>
                       <div className="input-with-unit">
                         <input
                           type="number" min="0" step="0.01"
@@ -1996,10 +2048,10 @@ const AdminPricing = () => {
             {/* Hour / Minute toggle */}
             <div className="time-unit-toggle">
               <button className={`toggle-unit-btn ${timeUnit === 'hour' ? 'active' : ''}`} onClick={() => setTimeUnit('hour')}>
-                {cs ? 'Za hodinu' : 'Per hour'}
+                {t('admin.pricing.btnPerHour', 'Per hour')}
               </button>
               <button className={`toggle-unit-btn ${timeUnit === 'minute' ? 'active' : ''}`} onClick={() => setTimeUnit('minute')}>
-                {cs ? 'Za minutu' : 'Per minute'}
+                {t('admin.pricing.btnPerMinute', 'Per minute')}
               </button>
             </div>
 
@@ -2689,8 +2741,8 @@ const AdminPricing = () => {
           <button
             className="quick-test-fab"
             onClick={() => setQuickTestOpen(prev => !prev)}
-            title={cs ? 'Rychlý test ceny' : 'Quick price test'}
-            aria-label={cs ? 'Rychlý test ceny' : 'Quick price test'}
+            title={t('admin.pricing.quickTestTitle', 'Quick price test')}
+            aria-label={t('admin.pricing.quickTestTitle', 'Quick price test')}
           >
             <Icon name="Calculator" size={20} />
           </button>
@@ -2699,7 +2751,7 @@ const AdminPricing = () => {
             <div className="quick-test-overlay" onClick={() => setQuickTestOpen(false)}>
               <div className="quick-test-panel" onClick={e => e.stopPropagation()}>
                 <div className="qt-header">
-                  <h4>{cs ? 'Rychlý test' : 'Quick Test'}</h4>
+                  <h4>{t('admin.pricing.quickTest', 'Quick Test')}</h4>
                   <button className="icon-btn" onClick={() => setQuickTestOpen(false)} aria-label="Close">
                     <Icon name="X" size={16} />
                   </button>
@@ -2707,7 +2759,7 @@ const AdminPricing = () => {
 
                 <div className="qt-fields">
                   <div className="qt-field">
-                    <label>{cs ? 'Material' : 'Material'}</label>
+                    <label>{t('admin.pricing.fieldMaterial', 'Material')}</label>
                     <select
                       className="select"
                       onChange={(e) => {
@@ -2717,7 +2769,7 @@ const AdminPricing = () => {
                       }}
                       defaultValue={-1}
                     >
-                      <option value={-1}>{cs ? '-- vyber --' : '-- select --'}</option>
+                      <option value={-1}>{t('admin.pricing.selectOption', '-- select --')}</option>
                       {enabledMaterials.map((m, idx) => (
                         <option key={m.id} value={idx}>{m.name} ({clampMin0(m.price_per_gram)} Kč/g)</option>
                       ))}
@@ -2725,24 +2777,24 @@ const AdminPricing = () => {
                   </div>
                   <div className="qt-row">
                     <div className="qt-field">
-                      <label>{cs ? 'Hmotnost' : 'Weight'}</label>
+                      <label>{t('admin.pricing.fieldWeight', 'Weight')}</label>
                       <NumberStepper value={preview.weight_g} onChange={v => setPreviewField('weight_g', v)} min={0} step={10} />
                       <span className="qt-unit">g</span>
                     </div>
                     <div className="qt-field">
-                      <label>{cs ? 'Cas' : 'Time'}</label>
+                      <label>{t('admin.pricing.fieldTime', 'Time')}</label>
                       <NumberStepper value={preview.time_min} onChange={v => setPreviewField('time_min', v)} min={0} step={5} />
                       <span className="qt-unit">min</span>
                     </div>
                   </div>
                   <div className="qt-row">
                     <div className="qt-field">
-                      <label>{cs ? 'Mnozstvi' : 'Qty'}</label>
+                      <label>{t('admin.pricing.fieldQty', 'Qty')}</label>
                       <NumberStepper value={preview.quantity} onChange={v => setPreviewField('quantity', v)} min={1} step={1} />
                       <span className="qt-unit">ks</span>
                     </div>
                     <div className="qt-field">
-                      <label>{cs ? 'Kc/g' : 'CZK/g'}</label>
+                      <label>{t('admin.pricing.fieldCzkPerG', 'CZK/g')}</label>
                       <NumberStepper value={preview.material_price_per_g} onChange={v => setPreviewField('material_price_per_g', v)} min={0} step={0.1} />
                     </div>
                   </div>
@@ -2750,11 +2802,11 @@ const AdminPricing = () => {
 
                 <div className="qt-result">
                   <div className="qt-result-row">
-                    <span>{cs ? 'Material' : 'Material'}</span>
+                    <span>{t('admin.pricing.fieldMaterial', 'Material')}</span>
                     <strong>{formatCzk(previewResult.material)}</strong>
                   </div>
                   <div className="qt-result-row">
-                    <span>{cs ? 'Cas' : 'Time'}</span>
+                    <span>{t('admin.pricing.fieldTime', 'Time')}</span>
                     <strong>{formatCzk(previewResult.time)}</strong>
                   </div>
                   {previewResult.markup > 0 && (
@@ -2765,14 +2817,14 @@ const AdminPricing = () => {
                   )}
                   <div className="qt-divider" />
                   <div className="qt-result-row qt-total">
-                    <span>{cs ? 'Celkem' : 'Total'}</span>
+                    <span>{t('admin.pricing.total', 'Total')}</span>
                     <strong>{formatCzk(previewResult.total)}</strong>
                   </div>
                   {previewResult.flags.min_price_per_model_applied && (
-                    <span className="flag warn" style={{ fontSize: 10, marginTop: 4 }}>{cs ? 'min/model' : 'min/model'}</span>
+                    <span className="flag warn" style={{ fontSize: 10, marginTop: 4 }}>{t('admin.pricing.flagMinModel', 'min/model')}</span>
                   )}
                   {previewResult.flags.rounding_final_applied && (
-                    <span className="flag info" style={{ fontSize: 10, marginTop: 4 }}>{cs ? 'zaokrouhleno' : 'rounded'}</span>
+                    <span className="flag info" style={{ fontSize: 10, marginTop: 4 }}>{t('admin.pricing.flagRounded', 'rounded')}</span>
                   )}
                 </div>
               </div>
@@ -2844,7 +2896,7 @@ const AdminPricing = () => {
         .status-pill.dirty {
           border-color: rgba(255, 170, 0, 0.3);
           background: rgba(255, 170, 0, 0.08);
-          color: #ffaa00;
+          color: var(--forge-warning, #FFB547);
         }
 
         .banner {
@@ -3195,13 +3247,13 @@ const AdminPricing = () => {
 
         .mcc-badge.inactive {
           background: rgba(255, 170, 0, 0.06);
-          color: #ffaa00;
+          color: var(--forge-warning, #FFB547);
           border-color: rgba(255, 170, 0, 0.2);
         }
 
         .mcc-badge.error {
           background: rgba(255, 68, 68, 0.06);
-          color: #ff4444;
+          color: var(--forge-error, #FF4757);
           border-color: rgba(255, 68, 68, 0.2);
         }
 
@@ -3511,7 +3563,7 @@ const AdminPricing = () => {
         }
 
         .input-error {
-          border-color: #ff4444 !important;
+          border-color: var(--forge-error, #FF4757) !important;
           box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.15);
         }
 
@@ -3668,7 +3720,7 @@ const AdminPricing = () => {
         .field-error {
           margin-top: 6px;
           font-size: 12px;
-          color: #ff4444;
+          color: var(--forge-error, #FF4757);
         }
 
         .preview {
@@ -3749,7 +3801,7 @@ const AdminPricing = () => {
         .flag.warn {
           border-color: rgba(255, 170, 0, 0.3);
           background: rgba(255, 170, 0, 0.06);
-          color: #ffaa00;
+          color: var(--forge-warning, #FFB547);
         }
 
         .flag.info {
@@ -3767,7 +3819,7 @@ const AdminPricing = () => {
           border-radius: var(--forge-radius-md, 8px);
           border: 1px solid rgba(255, 170, 0, 0.3);
           background: rgba(255, 170, 0, 0.06);
-          color: #ffaa00;
+          color: var(--forge-warning, #FFB547);
           font-size: 13px;
         }
 
@@ -4238,6 +4290,7 @@ const AdminPricing = () => {
           }
         }
       `}</style>
+      {ConfirmDialogPortal}
     </div>
   );
 };

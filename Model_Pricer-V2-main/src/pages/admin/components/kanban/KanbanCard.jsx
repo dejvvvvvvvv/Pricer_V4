@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import Icon from '../../../../components/AppIcon';
 import { computeOrderTotals, extractOrderMaterials } from '../../../../utils/adminOrdersStorage';
+import { formatMoneyInt } from '../../../../utils/formatters';
 import { getNextStatuses, getStatusLabel, getStatusColor, checkOverdue } from './statusTransitions';
 
 /**
@@ -38,7 +39,22 @@ function getPriorityInfo(order) {
   return null;
 }
 
-export default function KanbanCard({ order, onView, onStatusChange, isDragging, isOverlay }) {
+const CARD_STYLES = `
+  @keyframes kanban-fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes kanban-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .kanban-card:focus-visible {
+    outline: 2px solid var(--forge-accent-primary);
+    outline-offset: 2px;
+  }
+`;
+
+function KanbanCard({ order, onView, onStatusChange, isDragging, isOverlay }) {
   const [isHovered, setIsHovered] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -46,28 +62,27 @@ export default function KanbanCard({ order, onView, onStatusChange, isDragging, 
     disabled: isOverlay,
   });
 
+  // All hooks must be called before any conditional return (Rules of Hooks)
+  const computed = useMemo(() => {
+    if (!order) return null;
+    try { return computeOrderTotals(order); } catch { return null; }
+  }, [order]);
+  const materials = useMemo(() => order ? extractOrderMaterials(order) : [], [order]);
+  const status = order?.status || 'NEW';
+  const updatedAt = order?.updated_at || order?.updatedAt || order?.created_at || order?.createdAt;
+  const nextStatuses = useMemo(() => getNextStatuses(status), [status]);
+  const priority = useMemo(() => order ? getPriorityInfo(order) : null, [order]);
+  const overdueInfo = useMemo(() => checkOverdue(status, updatedAt), [status, updatedAt]);
+
   if (!order) return null;
 
   const totalModels = Array.isArray(order.models) ? order.models.length : 0;
-  const computed = useMemo(() => {
-    try { return computeOrderTotals(order); } catch { return null; }
-  }, [order]);
   const totalAmount = computed?.total ?? order.totals_snapshot?.total ?? 0;
   const customerName = order.customer_snapshot?.name || order.customer?.name || order.contact?.name || 'Neznamy';
   const customerEmail = order.customer_snapshot?.email || order.customer?.email || order.contact?.email || '';
   const createdAt = order.created_at || order.createdAt;
-  const updatedAt = order.updated_at || order.updatedAt || createdAt;
-  const materials = useMemo(() => extractOrderMaterials(order), [order]);
-  const status = order.status || 'NEW';
-  const nextStatuses = useMemo(() => getNextStatuses(status), [status]);
-  const priority = useMemo(() => getPriorityInfo(order), [order]);
-  const overdueInfo = useMemo(() => checkOverdue(status, updatedAt), [status, updatedAt]);
   const totalPieces = computed?.sum_pieces ?? (order.models || []).reduce((s, m) => s + (m.quantity || 1), 0);
 
-  const formatMoney = (v) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? `${n.toFixed(0)} Kc` : '0 Kc';
-  };
 
   // Transform style for drag movement (only for inline card, not overlay)
   const dragStyle = transform && !isOverlay
@@ -80,6 +95,7 @@ export default function KanbanCard({ order, onView, onStatusChange, isDragging, 
     <div
       ref={!isOverlay ? setNodeRef : undefined}
       {...(!isOverlay ? { ...attributes, ...listeners } : {})}
+      className="kanban-card"
       onClick={(e) => {
         if (isDragging) return;
         onView?.(order);
@@ -262,7 +278,7 @@ export default function KanbanCard({ order, onView, onStatusChange, isDragging, 
             fontSize: '12px',
             color: 'var(--forge-accent-primary)',
           }}>
-            {formatMoney(totalAmount)}
+            {formatMoneyInt(totalAmount)}
           </span>
         </div>
 
@@ -353,16 +369,9 @@ export default function KanbanCard({ order, onView, onStatusChange, isDragging, 
         )}
       </div>
 
-      <style>{`
-        @keyframes kanban-fadeIn {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes kanban-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
+      <style>{CARD_STYLES}</style>
     </div>
   );
 }
+
+export default memo(KanbanCard);

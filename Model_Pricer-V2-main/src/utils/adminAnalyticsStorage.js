@@ -6,21 +6,10 @@ import { generateId } from './generateId';
 import { storageAdapter } from '../lib/supabase/storageAdapter';
 import { getStorageMode } from '../lib/supabase/featureFlags';
 import { isSupabaseAvailable } from '../lib/supabase/client';
-import { getTenantId } from './adminTenantStorage';
+import { getTenantId, readTenantJson, writeTenantJson, deleteTenantJson } from './adminTenantStorage';
+import { debug } from '@/lib/debug';
 
-function getStoragePrefix() { return `modelpricer:${getTenantId()}:analytics`; }
-
-function storageKeyEvents() {
-  return `${getStoragePrefix()}:events`;
-}
-
-function safeParse(json, fallback) {
-  try {
-    return JSON.parse(json);
-  } catch {
-    return fallback;
-  }
-}
+const NAMESPACE = 'analytics:events';
 
 function nowIso() {
   return new Date().toISOString();
@@ -41,20 +30,17 @@ export function generateSessionId() {
   return generateId('sess');
 }
 
-export function getAnalyticsEvents() {
-  if (typeof window === 'undefined') return [];
-  const raw = window.localStorage.getItem(storageKeyEvents());
-  return safeParse(raw || '[]', []);
+export function getAnalyticsEvents(tenantIdOverride) {
+  const data = readTenantJson(NAMESPACE, [], tenantIdOverride);
+  return Array.isArray(data) ? data : [];
 }
 
-export function setAnalyticsEvents(events) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(storageKeyEvents(), JSON.stringify(events));
+export function setAnalyticsEvents(events, tenantIdOverride) {
+  writeTenantJson(NAMESPACE, events, tenantIdOverride);
 }
 
-export function clearAnalyticsAll() {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(storageKeyEvents());
+export function clearAnalyticsAll(tenantIdOverride) {
+  deleteTenantJson(NAMESPACE, tenantIdOverride);
 }
 
 export function trackAnalyticsEvent({
@@ -67,7 +53,7 @@ export function trackAnalyticsEvent({
 }) {
   if (typeof window === 'undefined') return;
 
-  const events = getAnalyticsEvents();
+  const events = getAnalyticsEvents(tenantId);
   events.push({
     id: generateId('evt'),
     tenantId,
@@ -80,10 +66,11 @@ export function trackAnalyticsEvent({
   // keep newest last, limit size for demo
   const MAX_EVENTS = 20000;
   const trimmed = events.length > MAX_EVENTS ? events.slice(events.length - MAX_EVENTS) : events;
-  setAnalyticsEvents(trimmed);
+  setAnalyticsEvents(trimmed, tenantId);
 
-  // Fire-and-forget Supabase dual-write
-  const mode = getStorageMode('analytics:events');
+  // Fire-and-forget Supabase dual-write (writeTenantJson already handles dual-write,
+  // but analytics uses insert-per-event for Supabase, not bulk JSON overwrite)
+  const mode = getStorageMode(NAMESPACE);
   if ((mode === 'supabase' || mode === 'dual-write') && isSupabaseAvailable()) {
     storageAdapter.supabase.insert('analytics_events', {
       tenant_id: tenantId,
@@ -92,7 +79,7 @@ export function trackAnalyticsEvent({
       session_id: sessionId,
       payload: metadata,
       created_at: timestamp,
-    }).catch(err => console.warn('[analytics] Supabase insert failed:', err.message));
+    }).catch(err => debug('[analytics] Supabase insert failed:', err.message));
   }
 }
 
@@ -307,8 +294,12 @@ export function findLostSessions({ fromISO, toISO, olderThanMinutes = 30 }) {
 }
 
 function csvEscape(v) {
-  const s = String(v ?? '');
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  let s = String(v ?? '');
+  // Prevent formula injection in spreadsheet apps
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 
@@ -387,6 +378,7 @@ export function logExportToAudit({ actor, type, fromISO, toISO }) {
   }
 }
 
+// DEMO: mock data only — all Math.random() calls below are for demo seed generation
 export function seedAnalyticsDemo({
   days = 30,
   sessionsPerDay = 6,

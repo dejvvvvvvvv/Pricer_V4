@@ -19,11 +19,13 @@ export default function FileToolbar({
   const fileInputRef = useRef(null);
 
   const handleNewFolder = () => {
-    if (folderName.trim()) {
-      onNewFolder(folderName.trim());
-      setFolderName('');
-      setShowNewFolder(false);
-    }
+    const sanitizedName = folderName.trim()
+      .replace(/[/\\:*?"<>|\0]/g, '')  // Remove dangerous chars
+      .replace(/\.{2,}/g, '.');        // Remove .. sequences
+    if (!sanitizedName) return;
+    onNewFolder(sanitizedName);
+    setFolderName('');
+    setShowNewFolder(false);
   };
 
   const handleFileSelect = (e) => {

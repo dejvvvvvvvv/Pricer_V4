@@ -8,6 +8,16 @@
 // - Recent team activity log
 // - Remove member with confirmation
 // - Data via adminTeamAccessStorage (tenant-scoped localStorage)
+//
+// SECURITY TODO: Role enforcement is currently CLIENT-SIDE ONLY and purely visual.
+// The ROLE_PERMISSIONS matrix below is displayed in the UI but NOT enforced at:
+//   1) Route/layout level (AdminLayout.jsx renders all nav items regardless of role)
+//   2) API/backend level (no middleware checks user roles)
+// Before production, the following MUST be implemented:
+//   - Server-side role middleware that validates user role on every API request
+//   - Client-side route guards in AdminLayout that hide/block pages based on role
+//   - A useUserRole() hook that reads the authenticated user's role from the backend
+// Current state: any authenticated user can access all admin pages and perform all actions.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
@@ -41,7 +51,7 @@ const ROLE_ORDER = ['owner', 'admin', 'manager', 'viewer', 'operator'];
 const ROLE_META = {
   owner: {
     label: 'Vlastnik',
-    color: '#F0A030',
+    color: 'var(--forge-accent-orange)',
     description: 'Plny pristup vcetne fakturace a spravcu tymu',
   },
   admin: {
@@ -51,7 +61,7 @@ const ROLE_META = {
   },
   manager: {
     label: 'Manazer',
-    color: '#6C9AFF',
+    color: 'var(--forge-info)',
     description: 'Sprava objednavek, cenotvorba, presety',
   },
   viewer: {
@@ -61,7 +71,7 @@ const ROLE_META = {
   },
   operator: {
     label: 'Operator',
-    color: '#60A5FA',
+    color: 'var(--forge-info)',
     description: 'Prace s objednavkami + cteni konfigurace',
   },
 };
@@ -80,7 +90,8 @@ const PERMISSION_CATEGORIES = [
   { key: 'audit', label: 'Audit log' },
 ];
 
-const ROLE_PERMISSIONS = {
+// Exported so AdminLayout (and future route guards) can consume this for enforcement.
+export const ROLE_PERMISSIONS = {
   owner: {
     dashboard: 'full', pricing: 'full', fees: 'full', parameters: 'full',
     presets: 'full', orders: 'full', branding: 'full', widget: 'full',
@@ -282,6 +293,7 @@ function StatCard({ icon, label, value, color = 'var(--forge-accent-primary)' })
 }
 
 function ConfirmButton({ label, onConfirm, confirmText, variant = 'default', icon }) {
+  const { t } = useLanguage();
   const [confirming, setConfirming] = useState(false);
 
   const styles = {
@@ -326,7 +338,7 @@ function ConfirmButton({ label, onConfirm, confirmText, variant = 'default', ico
             fontSize: '11px', fontFamily: 'var(--forge-font-body)',
           }}
         >
-          Zrusit
+          {t('admin.team.cancel', 'Cancel')}
         </button>
       </span>
     );
@@ -351,7 +363,7 @@ function ConfirmButton({ label, onConfirm, confirmText, variant = 'default', ico
 // Member Card
 // ---------------------------------------------------------------------------
 
-function MemberCard({ user, onRoleChange, onToggleStatus, onRemove, isInvite }) {
+function MemberCard({ user, onRoleChange, onToggleStatus, onRemove, onAccept, isInvite }) {
   const name = user.name || user.email?.split('@')[0] || '--';
   const email = user.email || '--';
   const role = user.role || 'viewer';
@@ -475,9 +487,7 @@ function MemberCard({ user, onRoleChange, onToggleStatus, onRemove, isInvite }) 
               icon="UserCheck"
               variant="success"
               confirmText="Potvrdit prijem"
-              onConfirm={() => {
-                acceptInviteToken(user.token, { name: user.email.split('@')[0] });
-              }}
+              onConfirm={() => onAccept?.(user.token, user.email.split('@')[0])}
             />
             <ConfirmButton
               label="Zrusit pozvanku"
@@ -507,10 +517,11 @@ function MemberCard({ user, onRoleChange, onToggleStatus, onRemove, isInvite }) 
 // ---------------------------------------------------------------------------
 
 function PermissionsMatrix() {
+  const { t } = useLanguage();
   const cellStyle = (level) => {
     const colors = {
       full: { bg: 'rgba(0,212,170,0.12)', color: 'var(--forge-success)', icon: 'Check' },
-      read: { bg: 'rgba(96,165,250,0.12)', color: '#60A5FA', icon: 'Eye' },
+      read: { bg: 'rgba(96,165,250,0.12)', color: 'var(--forge-info)', icon: 'Eye' },
       none: { bg: 'rgba(255,71,87,0.06)', color: 'var(--forge-text-disabled)', icon: 'Minus' },
     };
     return colors[level] || colors.none;
@@ -539,7 +550,7 @@ function PermissionsMatrix() {
                 backgroundColor: 'var(--forge-bg-elevated)',
                 position: 'sticky', left: 0, zIndex: 1,
               }}>
-                Opravneni
+                {t('admin.team.permCol.permission', 'Permission')}
               </th>
               {ROLE_ORDER.map((role) => (
                 <th key={role} style={{
@@ -605,9 +616,9 @@ function PermissionsMatrix() {
         backgroundColor: 'var(--forge-bg-elevated)',
       }}>
         {[
-          { icon: 'Check', label: 'Plny pristup', color: 'var(--forge-success)' },
-          { icon: 'Eye', label: 'Pouze cteni', color: '#60A5FA' },
-          { icon: 'Minus', label: 'Bez pristupu', color: 'var(--forge-text-disabled)' },
+          { icon: 'Check', label: t('admin.team.legend.full', 'Full access'), color: 'var(--forge-success)' },
+          { icon: 'Eye', label: t('admin.team.legend.read', 'Read only'), color: 'var(--forge-info)' },
+          { icon: 'Minus', label: t('admin.team.legend.none', 'No access'), color: 'var(--forge-text-disabled)' },
         ].map((item) => (
           <span key={item.label} style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
@@ -628,6 +639,7 @@ function PermissionsMatrix() {
 // ---------------------------------------------------------------------------
 
 function ActivityLog({ entries }) {
+  const { t } = useLanguage();
   if (entries.length === 0) {
     return (
       <div style={{
@@ -642,7 +654,7 @@ function ActivityLog({ entries }) {
           fontFamily: 'var(--forge-font-body)', fontSize: '14px',
           color: 'var(--forge-text-muted)',
         }}>
-          Zatim zadna tymova aktivita.
+          {t('admin.team.emptyActivity', 'No team activity yet.')}
         </div>
       </div>
     );
@@ -725,6 +737,7 @@ function ActivityLog({ entries }) {
 // ---------------------------------------------------------------------------
 
 function InviteForm({ onInviteSent }) {
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('operator');
@@ -777,27 +790,27 @@ function InviteForm({ onInviteSent }) {
         display: 'flex', alignItems: 'center', gap: '8px',
       }}>
         <Icon name="UserPlus" size={18} style={{ color: 'var(--forge-accent-primary)' }} />
-        Pozvat noveho clena
+        {t('admin.team.invite.title', 'Invite new member')}
       </div>
 
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {/* Name */}
           <div style={{ flex: '1 1 160px', minWidth: 140 }}>
-            <label style={labelStyle}>Jmeno</label>
+            <label style={labelStyle}>{t('admin.team.invite.name', 'Name')}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Jan Novak"
               style={inputStyle}
-              aria-label="Jmeno noveho clena"
+              aria-label={t('admin.team.invite.nameAria', 'New member name')}
             />
           </div>
 
           {/* Email */}
           <div style={{ flex: '2 1 220px', minWidth: 200 }}>
-            <label style={labelStyle}>Email *</label>
+            <label style={labelStyle}>{t('admin.team.invite.email', 'Email')} *</label>
             <input
               type="email"
               value={email}
@@ -805,18 +818,18 @@ function InviteForm({ onInviteSent }) {
               placeholder="jan@firma.cz"
               required
               style={inputStyle}
-              aria-label="Email noveho clena"
+              aria-label={t('admin.team.invite.emailAria', 'New member email')}
             />
           </div>
 
           {/* Role */}
           <div style={{ flex: '1 1 130px', minWidth: 120 }}>
-            <label style={labelStyle}>Role</label>
+            <label style={labelStyle}>{t('admin.team.invite.role', 'Role')}</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
               style={inputStyle}
-              aria-label="Role noveho clena"
+              aria-label={t('admin.team.invite.roleAria', 'New member role')}
             >
               {ROLE_ORDER.filter((r) => r !== 'owner').map((r) => (
                 <option key={r} value={r}>{getRoleMeta(r).label}</option>
@@ -829,7 +842,7 @@ function InviteForm({ onInviteSent }) {
             type="submit"
             style={{
               backgroundColor: 'var(--forge-accent-primary)',
-              color: '#0A0E17',
+              color: 'var(--forge-bg-void)',
               border: '1px solid var(--forge-accent-primary)',
               borderRadius: 'var(--forge-radius-sm)',
               padding: '8px 18px',
@@ -846,7 +859,7 @@ function InviteForm({ onInviteSent }) {
             }}
           >
             <Icon name="Send" size={14} />
-            Pozvat
+            {t('admin.team.invite.submit', 'Invite')}
           </button>
         </div>
 
@@ -910,9 +923,8 @@ const inputStyle = {
 // ---------------------------------------------------------------------------
 
 export default function AdminTeamAccess() {
-  const { language } = useLanguage();
-  const cs = language === 'cs';
-  useDocumentTitle(cs ? 'Tym — Admin' : 'Team — Admin');
+  const { t } = useLanguage();
+  useDocumentTitle(t('admin.team.pageTitle', 'Team — Admin'));
 
   const [tab, setTab] = useState(TABS.members);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -947,6 +959,11 @@ export default function AdminTeamAccess() {
 
   const handleRemove = useCallback((userId) => {
     deleteUser(userId);
+    refresh();
+  }, [refresh]);
+
+  const handleAcceptInvite = useCallback((token, name) => {
+    acceptInviteToken({ token, name });
     refresh();
   }, [refresh]);
 
@@ -989,8 +1006,8 @@ export default function AdminTeamAccess() {
   return (
     <div style={{ maxWidth: 1200 }}>
       <ForgePageHeader
-        title="Sprava tymu"
-        breadcrumb="ADMIN / TYM"
+        title={t('admin.team.title', 'Team Management')}
+        breadcrumb={t('admin.team.breadcrumb', 'ADMIN / TEAM')}
         actions={
           <span style={{
             fontFamily: 'var(--forge-font-tech)', fontSize: '11px',
@@ -999,7 +1016,7 @@ export default function AdminTeamAccess() {
             border: '1px solid var(--forge-border-default)',
             borderRadius: 'var(--forge-radius-sm)',
           }}>
-            Mista: {summary.activeUsers + summary.pendingInvites} / {summary.seatLimit}
+            {t('admin.team.seats', 'Seats')}: {summary.activeUsers + summary.pendingInvites} / {summary.seatLimit}
           </span>
         }
       />
@@ -1009,22 +1026,22 @@ export default function AdminTeamAccess() {
         display: 'flex', gap: '14px', flexWrap: 'wrap',
         marginTop: '24px', marginBottom: '24px',
       }}>
-        <StatCard icon="Users" label="Aktivni clenove" value={summary.activeUsers} />
+        <StatCard icon="Users" label={t('admin.team.stat.activeMembers', 'Active members')} value={summary.activeUsers} />
         <StatCard
           icon="Mail"
-          label="Cekajici pozvanky"
+          label={t('admin.team.stat.pendingInvites', 'Pending invites')}
           value={summary.pendingInvites}
-          color="#F0A030"
+          color="var(--forge-accent-orange)"
         />
         <StatCard
           icon="UserX"
-          label="Neaktivni"
+          label={t('admin.team.stat.inactive', 'Inactive')}
           value={summary.disabledUsers}
           color="var(--forge-text-muted)"
         />
         <StatCard
           icon="Shield"
-          label="Pocet roli"
+          label={t('admin.team.stat.roles', 'Roles')}
           value={ROLE_ORDER.length}
           color="#A78BFA"
         />
@@ -1032,9 +1049,9 @@ export default function AdminTeamAccess() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {tabBtn(TABS.members, 'Clenove tymu', 'Users')}
-        {tabBtn(TABS.roles, 'Role a opravneni', 'Shield')}
-        {tabBtn(TABS.activity, `Aktivita (${teamActivity.length})`, 'Clock')}
+        {tabBtn(TABS.members, t('admin.team.tab.members', 'Team members'), 'Users')}
+        {tabBtn(TABS.roles, t('admin.team.tab.roles', 'Roles & permissions'), 'Shield')}
+        {tabBtn(TABS.activity, `${t('admin.team.tab.activity', 'Activity')} (${teamActivity.length})`, 'Clock')}
       </div>
 
       {/* ============================================================ */}
@@ -1052,7 +1069,7 @@ export default function AdminTeamAccess() {
             color: 'var(--forge-text-muted)',
             marginTop: '24px', marginBottom: '12px',
           }}>
-            Clenove ({users.length})
+            {t('admin.team.sectionMembers', 'Members')} ({users.length})
           </div>
 
           {users.length === 0 ? (
@@ -1064,7 +1081,7 @@ export default function AdminTeamAccess() {
               color: 'var(--forge-text-muted)',
               fontFamily: 'var(--forge-font-body)', fontSize: '14px',
             }}>
-              Zatim zadni clenove. Pozvete prvniho clena pomoci formulare vyse.
+              {t('admin.team.emptyMembers', 'No members yet. Invite the first member using the form above.')}
             </div>
           ) : (
             <div style={{
@@ -1093,7 +1110,7 @@ export default function AdminTeamAccess() {
                 color: 'var(--forge-text-muted)',
                 marginTop: '24px', marginBottom: '12px',
               }}>
-                Cekajici pozvanky ({pendingInvites.length})
+                {t('admin.team.sectionPendingInvites', 'Pending invites')} ({pendingInvites.length})
               </div>
               <div style={{
                 display: 'grid',
@@ -1105,6 +1122,7 @@ export default function AdminTeamAccess() {
                     key={inv.id}
                     user={inv}
                     isInvite
+                    onAccept={handleAcceptInvite}
                     onRemove={() => { deleteInvite(inv.id); refresh(); }}
                   />
                 ))}
@@ -1121,7 +1139,7 @@ export default function AdminTeamAccess() {
                 color: 'var(--forge-text-muted)',
                 marginTop: '24px', marginBottom: '12px',
               }}>
-                Historie pozvanek ({otherInvites.length})
+                {t('admin.team.sectionInviteHistory', 'Invite history')} ({otherInvites.length})
               </div>
               <div style={{
                 display: 'grid',
@@ -1193,7 +1211,7 @@ export default function AdminTeamAccess() {
             color: 'var(--forge-text-muted)',
             marginBottom: '12px',
           }}>
-            Matice opravneni
+            {t('admin.team.permissionsMatrix', 'Permissions matrix')}
           </div>
           <PermissionsMatrix />
         </div>
@@ -1210,7 +1228,7 @@ export default function AdminTeamAccess() {
             color: 'var(--forge-text-muted)',
             marginBottom: '12px',
           }}>
-            Posledni tymova aktivita ({teamActivity.length})
+            {t('admin.team.sectionActivity', 'Recent team activity')} ({teamActivity.length})
           </div>
           <ActivityLog entries={teamActivity} />
         </div>

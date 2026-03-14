@@ -9,7 +9,7 @@ import { getAuditEntries } from '../../utils/adminAuditLogStorage';
 import { readTenantJson, getTenantId } from '../../utils/adminTenantStorage';
 import { formatRelativeTime } from '../../utils/formatRelativeTime';
 import { getBranding, getDefaultBranding } from '../../utils/adminBrandingWidgetStorage';
-import { loadCouponsConfigV1 } from '../../utils/adminCouponsStorage';
+import { loadCouponsConfigV1 } from '../../utils/adminCouponStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 
 import QuickSettings from './components/QuickSettings';
@@ -63,21 +63,57 @@ const STATUS_COLORS = {
 /* ── Quick links config ───────────────────────────────────────────────── */
 
 const QUICK_LINKS = [
-  { icon: 'ShoppingCart', path: '/admin/orders', labelCs: 'Objednavky', labelEn: 'Orders' },
-  { icon: 'DollarSign', path: '/admin/pricing', labelCs: 'Cenik', labelEn: 'Pricing' },
-  { icon: 'Layers', path: '/admin/parameters', labelCs: 'Materialy', labelEn: 'Materials' },
-  { icon: 'Palette', path: '/admin/branding', labelCs: 'Branding', labelEn: 'Branding' },
-  { icon: 'BarChart3', path: '/admin/analytics', labelCs: 'Analytika', labelEn: 'Analytics' },
-  { icon: 'Layout', path: '/admin/widget', labelCs: 'Widget', labelEn: 'Widget' },
-  { icon: 'Receipt', path: '/admin/fees', labelCs: 'Poplatky', labelEn: 'Fees' },
-  { icon: 'BookOpen', path: '/admin/presets', labelCs: 'Presety', labelEn: 'Presets' },
+  { icon: 'ShoppingCart', path: '/admin/orders', labelKey: 'admin.dashboard.link.orders', labelFallback: 'Orders' },
+  { icon: 'DollarSign', path: '/admin/pricing', labelKey: 'admin.dashboard.link.pricing', labelFallback: 'Pricing' },
+  { icon: 'Layers', path: '/admin/parameters', labelKey: 'admin.dashboard.link.materials', labelFallback: 'Materials' },
+  { icon: 'Palette', path: '/admin/branding', labelKey: 'admin.dashboard.link.branding', labelFallback: 'Branding' },
+  { icon: 'BarChart3', path: '/admin/analytics', labelKey: 'admin.dashboard.link.analytics', labelFallback: 'Analytics' },
+  { icon: 'Layout', path: '/admin/widget', labelKey: 'admin.dashboard.link.widget', labelFallback: 'Widget' },
+  { icon: 'Receipt', path: '/admin/fees', labelKey: 'admin.dashboard.link.fees', labelFallback: 'Fees' },
+  { icon: 'BookOpen', path: '/admin/presets', labelKey: 'admin.dashboard.link.presets', labelFallback: 'Presets' },
 ];
+
+/* ── RevenueSparkline ─────────────────────────────────────────────────── */
+
+function RevenueSparkline({ data, language }) {
+  if (!data || !data.days || data.days.length === 0) return null;
+  const { days, max } = data;
+  const barW = 100 / days.length;
+  return (
+    <div style={{ width: '100%', marginTop: 8 }}>
+      <svg width="100%" height="64" viewBox="0 0 100 64" preserveAspectRatio="none" style={{ display: 'block' }}>
+        {days.map((d, i) => {
+          const h = max > 0 ? (d.revenue / max) * 54 : 0;
+          return (
+            <rect
+              key={i}
+              x={i * barW + barW * 0.15}
+              y={64 - h - 2}
+              width={barW * 0.7}
+              height={Math.max(h, 1)}
+              rx={1.5}
+              fill="var(--forge-accent, #00D4AA)"
+              opacity={0.85}
+            />
+          );
+        })}
+      </svg>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        {days.map((d, i) => (
+          <span key={i} style={{ fontSize: 10, color: 'var(--forge-text-muted, #7A8291)', textAlign: 'center', flex: 1 }}>
+            {d.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /* ── Main component ───────────────────────────────────────────────────── */
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [refreshKey, setRefreshKey] = useState(0);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showQuickOrder, setShowQuickOrder] = useState(false);
@@ -90,6 +126,15 @@ const AdminDashboard = () => {
   // ── Data ──
 
   const allOrders = useMemo(() => loadOrders(), [refreshKey]);
+
+  // Shared reads — avoid duplicate storage access across multiple useMemos
+  const couponsConfig = useMemo(() => {
+    try { return loadCouponsConfigV1(); } catch { return { coupons: [] }; }
+  }, [refreshKey]);
+
+  const currentBranding = useMemo(() => {
+    try { return getBranding(tenantId); } catch { return null; }
+  }, [tenantId, refreshKey]);
 
   const todayStats = useMemo(() => {
     let revenue = 0;
@@ -121,7 +166,7 @@ const AdminDashboard = () => {
       return {
         id: order.id,
         orderNumber: order.order_number || order.id?.slice(0, 8) || '---',
-        customer: order.customer?.name || order.customer?.email || (cs ? 'Neznamy' : 'Unknown'),
+        customer: order.customer?.name || order.customer?.email || t('admin.dashboard.unknownCustomer', 'Unknown'),
         status: order.status || 'NEW',
         total: totals.total,
         created: order.created_at || order.createdAt,
@@ -163,14 +208,13 @@ const AdminDashboard = () => {
   }, [refreshKey]);
 
   const brandingTips = useMemo(() => {
-    const current = getBranding(tenantId);
     const defaults = getDefaultBranding();
     const tips = [];
-    if (!current?.logo) tips.push(cs ? 'Pridej logo' : 'Add a logo');
-    if (!current?.businessName || current.businessName === defaults.businessName) tips.push(cs ? 'Nastav nazev firmy' : 'Set business name');
-    if (!current?.tagline || current.tagline === defaults.tagline) tips.push(cs ? 'Dopln tagline' : 'Add tagline');
+    if (!currentBranding?.logo) tips.push(t('admin.dashboard.tip.addLogo', 'Add a logo'));
+    if (!currentBranding?.businessName || currentBranding.businessName === defaults.businessName) tips.push(t('admin.dashboard.tip.setBusinessName', 'Set business name'));
+    if (!currentBranding?.tagline || currentBranding.tagline === defaults.tagline) tips.push(t('admin.dashboard.tip.addTagline', 'Add tagline'));
     return tips;
-  }, [tenantId, refreshKey, cs]);
+  }, [currentBranding, cs]);
 
   const systemStatus = useMemo(() => {
     const pricing = readTenantJson('pricing:v3', null);
@@ -188,33 +232,30 @@ const AdminDashboard = () => {
     const alerts = [];
     const now = new Date();
 
-    // Expired or expiring coupons
-    try {
-      const couponsConfig = loadCouponsConfigV1();
-      const coupons = couponsConfig.coupons || [];
-      const expiredCount = coupons.filter(c => {
-        if (!c.expires_at || !c.active) return false;
-        return new Date(c.expires_at) < now;
-      }).length;
-      const expiringCount = coupons.filter(c => {
-        if (!c.expires_at || !c.active) return false;
-        const exp = new Date(c.expires_at);
-        const daysLeft = (exp - now) / (1000 * 60 * 60 * 24);
-        return daysLeft >= 0 && daysLeft <= 7;
-      }).length;
-      if (expiredCount > 0) alerts.push({
-        type: 'error',
-        icon: 'Tag',
-        text: cs ? `${expiredCount} kupon(u) vyprselo` : `${expiredCount} coupon(s) expired`,
-        action: '/admin/pricing',
-      });
-      if (expiringCount > 0) alerts.push({
-        type: 'warning',
-        icon: 'Tag',
-        text: cs ? `${expiringCount} kupon(u) vyprsi do 7 dni` : `${expiringCount} coupon(s) expiring within 7 days`,
-        action: '/admin/pricing',
-      });
-    } catch { /* ignore */ }
+    // Expired or expiring coupons (uses shared couponsConfig)
+    const coupons = couponsConfig.coupons || [];
+    const expiredCount = coupons.filter(c => {
+      if (!c.expires_at || !c.active) return false;
+      return new Date(c.expires_at) < now;
+    }).length;
+    const expiringCount = coupons.filter(c => {
+      if (!c.expires_at || !c.active) return false;
+      const exp = new Date(c.expires_at);
+      const daysLeft = (exp - now) / (1000 * 60 * 60 * 24);
+      return daysLeft >= 0 && daysLeft <= 7;
+    }).length;
+    if (expiredCount > 0) alerts.push({
+      type: 'error',
+      icon: 'Tag',
+      text: `${expiredCount} ${t('admin.dashboard.alert.couponsExpired', 'coupon(s) expired')}`,
+      action: '/admin/pricing',
+    });
+    if (expiringCount > 0) alerts.push({
+      type: 'warning',
+      icon: 'Tag',
+      text: `${expiringCount} ${t('admin.dashboard.alert.couponsExpiring', 'coupon(s) expiring within 7 days')}`,
+      action: '/admin/pricing',
+    });
 
     // Presets without materials
     try {
@@ -224,24 +265,21 @@ const AdminDashboard = () => {
         alerts.push({
           type: 'warning',
           icon: 'Layers',
-          text: cs ? 'Zadne materialy v ceniku' : 'No materials in pricing',
+          text: t('admin.dashboard.alert.noMaterials', 'No materials in pricing'),
           action: '/admin/parameters',
         });
       }
     } catch { /* ignore */ }
 
-    // Missing branding logo
-    try {
-      const branding = getBranding(tenantId);
-      if (!branding?.logo) {
-        alerts.push({
-          type: 'info',
-          icon: 'Image',
-          text: cs ? 'Chybi logo v brandingu' : 'Missing branding logo',
-          action: '/admin/branding',
-        });
-      }
-    } catch { /* ignore */ }
+    // Missing branding logo (uses shared currentBranding)
+    if (!currentBranding?.logo) {
+      alerts.push({
+        type: 'info',
+        icon: 'Image',
+        text: t('admin.dashboard.alert.missingLogo', 'Missing branding logo'),
+        action: '/admin/branding',
+      });
+    }
 
     // Storage approaching limit (estimate based on tenant keys)
     try {
@@ -258,14 +296,14 @@ const AdminDashboard = () => {
         alerts.push({
           type: 'warning',
           icon: 'HardDrive',
-          text: cs ? `Uloziste: ${sizeMB.toFixed(1)} MB (limit ~5 MB)` : `Storage: ${sizeMB.toFixed(1)} MB (limit ~5 MB)`,
+          text: `${t('admin.dashboard.alert.storageLabel', 'Storage')}: ${sizeMB.toFixed(1)} MB (${t('admin.dashboard.alert.storageLimit', 'limit ~5 MB')})`,
           action: '/admin',
         });
       }
     } catch { /* ignore */ }
 
     return alerts;
-  }, [refreshKey, tenantId, cs]);
+  }, [couponsConfig, currentBranding, refreshKey, cs]);
 
   // ── Revenue sparkline data (last 7 days) ──
   const revenueSparkline = useMemo(() => {
@@ -279,7 +317,7 @@ const AdminDashboard = () => {
     }
 
     for (const order of allOrders) {
-      const created = new Date(order.created_at || order.createdAt || 0);
+      const created = new Date(order.created_at || order.createdAt || Date.now());
       for (const day of days) {
         if (created.getFullYear() === day.date.getFullYear()
           && created.getMonth() === day.date.getMonth()
@@ -324,21 +362,18 @@ const AdminDashboard = () => {
       }
     }
 
-    let expiringCoupons = 0;
-    try {
-      const couponsConfig = loadCouponsConfigV1();
-      const now = new Date();
-      expiringCoupons = (couponsConfig.coupons || []).filter(c => {
-        if (!c.expires_at || !c.active) return false;
-        const exp = new Date(c.expires_at);
-        const daysLeft = (exp - now) / (1000 * 60 * 60 * 24);
-        return daysLeft >= 0 && daysLeft <= 7;
-      }).length;
-    } catch { /* ignore */ }
+    // Uses shared couponsConfig — no duplicate storage read
+    const now = new Date();
+    const expiringCoupons = (couponsConfig.coupons || []).filter(c => {
+      if (!c.expires_at || !c.active) return false;
+      const exp = new Date(c.expires_at);
+      const daysLeft = (exp - now) / (1000 * 60 * 60 * 24);
+      return daysLeft >= 0 && daysLeft <= 7;
+    }).length;
 
     const total = newOrders + pendingInvoices + expiringCoupons;
     return { newOrders, pendingInvoices, expiringCoupons, total };
-  }, [allOrders, refreshKey]);
+  }, [allOrders, couponsConfig]);
 
   const handleRefresh = () => setRefreshKey(k => k + 1);
 
@@ -351,39 +386,39 @@ const AdminDashboard = () => {
         <div>
           <h1 className="dash-title">Dashboard</h1>
           <p className="dash-subtitle">
-            {cs ? 'Prehled vaseho podnikani' : 'Your business overview'}
+            {t('admin.dashboard.businessOverview', 'Your business overview')}
           </p>
         </div>
         <div className="dash-header-actions">
           <button className="dash-btn dash-btn--primary" onClick={() => setShowQuickOrder(true)}>
             <Icon name="Plus" size={16} />
-            {cs ? 'Nova objednavka' : 'New order'}
+            {t('admin.dashboard.newOrder', 'New order')}
           </button>
           <button className="dash-btn dash-btn--secondary" onClick={() => setShowImportWizard(true)}>
             <Icon name="Download" size={16} />
-            {cs ? 'Import dat' : 'Import data'}
+            {t('admin.dashboard.importData', 'Import data')}
           </button>
           <button className="dash-btn dash-btn--secondary" onClick={handleRefresh}>
             <Icon name="RefreshCw" size={16} />
-            {cs ? 'Obnovit' : 'Refresh'}
+            {t('admin.dashboard.refresh', 'Refresh')}
           </button>
         </div>
       </div>
 
       {/* Onboarding banner */}
       {!onboardingCompleted && (
-        <div className="dash-onboarding-banner" onClick={() => setShowOnboarding(true)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setShowOnboarding(true); }}>
+        <div className="dash-onboarding-banner" onClick={() => setShowOnboarding(true)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowOnboarding(true); } }}>
           <div className="dash-onboarding-banner-left">
             <Icon name="Rocket" size={20} color="#00D4AA" />
             <div>
-              <strong>{cs ? 'Dokoncete nastaveni' : 'Complete your setup'}</strong>
+              <strong>{t('admin.dashboard.onboarding.completeSetup', 'Complete your setup')}</strong>
               <span className="dash-onboarding-banner-sub">
-                {cs ? 'Spustte pruvodce nastavenim a pripravte si kalkulacku' : 'Run the setup wizard and get your calculator ready'}
+                {t('admin.dashboard.onboarding.runWizard', 'Run the setup wizard and get your calculator ready')}
               </span>
             </div>
           </div>
           <div className="dash-onboarding-banner-action">
-            <span>{cs ? 'Spustit pruvodce' : 'Start wizard'}</span>
+            <span>{t('admin.dashboard.onboarding.startWizard', 'Start wizard')}</span>
             <Icon name="ArrowRight" size={14} />
           </div>
         </div>
@@ -394,36 +429,36 @@ const AdminDashboard = () => {
         <SummaryCard
           icon="DollarSign"
           color="#00D4AA"
-          label={cs ? 'Dnesni trzby' : "Today's revenue"}
+          label={t('admin.dashboard.card.todayRevenue', "Today's revenue")}
           value={fmtCurrency(todayStats.revenue, language)}
           sub={analytics30d?.metrics?.total_revenue > 0
-            ? `${cs ? '30d celkem' : '30d total'}: ${fmtCurrency(analytics30d.metrics.total_revenue, language)}`
+            ? `${t('admin.dashboard.card.total30d', '30d total')}: ${fmtCurrency(analytics30d.metrics.total_revenue, language)}`
             : null}
           onClick={() => navigate('/admin/analytics')}
         />
         <SummaryCard
           icon="ShoppingCart"
           color="#4DA8DA"
-          label={cs ? 'Dnesni objednavky' : "Today's orders"}
+          label={t('admin.dashboard.card.todayOrders', "Today's orders")}
           value={todayStats.newOrders}
-          sub={`${cs ? 'Celkem' : 'Total'}: ${allOrders.length}`}
+          sub={`${t('admin.dashboard.card.total', 'Total')}: ${allOrders.length}`}
           onClick={() => navigate('/admin/orders')}
         />
         <SummaryCard
           icon="Clock"
           color="#FF6B35"
-          label={cs ? 'Cekaji na akci' : 'Pending action'}
+          label={t('admin.dashboard.card.pendingAction', 'Pending action')}
           value={todayStats.pending}
-          sub={cs ? 'Nove + Kontrola' : 'New + Review'}
+          sub={t('admin.dashboard.card.newAndReview', 'New + Review')}
           highlight={todayStats.pending > 0}
           onClick={() => navigate('/admin/orders')}
         />
         <SummaryCard
           icon="Printer"
           color="#9B59B6"
-          label={cs ? 'Aktivni tisky' : 'Active prints'}
+          label={t('admin.dashboard.card.activePrints', 'Active prints')}
           value={todayStats.activePrints}
-          sub={cs ? 'Tiskne se + Postprocess' : 'Printing + Postprocess'}
+          sub={t('admin.dashboard.card.printingAndPostprocess', 'Printing + Postprocess')}
           onClick={() => navigate('/admin/orders')}
         />
       </div>
@@ -439,7 +474,7 @@ const AdminDashboard = () => {
               <div className="dash-section-header">
                 <div className="dash-section-header-left">
                   <Icon name="AlertTriangle" size={18} color="#F59E0B" />
-                  <h3>{cs ? 'Vyzaduje pozornost' : 'Needs attention'}</h3>
+                  <h3>{t('admin.dashboard.needsAttention', 'Needs attention')}</h3>
                 </div>
                 <span className="dash-badge dash-badge--warning">{attentionOrders.length}</span>
               </div>
@@ -451,7 +486,7 @@ const AdminDashboard = () => {
                     <div
                       key={order.id}
                       className="dash-attention-item"
-                      onClick={() => navigate(`/admin/orders`)}
+                      onClick={() => navigate(`/admin/orders/${order.id}`)}
                     >
                       <div className="dash-attention-info">
                         <span className="dash-attention-id">
@@ -459,8 +494,8 @@ const AdminDashboard = () => {
                         </span>
                         <span className="dash-attention-reason">
                           {hoursOld > 48
-                            ? (cs ? `Ceka ${hoursOld}h` : `Waiting ${hoursOld}h`)
-                            : (cs ? 'Ma vlajky' : 'Has flags')}
+                            ? `${t('admin.dashboard.attention.waiting', 'Waiting')} ${hoursOld}h`
+                            : t('admin.dashboard.attention.hasFlags', 'Has flags')}
                         </span>
                       </div>
                       <StatusBadge status={order.status} language={language} />
@@ -474,12 +509,12 @@ const AdminDashboard = () => {
           {/* Recent orders */}
           <div className="dash-section">
             <div className="dash-section-header">
-              <h3>{cs ? 'Posledni objednavky' : 'Recent orders'}</h3>
+              <h3>{t('admin.dashboard.recentOrders', 'Recent orders')}</h3>
               <button
                 className="dash-link-btn"
                 onClick={() => navigate('/admin/orders')}
               >
-                {cs ? 'Zobrazit vse' : 'View all'}
+                {t('admin.dashboard.viewAll', 'View all')}
                 <Icon name="ArrowRight" size={14} />
               </button>
             </div>
@@ -487,29 +522,29 @@ const AdminDashboard = () => {
             {recentOrders.length === 0 ? (
               <div className="dash-empty">
                 <Icon name="Package" size={32} color="var(--forge-text-muted)" />
-                <p>{cs ? 'Zatim zadne objednavky' : 'No orders yet'}</p>
+                <p>{t('admin.dashboard.noOrdersYet', 'No orders yet')}</p>
                 <button
                   className="dash-btn dash-btn--secondary"
                   onClick={() => setShowQuickOrder(true)}
                 >
-                  {cs ? 'Vytvorit prvni objednavku' : 'Create first order'}
+                  {t('admin.dashboard.createFirstOrder', 'Create first order')}
                 </button>
               </div>
             ) : (
               <div className="dash-orders-table">
                 <div className="dash-orders-head">
                   <span className="dash-col-id">#</span>
-                  <span className="dash-col-customer">{cs ? 'Zakaznik' : 'Customer'}</span>
-                  <span className="dash-col-status">{cs ? 'Stav' : 'Status'}</span>
-                  <span className="dash-col-models">{cs ? 'Modely' : 'Models'}</span>
-                  <span className="dash-col-total">{cs ? 'Celkem' : 'Total'}</span>
-                  <span className="dash-col-date">{cs ? 'Datum' : 'Date'}</span>
+                  <span className="dash-col-customer">{t('admin.dashboard.col.customer', 'Customer')}</span>
+                  <span className="dash-col-status">{t('admin.dashboard.col.status', 'Status')}</span>
+                  <span className="dash-col-models">{t('admin.dashboard.col.models', 'Models')}</span>
+                  <span className="dash-col-total">{t('admin.dashboard.col.total', 'Total')}</span>
+                  <span className="dash-col-date">{t('admin.dashboard.col.date', 'Date')}</span>
                 </div>
                 {recentOrders.map(order => (
                   <div
                     key={order.id}
                     className="dash-orders-row"
-                    onClick={() => navigate('/admin/orders')}
+                    onClick={() => navigate(`/admin/orders/${order.id}`)}
                   >
                     <span className="dash-col-id dash-order-num">{order.orderNumber}</span>
                     <span className="dash-col-customer">{order.customer}</span>
@@ -530,10 +565,18 @@ const AdminDashboard = () => {
           {/* Recent activity */}
           <div className="dash-section">
             <div className="dash-section-header">
-              <h3>{cs ? 'Posledni aktivita' : 'Recent activity'}</h3>
+              <h3>{t('admin.dashboard.recentActivity', 'Recent activity')}</h3>
             </div>
             {recentActivity.length === 0 ? (
-              <p className="dash-empty-text">{cs ? 'Zadna aktivita' : 'No activity'}</p>
+              <div className="dash-empty" style={{ padding: '20px 12px' }}>
+                <Icon name="Activity" size={24} color="var(--forge-text-muted)" />
+                <p style={{ fontSize: 13 }}>
+                  {t('admin.dashboard.noActivityYet', 'No activity yet')}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--forge-text-muted)', margin: 0 }}>
+                  {t('admin.dashboard.activityEmptyHint', 'Actions like order changes or config edits will appear here.')}
+                </p>
+              </div>
             ) : (
               <div className="dash-activity-feed">
                 {recentActivity.map(a => (
@@ -557,30 +600,30 @@ const AdminDashboard = () => {
 
           {/* Quick actions */}
           <div className="dash-section">
-            <h3 className="dash-section-title">{cs ? 'Rychle akce' : 'Quick actions'}</h3>
+            <h3 className="dash-section-title">{t('admin.dashboard.quickActions', 'Quick actions')}</h3>
             <div className="dash-quick-actions">
               <button className="dash-btn dash-btn--primary dash-btn--full" onClick={() => setShowQuickOrder(true)}>
                 <Icon name="Plus" size={16} />
-                {cs ? 'Nova objednavka' : 'New order'}
+                {t('admin.dashboard.newOrder', 'New order')}
               </button>
               <button className="dash-btn dash-btn--secondary dash-btn--full" onClick={() => navigate('/admin/orders')}>
                 <Icon name="ShoppingCart" size={16} />
-                {cs ? 'Vsechny objednavky' : 'All orders'}
+                {t('admin.dashboard.allOrders', 'All orders')}
               </button>
               <button className="dash-btn dash-btn--secondary dash-btn--full" onClick={() => navigate('/admin/analytics')}>
                 <Icon name="BarChart3" size={16} />
-                {cs ? 'Analytika' : 'Analytics'}
+                {t('admin.dashboard.analytics', 'Analytics')}
               </button>
               <button className="dash-link-btn" onClick={() => setShowOnboarding(true)} style={{ marginTop: 4, justifyContent: 'center' }}>
                 <Icon name="Rocket" size={12} />
-                {cs ? 'Pruvodce nastavenim' : 'Setup wizard'}
+                {t('admin.dashboard.setupWizard', 'Setup wizard')}
               </button>
             </div>
           </div>
 
           {/* Quick links */}
           <div className="dash-section">
-            <h3 className="dash-section-title">{cs ? 'Navigace' : 'Navigation'}</h3>
+            <h3 className="dash-section-title">{t('admin.dashboard.navigation', 'Navigation')}</h3>
             <div className="dash-quick-links">
               {QUICK_LINKS.map(link => (
                 <button
@@ -591,7 +634,7 @@ const AdminDashboard = () => {
                   <div className="dash-quick-link-icon">
                     <Icon name={link.icon} size={16} />
                   </div>
-                  <span>{cs ? link.labelCs : link.labelEn}</span>
+                  <span>{t(link.labelKey, link.labelFallback)}</span>
                 </button>
               ))}
             </div>
@@ -603,34 +646,34 @@ const AdminDashboard = () => {
               <div className="dash-section-header">
                 <div className="dash-section-header-left">
                   <Icon name="Bell" size={16} color="#FF6B35" />
-                  <h3>{cs ? 'Cekajici akce' : 'Pending actions'}</h3>
+                  <h3>{t('admin.dashboard.pendingActions', 'Pending actions')}</h3>
                 </div>
                 <span className="dash-badge dash-badge--pending">{pendingActions.total}</span>
               </div>
               <div className="dash-pending-list">
                 {pendingActions.newOrders > 0 && (
-                  <div className="dash-pending-item" onClick={() => navigate('/admin/orders')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') navigate('/admin/orders'); }}>
+                  <div className="dash-pending-item" onClick={() => navigate('/admin/orders')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/admin/orders'); } }}>
                     <div className="dash-pending-left">
                       <Icon name="ShoppingCart" size={14} color="#4DA8DA" />
-                      <span>{cs ? 'Nove objednavky' : 'New orders'}</span>
+                      <span>{t('admin.dashboard.pending.newOrders', 'New orders')}</span>
                     </div>
                     <span className="dash-pending-count">{pendingActions.newOrders}</span>
                   </div>
                 )}
                 {pendingActions.pendingInvoices > 0 && (
-                  <div className="dash-pending-item" onClick={() => navigate('/admin/orders')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') navigate('/admin/orders'); }}>
+                  <div className="dash-pending-item" onClick={() => navigate('/admin/orders')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/admin/orders'); } }}>
                     <div className="dash-pending-left">
                       <Icon name="Receipt" size={14} color="#F59E0B" />
-                      <span>{cs ? 'Cekajici faktury' : 'Pending invoices'}</span>
+                      <span>{t('admin.dashboard.pending.invoices', 'Pending invoices')}</span>
                     </div>
                     <span className="dash-pending-count">{pendingActions.pendingInvoices}</span>
                   </div>
                 )}
                 {pendingActions.expiringCoupons > 0 && (
-                  <div className="dash-pending-item" onClick={() => navigate('/admin/pricing')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') navigate('/admin/pricing'); }}>
+                  <div className="dash-pending-item" onClick={() => navigate('/admin/pricing')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/admin/pricing'); } }}>
                     <div className="dash-pending-left">
                       <Icon name="Tag" size={14} color="#EF4444" />
-                      <span>{cs ? 'Vyprsi kupony' : 'Expiring coupons'}</span>
+                      <span>{t('admin.dashboard.pending.expiringCoupons', 'Expiring coupons')}</span>
                     </div>
                     <span className="dash-pending-count">{pendingActions.expiringCoupons}</span>
                   </div>
@@ -642,7 +685,7 @@ const AdminDashboard = () => {
           {/* Revenue sparkline */}
           <div className="dash-section">
             <div className="dash-section-header">
-              <h3 className="dash-section-title" style={{ marginBottom: 0 }}>{cs ? 'Trzby (7 dni)' : 'Revenue (7 days)'}</h3>
+              <h3 className="dash-section-title" style={{ marginBottom: 0 }}>{t('admin.dashboard.revenue7days', 'Revenue (7 days)')}</h3>
               <span className="dash-sparkline-total">{fmtCurrency(revenueSparkline.total7d, language)}</span>
             </div>
             <RevenueSparkline data={revenueSparkline} language={language} />
@@ -651,14 +694,14 @@ const AdminDashboard = () => {
           {/* Popular materials */}
           {popularMaterials.length > 0 && (
             <div className="dash-section">
-              <h3 className="dash-section-title">{cs ? 'Nejpouzivanejsi materialy' : 'Popular materials'}</h3>
+              <h3 className="dash-section-title">{t('admin.dashboard.popularMaterials', 'Popular materials')}</h3>
               <div className="dash-popular-materials">
                 {popularMaterials.map((mat, i) => (
                   <div key={mat.name} className="dash-material-row">
                     <div className="dash-material-rank">{i + 1}.</div>
                     <div className="dash-material-name">{mat.name}</div>
                     <div className="dash-material-count">
-                      {mat.count} {cs ? 'obj.' : 'ord.'}
+                      {mat.count} {t('admin.dashboard.ordersAbbr', 'ord.')}
                     </div>
                     <div className="dash-material-bar-track">
                       <div
@@ -670,7 +713,7 @@ const AdminDashboard = () => {
                 ))}
               </div>
               <button className="dash-link-btn" onClick={() => navigate('/admin/parameters')} style={{ marginTop: 10 }}>
-                {cs ? 'Vse materialy' : 'All materials'}
+                {t('admin.dashboard.allMaterials', 'All materials')}
                 <Icon name="ArrowRight" size={14} />
               </button>
             </div>
@@ -682,18 +725,18 @@ const AdminDashboard = () => {
               <div className="dash-section-header">
                 <div className="dash-section-header-left">
                   <Icon name="AlertCircle" size={16} color="#F59E0B" />
-                  <h3 className="dash-section-title" style={{ marginBottom: 0 }}>{cs ? 'Upozorneni' : 'Alerts'}</h3>
+                  <h3 className="dash-section-title" style={{ marginBottom: 0 }}>{t('admin.dashboard.alerts', 'Alerts')}</h3>
                 </div>
               </div>
               <div className="dash-alerts-list">
                 {systemAlerts.map((alert, i) => (
                   <div
-                    key={i}
+                    key={alert.id || alert.message || i}
                     className={`dash-alert-item dash-alert-item--${alert.type}`}
                     onClick={() => navigate(alert.action)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={e => { if (e.key === 'Enter') navigate(alert.action); }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(alert.action); } }}
                   >
                     <Icon name={alert.icon} size={14} className="dash-alert-icon" />
                     <span className="dash-alert-text">{alert.text}</span>
@@ -706,22 +749,25 @@ const AdminDashboard = () => {
 
           {/* System status */}
           <div className="dash-section">
-            <h3 className="dash-section-title">{cs ? 'Stav systemu' : 'System status'}</h3>
+            <h3 className="dash-section-title">{t('admin.dashboard.systemStatus', 'System status')}</h3>
             <div className="dash-status-list">
               <StatusRow
-                label={cs ? 'Cenik nastaven' : 'Pricing configured'}
+                label={t('admin.dashboard.status.pricingConfigured', 'Pricing configured')}
                 ok={systemStatus.hasPricing}
                 language={language}
+                t={t}
               />
               <StatusRow
-                label={cs ? 'Poplatky nastaveny' : 'Fees configured'}
+                label={t('admin.dashboard.status.feesConfigured', 'Fees configured')}
                 ok={systemStatus.hasFees}
                 language={language}
+                t={t}
               />
               <StatusRow
-                label={cs ? 'Objednavky v systemu' : 'Orders in system'}
+                label={t('admin.dashboard.status.ordersInSystem', 'Orders in system')}
                 ok={systemStatus.totalOrders > 0}
                 language={language}
+                t={t}
                 value={systemStatus.totalOrders}
               />
             </div>
@@ -731,17 +777,17 @@ const AdminDashboard = () => {
               <div className="dash-branding-tips">
                 <div className="dash-branding-tips-header">
                   <Icon name="Sparkles" size={14} color="#F59E0B" />
-                  <span>{cs ? 'Doporuceni' : 'Tips'}</span>
+                  <span>{t('admin.dashboard.tips', 'Tips')}</span>
                 </div>
                 <ul className="dash-branding-tips-list">
-                  {brandingTips.map((tip, i) => <li key={i}>{tip}</li>)}
+                  {brandingTips.map((tip, i) => <li key={tip.id || (typeof tip === 'string' ? tip.slice(0, 30) : i) || i}>{tip}</li>)}
                 </ul>
                 <button
                   className="dash-link-btn"
                   onClick={() => navigate('/admin/branding')}
                   style={{ marginTop: 8 }}
                 >
-                  {cs ? 'Otevrit Branding' : 'Open Branding'}
+                  {t('admin.dashboard.openBranding', 'Open Branding')}
                   <Icon name="ArrowRight" size={14} />
                 </button>
               </div>
@@ -793,7 +839,7 @@ function SummaryCard({ icon, color, label, value, sub, highlight, onClick }) {
       onClick={onClick}
       role="button"
       tabIndex={0}
-      onKeyDown={e => { if (e.key === 'Enter') onClick?.(); }}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
     >
       <div className="dash-summary-card-top">
         <div className="dash-summary-card-icon" style={{ background: `${color}15` }}>
@@ -824,8 +870,7 @@ function StatusBadge({ status, language }) {
   );
 }
 
-function StatusRow({ label, ok, language, value }) {
-  const cs = language === 'cs';
+function StatusRow({ label, ok, language, t, value }) {
   return (
     <div className="dash-status-row">
       <div className="dash-status-row-left">
@@ -833,7 +878,7 @@ function StatusRow({ label, ok, language, value }) {
         <span>{label}</span>
       </div>
       <span className="dash-status-row-value">
-        {value !== undefined ? value : (ok ? (cs ? 'Ano' : 'Yes') : (cs ? 'Ne' : 'No'))}
+        {value !== undefined ? value : (ok ? t('admin.dashboard.yes', 'Yes') : t('admin.dashboard.no', 'No'))}
       </span>
     </div>
   );

@@ -83,15 +83,15 @@ export function normalizeExpressConfigV1(input) {
   };
 }
 
-export function loadExpressConfigV1() {
-  const stored = readTenantJson(NS_EXPRESS_V1, null);
+export function loadExpressConfigV1(tenantIdOverride) {
+  const stored = readTenantJson(NS_EXPRESS_V1, null, tenantIdOverride);
   if (stored && typeof stored === 'object') {
     return normalizeExpressConfigV1(stored);
   }
 
   // No existing data — seed defaults and persist so the tenant key exists.
   const seeded = normalizeExpressConfigV1(getDefaultExpressConfigV1());
-  writeTenantJson(NS_EXPRESS_V1, seeded);
+  writeTenantJson(NS_EXPRESS_V1, seeded, tenantIdOverride);
   return seeded;
 }
 

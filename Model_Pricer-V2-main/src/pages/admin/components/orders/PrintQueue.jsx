@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../../../components/AppIcon';
+import { useAuth } from '../../../../context/AuthContext';
 import {
   loadPrintQueue,
   savePrintQueue,
@@ -22,45 +23,13 @@ import {
 import {
   computeOrderTotals,
   extractOrderMaterials,
-  getStatusLabel,
   saveOrders,
   nowIso,
-  appendOrderActivity,
 } from '../../../../utils/adminOrdersStorage';
 import { addNotification } from '../../../../utils/adminNotificationStorage';
+import { formatTime, formatDateTime, formatTimeShort } from '../../../../utils/formatters';
 
 // ─── Helpers ────────────────────────────────────────────────────
-
-function formatTime(min) {
-  const m = Math.max(0, Math.round(Number(min) || 0));
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (h <= 0) return `${r} min`;
-  return `${h}h ${r}m`;
-}
-
-function formatTimeShort(date) {
-  if (!date) return '--';
-  try {
-    return new Date(date).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '--';
-  }
-}
-
-function formatDateTime(iso) {
-  if (!iso) return '--';
-  try {
-    return new Date(iso).toLocaleString('cs-CZ', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
 
 function getOrderTimeMin(order) {
   const totals = computeOrderTotals(order);
@@ -156,6 +125,7 @@ function QueueItem({
   onDragStart,
   onDragOver,
   onDrop,
+  onMoveToTop,
   isDragging,
 }) {
   const [editPercent, setEditPercent] = useState(false);
@@ -256,6 +226,16 @@ function QueueItem({
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+          {isQueued && index > 0 && (
+            <button
+              onClick={() => onMoveToTop(index)}
+              type="button"
+              title="Presunout na zacatek fronty"
+              style={actionBtnStyle('var(--forge-text-muted)')}
+            >
+              <Icon name="ChevronsUp" size={14} />
+            </button>
+          )}
           {isQueued && (
             <button
               onClick={() => onStart(order.id)}
@@ -326,14 +306,26 @@ function QueueItem({
       {!isQueued && (
         <div style={{ marginBottom: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{
-              fontSize: '11px',
-              fontFamily: 'var(--forge-font-tech)',
-              color: 'var(--forge-text-muted)',
-              fontWeight: 700,
-            }}>
-              PRUBEH
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{
+                fontSize: '11px',
+                fontFamily: 'var(--forge-font-tech)',
+                color: 'var(--forge-text-muted)',
+                fontWeight: 700,
+              }}>
+                PRUBEH
+              </span>
+              {!isCompleted && entry.estimatedTimeMin === 0 && (
+                <span style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  color: 'var(--forge-warning)',
+                  fontWeight: 600,
+                }} title="Objednavka nema data ze sliceru — casovac nefunguje. Nastavte % rucne.">
+                  (bez odhadu — nastavte % rucne)
+                </span>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {!isCompleted && (
                 editPercent ? (
@@ -499,17 +491,24 @@ function actionBtnStyle(color) {
 // ─── Main Component ─────────────────────────────────────────────
 
 export default function PrintQueue({ orders, setOrders, onViewOrder }) {
+  const { user: authUser } = useAuth();
+  const currentUser = authUser?.email || authUser?.displayName || 'admin';
   const [queueData, setQueueData] = useState(() => loadPrintQueue());
   const [stats, setStats] = useState(() => loadPrintStats());
   const [dragIndex, setDragIndex] = useState(null);
   const [, setTick] = useState(0);
   const tickRef = useRef(null);
 
-  // Auto-refresh progress every 15s
+  // Auto-refresh progress every 15s — only when there are printing or paused jobs
   useEffect(() => {
+    const hasActive = queueData.queue.some((id) => {
+      const entry = queueData.progress[id];
+      return entry && (entry.status === 'printing' || entry.status === 'paused');
+    });
+    if (!hasActive) return;
     tickRef.current = setInterval(() => setTick((t) => t + 1), 15000);
     return () => clearInterval(tickRef.current);
-  }, []);
+  }, [queueData.queue, queueData.progress]);
 
   // Sync: ensure all PRINTING orders are in the queue
   useEffect(() => {
@@ -624,21 +623,14 @@ export default function PrintQueue({ orders, setOrders, onViewOrder }) {
         status: 'POSTPROCESS',
         updated_at: nowIso(),
         activity: [
-          { timestamp: nowIso(), user_id: 'admin', type: 'STATUS_CHANGE', payload: { from: 'PRINTING', to: 'POSTPROCESS' } },
-          { timestamp: nowIso(), user_id: 'admin', type: 'PRINT_COMPLETED', payload: { printTimeMin: Math.round(elapsedMin) } },
+          { timestamp: nowIso(), user_id: currentUser, type: 'STATUS_CHANGE', payload: { from: 'PRINTING', to: 'POSTPROCESS' } },
+          { timestamp: nowIso(), user_id: currentUser, type: 'PRINT_COMPLETED', payload: { printTimeMin: Math.round(elapsedMin) } },
           ...(o.activity || []),
         ].slice(0, 200),
       };
     });
     setOrders(updatedOrders);
     saveOrders(updatedOrders);
-
-    appendOrderActivity(orderId, {
-      timestamp: nowIso(),
-      user_id: 'admin',
-      type: 'PRINT_COMPLETED',
-      payload: { printTimeMin: Math.round(elapsedMin) },
-    });
 
     addNotification({
       type: 'order',
@@ -651,6 +643,15 @@ export default function PrintQueue({ orders, setOrders, onViewOrder }) {
     const next = {
       ...queueData,
       progress: setManualProgress(queueData.progress, orderId, percent),
+    };
+    persist(next);
+  }, [queueData, persist]);
+
+  const handleMoveToTop = useCallback((fromIndex) => {
+    if (fromIndex <= 0) return;
+    const next = {
+      ...queueData,
+      queue: reorderQueue(queueData.queue, fromIndex, 0),
     };
     persist(next);
   }, [queueData, persist]);
@@ -778,6 +779,7 @@ export default function PrintQueue({ orders, setOrders, onViewOrder }) {
                 onComplete={handleComplete}
                 onSetProgress={handleSetProgress}
                 onViewDetail={handleViewDetail}
+                onMoveToTop={handleMoveToTop}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}

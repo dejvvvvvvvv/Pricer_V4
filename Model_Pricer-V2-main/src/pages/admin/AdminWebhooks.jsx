@@ -8,6 +8,7 @@ import { ForgeConfirmDialog, useConfirmDialog } from '../../components/ui/forge/
 import { CopyButton } from '../../components/ui/forge/CopyButton';
 import { SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { debug } from '@/lib/debug';
 import { generateId } from '@/utils/generateId';
 import {
@@ -180,7 +181,7 @@ const btnPrimary = {
   gap: '8px',
   padding: '10px 20px',
   backgroundColor: 'var(--forge-accent-primary)',
-  color: '#08090C',
+  color: 'var(--forge-bg-void)',
   border: 'none',
   borderRadius: 'var(--forge-radius-sm, 8px)',
   fontSize: '14px',
@@ -296,7 +297,7 @@ function HttpStatusBadge({ code }) {
   const color = isSuccess
     ? 'var(--forge-success, #10B981)'
     : isClientErr
-      ? '#F59E0B'
+      ? 'var(--forge-warning)'
       : 'var(--forge-error, #EF4444)';
 
   return (
@@ -311,7 +312,7 @@ function HttpStatusBadge({ code }) {
         fontFamily: 'var(--forge-font-tech)',
         fontWeight: 600,
         color: color,
-        backgroundColor: `${isSuccess ? '#10B981' : isClientErr ? '#F59E0B' : '#EF4444'}15`,
+        backgroundColor: isSuccess ? 'rgba(0, 212, 170, 0.08)' : isClientErr ? 'rgba(255, 170, 0, 0.08)' : 'rgba(255, 71, 87, 0.08)',
       }}
     >
       <Icon name={isSuccess ? 'Check' : 'X'} size={10} />
@@ -333,7 +334,7 @@ function SuccessRateBar({ deliveries }) {
     rate >= 90
       ? 'var(--forge-success, #10B981)'
       : rate >= 50
-        ? '#F59E0B'
+        ? 'var(--forge-warning)'
         : 'var(--forge-error, #EF4444)';
 
   return (
@@ -469,8 +470,8 @@ function TestResultFlash({ result, onDismiss }) {
         gap: '8px',
         padding: '10px 16px',
         borderRadius: 'var(--forge-radius-sm, 8px)',
-        backgroundColor: `${isSuccess ? '#10B981' : '#EF4444'}15`,
-        border: `1px solid ${isSuccess ? '#10B981' : '#EF4444'}30`,
+        backgroundColor: isSuccess ? 'rgba(0, 212, 170, 0.08)' : 'rgba(255, 71, 87, 0.08)',
+        border: `1px solid ${isSuccess ? 'rgba(0, 212, 170, 0.18)' : 'rgba(255, 71, 87, 0.18)'}`,
         color: color,
         fontSize: '13px',
         fontFamily: 'var(--forge-font-body)',
@@ -503,11 +504,14 @@ function WebhookCard({
   testResult,
   testingId,
   clearTestResult,
+  cs = true,
+  t,
 }) {
   const isTesting = testingId === webhook.id;
   const lastTriggered = webhook.deliveries?.length
-    ? new Date(webhook.deliveries[0].timestamp).toLocaleString('cs-CZ')
+    ? new Date(webhook.deliveries[0].timestamp).toLocaleString(cs ? 'cs-CZ' : 'en-US')
     : null;
+  const safeT = t || ((key, fallback) => fallback || key);
 
   return (
     <div style={cardStyle}>
@@ -554,7 +558,7 @@ function WebhookCard({
             </span>
             {lastTriggered && (
               <span style={sectionLabel}>
-                Posledni aktivita: {lastTriggered}
+                {safeT('admin.webhooks.lastActivity', cs ? 'Posledni aktivita' : 'Last activity')}: {lastTriggered}
               </span>
             )}
           </div>
@@ -562,7 +566,7 @@ function WebhookCard({
           {/* Success rate */}
           {webhook.deliveries && webhook.deliveries.length > 0 && (
             <div style={{ maxWidth: 200, marginTop: '8px' }}>
-              <span style={{ ...sectionLabel, marginBottom: '4px' }}>Uspesnost doruceni</span>
+              <span style={{ ...sectionLabel, marginBottom: '4px' }}>{safeT('admin.webhooks.deliverySuccessRate', cs ? 'Uspesnost doruceni' : 'Delivery success rate')}</span>
               <SuccessRateBar deliveries={webhook.deliveries} />
             </div>
           )}
@@ -573,14 +577,14 @@ function WebhookCard({
           <button
             style={btnSmall}
             onClick={() => onToggleActive(webhook)}
-            title={webhook.active !== false ? 'Deaktivovat' : 'Aktivovat'}
+            title={webhook.active !== false ? safeT('admin.webhooks.deactivate', cs ? 'Deaktivovat' : 'Deactivate') : safeT('admin.webhooks.activate', cs ? 'Aktivovat' : 'Activate')}
           >
             <Icon name={webhook.active !== false ? 'Pause' : 'Play'} size={14} />
           </button>
           <button
             style={btnSmall}
             onClick={() => onEdit(webhook)}
-            title="Upravit webhook"
+            title={safeT('admin.webhooks.editWebhook', cs ? 'Upravit webhook' : 'Edit webhook')}
           >
             <Icon name="Pencil" size={14} />
           </button>
@@ -588,7 +592,7 @@ function WebhookCard({
             style={btnSmall}
             onClick={() => onTest(webhook.id)}
             disabled={isTesting}
-            title="Odeslat testovaci udalost"
+            title={safeT('admin.webhooks.sendTestEvent', cs ? 'Odeslat testovaci udalost' : 'Send test event')}
           >
             <Icon name={isTesting ? 'Loader2' : 'Send'} size={14} />
             {isTesting ? 'Test...' : 'Test'}
@@ -596,7 +600,7 @@ function WebhookCard({
           <button
             style={{ ...btnSmall, borderColor: 'var(--forge-error)', color: 'var(--forge-error)' }}
             onClick={() => onDelete(webhook)}
-            title="Smazat webhook"
+            title={safeT('admin.webhooks.deleteWebhook', cs ? 'Smazat webhook' : 'Delete webhook')}
           >
             <Icon name="Trash2" size={14} />
           </button>
@@ -899,6 +903,25 @@ function WebhookForm({ onSubmit, onCancel, saving, initial }) {
         setUrlError('URL musi zacinat http:// nebo https://');
         return false;
       }
+      // Block private/reserved IP addresses (SSRF prevention)
+      const host = parsed.hostname.toLowerCase();
+      const privatePatterns = [
+        /^localhost$/i,
+        /^127\./,
+        /^10\./,
+        /^172\.(1[6-9]|2\d|3[01])\./,
+        /^192\.168\./,
+        /^169\.254\./,
+        /^0\./,
+        /^\[::1\]$/,
+        /^\[fe80:/i,
+        /^\[fc00:/i,
+        /^\[fd/i,
+      ];
+      if (privatePatterns.some(p => p.test(host))) {
+        setUrlError('Privatni/rezervovane IP adresy nejsou povoleny');
+        return false;
+      }
     } catch {
       setUrlError('Neplatny format URL');
       return false;
@@ -1011,7 +1034,7 @@ function WebhookForm({ onSubmit, onCancel, saving, initial }) {
                       flexShrink: 0,
                     }}
                   >
-                    {allChecked && <Icon name="Check" size={10} style={{ color: '#fff' }} />}
+                    {allChecked && <Icon name="Check" size={10} style={{ color: 'var(--forge-bg-void)' }} />}
                     {!allChecked && someChecked && (
                       <span
                         style={{
@@ -1078,7 +1101,7 @@ function WebhookForm({ onSubmit, onCancel, saving, initial }) {
                             transition: 'all 150ms ease-out',
                           }}
                         >
-                          {checked && <Icon name="Check" size={10} style={{ color: '#fff' }} />}
+                          {checked && <Icon name="Check" size={10} style={{ color: 'var(--forge-bg-void)' }} />}
                         </span>
                         <div>
                           <div
@@ -1410,6 +1433,7 @@ function DocsTab() {
         </p>
 
         <span style={sectionLabel}>Node.js</span>
+        {/* Intentional example code shown to users — console.log below is part of the displayed Node.js snippet, not runtime logging */}
         <div style={{ position: 'relative', marginBottom: '16px' }}>
           <pre style={codeBlockStyle}>{`const crypto = require('crypto');
 
@@ -1666,6 +1690,8 @@ def handle_webhook():
 
 export default function AdminWebhooks() {
   useDocumentTitle('Webhooks | Admin');
+  const { language, t } = useLanguage();
+  const cs = language === 'cs';
 
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
@@ -1960,6 +1986,8 @@ export default function AdminWebhooks() {
                   testResult={testResult}
                   testingId={testingId}
                   clearTestResult={() => setTestResult(null)}
+                  cs={cs}
+                  t={t}
                 />
               ))}
             </div>

@@ -6,6 +6,7 @@
  */
 import React, { useState } from 'react';
 import { LayoutGrid, Minimize2, Maximize2, Minus } from 'lucide-react';
+import { useLanguage } from '../../../../contexts/LanguageContext';
 import { PRESET_LAYOUTS } from '../config/presetLayouts';
 
 const PRESET_ICONS = {
@@ -16,6 +17,8 @@ const PRESET_ICONS = {
 };
 
 export default function LayoutSwitcher({ activePresetId, onApplyPreset }) {
+  const { language } = useLanguage();
+  const cs = language === 'cs';
   const [confirmId, setConfirmId] = useState(null);
 
   const handleClick = (presetId) => {
@@ -36,7 +39,7 @@ export default function LayoutSwitcher({ activePresetId, onApplyPreset }) {
 
   return (
     <div style={containerStyle}>
-      <div style={headerStyle}>ROZLOZENI</div>
+      <div style={headerStyle}>{cs ? 'ROZLOZENI' : 'LAYOUTS'}</div>
 
       <div style={gridStyle}>
         {PRESET_LAYOUTS.map((preset) => {
@@ -52,7 +55,7 @@ export default function LayoutSwitcher({ activePresetId, onApplyPreset }) {
                 ...cardStyle,
                 ...(isActive ? activeCardStyle : {}),
               }}
-              title={preset.description.cs}
+              title={cs ? preset.description.cs : (preset.description.en || preset.description.cs)}
               aria-pressed={isActive}
             >
               <IconComp
@@ -68,7 +71,7 @@ export default function LayoutSwitcher({ activePresetId, onApplyPreset }) {
                   ? 'var(--builder-text-primary)'
                   : 'var(--builder-text-secondary)',
               }}>
-                {preset.name.cs}
+                {cs ? preset.name.cs : (preset.name.en || preset.name.cs)}
               </span>
             </button>
           );
@@ -79,11 +82,11 @@ export default function LayoutSwitcher({ activePresetId, onApplyPreset }) {
       {confirmId && (
         <div style={confirmStyle}>
           <span style={confirmTextStyle}>
-            Prepnout rozlozeni? Toto prepise vase aktualni usporadani prvku.
+            {cs ? 'Prepnout rozlozeni? Toto prepise vase aktualni usporadani prvku.' : 'Switch layout? This will overwrite your current element arrangement.'}
           </span>
           <div style={confirmBtnRow}>
-            <button onClick={handleCancel} style={cancelBtnStyle}>Zrusit</button>
-            <button onClick={handleConfirm} style={applyBtnStyle}>Prepnout</button>
+            <button onClick={handleCancel} style={cancelBtnStyle}>{cs ? 'Zrusit' : 'Cancel'}</button>
+            <button onClick={handleConfirm} style={applyBtnStyle}>{cs ? 'Prepnout' : 'Switch'}</button>
           </div>
         </div>
       )}
