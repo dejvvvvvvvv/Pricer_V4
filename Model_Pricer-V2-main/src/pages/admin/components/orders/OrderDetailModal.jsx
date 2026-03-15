@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../../components/AppIcon';
 import TabCustomer from './TabCustomer';
 import TabShipping from './TabShipping';
@@ -220,7 +221,7 @@ export default function OrderDetailModal({ open, order, onClose, onSaveNote, onU
 
   const storageStatus = order?.storage?.status || 'pending';
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       style={{
@@ -371,6 +372,7 @@ export default function OrderDetailModal({ open, order, onClose, onSaveNote, onU
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

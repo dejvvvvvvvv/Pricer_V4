@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -34,7 +35,7 @@ export default function OfflineBanner() {
 
   // Offline state
   if (!isOnline) {
-    return (
+    return createPortal(
       <div
         role="alert"
         aria-live="assertive"
@@ -70,13 +71,14 @@ export default function OfflineBanner() {
           <path d="M8 4v5M8 11v1" />
         </svg>
         {t('offlineBanner')}
-      </div>
+      </div>,
+      document.body
     );
   }
 
   // Brief "back online" confirmation flash
   if (showOnlineFlash) {
-    return (
+    return createPortal(
       <div
         role="status"
         aria-live="polite"
@@ -111,7 +113,8 @@ export default function OfflineBanner() {
           <polyline points="2,9 6,13 14,4" />
         </svg>
         {t('onlineBanner')}
-      </div>
+      </div>,
+      document.body
     );
   }
 

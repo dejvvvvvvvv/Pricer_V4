@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
 import { exportCSV, exportJSON, downloadFile } from '../../../utils/exportData';
@@ -177,7 +178,7 @@ function BulkConfirmModal({ open, title, children, confirmText = 'Potvrdit', can
   }, [open, onCancel]);
 
   if (!open) return null;
-  return (
+  return createPortal(
     <div ref={overlayRef} style={{
       position: 'fixed', inset: 0, background: 'rgba(8, 9, 12, 0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -215,7 +216,8 @@ function BulkConfirmModal({ open, title, children, confirmText = 'Potvrdit', can
           }}>{confirmText}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -227,7 +229,7 @@ function ProgressOverlay({ open, title, current, total, onDone }) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
   const done = current >= total;
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(8, 9, 12, 0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -277,7 +279,8 @@ function ProgressOverlay({ open, title, current, total, onDone }) {
           }}>Zavrit</button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

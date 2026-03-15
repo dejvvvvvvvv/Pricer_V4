@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '../../../../components/AppIcon';
-import { getPreviewUrl } from '../../../../services/storageApi';
+import { getPreviewBlob } from '../../../../services/storageApi';
 import { formatSize } from '../../../../utils/formatters';
 
 function is3DFile(name) {
@@ -43,6 +43,35 @@ function MetaRow({ label, value }) {
 }
 
 export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownload }) {
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+
+  useEffect(() => {
+    let revoked = false;
+    let blobUrl = null;
+
+    if (selectedItem && selectedItem.type === 'file' && isImageFile(selectedItem.name)) {
+      getPreviewBlob(selectedItem.path)
+        .then((url) => {
+          if (!revoked) {
+            blobUrl = url;
+            setPreviewBlobUrl(url);
+          } else {
+            URL.revokeObjectURL(url);
+          }
+        })
+        .catch(() => {
+          if (!revoked) setPreviewBlobUrl(null);
+        });
+    } else {
+      setPreviewBlobUrl(null);
+    }
+
+    return () => {
+      revoked = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [selectedItem?.path]);
+
   if (!selectedItem || selectedItem.type === 'folder') {
     return (
       <div style={{
@@ -126,12 +155,17 @@ export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownlo
         borderRadius: 'var(--forge-radius-md)',
         border: '1px solid var(--forge-border-default)',
       }}>
-        {showImage ? (
+        {showImage && previewBlobUrl ? (
           <img
-            src={getPreviewUrl(selectedItem.path)}
+            src={previewBlobUrl}
             alt={filename}
             style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '4px' }}
           />
+        ) : showImage && !previewBlobUrl ? (
+          <div style={{ textAlign: 'center', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', fontSize: '12px' }}>
+            <Icon name="Image" size={40} style={{ marginBottom: '8px', opacity: 0.3 }} />
+            <p>Loading preview...</p>
+          </div>
         ) : show3D ? (
           <div style={{ textAlign: 'center', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', fontSize: '12px' }}>
             <Icon name="Box" size={48} style={{ marginBottom: '8px', opacity: 0.4, color: 'var(--forge-accent-primary)' }} />

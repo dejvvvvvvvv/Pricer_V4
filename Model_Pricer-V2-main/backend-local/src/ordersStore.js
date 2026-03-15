@@ -123,14 +123,46 @@ export function validateStatusTransition(from, to) {
 // ── File I/O ──
 
 /**
+ * Sanitize tenantId to prevent path traversal attacks.
+ * Only allows alphanumeric characters, hyphens, underscores, and dots.
+ * Rejects any tenantId containing path separators or traversal sequences.
+ *
+ * @param {string} tenantId
+ * @returns {string} Sanitized tenantId
+ * @throws {Error} If tenantId is invalid or contains path traversal characters
+ */
+function sanitizeTenantId(tenantId) {
+  if (!tenantId || typeof tenantId !== "string") {
+    throw new Error("Missing or invalid tenantId");
+  }
+  // Reject path separators and traversal sequences
+  if (/[/\\]|\.\./.test(tenantId)) {
+    throw new Error(`Invalid tenantId — contains path traversal characters: "${tenantId}"`);
+  }
+  // Only allow safe characters: alphanumeric, hyphens, underscores, single dots
+  if (!/^[a-zA-Z0-9._-]+$/.test(tenantId)) {
+    throw new Error(`Invalid tenantId — contains disallowed characters: "${tenantId}"`);
+  }
+  return tenantId;
+}
+
+/**
  * Resolve the JSON file path for a tenant's orders.
+ * Includes path traversal protection via tenantId sanitization.
  *
  * @param {string} workspaceRoot
  * @param {string} tenantId
  * @returns {string}
  */
 function ordersFilePath(workspaceRoot, tenantId) {
-  return path.join(workspaceRoot, "orders", `${tenantId}.json`);
+  const safeTenantId = sanitizeTenantId(tenantId);
+  const resolved = path.join(workspaceRoot, "orders", `${safeTenantId}.json`);
+  // Defense-in-depth: verify resolved path is within expected directory
+  const ordersDir = path.resolve(workspaceRoot, "orders");
+  if (!path.resolve(resolved).startsWith(ordersDir)) {
+    throw new Error(`Path traversal detected for tenantId: "${tenantId}"`);
+  }
+  return resolved;
 }
 
 /**

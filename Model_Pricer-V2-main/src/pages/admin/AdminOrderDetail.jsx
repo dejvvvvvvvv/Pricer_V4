@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { debug } from '@/lib/debug';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
@@ -84,7 +85,7 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
   }, [open, onCancel]);
 
   if (!open) return null;
-  return (
+  return createPortal(
     <div ref={overlayRef} style={{
       position: 'fixed', inset: 0, background: 'rgba(8, 9, 12, 0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -115,7 +116,8 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
           }}>{confirmText}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -204,7 +206,7 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
   const fromSc = getStatusColor(fromStatus);
   const toSc = getStatusColor(toStatus);
 
-  return (
+  return createPortal(
     <div ref={overlayRef} style={{
       position: 'fixed', inset: 0, background: 'rgba(8, 9, 12, 0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -299,7 +301,8 @@ function StatusChangeNoteDialog({ open, fromStatus, toStatus, onConfirm, onCance
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -997,7 +1000,7 @@ function InlineModelViewer({ url, height = 300 }) {
       }>
         {canvasContent(height)}
       </Suspense>
-      {isFullScreen && (
+      {isFullScreen && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(8,9,12,0.9)',
           display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setIsFullScreen(false)}>
@@ -1011,7 +1014,8 @@ function InlineModelViewer({ url, height = 300 }) {
               <Icon name="X" size={16} />
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -2640,7 +2644,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
       </div>
 
       {/* Email success toast */}
-      {emailSuccess && (
+      {emailSuccess && createPortal(
         <div style={{
           position: 'fixed', bottom: '24px', right: '24px', zIndex: 1000,
           background: 'rgba(34, 197, 94, 0.95)', color: 'var(--forge-text-primary)',
@@ -2651,11 +2655,12 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           animation: 'fadeIn 200ms ease',
         }}>
           <Icon name="CheckCircle2" size={16} /> Email uspesne odeslan (simulovano)
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Email preview modal */}
-      {emailPreview && (
+      {emailPreview && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(8, 9, 12, 0.75)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2717,11 +2722,12 @@ export default function AdminOrderDetail({ orders, setOrders }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Invoice preview modal */}
-      {invoicePreviewOpen && invoice?.htmlContent && (
+      {invoicePreviewOpen && invoice?.htmlContent && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(8, 9, 12, 0.75)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2761,7 +2767,8 @@ export default function AdminOrderDetail({ orders, setOrders }) {
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Status change note dialog */}

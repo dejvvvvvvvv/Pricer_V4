@@ -214,6 +214,22 @@
 
 ---
 
+## 2026-03-14
+
+### S01: Support Page + Security + Tenant Isolation
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **055-SP** | 2026-03-14 | UPRAVY | SP | Support Page + Security + Tenant Isolation P0 fixy | 10 | Support: 7 FAQ kategorií + 6 návodů + video sekce + kontaktní formulář + troubleshooting (1346 řádků); Security: Firestore RLS, HTTP headers, file upload filter, innerHTML sanitizace; Tenant: email routes factory, queue validation, notifications checks |
+
+### S02: P1 Fixy + Model Storage + UX
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **056-P1** | 2026-03-14 | UPRAVY | P1 | P1 Backend fixy + Model Storage + UX (Vlna 2) | 12 | Backend: mesh auth, invoices validace, widget presets check, path traversal hardening; Frontend: ConfigBackupRestore tenant key, PrintConfiguration presets; Storage: blob URLs, TenantImage komponenta; UX: forgot password, terms/privacy links; Build PASS (5x) |
+
+---
+
 ## Navi & Links
 
 - **ID-REGISTRY:** `docs/claude/Historie/ID-REGISTRY.md` — seznam zkratek + globalni pocitadlo
@@ -320,3 +336,9 @@
 - **Kontext:** Jednoduchý bug fix session — 2 soubory, 3 kritické opravy, nula refactoringu.
 
 ---
+
+### 2026-03-15 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **057** | **PF** | **UPRAVY** | **Vlna 3: createPortal opravy vsech modalu/overlayu (24 souboru, ~45 prvku) — CSS transform fix, ForgeDialog + ToastContainer + Header/Banners + AdminLayout/OrderDetail/Orders/Webhooks/ActivityLog/Settings/ModelStorage + CommandPalette/KeyboardShortcutsHelp + OrderDetailModal/ExportActions/OnboardingOverlay + ModelViewer (test/widget/white) — build PASS** |

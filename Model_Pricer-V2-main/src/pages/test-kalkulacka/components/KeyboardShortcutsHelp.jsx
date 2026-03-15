@@ -1,5 +1,6 @@
 // src/pages/test-kalkulacka/components/KeyboardShortcutsHelp.jsx
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -37,7 +38,7 @@ const KeyboardShortcutsHelp = ({ open, onClose, onStartTour }) => {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
@@ -204,7 +205,8 @@ const KeyboardShortcutsHelp = ({ open, onClose, onStartTour }) => {
           }}>Esc</kbd> pro zav\u0159en\u00ed
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Center, Html } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
@@ -1548,8 +1549,9 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed, theme, builder
         )}
       </div>
 
-      {isFullScreen && fileUrl && (
-        <FullScreenViewer fileUrl={fileUrl} onClose={() => setIsFullScreen(false)} />
+      {isFullScreen && fileUrl && createPortal(
+        <FullScreenViewer fileUrl={fileUrl} onClose={() => setIsFullScreen(false)} />,
+        document.body
       )}
     </>
   );

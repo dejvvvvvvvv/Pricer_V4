@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import ForgeToast from './ForgeToast';
 import { useNotification } from '@/contexts/NotificationContext';
@@ -30,7 +31,7 @@ export default function ToastContainer() {
     pointerEvents: 'none',
   };
 
-  return (
+  return createPortal(
     <div style={containerStyle} aria-live="polite" aria-label="Notifications">
       <AnimatePresence initial={false}>
         {toasts.map((toast) => (
@@ -52,6 +53,7 @@ export default function ToastContainer() {
           </motion.div>
         ))}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body
   );
 }

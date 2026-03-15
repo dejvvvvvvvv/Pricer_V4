@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls, Center, Html } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
@@ -693,7 +694,7 @@ const FullScreenViewer = ({ fileUrl, ext, onClose }) => {
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       style={fg.fullscreenOverlay}
@@ -733,7 +734,8 @@ const FullScreenViewer = ({ fileUrl, ext, onClose }) => {
           </Canvas>
         </Suspense>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

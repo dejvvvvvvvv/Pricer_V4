@@ -47,6 +47,7 @@ import { SAMPLE_MODELS } from '../../lib/sampleModels';
 import '../../styles/responsive-kalkulacka.css';
 import '../../styles/animations.css';
 import '../../styles/light-theme-kalkulacka.css';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // --- Micro-UX: count-up animation hook for price display ---
 function useCountUp(targetValue, duration = 500) {
@@ -103,6 +104,7 @@ const DEFAULT_PRINT_CONFIG = {
 };
 
 const TestKalkulacka = () => {
+  const { t } = useLanguage();
   // Branding — načtení konfigurace z AdminBranding (musí být před useDocumentTitle)
   const [branding, setBranding] = useState(() => getBranding(getTenantId()));
   useDocumentTitle(branding?.businessName || 'Calculator');
@@ -562,11 +564,11 @@ const TestKalkulacka = () => {
   }, [selectedFileId, handleConfigChange]);
 
   const steps = [
-    { id: 1, title: 'Nahrání souborů', icon: 'Upload', description: 'Nahrajte 3D modely' },
-    { id: 2, title: 'Konfigurace', icon: 'Settings', description: 'Nastavte parametry tisku' },
-    { id: 3, title: 'Kontrola a cena', icon: 'Calculator', description: 'Zkontrolujte objednávku' },
-    { id: 4, title: 'Objednávka', icon: 'ShoppingCart', description: 'Vyplňte kontaktní údaje' },
-    { id: 5, title: 'Potvrzení', icon: 'CheckCircle', description: 'Objednávka odeslána' },
+    { id: 1, title: t('calculator.step.upload'), icon: 'Upload', description: t('calculator.step.upload.desc') },
+    { id: 2, title: t('calculator.step.config'), icon: 'Settings', description: t('calculator.step.config.desc') },
+    { id: 3, title: t('calculator.step.review'), icon: 'Calculator', description: t('calculator.step.review.desc') },
+    { id: 4, title: t('calculator.step.order'), icon: 'ShoppingCart', description: t('calculator.step.order.desc') },
+    { id: 5, title: t('calculator.step.confirm'), icon: 'CheckCircle', description: t('calculator.step.confirm.desc') },
   ];
 
   useEffect(() => {

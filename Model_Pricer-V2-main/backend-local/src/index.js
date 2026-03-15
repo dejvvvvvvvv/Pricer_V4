@@ -37,7 +37,7 @@ import { createWebhooksRouter } from "./routes/webhooks.js";
 import { createOrdersRouter } from "./routes/orders.js";
 import { fireWebhook } from "./services/webhookService.js";
 import { createApiDocsRouter, API_VERSION, API_VERSION_FULL } from "./routes/apiDocs.js";
-import emailRouter from "./routes/emailRoutes.js";
+import { createEmailRouter } from "./routes/emailRoutes.js";
 import { createConfigRouter } from "./routes/config.js";
 import { createInvoicesRouter } from "./routes/invoices.js";
 import { createStatsRouter } from "./routes/stats.js";
@@ -60,6 +60,19 @@ const WORKSPACE_ROOT = process.env.SLICER_WORKSPACE_ROOT || (isWin ? "C:\\modelp
 const DEFAULT_INI = process.env.PRUSA_DEFAULT_INI || "";
 
 const app = express();
+
+// ===== Security headers (P0 — before all other middleware) =====
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // JSON for PATCH endpoints etc.
 app.use(express.json({ limit: "2mb" }));
@@ -163,7 +176,7 @@ app.get("/api/health", async (_req, res) => {
  * Returns: uptime, memory usage, storage status, slicer availability, CPU info.
  * Does NOT expose: file paths, env vars, IPs, credentials.
  */
-app.get("/api/health/detailed", async (_req, res) => {
+app.get("/api/health/detailed", requireAuth, async (_req, res) => {
   try {
     const health = await getDetailedHealthStatus({
       version: PKG_VERSION,
@@ -226,12 +239,14 @@ function getTenantIdFromReq(req) {
     );
     return fromHeader;
   }
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV === 'development') {
     return "demo-tenant";
   }
-  // In production without any tenant source, still default but warn
-  console.warn(`[index] WARNING: No tenant resolved for ${req.method} ${req.originalUrl} — using demo-tenant`);
-  return "demo-tenant";
+  // In production, refuse to serve without a tenant — never fall back to demo-tenant
+  throw Object.assign(
+    new Error(`No tenant resolved for ${req.method} ${req.originalUrl}. Provide x-tenant-id header or use auth middleware.`),
+    { status: 400, type: "validation", errorCode: "MP_VALIDATION_ERROR" }
+  );
 }
 
 function ok(res, data) {
@@ -249,10 +264,69 @@ const presetsRouter = createPresetsRouter({
 });
 app.use("/api/presets", presetsRouter);
 
-// ===== Widget presets (public, no auth) =====
+// ===== Widget presets (public, no auth — tenant validated) =====
+/**
+ * GET /api/widget/presets?widgetId=<publicWidgetId>
+ *
+ * Public endpoint for the embeddable widget to fetch visible presets.
+ * Security: The tenant is resolved from the `widgetId` query parameter.
+ * If `widgetId` is not provided, falls back to `x-tenant-id` header BUT
+ * validates that the tenant actually exists (has a presets directory).
+ * This prevents arbitrary tenant enumeration via spoofed headers.
+ */
 app.get("/api/widget/presets", async (req, res) => {
   try {
-    const tenantId = getTenantIdFromReq(req);
+    // 1) Resolve tenantId — prefer widgetId query param over raw header
+    let tenantId = "";
+    const widgetId = String(req.query?.widgetId || "").trim();
+
+    if (widgetId) {
+      // Resolve tenant from widget config directory
+      // Widget configs are stored at: <workspace>/config/<tenantId>/widget.json
+      // We scan config dirs to find the one whose widget.json contains this widgetId.
+      tenantId = await resolveTenantFromWidgetId(WORKSPACE_ROOT, widgetId);
+      if (!tenantId) {
+        return res.status(404).json({
+          ok: false,
+          errorCode: "MP_NOT_FOUND",
+          message: "Widget not found or not configured.",
+        });
+      }
+    } else {
+      // Fallback: use x-tenant-id header, but VALIDATE tenant exists
+      const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
+      if (!fromHeader) {
+        return res.status(400).json({
+          ok: false,
+          errorCode: "MP_VALIDATION_ERROR",
+          message: "Missing required query parameter 'widgetId' or header 'x-tenant-id'.",
+        });
+      }
+
+      // Sanitize tenantId to prevent path traversal
+      const sanitized = fromHeader.replace(/[^a-zA-Z0-9._-]/g, "_");
+      if (sanitized !== fromHeader) {
+        return res.status(400).json({
+          ok: false,
+          errorCode: "MP_VALIDATION_ERROR",
+          message: "Invalid tenant ID format.",
+        });
+      }
+
+      // Validate tenant exists by checking presets directory
+      const tenantPresetsDir = path.join(WORKSPACE_ROOT, "presets", sanitized);
+      if (!(await fileExists(tenantPresetsDir))) {
+        // Return 404 — don't reveal whether tenant exists or not
+        return res.status(404).json({
+          ok: false,
+          errorCode: "MP_NOT_FOUND",
+          message: "Tenant not found.",
+        });
+      }
+
+      tenantId = sanitized;
+    }
+
     const state = await listPresets(WORKSPACE_ROOT, tenantId);
     const presets = (state.presets || [])
       .filter((p) => !!p.visibleInWidget)
@@ -264,9 +338,9 @@ app.get("/api/widget/presets", async (req, res) => {
   }
 });
 
-app.get("/api/health/prusa", async (_req, res) => {
+app.get("/api/health/prusa", requireAuth, async (_req, res) => {
   try {
-    const isProd = process.env.NODE_ENV === 'production';
+    const isDev = process.env.NODE_ENV === 'development';
     const slicerCmd = await resolveSlicerCmd();
     if (!slicerCmd) {
       return res.status(503).json({
@@ -274,7 +348,7 @@ app.get("/api/health/prusa", async (_req, res) => {
         errorCode: "MP_SLICER_NOT_CONFIGURED",
         message: "PRUSA_SLICER_CMD not set and auto-detect failed.",
         // Only expose filesystem hint in development
-        ...(!isProd && {
+        ...(isDev && {
           hint: `Put PrusaSlicer portable into ${path.join(projectRoot, "tools", "prusaslicer")} and/or set PRUSA_SLICER_CMD in backend-local/.env`
         })
       });
@@ -284,7 +358,7 @@ app.get("/api/health/prusa", async (_req, res) => {
       return res.status(503).json({
         ok: false,
         errorCode: "MP_SLICER_NOT_FOUND",
-        message: isProd ? "Slicer binary not found." : `Slicer not found at: ${slicerCmd}`,
+        message: isDev ? `Slicer not found at: ${slicerCmd}` : "Slicer binary not found.",
       });
     }
 
@@ -308,7 +382,7 @@ app.get("/api/health/prusa", async (_req, res) => {
         exitCode: final.exitCode,
         version,
         // Only expose paths and raw output in development
-        ...(!isProd && {
+        ...(isDev && {
           slicerCmd,
           stdout,
           stderr,
@@ -321,7 +395,7 @@ app.get("/api/health/prusa", async (_req, res) => {
 });
 
 // ===== Storage API =====
-app.use("/api/storage", storageRouter);
+app.use("/api/storage", requireAuth, requireTenant, storageRouter);
 
 // ===== Webhooks API =====
 const webhooksRouter = createWebhooksRouter({
@@ -343,9 +417,10 @@ const meshRouter = createMeshRouter({
   workspaceRoot: WORKSPACE_ROOT,
   resolveSlicerCmd,
 });
-app.use("/api/mesh", meshRouter);
+app.use("/api/mesh", requireAuth, requireTenant, meshRouter);
 
 // ===== Email API =====
+const emailRouter = createEmailRouter({ getTenantIdFromReq });
 app.use("/api/email", emailRouter);
 
 // ===== Config API (branding, company) =====
@@ -523,14 +598,14 @@ app.post(
         });
       } catch (err) {
         const classified = classifySlicerError({ error: err, context: "slice" });
-        const isProd = process.env.NODE_ENV === 'production';
+        const isDev = process.env.NODE_ENV === 'development';
         return res.status(classified.httpStatus).json({
           ok: false,
           errorCode: classified.errorCode,
           message: classified.message,
           data: {
             jobId: req.jobId,
-            ...(!isProd && { hint: classified.hint, jobDir: req.jobDir }),
+            ...(isDev && { hint: classified.hint, jobDir: req.jobDir }),
           },
         });
       }
@@ -543,7 +618,7 @@ app.post(
         await fs.writeFile(path.join(req.jobDir, "prusa_stdout.log"), run.stdout, "utf8").catch(() => {});
       }
 
-      const isProd = process.env.NODE_ENV === 'production';
+      const isDev2 = process.env.NODE_ENV === 'development';
 
       if (run.exitCode !== 0) {
         const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "slice" });
@@ -554,7 +629,7 @@ app.post(
           data: {
             exitCode: run.exitCode,
             jobId: req.jobId,
-            ...(!isProd && {
+            ...(isDev2 && {
               jobDir: req.jobDir,
               stderr: run.stderr.slice(0, 5000),
               hint: classified.hint,
@@ -570,7 +645,7 @@ app.post(
           message: "out.gcode was not produced.",
           data: {
             jobId: req.jobId,
-            ...(!isProd && {
+            ...(isDev2 && {
               jobDir: req.jobDir,
               stderr: run.stderr.slice(0, 5000),
             }),
@@ -602,7 +677,7 @@ app.post(
           cached: false,
           ...responseData,
           // Only expose internal paths in development
-          ...(!isProd && {
+          ...(isDev2 && {
             jobDir: req.jobDir,
             outGcodePath: run.outGcodePath,
             slicerCmd,
@@ -611,14 +686,14 @@ app.post(
         },
       });
     } catch (e) {
-      const isProdCatch = process.env.NODE_ENV === 'production';
+      const isDevCatch = process.env.NODE_ENV === 'development';
       res.status(500).json({
         ok: false,
         errorCode: "MP_INTERNAL_ERROR",
         message: String(e?.message || e),
         data: {
           jobId: req.jobId,
-          ...(!isProdCatch && { jobDir: req.jobDir }),
+          ...(isDevCatch && { jobDir: req.jobDir }),
         },
       });
     }
@@ -821,32 +896,78 @@ app.post(
 );
 
 /**
- * GET /api/slice/queue — Get queue statistics.
+ * GET /api/slice/queue — Get queue statistics for the current tenant.
+ * Returns only counts for jobs belonging to this tenant, plus global capacity info.
  */
-app.get("/api/slice/queue", (_req, res) => {
-  const stats = slicingQueue.getQueueStats();
-  return ok(res, stats);
+app.get("/api/slice/queue", (req, res) => {
+  const tenantId = getTenantIdFromReq(req);
+
+  // Get global capacity info
+  const globalStats = slicingQueue.getQueueStats();
+
+  // Compute tenant-scoped counts by iterating tenant's jobs only.
+  // slicingQueue._jobs is a Map<string, SlicingJob> — we filter by tenantId.
+  const tenantStats = {
+    queued: 0,
+    processing: 0,
+    completed: 0,
+    failed: 0,
+    cancelled: 0,
+    total: 0,
+    highPriorityQueued: 0,
+    normalPriorityQueued: 0,
+    // Capacity info is global (shared resource)
+    concurrency: globalStats.concurrency,
+    maxQueueSize: globalStats.maxQueueSize,
+  };
+
+  for (const job of slicingQueue._jobs.values()) {
+    if (job.tenantId !== tenantId) continue;
+    tenantStats[job.status] = (tenantStats[job.status] || 0) + 1;
+    tenantStats.total++;
+    if (job.status === "queued") {
+      if (job.priority === "high") {
+        tenantStats.highPriorityQueued++;
+      } else {
+        tenantStats.normalPriorityQueued++;
+      }
+    }
+  }
+
+  return ok(res, tenantStats);
 });
 
 /**
  * GET /api/slice/queue/:jobId — Get status and progress of a specific job.
+ * Tenant-isolated: only the tenant that created the job can view it.
  */
 app.get("/api/slice/queue/:jobId", (req, res) => {
   const jobId = String(req.params.jobId || "").trim();
   if (!jobId) return fail(res, 400, "MP_BAD_REQUEST", "Missing jobId.");
 
+  const tenantId = getTenantIdFromReq(req);
   const job = slicingQueue.getJobStatus(jobId);
-  if (!job) return fail(res, 404, "MP_NOT_FOUND", `Job ${jobId} not found.`);
+  if (!job || job.tenantId !== tenantId) {
+    return fail(res, 404, "MP_NOT_FOUND", `Job ${jobId} not found.`);
+  }
 
   return ok(res, job);
 });
 
 /**
  * DELETE /api/slice/queue/:jobId — Cancel a queued or processing job.
+ * Tenant-isolated: only the tenant that created the job can cancel it.
  */
 app.delete("/api/slice/queue/:jobId", (req, res) => {
   const jobId = String(req.params.jobId || "").trim();
   if (!jobId) return fail(res, 400, "MP_BAD_REQUEST", "Missing jobId.");
+
+  // Check tenant ownership before allowing cancellation
+  const tenantId = getTenantIdFromReq(req);
+  const job = slicingQueue.getJobStatus(jobId);
+  if (!job || job.tenantId !== tenantId) {
+    return fail(res, 404, "MP_NOT_FOUND", `Job ${jobId} not found.`);
+  }
 
   const result = slicingQueue.cancelJob(jobId);
   if (!result.ok) {
@@ -869,7 +990,7 @@ app.use((req, res) => {
 // ===== Global error handler (CORS, multer, validation, typed errors, etc.) =====
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
-  const isProd = process.env.NODE_ENV === "production";
+  const isDev = process.env.NODE_ENV === "development";
 
   // Multer file size limit
   if (err.code === "LIMIT_FILE_SIZE") {
@@ -913,7 +1034,7 @@ app.use((err, _req, res, _next) => {
     return res.status(401).json({
       ok: false,
       errorCode: "MP_AUTH_ERROR",
-      message: isProd ? "Authentication failed" : String(err.message || "Authentication failed"),
+      message: isDev ? String(err.message || "Authentication failed") : "Authentication failed",
     });
   }
 
@@ -922,7 +1043,7 @@ app.use((err, _req, res, _next) => {
     return res.status(403).json({
       ok: false,
       errorCode: "MP_FORBIDDEN",
-      message: isProd ? "Access denied" : String(err.message || "Access denied"),
+      message: isDev ? String(err.message || "Access denied") : "Access denied",
     });
   }
 
@@ -940,7 +1061,7 @@ app.use((err, _req, res, _next) => {
     return res.status(504).json({
       ok: false,
       errorCode: "MP_SLICER_TIMEOUT",
-      message: isProd ? "Operation timed out" : String(err.message || "Operation timed out"),
+      message: isDev ? String(err.message || "Operation timed out") : "Operation timed out",
     });
   }
 
@@ -960,8 +1081,8 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({
     ok: false,
     errorCode: err.errorCode || "MP_INTERNAL_ERROR",
-    message: isProd ? "Internal server error" : String(err?.message || err),
-    ...((!isProd && err.stack) ? { stack: err.stack } : {}),
+    message: isDev ? String(err?.message || err) : "Internal server error",
+    ...((isDev && err.stack) ? { stack: err.stack } : {}),
   });
 });
 
@@ -988,6 +1109,49 @@ process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // ===== Helpers =====
+
+/**
+ * Resolve tenant ID from a public widget ID.
+ * Scans <workspaceRoot>/config/<tenantId>/widget.json files to find which
+ * tenant owns the given publicWidgetId.
+ *
+ * @param {string} workspaceRoot
+ * @param {string} widgetId - The public widget ID to look up
+ * @returns {Promise<string|null>} The tenant ID, or null if not found
+ */
+async function resolveTenantFromWidgetId(workspaceRoot, widgetId) {
+  if (!widgetId) return null;
+
+  const configDir = path.join(workspaceRoot, "config");
+  let tenantDirs;
+  try {
+    tenantDirs = await fs.readdir(configDir, { withFileTypes: true });
+  } catch {
+    // Config directory doesn't exist — no tenants configured
+    return null;
+  }
+
+  for (const entry of tenantDirs) {
+    if (!entry.isDirectory()) continue;
+
+    // Sanitize directory name to prevent path traversal
+    const dirName = entry.name;
+    const widgetConfigPath = path.join(configDir, dirName, "widget.json");
+    try {
+      const raw = await fs.readFile(widgetConfigPath, "utf8");
+      const config = JSON.parse(raw);
+      // Check if this tenant's widget config matches the requested widgetId
+      if (config.publicWidgetId === widgetId || config.widgetId === widgetId) {
+        return dirName;
+      }
+    } catch {
+      // No widget.json or invalid JSON — skip this tenant
+      continue;
+    }
+  }
+
+  return null;
+}
 
 async function resolveSlicerCmd() {
   const fromEnv = (process.env.PRUSA_SLICER_CMD || "").trim();

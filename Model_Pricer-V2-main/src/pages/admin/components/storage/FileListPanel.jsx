@@ -1,7 +1,38 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Icon from '../../../../components/AppIcon';
-import { getPreviewUrl } from '../../../../services/storageApi';
+import { getPreviewBlob } from '../../../../services/storageApi';
 import { formatSize } from '../../../../utils/formatters';
+
+/**
+ * Lazy image component that fetches preview via auth headers (tenant-scoped).
+ */
+function TenantImage({ filePath, alt, style, onError }) {
+  const [src, setSrc] = useState(null);
+
+  useEffect(() => {
+    let revoked = false;
+    let blobUrl = null;
+    getPreviewBlob(filePath)
+      .then((url) => {
+        if (!revoked) {
+          blobUrl = url;
+          setSrc(url);
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      })
+      .catch(() => {
+        if (!revoked && onError) onError();
+      });
+    return () => {
+      revoked = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [filePath]);
+
+  if (!src) return null;
+  return <img src={src} alt={alt} style={style} onError={onError} />;
+}
 
 function formatDate(iso) {
   if (!iso) return '-';
@@ -409,10 +440,9 @@ function GridCard({ item, isSelected, isTrash, onClick, onContextMenu, onSelect,
         {isFolder ? (
           <Icon name="Folder" size={48} style={{ color: 'var(--forge-accent-primary)', opacity: 0.6 }} />
         ) : showImagePreview ? (
-          <img
-            src={getPreviewUrl(item.path)}
+          <TenantImage
+            filePath={item.path}
             alt={item.name}
-            loading="lazy"
             style={{
               width: '100%',
               height: '100%',
@@ -420,9 +450,13 @@ function GridCard({ item, isSelected, isTrash, onClick, onContextMenu, onSelect,
               display: 'block',
             }}
             onError={(e) => {
-              e.target.style.display = 'none';
-              // SAFE: static SVG fallback, no user input interpolated
-              e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7A8291" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>';
+              if (e?.target) {
+                e.target.style.display = 'none';
+                // SAFE: static SVG fallback, no user input interpolated
+                if (e.target.parentElement) {
+                  e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7A8291" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>';
+                }
+              }
             }}
           />
         ) : show3DIcon ? (

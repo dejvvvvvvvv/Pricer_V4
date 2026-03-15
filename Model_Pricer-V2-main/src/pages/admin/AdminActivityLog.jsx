@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import Icon from '../../components/AppIcon';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -611,7 +612,7 @@ export default function AdminActivityLog() {
       )}
 
       {/* Clear confirmation dialog */}
-      {showClearConfirm && (
+      {showClearConfirm && createPortal(
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -674,7 +675,8 @@ export default function AdminActivityLog() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── Statistics Cards ─── */}
@@ -941,10 +943,13 @@ export default function AdminActivityLog() {
           </button>
           {showActionTypeFilter && (
             <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-                onClick={() => setShowActionTypeFilter(false)}
-              />
+              {createPortal(
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                  onClick={() => setShowActionTypeFilter(false)}
+                />,
+                document.body
+              )}
               <div style={{
                 position: 'absolute',
                 top: '100%',

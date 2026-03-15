@@ -20,6 +20,23 @@ import { ensureDir } from "../util/fsSafe.js";
 import { validate } from "../middleware/validate.js";
 
 /**
+ * Assert that a resolved path stays within the given base directory.
+ * Throws a 400 error if a path traversal is detected.
+ *
+ * @param {string} resolvedPath
+ * @param {string} base
+ */
+function assertInWorkspace(resolvedPath, base) {
+  const abs = path.resolve(resolvedPath);
+  const absBase = path.resolve(base);
+  if (!abs.startsWith(absBase + path.sep) && abs !== absBase) {
+    const err = new Error("Path traversal detected");
+    err.status = 400;
+    throw err;
+  }
+}
+
+/**
  * Default notification preferences for a new tenant.
  */
 const DEFAULT_PREFERENCES = {
@@ -93,12 +110,29 @@ export function createNotificationsRouter({ workspaceRoot, getTenantIdFromReq })
   }
 
   /**
+   * Validate that a tenantId contains no path traversal characters.
+   * Rejects `.`, `/`, `\` to prevent directory traversal attacks.
+   * @param {string} tenantId
+   */
+  function validateTenantId(tenantId) {
+    if (!tenantId || typeof tenantId !== "string" || /[./\\]/.test(tenantId)) {
+      const err = new Error("Invalid tenant ID");
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  /**
    * Resolve the file path for tenant notification preferences.
+   * Guards against path traversal via tenantId validation + workspace assertion.
    * @param {string} tenantId
    * @returns {string}
    */
   function prefsFilePath(tenantId) {
-    return path.join(workspaceRoot, "config", tenantId, "notifications.json");
+    validateTenantId(tenantId);
+    const filePath = path.join(workspaceRoot, "config", tenantId, "notifications.json");
+    assertInWorkspace(filePath, path.join(workspaceRoot, "config"));
+    return filePath;
   }
 
   /**

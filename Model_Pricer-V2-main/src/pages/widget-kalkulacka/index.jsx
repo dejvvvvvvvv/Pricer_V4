@@ -267,6 +267,17 @@ const WidgetKalkulacka = ({
   }));
 
   const [batchProgress, setBatchProgress] = useState({ mode: null, done: 0, total: 0 });
+  const [configLoadTimedOut, setConfigLoadTimedOut] = useState(false);
+
+  // P1-2: Timeout for pricingConfig loading — show error after 5s instead of infinite skeleton
+  useEffect(() => {
+    if (pricingConfig) {
+      setConfigLoadTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setConfigLoadTimedOut(true), 5000);
+    return () => clearTimeout(timer);
+  }, [pricingConfig]);
 
   const isShopifyMode = shopifyConfig?.enabled && shopifyConfig?.shop_domain;
   const shopifyQuoteResult = useMemo(() => {
@@ -641,6 +652,31 @@ const WidgetKalkulacka = ({
 
   // Task 1: Show WidgetSkeleton while pricingConfig is null/undefined (initial load)
   if (!pricingConfig && !builderMode) {
+    if (configLoadTimedOut) {
+      return (
+        <div style={{
+          padding: '32px 24px',
+          textAlign: 'center',
+          fontFamily: 'var(--widget-font, Inter, system-ui, sans-serif)',
+          backgroundColor: 'var(--widget-bg, #FFFFFF)',
+        }}>
+          <div style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: '#DC2626',
+            marginBottom: 8,
+          }}>
+            Konfiguraci kalkulacky se nepodarilo nacist.
+          </div>
+          <div style={{
+            fontSize: 13,
+            color: 'var(--widget-text, #6B7280)',
+          }}>
+            Zkontrolujte nastaveni nebo zkuste obnovit stranku.
+          </div>
+        </div>
+      );
+    }
     return <WidgetSkeleton />;
   }
 

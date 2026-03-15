@@ -13,6 +13,7 @@
 // Nav items below include a `requiredPermission` field (matching ROLE_PERMISSIONS keys)
 // to facilitate future enforcement. Items without it default to 'dashboard' (everyone).
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -1119,8 +1120,8 @@ const AdminLayout = () => {
         </aside>
       )}
 
-      {/* Mobile Overlay Drawer */}
-      {isMobile && mobileDrawerOpen && (
+      {/* Mobile Overlay Drawer — rendered via portal to avoid CSS transform issues */}
+      {isMobile && mobileDrawerOpen && createPortal(
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -1151,7 +1152,8 @@ const AdminLayout = () => {
           }}>
             {renderSidebarContent(false)}
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Main Content */}

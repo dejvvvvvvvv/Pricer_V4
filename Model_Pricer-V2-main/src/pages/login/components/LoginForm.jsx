@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -52,8 +52,28 @@ const errorStyle = {
 const LoginForm = ({ redirectTo = '/admin' }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, resetPassword } = useAuth();
   const loginSchema = createLoginSchema(t);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetStatus, setResetStatus] = useState(null); // 'success' | 'error' | null
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) return;
+    setResetLoading(true);
+    setResetStatus(null);
+    try {
+      await resetPassword(resetEmail.trim());
+      setResetStatus('success');
+    } catch (err) {
+      debug('Password reset error:', err);
+      setResetStatus('error');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const {
     register,
@@ -147,7 +167,105 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
             onBlur={handleInputBlur}
           />
           {errors.password?.message && <div style={errorStyle}>{errors.password.message}</div>}
+          <button
+            type="button"
+            onClick={() => { setShowResetForm(v => !v); setResetStatus(null); }}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              marginTop: '6px',
+              fontSize: '13px',
+              color: 'var(--forge-accent-primary)',
+              fontFamily: 'var(--forge-font-body)',
+              cursor: 'pointer',
+              textDecoration: 'none',
+            }}
+          >
+            {t('loginForm.forgotPassword', 'Zapomněli jste heslo?')}
+          </button>
         </div>
+
+        {showResetForm && (
+          <div style={{
+            padding: '14px',
+            backgroundColor: 'var(--forge-bg-elevated)',
+            border: '1px solid var(--forge-border-default)',
+            borderRadius: 'var(--forge-radius-sm)',
+          }}>
+            <p style={{
+              fontSize: '13px',
+              color: 'var(--forge-text-secondary)',
+              fontFamily: 'var(--forge-font-body)',
+              margin: '0 0 10px 0',
+            }}>
+              {t('loginForm.resetEmailDescription', 'Zadejte váš email pro obnovení hesla')}
+            </p>
+            <form onSubmit={handlePasswordReset} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="email"
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
+                placeholder="vas@email.cz"
+                disabled={resetLoading}
+                required
+                aria-label={t('loginForm.resetEmailDescription', 'Zadejte váš email pro obnovení hesla')}
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                }}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+              />
+              <ForgeButton
+                variant="secondary"
+                type="submit"
+                disabled={resetLoading || !resetEmail.trim()}
+                style={{ height: '44px', whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                {resetLoading
+                  ? '...'
+                  : t('loginForm.sendReset', 'Odeslat odkaz')}
+              </ForgeButton>
+            </form>
+            {resetStatus === 'success' && (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 10px',
+                backgroundColor: 'rgba(0, 212, 170, 0.08)',
+                border: '1px solid rgba(0, 212, 170, 0.25)',
+                borderRadius: 'var(--forge-radius-sm)',
+                fontSize: '12px',
+                color: 'var(--forge-accent-primary)',
+                fontFamily: 'var(--forge-font-body)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                <Icon name="CheckCircle" size={14} />
+                {t('loginForm.resetSuccess', 'Odkaz pro obnovení hesla byl odeslán na váš email.')}
+              </div>
+            )}
+            {resetStatus === 'error' && (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 10px',
+                backgroundColor: 'rgba(255, 71, 87, 0.06)',
+                border: '1px solid rgba(255, 71, 87, 0.2)',
+                borderRadius: 'var(--forge-radius-sm)',
+                fontSize: '12px',
+                color: 'var(--forge-error)',
+                fontFamily: 'var(--forge-font-body)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                <Icon name="AlertCircle" size={14} />
+                {t('loginForm.resetError', 'Nepodařilo se odeslat odkaz. Zkontrolujte email.')}
+              </div>
+            )}
+          </div>
+        )}
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
           <input

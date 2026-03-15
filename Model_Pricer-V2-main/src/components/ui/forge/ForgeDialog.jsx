@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Forge-themed modal dialog with dark overlay, header with close button,
@@ -179,7 +180,7 @@ export default function ForgeDialog({
     flexShrink: 0,
   };
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       style={overlayStyle}
@@ -226,6 +227,7 @@ export default function ForgeDialog({
         {/* Footer */}
         {footer && <div style={footerStyle}>{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

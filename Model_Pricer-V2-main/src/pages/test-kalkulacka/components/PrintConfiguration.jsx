@@ -10,6 +10,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import MaterialComparison from './MaterialComparison';
 import QualityComparison from './QualityComparison';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
+import { getTenantId } from '../../../utils/adminTenantStorage';
 
 /* ── FORGE style objects ─────────────────────────────────────────────────── */
 const fg = {
@@ -241,7 +242,10 @@ const sliderCSS = `
 `;
 
 /* ── User Print Presets (localStorage) ──────────────────────────────────── */
-const USER_PRESETS_KEY = 'modelpricer:user:print-presets';
+function getUserPresetsKey() {
+  const tid = getTenantId() || 'public';
+  return `modelpricer:${tid}:user_presets`;
+}
 const MAX_USER_PRESETS = 10;
 
 const DEFAULT_USER_PRESETS = [
@@ -267,7 +271,7 @@ const DEFAULT_USER_PRESETS = [
 
 function loadUserPresets() {
   try {
-    const raw = localStorage.getItem(USER_PRESETS_KEY);
+    const raw = localStorage.getItem(getUserPresetsKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -278,7 +282,7 @@ function loadUserPresets() {
 
 function saveUserPresets(presets) {
   try {
-    localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(presets));
+    localStorage.setItem(getUserPresetsKey(), JSON.stringify(presets));
   } catch {
     // localStorage full or unavailable — silently fail
   }

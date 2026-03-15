@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 import { useCopyToClipboard } from '../../../hooks/useCopyToClipboard';
 import { generateQRDataURL } from '../../../lib/qrCode';
@@ -274,14 +275,15 @@ export default function ShareConfigButton({ getShareableUrl, compact = false }) 
       </div>
 
       {/* Toast notification */}
-      {copied && (
+      {copied && createPortal(
         <div style={styles.toast} role="status" aria-live="polite">
           Odkaz zkopírován!
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* QR Code modal */}
-      {showQR && qrDataUrl && (
+      {showQR && qrDataUrl && createPortal(
         <div
           style={styles.overlay}
           onClick={handleOverlayClick}
@@ -355,7 +357,8 @@ export default function ShareConfigButton({ getShareableUrl, compact = false }) 
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

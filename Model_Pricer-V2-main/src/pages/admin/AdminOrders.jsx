@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
@@ -241,7 +242,8 @@ function ConfirmModal({ open, title, message, confirmText = 'Potvrdit', cancelTe
           }}>{confirmText}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

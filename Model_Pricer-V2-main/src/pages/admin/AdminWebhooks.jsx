@@ -2,6 +2,7 @@
 // Route: /admin/webhooks
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../components/AppIcon';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import { ForgeConfirmDialog, useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
@@ -746,7 +747,7 @@ function DeliveryRow({ delivery, compact, onRetry, onViewPayload, retryingId }) 
 function PayloadModal({ delivery, onClose }) {
   if (!delivery) return null;
 
-  return (
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -859,7 +860,8 @@ function PayloadModal({ delivery, onClose }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

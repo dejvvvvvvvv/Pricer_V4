@@ -2,6 +2,7 @@
 // Enhanced: searches across orders, customers, presets, materials + admin pages/actions
 // Storage: tenant-scoped via readTenantJson/writeTenantJson from adminTenantStorage.js
 import React, { useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import { useKeyboardShortcut } from '../../../hooks/useKeyboardShortcut';
@@ -503,7 +504,7 @@ function CommandPaletteInner(_props, ref) {
 
   const showRecentSearches = !debouncedQuery.trim() && recentSearches.length > 0;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
@@ -915,7 +916,8 @@ function CommandPaletteInner(_props, ref) {
           to { transform: rotate(360deg); }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
 

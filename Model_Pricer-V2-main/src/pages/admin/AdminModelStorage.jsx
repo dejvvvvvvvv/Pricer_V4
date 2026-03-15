@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
@@ -8,7 +9,7 @@ import FileListPanel from './components/storage/FileListPanel';
 import PreviewPanel from './components/storage/PreviewPanel';
 import BreadcrumbBar from './components/storage/BreadcrumbBar';
 import FileToolbar from './components/storage/FileToolbar';
-import { downloadFile, createZip, getDownloadUrl } from '../../services/storageApi';
+import { downloadFile, createZip } from '../../services/storageApi';
 import { debug } from '../../lib/debug';
 
 export default function AdminModelStorage() {
@@ -99,13 +100,15 @@ export default function AdminModelStorage() {
 
   const handleDownload = useCallback(async (filePath) => {
     try {
-      const url = getDownloadUrl(filePath);
+      const blobUrl = await downloadFile(filePath);
+      const filename = filePath.split('/').pop() || 'download';
       const a = document.createElement('a');
-      a.href = url;
-      a.download = '';
+      a.href = blobUrl;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
     } catch (e) {
       debug('Download failed:', e);
     }
@@ -266,7 +269,7 @@ export default function AdminModelStorage() {
       </div>
 
       {/* Context menu */}
-      {contextMenu && (
+      {contextMenu && createPortal(
         <div
           style={{
             position: 'fixed',
@@ -332,7 +335,8 @@ export default function AdminModelStorage() {
               }}
             />
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -109,9 +109,30 @@ export async function downloadFile(filePath) {
 }
 
 /**
- * Get file preview URL.
+ * Get file preview as blob URL (tenant-scoped via auth headers).
+ * Use this instead of plain URL to ensure tenant isolation.
+ * @param {string} filePath - Relative path
+ * @returns {Promise<string>} Blob URL
+ */
+export async function getPreviewBlob(filePath) {
+  filePath = sanitizePath(filePath);
+  const params = new URLSearchParams({ path: filePath });
+  const res = await fetch(`${BASE}/file/preview?${params}`, { headers: await authHeaders() });
+  if (!res.ok) {
+    throw new Error(`Preview failed: ${res.status}`);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Get file preview URL (plain URL without tenant headers).
+ * WARNING: This URL does NOT include tenant auth headers.
+ * Prefer getPreviewBlob() for tenant-isolated access.
+ * Kept for backward compatibility only.
  * @param {string} filePath - Relative path
  * @returns {string} Preview URL
+ * @deprecated Use getPreviewBlob() instead for tenant-safe access
  */
 export function getPreviewUrl(filePath) {
   filePath = sanitizePath(filePath);
@@ -120,9 +141,13 @@ export function getPreviewUrl(filePath) {
 }
 
 /**
- * Get direct download URL.
+ * Get direct download URL (plain URL without tenant headers).
+ * WARNING: This URL does NOT include tenant auth headers.
+ * Prefer downloadFile() for tenant-isolated access.
+ * Kept for backward compatibility only.
  * @param {string} filePath - Relative path
  * @returns {string} Download URL
+ * @deprecated Use downloadFile() instead for tenant-safe access
  */
 export function getDownloadUrl(filePath) {
   filePath = sanitizePath(filePath);

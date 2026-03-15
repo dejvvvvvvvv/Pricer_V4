@@ -1,8 +1,8 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Posledni pouzite ID:** 200
-**Dalsi ID k pouziti:** 201
-**Poslední aktualizace:** 2026-03-15 (Session S01 — createPortal fixes, 200-PF)
+**Posledni pouzite ID:** 160
+**Dalsi ID k pouziti:** 161
+**Poslední aktualizace:** 2026-03-14
 
 ---
 
@@ -13,7 +13,6 @@
 | AU | Auth (login, register, Google Sign-In, token handling) | 2 |
 | AC | Account (profil, company, team, settings) | 4 |
 | PR | Pricing Engine (cenovka, volume discounts, fees) | 0 |
-| PF | Portal Fix (createPortal opravy modalu/overlayu) | 1 |
 | ST | Storage (tenant storage, Supabase, migration) | 1 |
 | WG | Widget Builder (widget.js, postMessage, embed) | 0 |
 | WB | Widget Builder Testing (browser testing, design verification) | 1 |
@@ -47,7 +46,6 @@
 | **091-BU** | 2026-03-05 | Bug fixes | **Orders Page Fixes — Ceny + Rozmery + Layout** | **2** |
 | **092-TK** | 2026-03-10 | Test-Kalkulacka | **Undo/Redo pro Print Config** | **3** |
 | **055-SP** | 2026-03-14 | Support | **Support Page + Security + Tenant Isolation P0 fixy** | **10** |
-| **200-PF** | 2026-03-15 | Portal Fix | **Vlna 3: createPortal opravy vsech modalu/overlayu (24 souboru, ~45 prvku)** | **24** |
 
 ---
 

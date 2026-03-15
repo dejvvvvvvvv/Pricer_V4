@@ -3,17 +3,42 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Umožní komukoli vytvořit nového uživatele (zaregistrovat se)
+    // ── Users collection ──────────────────────────────────────────────────
+    // Users can only read/write their own profile
     match /users/{userId} {
       allow create: if request.auth != null;
-      allow read: if true;
-      allow write: if request.auth.uid == userId;
-      allow delete: if request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow update, delete: if request.auth.uid == userId;
     }
 
-    // Povolí čtení a zápis pro přihlášené uživatele (pro ostatní kolekce)
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // ── Tenant-scoped collections ─────────────────────────────────────────
+    // All tenant data requires auth + matching tenant_id in token
+    match /tenants/{tenantId} {
+      allow read, write: if request.auth != null
+        && request.auth.token.tenant_id == tenantId;
+
+      // Subcollections under tenant (orders, config, presets, etc.)
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null
+          && request.auth.token.tenant_id == tenantId;
+      }
+
+      // Nested subcollections (e.g. orders/{orderId}/items/{itemId})
+      match /{subcollection}/{docId}/{nestedSub}/{nestedDoc} {
+        allow read, write: if request.auth != null
+          && request.auth.token.tenant_id == tenantId;
+      }
     }
+
+    // ── Widget public config (read-only for anyone) ───────────────────────
+    // Widget needs to load tenant branding/pricing without auth
+    match /widget_public/{widgetId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.token.tenant_id == resource.data.tenant_id;
+    }
+
+    // ── Deny everything else by default ───────────────────────────────────
+    // No wildcard catch-all — unknown collections are denied
   }
 }

@@ -65,7 +65,9 @@ const IDB_VERSION = 1;
 const MAX_AUTO_BACKUPS = 5;
 const MAX_MANUAL_BACKUPS = 10;
 const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
-const AUTO_BACKUP_LS_KEY = 'modelpricer:autobackup:settings';
+function getAutoBackupKey() {
+  return `modelpricer:${getTenantId()}:auto_backup`;
+}
 
 // ---------------------------------------------------------------------------
 // IndexedDB helpers
@@ -613,7 +615,7 @@ function CardDesc({ children }) {
 
 export async function triggerPreChangeBackup() {
   try {
-    const raw = window.localStorage.getItem(AUTO_BACKUP_LS_KEY);
+    const raw = window.localStorage.getItem(getAutoBackupKey());
     if (!raw) return false;
     const settings = JSON.parse(raw);
     if (!settings.preChangeBackup) return false;
@@ -691,7 +693,7 @@ export default function ConfigBackupRestore() {
   // Load settings + history on mount
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(AUTO_BACKUP_LS_KEY);
+      const raw = window.localStorage.getItem(getAutoBackupKey());
       if (raw) {
         const settings = JSON.parse(raw);
         setAutoBackupEnabled(settings.enabled === true);
@@ -942,7 +944,7 @@ export default function ConfigBackupRestore() {
 
   const saveAutoBackupSettings = useCallback((settings) => {
     try {
-      window.localStorage.setItem(AUTO_BACKUP_LS_KEY, JSON.stringify(settings));
+      window.localStorage.setItem(getAutoBackupKey(), JSON.stringify(settings));
     } catch {
       // ignore
     }

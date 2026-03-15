@@ -16,6 +16,7 @@
  *   lang       -- 'cs' | 'en', UI language (defaults to 'cs')
  */
 import React, { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { writeTenantJson } from '@/utils/adminTenantStorage';
 import { ONBOARDING_STEPS } from '../config/onboardingSteps';
 
@@ -90,7 +91,7 @@ export default function OnboardingOverlay({ tenantId, onComplete, lang = 'cs' })
     stepOf: lang === 'en' ? 'of' : 'z',
   };
 
-  return (
+  return createPortal(
     <div
       style={{
         ...styles.overlay,
@@ -162,7 +163,8 @@ export default function OnboardingOverlay({ tenantId, onComplete, lang = 'cs' })
           }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 

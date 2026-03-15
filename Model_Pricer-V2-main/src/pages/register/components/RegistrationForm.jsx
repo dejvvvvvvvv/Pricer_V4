@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -63,6 +63,13 @@ const RegistrationForm = () => {
   const { register: authRegister } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [comingSoonMsg, setComingSoonMsg] = useState(null);
+
+  const handleComingSoonLink = useCallback((e) => {
+    e.preventDefault();
+    setComingSoonMsg(t('registrationForm.termsComingSoon', 'Podmínky použití budou dostupné před spuštěním.'));
+    setTimeout(() => setComingSoonMsg(null), 4000);
+  }, [t]);
 
   const registrationSchema = createRegistrationSchema(t);
 
@@ -302,11 +309,34 @@ const RegistrationForm = () => {
           />
           <span style={{ fontSize: '13px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', lineHeight: 1.4 }}>
             {t('registrationForm.agreeTermsPrefix')}{' '}
-            <Link to="/terms" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.termsAndConditions')}</Link>
+            <a
+              href="#"
+              onClick={handleComingSoonLink}
+              title={t('registrationForm.termsComingSoon', 'Podmínky použití budou dostupné před spuštěním.')}
+              style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none', cursor: 'pointer' }}
+            >{t('registrationForm.termsAndConditions')}</a>
             {' '}{t('registrationForm.and')}{' '}
-            <Link to="/privacy" style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none' }}>{t('registrationForm.privacyPolicy')}</Link> *
+            <a
+              href="#"
+              onClick={handleComingSoonLink}
+              title={t('registrationForm.privacyComingSoon', 'Zásady ochrany osobních údajů budou dostupné před spuštěním.')}
+              style={{ color: 'var(--forge-accent-primary)', textDecoration: 'none', cursor: 'pointer' }}
+            >{t('registrationForm.privacyPolicy')}</a> *
           </span>
         </label>
+        {comingSoonMsg && (
+          <div style={{
+            padding: '8px 10px',
+            backgroundColor: 'rgba(0, 212, 170, 0.08)',
+            border: '1px solid rgba(0, 212, 170, 0.25)',
+            borderRadius: 'var(--forge-radius-sm)',
+            fontSize: '12px',
+            color: 'var(--forge-accent-primary)',
+            fontFamily: 'var(--forge-font-body)',
+          }}>
+            {comingSoonMsg}
+          </div>
+        )}
         {errors.agreeTerms?.message && <div style={errorTextStyle}>{errors.agreeTerms.message}</div>}
 
         {/* Submit */}

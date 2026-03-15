@@ -48,6 +48,20 @@ function validateOrderId(orderId) {
   }
 }
 
+/**
+ * Validate that a tenantId contains no path traversal characters.
+ * Rejects values containing '.', '/', or '\'.
+ *
+ * @param {string} tenantId
+ */
+function validateTenantId(tenantId) {
+  if (!tenantId || typeof tenantId !== "string" || /[./\\]/.test(tenantId)) {
+    const err = new Error("Invalid tenant ID");
+    err.status = 400;
+    throw err;
+  }
+}
+
 // ── Validation Schemas ──
 
 const invoiceSchemas = {
@@ -80,6 +94,7 @@ export function createInvoicesRouter({ workspaceRoot, getTenantIdFromReq }) {
    * Guards against path traversal via tenantId.
    */
   function invoiceDir(tenantId) {
+    validateTenantId(tenantId);
     const dir = path.join(workspaceRoot, "invoices", tenantId);
     assertInWorkspace(dir, path.join(workspaceRoot, "invoices"));
     return dir;

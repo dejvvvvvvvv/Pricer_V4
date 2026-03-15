@@ -1,5 +1,6 @@
 // KeyboardShortcutsHelp — Modal overlay showing all admin keyboard shortcuts
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 
 const SHORTCUT_GROUPS = [
@@ -86,7 +87,7 @@ export default function KeyboardShortcutsHelp({ open, onClose }) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
@@ -246,6 +247,7 @@ export default function KeyboardShortcutsHelp({ open, onClose }) {
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }

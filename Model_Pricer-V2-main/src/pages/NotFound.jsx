@@ -3,12 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ForgeButton from '@/components/ui/forge/ForgeButton';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useAuth } from '@/context/AuthContext';
 
 const NotFound = () => {
   useDocumentTitle('404 - Page Not Found');
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
+  const { currentUser } = useAuth();
 
   const pageStyle = {
     minHeight: '60vh',
@@ -165,15 +167,17 @@ const NotFound = () => {
             >
               {t('notFound.link.support')}
             </a>
-            <a
-              href="/admin"
-              onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
-              style={helpLinkStyle}
-              onMouseEnter={(e) => e.target.style.color = 'var(--forge-accent-primary)'}
-              onMouseLeave={(e) => e.target.style.color = 'var(--forge-text-muted)'}
-            >
-              {t('notFound.link.admin')}
-            </a>
+            {currentUser && (
+              <a
+                href="/admin"
+                onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
+                style={helpLinkStyle}
+                onMouseEnter={(e) => e.target.style.color = 'var(--forge-accent-primary)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--forge-text-muted)'}
+              >
+                {t('notFound.link.admin')}
+              </a>
+            )}
           </nav>
         </div>
       </div>

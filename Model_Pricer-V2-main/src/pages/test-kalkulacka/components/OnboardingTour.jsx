@@ -1,5 +1,6 @@
 // src/pages/test-kalkulacka/components/OnboardingTour.jsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 
 // ---------------------------------------------------------------------------
@@ -279,7 +280,7 @@ const OnboardingTour = ({
       }
     : null;
 
-  return (
+  return createPortal(
     <div
       className="onboarding-tour-root"
       style={{
@@ -556,7 +557,8 @@ const OnboardingTour = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

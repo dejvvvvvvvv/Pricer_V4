@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { LanguageContext } from '@/contexts/LanguageContext';
 
 /**
@@ -51,7 +52,7 @@ export default function PwaInstallBanner() {
 
   if (!visible) return null;
 
-  return (
+  return createPortal(
     <div
       role="banner"
       style={{
@@ -138,6 +139,7 @@ export default function PwaInstallBanner() {
           <path d="M2 2l10 10M12 2L2 12" />
         </svg>
       </button>
-    </div>
+    </div>,
+    document.body
   );
 }

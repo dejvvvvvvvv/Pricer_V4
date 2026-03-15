@@ -86,9 +86,51 @@ const orderUpload = multer({
 
 // ── Multer for Company Library uploads ────────────────────────────────────
 
+const LIBRARY_ALLOWED_EXTENSIONS = new Set([
+  // 3D models
+  ".stl", ".obj", ".3mf", ".amf", ".step", ".stp", ".iges", ".igs",
+  // Images
+  ".png", ".jpg", ".jpeg", ".gif", ".webp",
+  // Documents
+  ".pdf", ".txt", ".csv",
+  // Archives
+  ".zip", ".gz",
+  // Config
+  ".json", ".ini",
+]);
+
+const LIBRARY_BLOCKED_EXTENSIONS = new Set([
+  ".html", ".htm", ".js", ".jsx", ".ts", ".tsx",
+  ".php", ".py", ".rb", ".sh", ".bat", ".cmd",
+  ".exe", ".dll", ".so", ".msi", ".com", ".scr",
+  ".vbs", ".ps1", ".wsf", ".hta", ".svg",
+]);
+
+const LIBRARY_BLOCKED_MIMETYPES = new Set([
+  "text/html", "application/javascript", "text/javascript",
+  "application/x-httpd-php", "application/x-sh",
+  "application/x-msdownload", "application/x-executable",
+]);
+
 const libraryUpload = multer({
   dest: path.resolve(backendRoot, "storage", ".tmp"),
-  limits: { fileSize: 250 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB (reduced from 250MB)
+  fileFilter: (_req, file, cb) => {
+    const name = (file.originalname || "").toLowerCase();
+    const ext = path.extname(name);
+    const mime = (file.mimetype || "").toLowerCase();
+
+    if (LIBRARY_BLOCKED_MIMETYPES.has(mime)) {
+      return cb(new Error(`Unsupported file type: ${file.originalname}`));
+    }
+    if (LIBRARY_BLOCKED_EXTENSIONS.has(ext)) {
+      return cb(new Error(`Unsupported file type: ${file.originalname}`));
+    }
+    if (!LIBRARY_ALLOWED_EXTENSIONS.has(ext)) {
+      return cb(new Error(`Unsupported file type: ${file.originalname}`));
+    }
+    cb(null, true);
+  },
 });
 
 // ── POST /api/storage/orders — Create order folder with files ─────────────
@@ -163,6 +205,7 @@ router.get("/file", validate(storageSchemas.filePath), async (req, res) => {
     const filename = path.basename(absPath);
     res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
     res.setHeader("Content-Length", stat.size);
+    res.setHeader("X-Content-Type-Options", "nosniff");
 
     const ext = path.extname(filename).toLowerCase();
     const mimeMap = {
@@ -213,6 +256,7 @@ router.get("/file/preview", validate(storageSchemas.filePath), async (req, res) 
     const filename = path.basename(absPath);
     res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
     res.setHeader("Content-Length", stat.size);
+    res.setHeader("X-Content-Type-Options", "nosniff");
 
     const ext = path.extname(filename).toLowerCase();
     const mimeMap = {

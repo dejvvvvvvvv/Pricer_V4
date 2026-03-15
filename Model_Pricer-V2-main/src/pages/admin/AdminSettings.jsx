@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import ForgeSelect from '../../components/ui/forge/ForgeSelect';
 import ForgeInput from '../../components/ui/forge/ForgeInput';
@@ -622,19 +623,21 @@ export default function AdminSettings() {
       />
 
       {/* ─── Save toast ────────────────────────────────────────────────── */}
-      {saved && (
+      {saved && createPortal(
         <div style={toastStyle}>
           <Icon name="Check" size={16} />
           {t('admin.settings.savedToast', 'Nastaveni ulozeno')}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── Error toast ───────────────────────────────────────────────── */}
-      {saveError && (
+      {saveError && createPortal(
         <div style={errorToastStyle}>
           <Icon name="AlertTriangle" size={16} />
           {saveError}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

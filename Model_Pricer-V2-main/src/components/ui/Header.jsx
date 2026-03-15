@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Icon from '../AppIcon';
@@ -357,104 +358,107 @@ const Header = () => {
       </div>
 
       {/* Mobile Drawer */}
-      <AnimatePresence>
-        {isMenuOpen && (
-          <motion.div
-            className="fixed inset-0 z-[1100] md:hidden"
-            role="dialog"
-            aria-modal="true"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {/* Overlay */}
-            <button
-              className="absolute inset-0 bg-black/40"
-              onClick={() => setIsMenuOpen(false)}
-              aria-label="Close menu"
-            />
-
-            {/* Panel */}
+      {createPortal(
+        <AnimatePresence>
+          {isMenuOpen && (
             <motion.div
-              className="absolute right-0 top-0 h-full w-[86%] max-w-sm shadow-2xl"
-              style={{ background: 'var(--forge-bg-surface)', borderLeft: '1px solid var(--forge-border-default)' }}
-              initial={{ x: 420 }}
-              animate={{ x: 0 }}
-              exit={{ x: 420 }}
-              transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+              className="fixed inset-0 z-[1100] md:hidden"
+              role="dialog"
+              aria-modal="true"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
-            <div className="flex items-center justify-between h-16 px-4" style={{ borderBottom: '1px solid var(--forge-border-default)' }}>
-              <Logo />
+              {/* Overlay */}
               <button
+                className="absolute inset-0 bg-black/40"
                 onClick={() => setIsMenuOpen(false)}
-                className="p-2 rounded-lg transition-micro"
-                style={{ color: 'var(--forge-text-secondary)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--forge-bg-elevated)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 aria-label="Close menu"
+              />
+
+              {/* Panel */}
+              <motion.div
+                className="absolute right-0 top-0 h-full w-[86%] max-w-sm shadow-2xl"
+                style={{ background: 'var(--forge-bg-surface)', borderLeft: '1px solid var(--forge-border-default)' }}
+                initial={{ x: 420 }}
+                animate={{ x: 0 }}
+                exit={{ x: 420 }}
+                transition={{ type: 'spring', damping: 26, stiffness: 280 }}
               >
-                <Icon name="X" size={22} />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4 overflow-y-auto h-[calc(100%-4rem)]">
-              <nav className="space-y-2">
-                {navItems?.map((item) => (
-                  <Link
-                    key={item?.path}
-                    to={item?.path}
-                    onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-micro"
-                    style={isActivePath(item?.path)
-                      ? { background: 'var(--forge-accent-primary)', color: '#fff' }
-                      : { color: 'var(--forge-text-secondary)' }
-                    }
-                  >
-                    <Icon name={item?.icon} size={18} />
-                    <span>{item?.label}</span>
-                  </Link>
-                ))}
-              </nav>
-
-              <div className="h-px" style={{ background: 'var(--forge-border-default)' }} />
-
-              {/* Mobile Actions */}
-              <div className="space-y-3">
-                <Button
-                  variant="default"
-                  fullWidth
-                  iconName="Upload"
-                  iconPosition="left"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    window.location.href = '/test-kalkulacka';
-                  }}
+              <div className="flex items-center justify-between h-16 px-4" style={{ borderBottom: '1px solid var(--forge-border-default)' }}>
+                <Logo />
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="p-2 rounded-lg transition-micro"
+                  style={{ color: 'var(--forge-text-secondary)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--forge-bg-elevated)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  aria-label="Close menu"
                 >
-                  Upload Model
-                </Button>
+                  <Icon name="X" size={22} />
+                </button>
+              </div>
 
-                <div className="flex items-center justify-center px-4 py-2">
-                  <Link
-                    to="/account"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center space-x-3"
+              <div className="p-4 space-y-4 overflow-y-auto h-[calc(100%-4rem)]">
+                <nav className="space-y-2">
+                  {navItems?.map((item) => (
+                    <Link
+                      key={item?.path}
+                      to={item?.path}
+                      onClick={() => setIsMenuOpen(false)}
+                      className="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-micro"
+                      style={isActivePath(item?.path)
+                        ? { background: 'var(--forge-accent-primary)', color: '#fff' }
+                        : { color: 'var(--forge-text-secondary)' }
+                      }
+                    >
+                      <Icon name={item?.icon} size={18} />
+                      <span>{item?.label}</span>
+                    </Link>
+                  ))}
+                </nav>
+
+                <div className="h-px" style={{ background: 'var(--forge-border-default)' }} />
+
+                {/* Mobile Actions */}
+                <div className="space-y-3">
+                  <Button
+                    variant="default"
+                    fullWidth
+                    iconName="Upload"
+                    iconPosition="left"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      window.location.href = '/test-kalkulacka';
+                    }}
                   >
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'var(--forge-bg-overlay)', color: 'var(--forge-text-secondary)' }}>
-                      <Icon name="User" size={16} />
-                    </div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--forge-text-primary)' }}>{t('nav.account')}</span>
-                  </Link>
+                    Upload Model
+                  </Button>
+
+                  <div className="flex items-center justify-center px-4 py-2">
+                    <Link
+                      to="/account"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="flex items-center space-x-3"
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'var(--forge-bg-overlay)', color: 'var(--forge-text-secondary)' }}>
+                        <Icon name="User" size={16} />
+                      </div>
+                      <span className="text-sm font-medium" style={{ color: 'var(--forge-text-primary)' }}>{t('nav.account')}</span>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="text-xs text-center pt-2" style={{ color: 'var(--forge-text-muted)' }}>
+                  Tip: zavřeš i kliknutím mimo panel.
                 </div>
               </div>
-
-              <div className="text-xs text-center pt-2" style={{ color: 'var(--forge-text-muted)' }}>
-                Tip: zavřeš i kliknutím mimo panel.
-              </div>
-            </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </header>
   );
 };

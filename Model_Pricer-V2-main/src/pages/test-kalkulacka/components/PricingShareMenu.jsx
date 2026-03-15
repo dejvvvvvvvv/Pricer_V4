@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 import { useCopyToClipboard } from '../../../hooks/useCopyToClipboard';
 
@@ -505,10 +506,11 @@ export default function PricingShareMenu({
       </div>
 
       {/* Toast notification */}
-      {toastMsg && (
+      {toastMsg && createPortal(
         <div style={styles.toast} role="status" aria-live="polite">
           {toastMsg}
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

@@ -45,7 +45,9 @@
     "addressRequired": "Adresa je povinná.",
     "confirmEquipmentRequired": "Musíte potvrdit vlastnictví zařízení.",
     "genericError": "Při registraci se vyskytla chyba.",
-    "emailInUseError": "Tento e-mail je již používán."
+    "emailInUseError": "Tento e-mail je již používán.",
+    "termsComingSoon": "Podmínky použití budou dostupné před spuštěním.",
+    "privacyComingSoon": "Zásady ochrany osobních údajů budou dostupné před spuštěním."
   },
   "loginForm": {
     "emailLabel": "E-mailová adresa",
@@ -58,6 +60,11 @@
     "loggingIn": "Přihlašování...",
     "genericError": "Chyba při přihlašování. Zkuste to znovu.",
     "invalidCredentials": "Neplatná kombinace emailu a hesla.",
-    "tooManyRequests": "Příliš mnoho pokusů o přihlášení. Zkuste to prosím později."
+    "tooManyRequests": "Příliš mnoho pokusů o přihlášení. Zkuste to prosím později.",
+    "forgotPassword": "Zapomněli jste heslo?",
+    "resetEmailDescription": "Zadejte váš email pro obnovení hesla",
+    "sendReset": "Odeslat odkaz",
+    "resetSuccess": "Odkaz pro obnovení hesla byl odeslán na váš email.",
+    "resetError": "Nepodařilo se odeslat odkaz. Zkontrolujte email."
   }
 }

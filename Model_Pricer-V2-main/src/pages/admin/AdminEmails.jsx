@@ -140,7 +140,7 @@ export default function AdminEmails() {
   // Sync editor content when switching templates or when templates data loads.
   useEffect(() => {
     if (editorRef.current && templates[activeTemplate]) {
-      editorRef.current.innerHTML = templates[activeTemplate].body || '';
+      editorRef.current.innerHTML = sanitizeHtmlAllowBasic(templates[activeTemplate].body || '');
     }
   }, [activeTemplate, templates]);
 
@@ -277,7 +277,7 @@ export default function AdminEmails() {
     const def = getDefaultTemplateContent(activeTemplate);
     updateTemplateContent(activeTemplate, def);
     if (editorRef.current) {
-      editorRef.current.innerHTML = def.body || '';
+      editorRef.current.innerHTML = sanitizeHtmlAllowBasic(def.body || '');
     }
   }, [activeTemplate, confirm, cs, updateTemplateContent]);
 

@@ -87,10 +87,16 @@ export function createMeshRouter({ workspaceRoot, resolveSlicerCmd }) {
 
   // ===== Tenant ID extraction =====
   function getTenantId(req) {
+    // requireTenant middleware should have set req.tenantId
     if (req.tenantId) return req.tenantId;
     const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
     if (fromHeader) return fromHeader;
-    return "demo-tenant";
+    const isDev = process.env.NODE_ENV === "development";
+    if (isDev) return "demo-tenant";
+    throw Object.assign(
+      new Error("No tenant resolved for mesh request. Provide x-tenant-id header or use auth middleware."),
+      { status: 400, type: "validation", errorCode: "MP_VALIDATION_ERROR" }
+    );
   }
 
   // ===== POST /api/mesh/repair =====
