@@ -16,12 +16,13 @@ export default function GoogleSignInButton({ onSuccess, onError, label, disabled
   const { loginWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  const isGoogleAvailable = (import.meta.env.VITE_AUTH_PROVIDER || 'firebase') !== 'supabase';
+
   const handleClick = async () => {
+    if (!isGoogleAvailable) return;
     setLoading(true);
     try {
       const user = await loginWithGoogle();
-      // user is null when falling back to redirect — page will navigate away,
-      // so skip onSuccess to avoid premature navigation in the form handler
       if (user !== null) {
         onSuccess?.(user);
       }
@@ -33,43 +34,50 @@ export default function GoogleSignInButton({ onSuccess, onError, label, disabled
     }
   };
 
+  const isDisabled = disabled || loading || !isGoogleAvailable;
+
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={disabled || loading}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '10px',
-        width: '100%',
-        height: '44px',
-        padding: '0 16px',
-        backgroundColor: '#fff',
-        border: '1px solid var(--forge-border-default, #2A2F3A)',
-        borderRadius: 'var(--forge-radius-sm, 6px)',
-        cursor: disabled || loading ? 'not-allowed' : 'pointer',
-        opacity: disabled || loading ? 0.6 : 1,
-        fontFamily: 'var(--forge-font-body)',
-        fontSize: '14px',
-        fontWeight: 500,
-        color: '#3c4043',
-        transition: 'background-color 120ms ease-out, box-shadow 120ms ease-out',
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled && !loading) {
-          e.currentTarget.style.backgroundColor = '#f8f9fa';
-          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = '#fff';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    >
-      {googleLogoSvg}
-      <span>{loading ? 'Loading...' : (label || 'Sign in with Google')}</span>
-    </button>
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isDisabled}
+        title={!isGoogleAvailable ? 'Google sign-in will be available soon' : undefined}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          width: '100%',
+          height: '44px',
+          padding: '0 16px',
+          backgroundColor: '#fff',
+          border: '1px solid var(--forge-border-default, #2A2F3A)',
+          borderRadius: 'var(--forge-radius-sm, 6px)',
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          opacity: isDisabled ? 0.6 : 1,
+          fontFamily: 'var(--forge-font-body)',
+          fontSize: '14px',
+          fontWeight: 500,
+          color: '#3c4043',
+          transition: 'background-color 120ms ease-out, box-shadow 120ms ease-out',
+        }}
+        onMouseEnter={(e) => {
+          if (!isDisabled) {
+            e.currentTarget.style.backgroundColor = '#f8f9fa';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#fff';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+      >
+        {googleLogoSvg}
+        <span>
+          {loading ? 'Loading...' : !isGoogleAvailable ? 'Google sign-in coming soon' : (label || 'Sign in with Google')}
+        </span>
+      </button>
+    </div>
   );
 }

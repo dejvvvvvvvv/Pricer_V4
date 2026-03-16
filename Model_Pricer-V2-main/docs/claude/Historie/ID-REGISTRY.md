@@ -1,8 +1,8 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Posledni pouzite ID:** 200
-**Dalsi ID k pouziti:** 201
-**Poslední aktualizace:** 2026-03-15 (Session S01 — createPortal fixes, 200-PF)
+**Posledni pouzite ID:** 205
+**Dalsi ID k pouziti:** 206
+**Poslední aktualizace:** 2026-03-15 (Session S06 — Finalizace Admin Analytics planu, 204-AN + 205-AN)
 
 ---
 
@@ -19,12 +19,13 @@
 | WB | Widget Builder Testing (browser testing, design verification) | 1 |
 | KA | Kalkulacka (test-kalkulacka, checkbox, recalc) | 0 |
 | DN | Dokumentace (docs, markdown, typo fixy) | 0 |
-| BU | Bug fixes (libovolne) | 1 |
+| BU | Bug fixes (libovolne) | 3 |
 | RS | Research / Investigation | 0 |
 | FG | Forge Design System (CSS, theme, tokens) | 0 |
 | SH | Shopify integrace (storefront, cart) | 0 |
 | SB | Supabase (migrace, schema, policies) | 0 |
 | AD | Admin (stranky, formulare, UI) | 0 |
+| AN | Analytics (admin analytics, grafy, reporty) | 3 |
 | MC | MCP Servers (Firebase, GitHub, Stripe, Sentry, Vercel) | 1 |
 | SP | Support (public support page, FAQ, troubleshooting) | 1 |
 
@@ -48,6 +49,11 @@
 | **092-TK** | 2026-03-10 | Test-Kalkulacka | **Undo/Redo pro Print Config** | **3** |
 | **055-SP** | 2026-03-14 | Support | **Support Page + Security + Tenant Isolation P0 fixy** | **10** |
 | **200-PF** | 2026-03-15 | Portal Fix | **Vlna 3: createPortal opravy vsech modalu/overlayu (24 souboru, ~45 prvku)** | **24** |
+| **201-BU** | 2026-03-15 | Bug fixes | **Bug analyza post-Auth migrace — KONVERZACE (5 bugu, 3x P0, 2x P1)** | **0** |
+| **202-BU** | 2026-03-15 | Bug fixes | **Bug analyza post-Auth migrace — UPRAVY (1 opraven, 4 cekaji)** | **1** |
+| **203-AN** | 2026-03-15 | Analytics | **Admin Analytics analyza a planovani — prechod na realna data** | **0** |
+| **204-AN** | 2026-03-15 | Analytics | **Finalizace Analytics planu — Q&A, 6 otazek, rozhodnuti** | **0** |
+| **205-AN** | 2026-03-15 | Analytics | **Admin Analytics Q&A — otazky a odpovedi k planu** | **0** |
 
 ---
 

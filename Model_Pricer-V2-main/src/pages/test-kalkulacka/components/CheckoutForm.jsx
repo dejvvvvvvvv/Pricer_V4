@@ -505,7 +505,15 @@ export default function CheckoutForm({
           };
         }),
       totals_snapshot: quote
-        ? { total: quote.total, currency: quote.currency, simple: quote.simple }
+        ? {
+            total: quote.grandTotal ?? quote.total,
+            subtotal_models: quote.total,
+            shipping_total: quote.totals?.shippingCost ?? 0,
+            rounding_delta: (quote.totals?.totalRounded ?? 0) - (quote.totals?.totalAfterMarkup ?? 0),
+            currency: quote.currency,
+            simple: quote.simple,
+            flags: quote.flags ?? {},
+          }
         : { total: 0, currency: 'CZK' },
       coupon_snapshot: quote?.coupon
         ? {

@@ -7,7 +7,6 @@ import AnalyticsCharts from './components/AnalyticsCharts';
 import {
   clearAnalyticsAll,
   computeOverview,
-  ensureDemoAnalyticsSeeded,
   filterSessionsByRange,
   findLostSessions,
   generateCsv,
@@ -424,10 +423,6 @@ export default function AdminAnalytics() {
   const [reportHistory, setReportHistory] = useState(() => loadReportHistory());
 
   const { fromISO, toISO } = useMemo(() => getDateRangeForPeriod(period), [period]);
-
-  useEffect(() => {
-    ensureDemoAnalyticsSeeded();
-  }, []);
 
   // Load all orders once
   const allOrders = useMemo(() => loadOrders(), [refreshKey]);

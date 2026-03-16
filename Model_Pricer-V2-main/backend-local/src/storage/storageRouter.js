@@ -38,25 +38,18 @@ const backendRoot = path.resolve(__dirname, "..", "..");
 
 /**
  * Reads tenant ID from req.tenantId (set by requireTenant middleware).
- * Falls back to x-tenant-id header ONLY for backward compat during transition,
- * with a warning log.
+ * NEVER falls back to x-tenant-id header — that would allow tenant spoofing.
+ * In development, falls back to 'demo-tenant' with a warning.
+ * In production, throws to prevent unauthenticated access.
  */
 function getTenantId(req) {
-  if (req.tenantId) {
-    return req.tenantId;
+  if (req.tenantId) return req.tenantId;
+  // In production, require proper middleware chain
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Missing req.tenantId — ensure requireTenant middleware is applied');
   }
-  // Fallback: header-based (backward compat if middleware not applied)
-  const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
-  if (fromHeader) {
-    console.warn(
-      `[storageRouter] WARNING: req.tenantId not set, falling back to x-tenant-id header ("${fromHeader}"). Ensure requireTenant middleware is applied.`
-    );
-    return fromHeader;
-  }
-  console.warn(
-    "[storageRouter] WARNING: No tenant ID resolved — using 'demo-tenant'. This should not happen in production."
-  );
-  return "demo-tenant";
+  console.warn('[storageRouter] WARNING: req.tenantId not set — falling back to demo-tenant (dev only)');
+  return 'demo-tenant';
 }
 
 function getStorageRoot() {

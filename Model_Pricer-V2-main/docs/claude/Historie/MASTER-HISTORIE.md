@@ -342,3 +342,23 @@
 | ID | Zkratka | Typ | Popis |
 |----|---------|-----|-------|
 | **057** | **PF** | **UPRAVY** | **Vlna 3: createPortal opravy vsech modalu/overlayu (24 souboru, ~45 prvku) — CSS transform fix, ForgeDialog + ToastContainer + Header/Banners + AdminLayout/OrderDetail/Orders/Webhooks/ActivityLog/Settings/ModelStorage + CommandPalette/KeyboardShortcutsHelp + OrderDetailModal/ExportActions/OnboardingOverlay + ModelViewer (test/widget/white) — build PASS** |
+
+### S04: Bug analyza a opravy po Supabase Auth migraci
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **201-BU** | 2026-03-15 | KONVERZACE | BU | Bug analyza post-Auth migrace — 5 bugu nalezeno (3x P0, 2x P1) | 0 | 4 problemy hlaseny uzivatelem, 5 root causes nalezeno 3 paralelnimi agenty; hooks crash, envelope mismatch, requireAuth, billing rendering, totals_snapshot |
+| **202-BU** | 2026-03-15 | UPRAVY | BU | Bug opravy post-Auth migrace — AdminOrderDetail hooks fix + 4 cekajici | 1 | P0 DONE: filteredNotes useMemo pred early return; CEKAJI: slicerApi envelope unwrap, /api/slice optionalAuth, billing rendering, totals_snapshot |
+
+### S05: Admin Analytics analyza a planovani
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **203-AN** | 2026-03-15 | KONVERZACE | AN | Admin Analytics analyza a planovani — prechod na realna data | 0 (analyza) | 3 paralelni agenti; 1877 radku, 7 tabu, 6 grafu; demo data k odstraneni; 70-80% infrastruktury existuje; plan v `docs/claude/PLANS/admin-analytics-real-data.md` |
+
+### S06: Finalizace Admin Analytics planu (Q&A)
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **204-AN** | 2026-03-15 | KONVERZACE | AN | Finalizace Analytics planu — 6 otazek zodpovezeno, rozhodnuti | 0 (planovani) | react-grid-layout (MIT, ~19k stars), drag & drop grid, email identifikace zakazniku, reset tlacitko odstraneno, volnejsi scope vcetne backendu, odhad 4-5 hodin |
+| **205-AN** | 2026-03-15 | OTAZKY | AN | Admin Analytics Q&A — 6 otazek a odpovedi | 0 (planovani) | Reset=odstranit, Orders=realna data, Grafy=drag&drop+resize+add/remove, Zakaznici=email, Summary=period+dnes, Scope=volny+backend |

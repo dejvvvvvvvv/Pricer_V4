@@ -7,20 +7,28 @@ const apiClient = axios.create({
   timeout: 30000,
 });
 
-// Request interceptor — attach auth token + tenant ID
+// Request interceptor — attach auth token OR tenant ID header (never both)
+// Authenticated requests: tenant is derived from JWT on the backend — no header needed.
+// Unauthenticated/public requests: send tenant via x-tenant-id header.
 apiClient.interceptors.request.use(async (config) => {
-  config.headers['x-tenant-id'] = getTenantId();
+  let token = null;
 
-  if (window.__authGetToken) {
+  if (typeof window.__authGetToken === 'function') {
     try {
-      const token = await window.__authGetToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      token = await window.__authGetToken();
     } catch {
-      // Token fetch failed — continue without auth
+      // Token fetch failed — fall through to unauthenticated path
     }
   }
+
+  if (token) {
+    // Authenticated request — backend reads tenant from JWT
+    config.headers['Authorization'] = `Bearer ${token}`;
+  } else {
+    // Unauthenticated/public request — send tenant via header
+    config.headers['x-tenant-id'] = getTenantId();
+  }
+
   return config;
 });
 
@@ -36,6 +44,8 @@ apiClient.interceptors.response.use(
           const newToken = await window.__authRefreshToken();
           if (newToken) {
             error.config.headers.Authorization = `Bearer ${newToken}`;
+            // Remove x-tenant-id if present — authenticated retries use JWT for tenant
+            delete error.config.headers['x-tenant-id'];
             return apiClient(error.config);
           }
         } catch {

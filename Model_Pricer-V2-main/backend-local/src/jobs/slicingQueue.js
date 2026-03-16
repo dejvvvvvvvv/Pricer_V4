@@ -317,7 +317,12 @@ export class SlicingQueue extends EventEmitter {
     let skipped = 0;
 
     try {
-      const raw = await fs.readFile(filePath, "utf8");
+      const raw = (await fs.readFile(filePath, "utf8")).trim();
+      if (!raw) {
+        // Empty file — start fresh, clean it up silently
+        await fs.unlink(filePath).catch(() => {});
+        return { restored: 0, skipped: 0 };
+      }
       const state = JSON.parse(raw);
 
       if (!Array.isArray(state?.pendingJobs)) {

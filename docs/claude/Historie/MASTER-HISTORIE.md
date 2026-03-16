@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 215+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam)
-- **Posledni zaznam:** Wave 56-58 (UPRAVY 2026-03-13, Session: Audit Fix Marathon (finále) — Wave 56: Public Pages i18n (home/pricing/support/model-upload, 118 klicu), Wave 57: Calculator Components i18n (PricingCalculator/FileUploadZone, 84 klicu), Wave 58: Buffer; KOMPLETNÍ i18n vseho, 1,740+ klicu total, ALL 23 admin + ALL 5 public + 2 calc komponenty, 100% pokryti UI, build PASS, DEPLOYMENT READY)
-- **Posledni aktualizace:** 2026-03-13 (Waves 56-58 complete — 1,740+ i18n klicu total session-wide, ALL stránky + komponenty migrovany, 100% pokryti UI, build PASS, deployment ready)
+- **Celkem zaznamu:** 221+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU)
+- **Posledni zaznam:** 185-AU (UPRAVY 2026-03-15, Session S03 — Auth Security Fixes: 7 souboru, 2 P0 + 3 P1 + 2 P2 opraveno)
+- **Posledni aktualizace:** 2026-03-15 (Session S03 — Security review Supabase Auth migrace, 2 nove zaznamy: 184-AU KONVERZACE + 185-AU UPRAVY)
 
 ---
 
@@ -260,6 +260,17 @@
 | **WAVE-53-55** | **i18N-FINAL** | **UPRAVY** | **Wave 53: AdminCustomers (35 ternary → 44 klicu) + AdminIntegrations (50+ ternary → 57 klicu) + AdminWebhooks (6 ternary → 8 klicu); Wave 54: AdminPayments (18 ternary) + AdminActivityLog (15 strings) + AdminSystemHealth (15 strings) + AdminMigration (18 strings); Wave 55: AdminOrderDetail (top 30 nejviditelnějších ternary); KOMPLETNÍ i18n ALL 23 admin stranek, ~1,100+ novych klicu (CZ+EN), build PASS, zbyvajici: jen public pages (6-7 stranek)** |
 | **WAVE-56-58** | **i18N-COMPLETE** | **UPRAVY** | **Wave 56: Public Pages i18n (home/pricing/support/model-upload/NotFound, 118+ klicu), Wave 57: Calculator Components (PricingCalculator/FileUploadZone, 84+ klicu), Wave 58: Buffer; KOMPLETNÍ i18n VSECH UI komponent, 1,740+ klicu session-wide (CZ+EN bilingual), ALL 23 admin + ALL 5 public + 2 calc komponenty, 100% pokryti UI; build PASS 45-47s, deployment ready** |
 
+### 2026-03-15 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **180** | **AU** | **KONVERZACE** | **Supabase Auth Migrace Faze 1-5 — plan, implementace, 4 klicova rozhodnuti (separatni authClient, dual JWT, Google OAuth vynechano, bez migrace uzivatelu)** |
+| **181** | **AU** | **UPRAVY** | **6 souboru (1 novy + 5 upravenych): authClient.js (separatni Supabase client), SupabaseAuthProvider.jsx (29→216 radku, 12 metod), providers/index.jsx (supabase branch), backend auth.js (dual JWT: Supabase first + Firebase fallback), .env.example (JWT secret), GoogleSignInButton (disabled pro Supabase)** |
+| **182** | **AU** | **KONVERZACE** | **Auth Bugfix session — backend "offline" analyza 3 agenty, 2 bugy nalezeny (health parsing + CORS port), tenant chain audit OK** |
+| **183** | **AU** | **UPRAVY** | **2 soubory opraveny: AdminSystemHealth.jsx (health response parsing json.data + 'healthy'), backend-local/.env (CORS port 4028+127.0.0.1), tenant infrastruktura audit bez nalezeu** |
+| **184** | **AU** | **KONVERZACE** | **Security review Supabase Auth migrace — 2 P0 + 4 P1 + 3 P2 nalezu, vetsina opravena, F03 odlozeno** |
+| **185** | **AU** | **UPRAVY** | **7 souboru opraveno: auth.js strict JWT issuer (P0), SupabaseAuthProvider re-auth + redirect (P0+P2), index.js health split (P1), storageRouter+mesh tenant header (P1), authClient docs (P1), apiClient conditional tenant (P2)** |
+
 ---
 
 ## Navigace
@@ -281,3 +292,4 @@
 | `Historie/2026-03-10/` | 46 zaznamu (Autonomní session: plán + batch1-15 + 4x KONVERZACE + Batch 16-17 UPRAVY + denní přehled; ID 113-158) |
 | `Historie/2026-03-12/` | 1 zaznam (Session S01: 5 implementaci, 15 rate-limited; ID 159) |
 | `Historie/2026-03-13/` | 30 zaznamu + Wave 34-55 (Session S20: Supabase DB Complete Setup (ID 160), Session S25 Wave 3-31: Security/Sync/Bugfixes/Page Polish/Error Handling/Storage Helpers/TeamAccess+Settings Final/Shopify Payments (ID 161-198), Session S26 P1 Bugs + Data Flow (ID 164-165), Session S27 P1 Bugs Wave 6 + Utilities Wave 7 (ID 166-168), Session S28 Pricing Engine + Checkout (ID 169-171), Session S29 Browser Testing (ID 172-173), Session S30 Critical Bug Fix (ID 174-175), Session S31 Public Pages Testing (ID 176-177), Session S32 E2E Testing + Widget Embed (ID 178-179), Session S33 Wave 33: API Docs + XSS Fix (ID 200), Wave 34-37: Final P0/Storage/Colors/Console cleanup, Wave 38-41: Code Splitting/i18n Cleanup, Wave 42-45: A11y Fixes/Backend Security/ErrorBoundary Coverage, Wave 46-49: Build Verify/Empty States/Logger/Masivni i18n Part 1 (370+ klicu), **Wave 50-52: Masivni i18n Part 2 (860+ klicu, 15 admin stranek)**, **Wave 53-55: Masivni i18n Part 3 — FINALIZACE (1,100+ klicu total, ALL 23 admin stranek)**, WAVE-53-55-i18n-complete.md) |
+| `Historie/2026-03-15/` | 6 zaznamu (S01: Supabase Auth Migrace Faze 1-5 ID 180-181, S02: Auth Bugfix + Tenant Audit ID 182-183, S03: Auth Security Review + Fixes ID 184-185) |

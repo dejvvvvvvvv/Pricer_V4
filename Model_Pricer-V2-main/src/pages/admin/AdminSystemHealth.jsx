@@ -535,11 +535,14 @@ export default function AdminSystemHealth() {
         return;
       }
 
-      const data = await resp.json();
-      setHealth(data);
+      const json = await resp.json();
+      // Backend returns { ok: true, data: { status: "healthy", ... } }
+      const healthData = json?.data ?? json;
+      setHealth(healthData);
       setError(null);
 
-      if (data.status === 'ok') {
+      const backendStatus = healthData?.status;
+      if (backendStatus === 'healthy' || backendStatus === 'ok' || json?.ok === true) {
         setHealthStatus(elapsed > 2000 ? 'degraded' : 'healthy');
       } else {
         setHealthStatus('degraded');
@@ -890,7 +893,7 @@ export default function AdminSystemHealth() {
         <StatusCard
           title="PrusaSlicer"
           icon="Layers"
-          status={health ? (health.status === 'ok' ? 'healthy' : 'degraded') : 'down'}
+          status={health ? ((health.status === 'healthy' || health.status === 'ok') ? 'healthy' : 'degraded') : 'down'}
         >
           <div>
             <DataRow label={t('admin.system.backendAvailable')} value={

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -92,93 +92,6 @@ function exportChartAsPng(containerRef, filename = 'chart.png') {
   img.src = url;
 }
 
-/* ── Demo data generators — DEMO: mock data only, all Math.random() calls below are for chart demo ── */
-function generateDemoRevenueTrend(days = 30) {
-  const data = [];
-  const now = Date.now();
-  const msDay = 86400000;
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now - i * msDay);
-    data.push({
-      date: d.toISOString().slice(0, 10),
-      label: shortDate(d.toISOString()),
-      revenue: Math.round(800 + Math.random() * 4000),
-    });
-  }
-  return data;
-}
-
-function generateDemoMaterialPie() {
-  return [
-    { name: 'PLA', value: 42 },
-    { name: 'PETG', value: 28 },
-    { name: 'ABS', value: 15 },
-    { name: 'ASA', value: 9 },
-    { name: 'TPU', value: 6 },
-  ];
-}
-
-function generateDemoStatusPie() {
-  return [
-    { name: 'New', value: 5, status: 'NEW' },
-    { name: 'Printing', value: 8, status: 'PRINTING' },
-    { name: 'Done', value: 12, status: 'DONE' },
-    { name: 'Canceled', value: 2, status: 'CANCELED' },
-    { name: 'Review', value: 3, status: 'REVIEW' },
-  ];
-}
-
-function generateDemoAOV(days = 30) {
-  const data = [];
-  const now = Date.now();
-  const msDay = 86400000;
-  let avg = 450;
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now - i * msDay);
-    avg += (Math.random() - 0.48) * 60;
-    avg = Math.max(200, Math.min(800, avg));
-    data.push({
-      date: d.toISOString().slice(0, 10),
-      label: shortDate(d.toISOString()),
-      aov: Math.round(avg),
-    });
-  }
-  for (let i = 0; i < data.length; i++) {
-    const window = data.slice(Math.max(0, i - 6), i + 1);
-    data[i].ma7 = Math.round(window.reduce((s, d) => s + d.aov, 0) / window.length);
-  }
-  return data;
-}
-
-function generateDemoPrintTime() {
-  return [
-    { range: '0-30 min', count: 12 },
-    { range: '30-60 min', count: 18 },
-    { range: '60-120 min', count: 8 },
-    { range: '120-240 min', count: 5 },
-    { range: '240+ min', count: 2 },
-  ];
-}
-
-function generateDemoMaterialBar() {
-  return [
-    { name: 'PLA', count: 18 },
-    { name: 'PETG', count: 12 },
-    { name: 'ABS', count: 7 },
-    { name: 'TPU', count: 4 },
-    { name: 'ASA', count: 3 },
-  ];
-}
-
-function generateDemoFunnel(cs) {
-  return [
-    { step: cs ? 'Nahrano modelu' : 'Models uploaded', value: 180 },
-    { step: cs ? 'Slicovano' : 'Sliced', value: 156 },
-    { step: cs ? 'Oceneno' : 'Quoted', value: 142 },
-    { step: cs ? 'Objednano' : 'Ordered', value: 38 },
-  ];
-}
-
 /* ── Data processing from analytics sessions ─────────────────────────── */
 
 function processRevenueTrend(sessions, granularity = 'day') {
@@ -236,13 +149,12 @@ function processFunnel(sessions, cs) {
 }
 
 /* ── Chart wrapper with export button ────────────────────────────────── */
-function ChartCard({ title, children, isDemo, exportLabel, chartRef }) {
+function ChartCard({ title, children, exportLabel, chartRef }) {
   return (
     <div className="ac-card" ref={chartRef}>
       <div className="ac-card-header">
         <div className="ac-card-title">
           {title}
-          {isDemo && <span className="ac-demo-badge">DEMO</span>}
         </div>
         {exportLabel && (
           <button
@@ -274,7 +186,7 @@ function EmptyChart({ message }) {
 
 /* ── Individual chart components ─────────────────────────────────────── */
 
-function RevenueTrendChart({ data, granularity, setGranularity, isDemo, cs }) {
+function RevenueTrendChart({ data, granularity, setGranularity, cs }) {
   const ref = useRef(null);
   const granLabels = useMemo(() => ({
     day: cs ? 'Den' : 'Day',
@@ -285,7 +197,6 @@ function RevenueTrendChart({ data, granularity, setGranularity, isDemo, cs }) {
   return (
     <ChartCard
       title={cs ? 'Trzby v case' : 'Revenue Over Time'}
-      isDemo={isDemo}
       exportLabel="revenue-trend"
       chartRef={ref}
     >
@@ -328,14 +239,13 @@ function RevenueTrendChart({ data, granularity, setGranularity, isDemo, cs }) {
   );
 }
 
-function OrdersByStatusChart({ data, isDemo, cs }) {
+function OrdersByStatusChart({ data, cs }) {
   const ref = useRef(null);
   const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
 
   return (
     <ChartCard
       title={cs ? 'Objednavky podle stavu' : 'Orders by Status'}
-      isDemo={isDemo}
       exportLabel="orders-by-status"
       chartRef={ref}
     >
@@ -387,14 +297,13 @@ function OrdersByStatusChart({ data, isDemo, cs }) {
   );
 }
 
-function TopMaterialsBarChart({ data, isDemo, cs }) {
+function TopMaterialsBarChart({ data, cs }) {
   const ref = useRef(null);
   const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
 
   return (
     <ChartCard
       title={cs ? 'Nejpouzivanejsi materialy' : 'Most Popular Materials'}
-      isDemo={isDemo}
       exportLabel="top-materials"
       chartRef={ref}
     >
@@ -424,13 +333,12 @@ function TopMaterialsBarChart({ data, isDemo, cs }) {
   );
 }
 
-function AOVChart({ data, isDemo, cs }) {
+function AOVChart({ data, cs }) {
   const ref = useRef(null);
 
   return (
     <ChartCard
       title={cs ? 'Prumerna hodnota objednavky' : 'Average Order Value Trend'}
-      isDemo={isDemo}
       exportLabel="aov-trend"
       chartRef={ref}
     >
@@ -463,13 +371,12 @@ function AOVChart({ data, isDemo, cs }) {
   );
 }
 
-function PrintTimeChart({ data, isDemo, cs }) {
+function PrintTimeChart({ data, cs }) {
   const ref = useRef(null);
 
   return (
     <ChartCard
       title={cs ? 'Rozlozeni casu tisku' : 'Print Time Distribution'}
-      isDemo={isDemo}
       exportLabel="print-time"
       chartRef={ref}
     >
@@ -515,7 +422,7 @@ function PrintTimeChart({ data, isDemo, cs }) {
   );
 }
 
-function ConversionFunnelChart({ data, isDemo, cs }) {
+function ConversionFunnelChart({ data, cs }) {
   const ref = useRef(null);
 
   const dataWithPct = useMemo(() => {
@@ -533,7 +440,6 @@ function ConversionFunnelChart({ data, isDemo, cs }) {
   return (
     <ChartCard
       title={cs ? 'Konverzni trychtyr' : 'Conversion Funnel'}
-      isDemo={isDemo}
       exportLabel="conversion-funnel"
       chartRef={ref}
     >
@@ -582,52 +488,43 @@ function ConversionFunnelChart({ data, isDemo, cs }) {
 export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders }) {
   const [granularity, setGranularity] = React.useState('day');
 
-  // Use order-based data if available, otherwise analytics sessions, otherwise demo
+  // Use order-based data if available, otherwise analytics sessions, otherwise empty
   const revenueData = useMemo(() => {
     if (hasOrders && orderMetrics?.revenueOverTime?.length > 0) {
       return orderMetrics.revenueOverTime;
     }
-    const sessionBased = processRevenueTrend(sessions, granularity);
-    return sessionBased || generateDemoRevenueTrend(30);
+    return processRevenueTrend(sessions, granularity) || [];
   }, [hasOrders, orderMetrics, sessions, granularity]);
-
-  const revenueIsDemo = !hasOrders && !processRevenueTrend(sessions, granularity);
 
   const statusData = useMemo(() => {
     if (hasOrders && orderMetrics?.ordersByStatus?.length > 0) {
       return orderMetrics.ordersByStatus;
     }
-    return generateDemoStatusPie();
+    return [];
   }, [hasOrders, orderMetrics]);
-  const statusIsDemo = !hasOrders;
 
   const materialsData = useMemo(() => {
     if (hasOrders && orderMetrics?.topMaterials?.length > 0) {
       return orderMetrics.topMaterials;
     }
-    return generateDemoMaterialBar();
+    return [];
   }, [hasOrders, orderMetrics]);
-  const materialsIsDemo = !hasOrders;
 
   const aovData = useMemo(() => {
     if (hasOrders && orderMetrics?.aovOverTime?.length > 0) {
       return orderMetrics.aovOverTime;
     }
-    return generateDemoAOV(30);
+    return [];
   }, [hasOrders, orderMetrics]);
-  const aovIsDemo = !hasOrders;
 
   const printTimeData = useMemo(() => {
     if (hasOrders && orderMetrics?.printTimeDistribution?.length > 0) {
       return orderMetrics.printTimeDistribution;
     }
-    return generateDemoPrintTime();
+    return [];
   }, [hasOrders, orderMetrics]);
-  const printTimeIsDemo = !hasOrders;
 
-  const funnelData = useMemo(() => processFunnel(sessions, cs), [sessions, cs]);
-  const funnelIsDemo = !funnelData;
-  const funnelChartData = funnelData || generateDemoFunnel(cs);
+  const funnelData = useMemo(() => processFunnel(sessions, cs) || [], [sessions, cs]);
 
   return (
     <div className="ac-container">
@@ -637,12 +534,10 @@ export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders 
           data={revenueData}
           granularity={granularity}
           setGranularity={setGranularity}
-          isDemo={revenueIsDemo}
           cs={cs}
         />
         <OrdersByStatusChart
           data={statusData}
-          isDemo={statusIsDemo}
           cs={cs}
         />
       </div>
@@ -651,20 +546,18 @@ export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders 
       <div className="ac-grid-2">
         <TopMaterialsBarChart
           data={materialsData}
-          isDemo={materialsIsDemo}
           cs={cs}
         />
-        <AOVChart data={aovData} isDemo={aovIsDemo} cs={cs} />
+        <AOVChart data={aovData} cs={cs} />
       </div>
 
       {/* Row 3: Print Time + Funnel */}
       <div className="ac-grid-2">
         <PrintTimeChart
           data={printTimeData}
-          isDemo={printTimeIsDemo}
           cs={cs}
         />
-        <ConversionFunnelChart data={funnelChartData} isDemo={funnelIsDemo} cs={cs} />
+        <ConversionFunnelChart data={funnelData} cs={cs} />
       </div>
 
       <style>{`
@@ -700,17 +593,6 @@ export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders 
           display: flex;
           align-items: center;
           gap: 8px;
-        }
-        .ac-demo-badge {
-          display: inline-block;
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          background: rgba(255,181,71,0.12);
-          color: var(--forge-warning, #FFB547);
-          border: 1px solid rgba(255,181,71,0.25);
         }
         .ac-export-btn {
           background: transparent;

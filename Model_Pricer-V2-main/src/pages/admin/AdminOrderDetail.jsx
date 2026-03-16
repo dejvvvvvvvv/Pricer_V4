@@ -1308,6 +1308,19 @@ export default function AdminOrderDetail({ orders, setOrders }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [emailMenuOpen]);
 
+  // NOTE: This useMemo MUST be before the early return to keep hook count stable.
+  const filteredNotes = useMemo(() => {
+    let notes = order?.notes || [];
+    if (noteSearch.trim()) {
+      const q = noteSearch.trim().toLowerCase();
+      notes = notes.filter(n => (n.text || '').toLowerCase().includes(q));
+    }
+    // Sort: pinned first, then by timestamp desc (already stored newest-first)
+    const pinned = notes.filter(n => n.pinned);
+    const unpinned = notes.filter(n => !n.pinned);
+    return [...pinned, ...unpinned];
+  }, [order?.notes, noteSearch]);
+
   if (!order) {
     return (
       <div className="od-page">
@@ -1526,18 +1539,6 @@ export default function AdminOrderDetail({ orders, setOrders }) {
     email:  { icon: 'Mail',          label: 'Email', color: '#fb923c' },
     file:   { icon: 'Paperclip',     label: 'Soubor', color: '#4ade80' },
   };
-
-  const filteredNotes = useMemo(() => {
-    let notes = order.notes || [];
-    if (noteSearch.trim()) {
-      const q = noteSearch.trim().toLowerCase();
-      notes = notes.filter(n => (n.text || '').toLowerCase().includes(q));
-    }
-    // Sort: pinned first, then by timestamp desc (already stored newest-first)
-    const pinned = notes.filter(n => n.pinned);
-    const unpinned = notes.filter(n => !n.pinned);
-    return [...pinned, ...unpinned];
-  }, [order.notes, noteSearch]);
 
   function handlePrintSummary() {
     const companyData = readCompanyData();
@@ -2217,6 +2218,81 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                         title="Kopirovat"
                       >
                         {copiedField === `addr-${key}` ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--forge-accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Company info (if business purchase) */}
+            {order.is_company_purchase && order.company_info && (
+              <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--forge-bg-elevated)', borderRadius: 'var(--forge-radius-sm)', border: '1px solid var(--forge-border-default)' }}>
+                <div style={{
+                  fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
+                  color: 'var(--forge-text-muted)', textTransform: 'uppercase',
+                  letterSpacing: '0.06em', marginBottom: '8px',
+                }}>{t('orderDetail.companyInfo', 'Firemni udaje')}</div>
+                <div className="od-kv">
+                  {[
+                    { key: 'name', label: t('orderDetail.companyName', 'Firma'), value: order.company_info.name },
+                    { key: 'ico', label: 'ICO', value: order.company_info.ico },
+                    { key: 'dic', label: 'DIC', value: order.company_info.dic },
+                  ].filter(f => f.value).map(({ key, label, value }) => (
+                    <div key={key} className="od-kv-row od-kv-copyable" onClick={() => copyToClipboard(value, `company-${key}`)}>
+                      <div>
+                        <span className="od-kv-label">{label}</span>
+                        <span className="od-kv-value" style={{ display: 'block', marginTop: '2px' }}>{value}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(value, `company-${key}`); }}
+                        className="od-copy-btn"
+                        title="Kopirovat"
+                      >
+                        {copiedField === `company-${key}` ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--forge-accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Billing address (if different from shipping) */}
+            {order.billing_address && !order.billing_address_same_as_shipping && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{
+                  fontSize: '11px', fontFamily: 'var(--forge-font-tech)',
+                  color: 'var(--forge-text-muted)', textTransform: 'uppercase',
+                  letterSpacing: '0.06em', marginBottom: '8px',
+                }}>{t('orderDetail.billingAddress', 'Fakturacni adresa')}</div>
+                <div className="od-kv">
+                  {[
+                    { key: 'street', label: 'Ulice', value: order.billing_address.street },
+                    { key: 'city', label: 'Mesto', value: order.billing_address.city },
+                    { key: 'zip', label: 'PSC', value: order.billing_address.zip },
+                    { key: 'country', label: 'Stat', value: order.billing_address.country },
+                  ].filter(f => f.value).map(({ key, label, value }) => (
+                    <div key={key} className="od-kv-row od-kv-copyable" onClick={() => copyToClipboard(value, `billing-${key}`)}>
+                      <div>
+                        <span className="od-kv-label">{label}</span>
+                        <span className="od-kv-value" style={{ display: 'block', marginTop: '2px' }}>{value}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(value, `billing-${key}`); }}
+                        className="od-copy-btn"
+                        title="Kopirovat"
+                      >
+                        {copiedField === `billing-${key}` ? (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--forge-accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                         ) : (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>

@@ -163,12 +163,7 @@ app.use("/api", rateLimit({
  * Does NOT expose: file paths, env vars, IPs, credentials.
  */
 app.get("/api/health", async (_req, res) => {
-  const health = getHealthStatus({
-    version: PKG_VERSION,
-    getCacheStats: () => slicerCache.getStats(),
-    getQueueStats: () => slicingQueue.getQueueStats(),
-  });
-  res.json({ ok: true, data: health });
+  res.json({ ok: true, data: { status: "healthy", uptime: process.uptime() } });
 });
 
 /**
@@ -211,7 +206,7 @@ app.use("/api/docs", apiDocsRouter);
 // ===== Auth middleware for protected routes =====
 // Apply requireAuth + requireTenant to all /api/presets, /api/slice, /api/storage
 app.use("/api/presets", requireAuth, requireTenant);
-app.use("/api/slice", requireAuth, requireTenant);
+app.use("/api/slice", optionalAuth, requireTenant);
 app.use("/api/storage", requireAuth, requireTenant);
 app.use("/api/webhooks", requireAuth, requireTenant);
 app.use("/api/orders", requireAuth, requireTenant);

@@ -92,7 +92,7 @@ export async function sliceModelLocal(modelFile, opts = {}) {
       throw new Error('Backend returned non-JSON response');
     }
 
-    return json;
+    return json?.data ?? json;
   } catch (err) {
     // Normalize AbortError message
     if (err?.name === 'AbortError') {

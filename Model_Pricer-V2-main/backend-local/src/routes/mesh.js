@@ -86,17 +86,19 @@ export function createMeshRouter({ workspaceRoot, resolveSlicerCmd }) {
   }
 
   // ===== Tenant ID extraction =====
+  /**
+   * Reads tenant ID from req.tenantId (set by requireTenant middleware).
+   * NEVER falls back to x-tenant-id header — that would allow tenant spoofing.
+   * In development (non-production), falls back to 'demo-tenant' with a warning.
+   * In production, throws to prevent unauthenticated access.
+   */
   function getTenantId(req) {
-    // requireTenant middleware should have set req.tenantId
     if (req.tenantId) return req.tenantId;
-    const fromHeader = String(req.headers["x-tenant-id"] || "").trim();
-    if (fromHeader) return fromHeader;
-    const isDev = process.env.NODE_ENV === "development";
-    if (isDev) return "demo-tenant";
-    throw Object.assign(
-      new Error("No tenant resolved for mesh request. Provide x-tenant-id header or use auth middleware."),
-      { status: 400, type: "validation", errorCode: "MP_VALIDATION_ERROR" }
-    );
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Missing req.tenantId — ensure requireTenant middleware is applied');
+    }
+    console.warn('[mesh] WARNING: req.tenantId not set — falling back to demo-tenant (dev only)');
+    return 'demo-tenant';
   }
 
   // ===== POST /api/mesh/repair =====

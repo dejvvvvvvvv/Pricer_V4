@@ -7,9 +7,9 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 179
-**Dalsi ID k pouziti:** 180
-**Posledni aktualizace:** 2026-03-13 (Session S32 — E2E Testing + Widget Embed + Console Cleanup, 178-GN + 179-GN)
+**Posledni pouzite ID:** 185
+**Dalsi ID k pouziti:** 186
+**Posledni aktualizace:** 2026-03-15 (Session S03 — Auth Security Review + Fixes, 184-AU + 185-AU)
 
 ---
 
@@ -299,5 +299,5 @@ S{NN}
 
 ---
 
-**Posledni aktualizace:** 2026-03-11 (Batch 16-17 completion — 5 nových zaznamu: Onboarding Tour + Order Detail + Customers + Admin Footer + API Docs)
-**Posledni session:** S01 (2026-03-10) — Autonomní implementační session (44 zaznamu: plán + 15 batches + 4x KONVERZACE + DENNÍ-PREHLED)
+**Posledni aktualizace:** 2026-03-15 (Session S03 — Auth Security Review + Fixes, 184-AU + 185-AU)
+**Posledni session:** S03 (2026-03-15) — Security review Supabase Auth migrace (2 zaznamy: KONVERZACE + UPRAVY)
