@@ -73,7 +73,8 @@ const ADMIN_NAV = [
       { path: '/admin/orders', label: 'Orders', labelKey: 'admin.orders', icon: 'ShoppingCart', badge: 'orders', requiredPermission: 'orders' },
       { path: '/admin/payments', label: 'Payments', labelKey: 'admin.payments', icon: 'CreditCard', requiredPermission: 'billing' },
       { path: '/admin/customers', label: 'Customers', labelKey: 'admin.customers', icon: 'UserCircle', requiredPermission: 'orders' },
-      { path: '/admin/analytics', label: 'Analytics', labelKey: 'admin.analytics', icon: 'BarChart3', requiredPermission: 'dashboard' },
+      // Hidden for beta - analytics not ready yet
+      // { path: '/admin/analytics', label: 'Analytics', labelKey: 'admin.analytics', icon: 'BarChart3', requiredPermission: 'dashboard' },
     ],
   },
   {
@@ -130,7 +131,7 @@ const NAV_SHORTCUT_HINTS = {
   '/admin': 'G D',
   '/admin/orders': 'G O',
   '/admin/pricing': 'G P',
-  '/admin/analytics': 'G A',
+  // '/admin/analytics': 'G A', // Hidden for beta
   '/admin/branding': 'G B',
   '/admin/widget': 'G W',
   '/admin/model-storage': 'G S',

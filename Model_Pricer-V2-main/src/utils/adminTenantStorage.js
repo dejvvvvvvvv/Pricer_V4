@@ -64,8 +64,27 @@ function buildKey(tenantId, namespace) {
 }
 
 /**
- * Validates tenantIdOverride — it must match the current tenant or be nullish.
- * If it doesn't match, logs a security warning and returns the current tenant ID.
+ * Basic UUID-like format check (8-4-4-4-12 hex pattern).
+ * Used to validate tenantIdOverride values before trusting them.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidTenantIdFormat(id) {
+  return typeof id === 'string' && id.length > 0 && UUID_RE.test(id);
+}
+
+/**
+ * Resolves the effective tenantId for a storage operation.
+ *
+ * When tenantIdOverride is explicitly provided AND is a valid UUID, it is
+ * trusted even if it differs from the current logged-in tenant. This is
+ * necessary because widget-kalkulacka (running on the same domain as the
+ * admin panel) must be able to write analytics for its own tenant without
+ * being silently redirected to the admin's tenant.
+ *
+ * If tenantIdOverride is provided but does NOT look like a valid UUID,
+ * it is rejected and the current tenant is used instead (with a warning).
+ *
  * Returns null if no tenant is available at all.
  */
 function resolveAndValidateTenantId(tenantIdOverride) {
@@ -73,17 +92,30 @@ function resolveAndValidateTenantId(tenantIdOverride) {
   if (!tenantIdOverride) {
     return currentTenantId;
   }
-  if (currentTenantId && tenantIdOverride !== currentTenantId) {
-    console.warn(
-      '[adminTenantStorage] SECURITY: tenantIdOverride does not match current tenant.',
-      'Override:', tenantIdOverride,
-      'Current:', currentTenantId,
-      'Using current tenant ID instead.'
-    );
-    return currentTenantId;
+
+  // If override is explicitly provided and is a valid UUID, trust it.
+  // This supports widget analytics writes where the widget's tenantId
+  // may differ from the admin's logged-in tenant on the same domain.
+  if (isValidTenantIdFormat(tenantIdOverride)) {
+    if (currentTenantId && tenantIdOverride !== currentTenantId) {
+      debug(
+        '[adminTenantStorage] tenantIdOverride differs from current tenant.',
+        'Override:', tenantIdOverride,
+        'Current:', currentTenantId,
+        'Trusting explicit override (valid UUID).'
+      );
+    }
+    return tenantIdOverride;
   }
-  // If currentTenantId is null, allow override (e.g. during initialization)
-  return tenantIdOverride;
+
+  // Override is present but malformed — reject it, use current tenant.
+  console.warn(
+    '[adminTenantStorage] SECURITY: tenantIdOverride is not a valid UUID format.',
+    'Override:', tenantIdOverride,
+    'Current:', currentTenantId,
+    'Falling back to current tenant ID.'
+  );
+  return currentTenantId || null;
 }
 
 /**

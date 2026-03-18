@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
-import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import ForgeDialog from '../../components/ui/forge/ForgeDialog';
 import AnalyticsCharts from './components/AnalyticsCharts';
+import AnalyticsDashboardGrid from './components/AnalyticsDashboardGrid';
 import {
   clearAnalyticsAll,
   computeOverview,
@@ -13,6 +13,7 @@ import {
   getAnalyticsSessions,
   logExportToAudit,
 } from '../../utils/adminAnalyticsStorage';
+import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
 import { loadOrders, computeOrderTotals, extractOrderMaterials } from '../../utils/adminOrdersStorage';
 import { exportJSON, downloadFile } from '../../utils/exportData';
 import { formatDateTime } from '../../utils/formatters';
@@ -283,6 +284,68 @@ function computeOrderMetrics(orders, fromISO, toISO) {
     .filter(([, count]) => count > 0)
     .map(([range, count]) => ({ range: `${range} min`, count }));
 
+  // Orders over time (sorted)
+  const ordersOverTime = Object.entries(dailyOrders)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, count]) => ({
+      date,
+      label: formatShortDate(date),
+      orders: count,
+    }));
+
+  // Top customers by revenue
+  const customerMap = {};
+  for (const order of filtered) {
+    const email = order.customer_snapshot?.email || order.customer?.email || 'unknown';
+    const totals2 = computeOrderTotals(order);
+    if (!customerMap[email]) customerMap[email] = { email, revenue: 0, orders: 0 };
+    customerMap[email].revenue += totals2.total || 0;
+    customerMap[email].orders += 1;
+  }
+  const topCustomers = Object.values(customerMap)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+
+  // Top models by order count
+  const modelMap = {};
+  for (const order of filtered) {
+    for (const m of order.models || []) {
+      const name = m.file_name || m.name || m.fileName || 'unknown';
+      modelMap[name] = (modelMap[name] || 0) + (Number(m.quantity) || 1);
+    }
+  }
+  const topModels = Object.entries(modelMap)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }));
+
+  // Revenue by material
+  const materialRevenue = {};
+  for (const order of filtered) {
+    for (const m of order.models || []) {
+      const matName = m.material_snapshot?.name || 'unknown';
+      const qty = Number(m.quantity) || 1;
+      const price = Number(m.price_breakdown_snapshot?.model_total || m.totalPrice || m.price || 0);
+      materialRevenue[matName] = (materialRevenue[matName] || 0) + (price * qty);
+    }
+  }
+  const revenueByMaterial = Object.entries(materialRevenue)
+    .sort(([,a], [,b]) => b - a)
+    .map(([name, revenue]) => ({ name, revenue: Math.round(revenue) }));
+
+  // Today metrics (independent of period selector — uses full orders array)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayFiltered = orders.filter(o => {
+    const created = new Date(o.created_at || o.createdAt || '');
+    return created >= todayStart;
+  });
+  let todayRevenue = 0;
+  for (const order of todayFiltered) {
+    todayRevenue += computeOrderTotals(order).total || 0;
+  }
+  const todayOrders = todayFiltered.length;
+
   return {
     totalRevenue,
     totalOrders,
@@ -298,6 +361,12 @@ function computeOrderMetrics(orders, fromISO, toISO) {
     topMaterials,
     aovOverTime,
     printTimeDistribution,
+    ordersOverTime,
+    topCustomers,
+    topModels,
+    revenueByMaterial,
+    todayRevenue,
+    todayOrders,
   };
 }
 
@@ -312,14 +381,12 @@ function formatShortDate(dateStr) {
 export default function AdminAnalytics() {
   const { language, t } = useLanguage();
   const cs = language === 'cs';
-  const { confirm, ConfirmDialogPortal } = useConfirmDialog();
   const { user: authUser } = useAuth();
 
   const ui = useMemo(() => ({
     title: t('admin.analytics.title', 'Analytics'),
     subtitle: t('admin.analytics.subtitle', 'Revenue, orders and activity overview.'),
     refresh: t('admin.analytics.refresh', 'Refresh'),
-    resetDemo: t('admin.analytics.resetDemo', 'Reset demo data'),
     // Period labels
     today: t('admin.analytics.period.today', 'Today'),
     thisWeek: t('admin.analytics.period.thisWeek', 'This week'),
@@ -376,7 +443,7 @@ export default function AdminAnalytics() {
     revenue: t('admin.analytics.orders.revenue', 'Est. revenue'),
     avgOrderValue: t('admin.analytics.orders.avgOrderValue', 'Avg order value'),
     note: t('admin.analytics.orders.note', 'Note'),
-    ordersNote: t('admin.analytics.orders.noteText', 'In Variant A, an order is derived from ORDER_CREATED or ADD_TO_CART_CLICKED events.'),
+    ordersNote: t('admin.analytics.orders.noteText', 'Orders are tracked from calculator checkout events.'),
     // Lost tab
     lostTitle: t('admin.analytics.lost.title', 'Lost calculations (PRICE_SHOWN without conversion, > 30 min)'),
     lastActivity: t('admin.analytics.lost.lastActivity', 'Last activity'),
@@ -390,7 +457,7 @@ export default function AdminAnalytics() {
     exportOverview: t('admin.analytics.exports.overview', 'Overview summary'),
     generate: t('admin.analytics.exports.generate', 'Generate & Download CSV'),
     generateJson: t('admin.analytics.exports.generateJson', 'Download JSON'),
-    exportNote: t('admin.analytics.exports.note', 'Export is generated synchronously from localStorage in demo mode.'),
+    exportNote: t('admin.analytics.exports.note', 'Export is generated from stored analytics data.'),
     // Session detail
     sessionDetail: t('admin.analytics.session.detail', 'Session detail'),
     summary: t('admin.analytics.session.summary', 'Summary'),
@@ -398,8 +465,7 @@ export default function AdminAnalytics() {
     lastEvent: t('admin.analytics.session.lastEvent', 'Last event'),
     printTime: t('admin.analytics.calcs.printTime', 'Print time'),
     noMetadata: t('admin.analytics.session.noMetadata', '(no metadata)'),
-    hint: t('admin.analytics.overview.hint', 'Tip: Demo data uses localStorage simulation.'),
-    confirmClear: t('admin.analytics.confirmClear', 'Really delete all analytics demo data?'),
+    hint: t('admin.analytics.overview.hint', 'Data is collected from calculator sessions and orders.'),
   }), [t]);
 
   const [tab, setTab] = useState('charts');
@@ -421,6 +487,22 @@ export default function AdminAnalytics() {
   const [scheduledReports, setScheduledReports] = useState(() => loadScheduledReports());
   const [autoReports, setAutoReports] = useState([]);
   const [reportHistory, setReportHistory] = useState(() => loadReportHistory());
+
+  // One-time cleanup of stale/fake analytics events from localStorage.
+  // Runs once per tenant, then sets a flag so it never runs again.
+  useEffect(() => {
+    const CLEANUP_KEY = 'analytics:v2:cleaned';
+    try {
+      const cleaned = readTenantJson(CLEANUP_KEY, false);
+      if (!cleaned) {
+        clearAnalyticsAll();
+        writeTenantJson(CLEANUP_KEY, true);
+        setRefreshKey((k) => k + 1);
+      }
+    } catch (_e) {
+      // ignore — non-critical
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { fromISO, toISO } = useMemo(() => getDateRangeForPeriod(period), [period]);
 
@@ -468,19 +550,9 @@ export default function AdminAnalytics() {
     setRefreshKey((k) => k + 1);
   }
 
-  async function handleClear() {
-    const ok = await confirm({
-      title: t('admin.analytics.confirmClearTitle', 'Clear data'),
-      message: ui.confirmClear,
-    });
-    if (!ok) return;
-    clearAnalyticsAll();
-    setSelectedSessionId(null);
-    forceRefresh();
-  }
-
   function handleExport() {
-    const { filename, csv } = generateCsv({ type: exportType, fromISO, toISO });
+    const csv = generateCsv({ type: exportType, fromISO, toISO });
+    const filename = `analytics_${exportType}_${new Date().toISOString().slice(0, 10)}.csv`;
     logExportToAudit({
       actor: { email: authUser?.email || 'unknown', role: authUser?.role || 'admin' },
       type: exportType,
@@ -585,9 +657,6 @@ export default function AdminAnalytics() {
           <p className="aa-subtitle">{ui.subtitle}</p>
         </div>
         <div className="aa-header-actions">
-          <button type="button" className="aa-btn aa-btn-ghost" onClick={handleClear}>
-            {ui.resetDemo}
-          </button>
           <button type="button" className="aa-btn" onClick={forceRefresh}>
             {ui.refresh}
           </button>
@@ -613,6 +682,11 @@ export default function AdminAnalytics() {
               {renderTrendIndicator(orderMetrics.revenueTrend)}
               <span className="aa-summary-vs">{ui.vsPrev}</span>
             </div>
+            {orderMetrics.todayRevenue > 0 && (
+              <div className="aa-summary-today">
+                {cs ? 'Dnes' : 'Today'}: {formatKc(orderMetrics.todayRevenue)}
+              </div>
+            )}
           </div>
           <div className="aa-summary-card">
             <div className="aa-summary-label">{ui.totalOrders}</div>
@@ -621,6 +695,11 @@ export default function AdminAnalytics() {
               {renderTrendIndicator(orderMetrics.ordersTrend)}
               <span className="aa-summary-vs">{ui.vsPrev}</span>
             </div>
+            {orderMetrics.todayOrders > 0 && (
+              <div className="aa-summary-today">
+                {cs ? 'Dnes' : 'Today'}: {formatNumber(orderMetrics.todayOrders)}
+              </div>
+            )}
           </div>
           <div className="aa-summary-card">
             <div className="aa-summary-label">{ui.avgOrder}</div>
@@ -656,13 +735,13 @@ export default function AdminAnalytics() {
         <TabButton active={tab === 'reports'} onClick={() => setTab('reports')}>{t('admin.analytics.tab.reports', 'Reports')}</TabButton>
       </div>
 
-      {/* ── Tab: Charts (DEFAULT) ───────────────────────────────────────── */}
+      {/* ── Tab: Charts (DEFAULT) — Drag & Drop Dashboard Grid ─────────── */}
       {tab === 'charts' && (
         <div className="aa-section">
-          <AnalyticsCharts
+          <AnalyticsDashboardGrid
+            orderMetrics={orderMetrics}
             sessions={sessions}
             cs={cs}
-            orderMetrics={orderMetrics}
             hasOrders={hasOrders}
           />
         </div>
@@ -852,23 +931,103 @@ export default function AdminAnalytics() {
       {/* ── Tab: Orders ─────────────────────────────────────────────────── */}
       {tab === 'orders' && (
         <div className="aa-section">
+          {/* Stat cards from real orders */}
           <div className="aa-stat-grid aa-stat-grid-3">
             <div className="aa-stat-card">
-              <div className="aa-stat-label">{ui.revenue}</div>
-              <div className="aa-stat-value">{formatKc(overview.metrics.revenue_estimate)}</div>
+              <div className="aa-stat-label">{ui.totalRevenue}</div>
+              <div className="aa-stat-value">{formatKc(orderMetrics.totalRevenue)}</div>
             </div>
             <div className="aa-stat-card">
-              <div className="aa-stat-label">{ui.orders}</div>
-              <div className="aa-stat-value">{formatNumber(overview.metrics.orders)}</div>
+              <div className="aa-stat-label">{ui.totalOrders}</div>
+              <div className="aa-stat-value">{formatNumber(orderMetrics.totalOrders)}</div>
             </div>
             <div className="aa-stat-card">
-              <div className="aa-stat-label">{ui.avgOrderValue}</div>
-              <div className="aa-stat-value">{formatKc(overview.metrics.avg_order_value)}</div>
+              <div className="aa-stat-label">{ui.avgOrder}</div>
+              <div className="aa-stat-value">{formatKc(orderMetrics.avgOrderValue)}</div>
             </div>
           </div>
+
+          {/* Status breakdown */}
+          {orderMetrics.ordersByStatus.length > 0 && (
+            <div className="aa-card" style={{ marginBottom: 14 }}>
+              <div className="aa-card-title">{cs ? 'Rozlozeni podle stavu' : 'Status Breakdown'}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0' }}>
+                {orderMetrics.ordersByStatus.map(({ status, value }) => (
+                  <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 90, fontSize: 12, color: 'var(--forge-text-secondary)' }}>{status}</span>
+                    <div style={{ flex: 1, height: 20, background: 'var(--forge-bg-elevated, #1A1D24)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${orderMetrics.totalOrders > 0 ? (value / orderMetrics.totalOrders * 100) : 0}%`,
+                        height: '100%',
+                        borderRadius: 4,
+                        backgroundColor: ({
+                          NEW: '#00D4AA', REVIEW: '#4DA8DA', APPROVED: '#22C55E', PRINTING: '#FF6B35',
+                          POSTPROCESS: '#6C63FF', READY: '#FFB547', SHIPPED: '#06B6D4', DONE: '#10B981', CANCELED: '#FF4757'
+                        })[status] || '#7A8291',
+                        transition: 'width 0.4s ease'
+                      }} />
+                    </div>
+                    <span style={{ width: 30, fontSize: 12, fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-primary)', fontWeight: 600, textAlign: 'right' }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent orders table */}
           <div className="aa-card">
-            <div className="aa-card-title">{ui.note}</div>
-            <p className="aa-muted" style={{ margin: 0 }}>{ui.ordersNote}</p>
+            <div className="aa-card-title">{cs ? 'Posledni objednavky' : 'Recent Orders'}</div>
+            <div className="aa-table-wrap">
+              <table className="aa-table">
+                <thead>
+                  <tr>
+                    <th>{cs ? 'Datum' : 'Date'}</th>
+                    <th>{cs ? 'Zakaznik' : 'Customer'}</th>
+                    <th>{cs ? 'Material' : 'Material'}</th>
+                    <th style={{ textAlign: 'right' }}>{cs ? 'Modely' : 'Models'}</th>
+                    <th style={{ textAlign: 'right' }}>{cs ? 'Celkem' : 'Total'}</th>
+                    <th style={{ textAlign: 'center' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const recentOrders = [...allOrders]
+                      .filter(o => {
+                        const created = new Date(o.created_at || o.createdAt || '');
+                        return created >= new Date(fromISO) && created <= new Date(toISO);
+                      })
+                      .sort((a, b) => (b.created_at || b.createdAt || '').localeCompare(a.created_at || a.createdAt || ''))
+                      .slice(0, 20);
+
+                    if (recentOrders.length === 0) {
+                      return (
+                        <tr><td colSpan={6} className="aa-muted">{cs ? 'Zatim zadne objednavky v tomto obdobi' : 'No orders in this period'}</td></tr>
+                      );
+                    }
+
+                    return recentOrders.map(order => {
+                      const email = order.customer_snapshot?.email || order.customer?.email || '-';
+                      const materials = (order.models || []).map(m => m.material_snapshot?.name).filter(Boolean);
+                      const uniqueMats = [...new Set(materials)].join(', ') || '-';
+                      const modelCount = (order.models || []).length;
+                      const orderTotals = computeOrderTotals(order);
+                      return (
+                        <tr key={order.id || order.order_id}>
+                          <td>{formatDateTime(order.created_at || order.createdAt)}</td>
+                          <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</td>
+                          <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{uniqueMats}</td>
+                          <td style={{ textAlign: 'right' }}>{modelCount}</td>
+                          <td style={{ textAlign: 'right' }}>{formatKc(orderTotals.total)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`aa-pill ${order.status === 'DONE' ? 'ok' : order.status === 'CANCELED' ? 'warn' : ''}`}>{order.status || 'NEW'}</span>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -1520,6 +1679,12 @@ export default function AdminAnalytics() {
           margin-top: 8px;
           font-family: var(--forge-font-tech);
         }
+        .aa-summary-today {
+          font-size: 11px;
+          color: var(--forge-text-muted, #7A8291);
+          font-family: var(--forge-font-tech, 'Space Mono', monospace);
+          margin-top: 4px;
+        }
 
         /* ── Empty banner ───────────────────────────────────────────────── */
         .aa-empty-banner {
@@ -1865,7 +2030,6 @@ export default function AdminAnalytics() {
           .aa-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
-      {ConfirmDialogPortal}
     </div>
   );
 }

@@ -483,6 +483,164 @@ function ConversionFunnelChart({ data, cs }) {
   );
 }
 
+/* ── Orders Over Time (line chart) ──────────────────────────────────── */
+function OrdersOverTimeChart({ data, cs }) {
+  const ref = useRef(null);
+  return (
+    <ChartCard
+      title={cs ? 'Objednavky v case' : 'Orders Over Time'}
+      exportLabel="orders-over-time"
+      chartRef={ref}
+    >
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data' : 'No data'} />
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+            <XAxis dataKey="label" tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
+            <YAxis tick={{ fill: CHART_TEXT, fontSize: 11 }} axisLine={{ stroke: CHART_GRID }} tickLine={false} allowDecimals={false} />
+            <Tooltip
+              contentStyle={darkTooltipStyle}
+              formatter={(v) => [v, cs ? 'Objednavek' : 'Orders']}
+            />
+            <Line type="monotone" dataKey="orders" stroke={TEAL} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: TEAL }} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
+/* ── Top Customers (horizontal bar chart) ──────────────────────────── */
+function TopCustomersChart({ data, cs }) {
+  const ref = useRef(null);
+  const maxRevenue = useMemo(() => Math.max(1, ...data.map(d => d.revenue)), [data]);
+
+  return (
+    <ChartCard
+      title={cs ? 'Top zakaznici' : 'Top Customers'}
+      exportLabel="top-customers"
+      chartRef={ref}
+    >
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data o zakaznicich' : 'No customer data'} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+          {data.map((item, i) => {
+            const barColor = MATERIAL_COLORS[i % MATERIAL_COLORS.length];
+            const widthPct = Math.max((item.revenue / maxRevenue) * 100, 4);
+            const shortEmail = item.email.length > 22 ? item.email.slice(0, 20) + '...' : item.email;
+            return (
+              <div key={item.email} className="ac-bar-row">
+                <div className="ac-bar-label" style={{ width: 130 }} title={item.email}>{shortEmail}</div>
+                <div className="ac-bar-track">
+                  <div className="ac-bar-fill" style={{ width: `${widthPct}%`, backgroundColor: barColor }} />
+                </div>
+                <div className="ac-bar-count" style={{ width: 70 }}>{formatKc(item.revenue)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
+/* ── Revenue by Material (donut chart) ─────────────────────────────── */
+function RevenueByMaterialChart({ data, cs }) {
+  const ref = useRef(null);
+  const total = useMemo(() => data.reduce((s, d) => s + d.revenue, 0), [data]);
+
+  return (
+    <ChartCard
+      title={cs ? 'Trzby podle materialu' : 'Revenue by Material'}
+      exportLabel="revenue-by-material"
+      chartRef={ref}
+    >
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data' : 'No data'} />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: '50%' }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="revenue"
+                  stroke="none"
+                >
+                  {data.map((_, idx) => (
+                    <Cell key={idx} fill={MATERIAL_COLORS[idx % MATERIAL_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={darkTooltipStyle}
+                  formatter={(v, name) => [`${formatKc(v)} (${total > 0 ? Math.round((v / total) * 100) : 0}%)`, name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {data.map((entry, idx) => (
+              <div key={entry.name} className="ac-legend-row">
+                <div className="ac-legend-dot" style={{ backgroundColor: MATERIAL_COLORS[idx % MATERIAL_COLORS.length] }} />
+                <span className="ac-legend-name">{entry.name}</span>
+                <span className="ac-legend-value">
+                  {formatKc(entry.revenue)}
+                  <span className="ac-legend-pct">
+                    ({total > 0 ? Math.round((entry.revenue / total) * 100) : 0}%)
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
+/* ── Top Models (bar chart) ────────────────────────────────────────── */
+function TopModelsChart({ data, cs }) {
+  const ref = useRef(null);
+  const maxCount = useMemo(() => Math.max(1, ...data.map(d => d.count)), [data]);
+
+  return (
+    <ChartCard
+      title={cs ? 'Top modely' : 'Top Models'}
+      exportLabel="top-models"
+      chartRef={ref}
+    >
+      {data.length === 0 ? (
+        <EmptyChart message={cs ? 'Zadna data o modelech' : 'No model data'} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+          {data.map((item, i) => {
+            const barColor = MATERIAL_COLORS[i % MATERIAL_COLORS.length];
+            const widthPct = Math.max((item.count / maxCount) * 100, 4);
+            const shortName = item.name.length > 25 ? item.name.slice(0, 22) + '...' : item.name;
+            return (
+              <div key={item.name} className="ac-bar-row">
+                <div className="ac-bar-label" style={{ width: 140 }} title={item.name}>{shortName}</div>
+                <div className="ac-bar-track">
+                  <div className="ac-bar-fill" style={{ width: `${widthPct}%`, backgroundColor: barColor }} />
+                </div>
+                <div className="ac-bar-count">{item.count}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
 /* ── Main exported component ─────────────────────────────────────────── */
 
 export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders }) {
@@ -727,3 +885,20 @@ export default function AnalyticsCharts({ sessions, cs, orderMetrics, hasOrders 
     </div>
   );
 }
+
+export {
+  RevenueTrendChart,
+  OrdersByStatusChart,
+  TopMaterialsBarChart,
+  AOVChart,
+  PrintTimeChart,
+  ConversionFunnelChart,
+  OrdersOverTimeChart,
+  TopCustomersChart,
+  RevenueByMaterialChart,
+  TopModelsChart,
+  ChartCard,
+  EmptyChart,
+  STATUS_COLORS,
+  MATERIAL_COLORS,
+};

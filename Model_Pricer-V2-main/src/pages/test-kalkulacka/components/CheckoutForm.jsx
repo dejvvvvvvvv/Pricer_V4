@@ -10,6 +10,7 @@ import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
 import { loadOrders, saveOrders, nowIso } from '../../../utils/adminOrdersStorage';
 import { saveOrderFiles } from '../../../services/storageApi';
 import { getTenantId } from '../../../utils/adminTenantStorage';
+import { trackAnalyticsEvent, ANALYTICS_EVENT_TYPES } from '../../../utils/adminAnalyticsStorage';
 import {
   getEnabledPaymentMethods,
   getBankTransferConfig,
@@ -490,6 +491,7 @@ export default function CheckoutForm({
             material_snapshot: {
               material_id: cfg.material || 'pla',
               name: (cfg.material || 'pla').toUpperCase(),
+              price_per_gram: modelResult?.base?.pricePerGram ?? null,
             },
             config_snapshot: cfg,
             slicer_snapshot: {
@@ -501,6 +503,14 @@ export default function CheckoutForm({
               material_cost: modelResult?.base?.materialCostPerPiece ?? 0,
               time_cost: modelResult?.base?.timeCostPerPiece ?? 0,
               fees_total: modelResult?.totals?.feesTotal ?? 0,
+              fees_detail: (modelResult?.fees || [])
+                .filter(f => f.applied)
+                .map(f => ({
+                  id: f.id,
+                  name: f.name,
+                  type: f.type,
+                  amount: f.amount,
+                })),
             },
           };
         }),
@@ -513,6 +523,13 @@ export default function CheckoutForm({
             currency: quote.currency,
             simple: quote.simple,
             flags: quote.flags ?? {},
+            express_surcharge_total: quote.totals?.expressSurchargeTotal ?? 0,
+            coupon_discount_total: quote.totals?.couponDiscountTotal ?? 0,
+            volume_discount_total: quote.totals?.volumeDiscountTotal ?? 0,
+            order_fees_total: quote.totals?.orderFeesTotal ?? 0,
+            subtotal_before_markup: quote.totals?.subtotalBeforeMarkup ?? 0,
+            markup_amount: quote.totals?.markupAmount ?? 0,
+            models_total: quote.totals?.modelsTotal ?? 0,
           }
         : { total: 0, currency: 'CZK' },
       coupon_snapshot: quote?.coupon
@@ -523,6 +540,42 @@ export default function CheckoutForm({
             discount: quote.coupon.discount,
           }
         : null,
+      shipping_snapshot: quote?.shipping
+        ? {
+            id: quote.shipping.id,
+            name: quote.shipping.name,
+            type: quote.shipping.type,
+            cost: quote.shipping.cost,
+            delivery_days_min: quote.shipping.delivery_days_min ?? null,
+            delivery_days_max: quote.shipping.delivery_days_max ?? null,
+            free_shipping_applied: quote.shipping.freeShippingApplied ?? false,
+          }
+        : null,
+      express_snapshot: quote?.express?.enabled
+        ? {
+            tier_id: quote.express.tierId,
+            surcharge_total: quote.express.surchargeTotal ?? 0,
+            details: quote.express.details ?? {},
+          }
+        : null,
+      volume_discount_snapshot: quote?.volumeDiscount?.enabled
+        ? {
+            mode: quote.volumeDiscount.mode,
+            scope: quote.volumeDiscount.scope,
+            total_savings: quote.volumeDiscount.totalSavings ?? 0,
+            details: quote.volumeDiscount.details ?? [],
+          }
+        : null,
+      order_fees_snapshot: (quote?.orderFees || [])
+        .filter(f => f.applied)
+        .map(f => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          value: f.value,
+          amount: f.amount,
+          charge_basis: f.charge_basis,
+        })),
       flags: [],
       notes: data.note ? [{ text: data.note, created_at: now }] : [],
       activity: [{ timestamp: now, user_id: 'customer', type: 'CREATED', payload: { status: 'NEW' } }],
@@ -540,6 +593,25 @@ export default function CheckoutForm({
     const orders = loadOrders();
     orders.unshift(order);
     saveOrders(orders);
+
+    // Track ORDER_CREATED analytics event
+    try {
+      trackAnalyticsEvent({
+        tenantId: getTenantId(),
+        sessionId: order.id,
+        eventType: ANALYTICS_EVENT_TYPES.ORDER_CREATED,
+        metadata: {
+          order_id: order.id,
+          price_total: order.totals_snapshot?.grandTotal || order.totals_snapshot?.total || 0,
+          currency: order.totals_snapshot?.currency || 'CZK',
+          model_count: order.models?.length || 0,
+          customer_email: order.customer_snapshot?.email || '',
+          payment_method: order.payment_method || '',
+        },
+      });
+    } catch (e) {
+      console.warn('[Analytics] ORDER_CREATED tracking failed:', e);
+    }
 
     // Try to save files to backend storage
     setSavingFiles(true);

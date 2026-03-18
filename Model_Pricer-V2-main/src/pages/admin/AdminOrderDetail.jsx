@@ -730,6 +730,9 @@ function OrderStatsPanel({ order, totals }) {
     const costSegments = [];
     if (totals.subtotal_models > 0) costSegments.push({ name: 'Modely', value: totals.subtotal_models, color: '#00D4AA' });
     if (totals.one_time_fees_total > 0) costSegments.push({ name: 'Poplatky', value: totals.one_time_fees_total, color: '#FF6B35' });
+    if (totals.order_fees_total > 0) costSegments.push({ name: 'Order poplatky', value: totals.order_fees_total, color: '#E8A838' });
+    if (totals.express_surcharge_total > 0) costSegments.push({ name: 'Express', value: totals.express_surcharge_total, color: '#FF4D6A' });
+    if (totals.markup_amount > 0) costSegments.push({ name: 'Markup', value: totals.markup_amount, color: '#9B59B6' });
     if (totals.shipping_total > 0) costSegments.push({ name: 'Doprava', value: totals.shipping_total, color: '#4A9EFF' });
 
     const timeItems = modelData.map((m, i) => ({
@@ -1091,8 +1094,175 @@ function BuildPlateViewer({ url, height = 300 }) {
   );
 }
 
+// ── Per-model pricing breakdown detail (shown in expanded row) ──
+function ModelPricingDetail({ m, bd, qty, unitPrice, order }) {
+  const materialSnap = m.material_snapshot;
+  const pricePerGram = materialSnap?.price_per_gram;
+  const feesDetail = Array.isArray(bd.fees_detail) ? bd.fees_detail : null;
+  const feesTotal = Number(bd.fees_total) || 0;
+  const materialCost = Number(bd.material_cost) || 0;
+  const timeCost = Number(bd.time_cost) || 0;
+  const lineTotal = unitPrice * qty;
+
+  // Volume discount for this model
+  const volDetails = order?.volume_discount_snapshot?.details;
+  const volForModel = Array.isArray(volDetails)
+    ? volDetails.find(d => d.modelId === m.id && d.applied)
+    : null;
+
+  const hasMaterialCost = materialCost > 0;
+  const hasTimeCost = timeCost > 0;
+  const hasFeesDetail = feesDetail && feesDetail.length > 0;
+  const hasFeesTotal = !hasFeesDetail && feesTotal > 0;
+  const hasMaterialInfo = materialSnap?.name || pricePerGram;
+  const hasVolDiscount = !!volForModel;
+
+  // If nothing extra to show, render nothing
+  if (!hasMaterialCost && !hasTimeCost && !hasFeesDetail && !hasFeesTotal && !hasMaterialInfo && !hasVolDiscount) {
+    return null;
+  }
+
+  const labelStyle = {
+    fontSize: '11px', fontFamily: 'var(--forge-font-body)', color: 'var(--forge-text-muted)',
+  };
+  const valueStyle = {
+    fontSize: '11px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-primary)',
+  };
+  const rowStyle = {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0',
+  };
+  const sectionLabelStyle = {
+    fontSize: '10px', fontFamily: 'var(--forge-font-tech)', color: 'var(--forge-text-muted)',
+    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', marginTop: '12px',
+  };
+
+  return (
+    <div style={{
+      marginTop: '12px', display: 'grid',
+      gridTemplateColumns: hasVolDiscount ? '1fr 1fr 1fr' : hasMaterialInfo ? '1fr 1fr' : '1fr',
+      gap: '16px',
+    }}>
+      {/* Column 1: Pricing breakdown */}
+      <div>
+        <div style={sectionLabelStyle}>Cenovy rozpad</div>
+        <div style={{
+          background: 'var(--forge-bg-surface)', borderRadius: 'var(--forge-radius-md)',
+          border: '1px solid var(--forge-border-default)', padding: '10px 12px',
+        }}>
+          {hasMaterialCost && (
+            <div style={rowStyle}>
+              <span style={labelStyle}>
+                Material
+                {pricePerGram ? <span style={{ opacity: 0.7 }}> ({round2(pricePerGram)} Kc/g)</span> : ''}
+              </span>
+              <span style={valueStyle}>{formatMoney(materialCost)}</span>
+            </div>
+          )}
+          {hasTimeCost && (
+            <div style={rowStyle}>
+              <span style={labelStyle}>Cas tisku</span>
+              <span style={valueStyle}>{formatMoney(timeCost)}</span>
+            </div>
+          )}
+          {hasFeesDetail && feesDetail.map((fee, fi) => (
+            <div key={fee.id || fi} style={rowStyle}>
+              <span style={labelStyle}>{fee.name || `Poplatek #${fi + 1}`}</span>
+              <span style={valueStyle}>{formatMoney(Number(fee.amount) || 0)}</span>
+            </div>
+          ))}
+          {hasFeesTotal && (
+            <div style={rowStyle}>
+              <span style={labelStyle}>Poplatky</span>
+              <span style={valueStyle}>{formatMoney(feesTotal)}</span>
+            </div>
+          )}
+          <div style={{ ...rowStyle, borderTop: '1px solid var(--forge-border-default)', marginTop: '4px', paddingTop: '6px' }}>
+            <span style={{ ...labelStyle, fontWeight: 700, color: 'var(--forge-text-primary)' }}>Cena za kus</span>
+            <span style={{ ...valueStyle, fontWeight: 700 }}>{formatMoney(unitPrice)}</span>
+          </div>
+          {qty > 1 && (
+            <div style={rowStyle}>
+              <span style={{ ...labelStyle, fontWeight: 700, color: 'var(--forge-text-primary)' }}>Celkem ({qty} ks)</span>
+              <span style={{ ...valueStyle, fontWeight: 700 }}>{formatMoney(lineTotal)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Column 2: Material info */}
+      {hasMaterialInfo && (
+        <div>
+          <div style={sectionLabelStyle}>Material</div>
+          <div style={{
+            background: 'var(--forge-bg-surface)', borderRadius: 'var(--forge-radius-md)',
+            border: '1px solid var(--forge-border-default)', padding: '10px 12px',
+          }}>
+            {materialSnap?.name && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>Nazev</span>
+                <span style={valueStyle}>{materialSnap.name}</span>
+              </div>
+            )}
+            {pricePerGram != null && pricePerGram > 0 && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>Cena za gram</span>
+                <span style={valueStyle}>{round2(pricePerGram)} Kc/g</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Column 3: Volume discount */}
+      {hasVolDiscount && (
+        <div>
+          <div style={sectionLabelStyle}>Mnozstevni sleva</div>
+          <div style={{
+            background: 'var(--forge-bg-surface)', borderRadius: 'var(--forge-radius-md)',
+            border: '1px solid var(--forge-border-default)', padding: '10px 12px',
+          }}>
+            {volForModel.tier && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>Tier</span>
+                <span style={valueStyle}>
+                  {volForModel.tier.label || `od ${volForModel.tier.min_qty} ks`}
+                  {volForModel.tier.value != null ? ` (${volForModel.tier.value}${order?.volume_discount_snapshot?.mode === 'percent' ? '%' : ''})` : ''}
+                </span>
+              </div>
+            )}
+            {volForModel.originalPerPiece != null && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>Puvodni cena/ks</span>
+                <span style={{ ...valueStyle, textDecoration: 'line-through', opacity: 0.6 }}>
+                  {formatMoney(volForModel.originalPerPiece)}
+                </span>
+              </div>
+            )}
+            {volForModel.discountedPerPiece != null && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>Zlevnena cena/ks</span>
+                <span style={{ ...valueStyle, color: 'var(--forge-success, #22c55e)', fontWeight: 700 }}>
+                  {formatMoney(volForModel.discountedPerPiece)}
+                </span>
+              </div>
+            )}
+            {volForModel.savings > 0 && (
+              <div style={{ ...rowStyle, borderTop: '1px solid var(--forge-border-default)', marginTop: '4px', paddingTop: '6px' }}>
+                <span style={{ ...labelStyle, fontWeight: 700, color: 'var(--forge-success, #22c55e)' }}>Uspora celkem</span>
+                <span style={{ ...valueStyle, fontWeight: 700, color: 'var(--forge-success, #22c55e)' }}>
+                  -{formatMoney(volForModel.savings)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Collapsible Item Row with Viewer ──
-function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload }) {
+function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload, order }) {
   const [expanded, setExpanded] = useState(false);
   const [blobUrl, setBlobUrl] = useState(null);
   const [blobLoading, setBlobLoading] = useState(false);
@@ -1227,6 +1397,8 @@ function ExpandableModelRow({ m, idx, hasStorage, storage, onDownload }) {
                 </div>
               </ViewerErrorBoundary>
             )}
+            {/* ── Pricing breakdown detail ── */}
+            <ModelPricingDetail m={m} bd={bd} qty={qty} unitPrice={unitPrice} order={order} />
           </td>
         </tr>
       )}
@@ -1882,6 +2054,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                       hasStorage={hasStorage}
                       storage={storage}
                       onDownload={handleDownloadFile}
+                      order={order}
                     />
                   ))}
                   {(order.models || []).length === 0 && (
@@ -2021,15 +2194,80 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           {/* Pricing breakdown */}
           <Card title={t('admin.orderDetail.sectionPricing', 'Cenovy rozpad')} icon="Calculator">
             <div className="od-breakdown">
+              {/* 1. Subtotal modely */}
               <div className="od-b-row"><span>{t('admin.orderDetail.subtotalModels', 'Subtotal modely')}</span><span>{formatMoney(totals.subtotal_models)}</span></div>
-              <div className="od-b-row"><span>{t('admin.orderDetail.oneTimeFees', 'Jednorazove poplatky')}</span><span>{formatMoney(totals.one_time_fees_total)}</span></div>
-              <div className="od-b-row"><span>{t('admin.orderDetail.shipping', 'Doprava')}</span><span>{formatMoney(totals.shipping_total)}</span></div>
+
+              {/* 2. Jednorazove poplatky */}
+              {totals.one_time_fees_total > 0 && (
+                <div className="od-b-row"><span>{t('admin.orderDetail.oneTimeFees', 'Jednorazove poplatky')}</span><span>{formatMoney(totals.one_time_fees_total)}</span></div>
+              )}
+
+              {/* 3. Order poplatky */}
+              {totals.order_fees_total > 0 && (
+                <>
+                  <div className="od-b-row"><span>{t('admin.orderDetail.orderFees', 'Order poplatky')}</span><span>{formatMoney(totals.order_fees_total)}</span></div>
+                  {order.order_fees_snapshot && Array.isArray(order.order_fees_snapshot) && order.order_fees_snapshot.map((fee, idx) => (
+                    <div key={`ofee-${idx}`} className="od-b-row" style={{ paddingLeft: '16px', fontSize: '12px', color: 'var(--forge-text-muted)' }}>
+                      <span style={{ fontStyle: 'italic' }}>{fee.name || fee.label || `Poplatek ${idx + 1}`}</span>
+                      <span>{formatMoney(Number(fee.amount) || 0)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* 4. Express prirazka */}
+              {totals.express_surcharge_total > 0 && (
+                <div className="od-b-row"><span>{t('admin.orderDetail.expressSurcharge', 'Express prirazka')}</span><span>{formatMoney(totals.express_surcharge_total)}</span></div>
+              )}
+
+              {/* 5. Mnozstevni sleva */}
+              {totals.volume_discount_total > 0 && (
+                <div className="od-b-row" style={{ color: 'var(--forge-success)' }}>
+                  <span>{t('admin.orderDetail.volumeDiscount', 'Mnozstevni sleva')}</span>
+                  <span>-{formatMoney(totals.volume_discount_total)}</span>
+                </div>
+              )}
+
+              {/* 6. Kupon */}
+              {totals.coupon_discount_total > 0 && (
+                <div className="od-b-row" style={{ color: 'var(--forge-success)' }}>
+                  <span>
+                    {t('admin.orderDetail.couponDiscount', 'Kupon')}
+                    {order.coupon_snapshot?.code && (
+                      <span style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '11px', marginLeft: '6px', opacity: 0.8 }}>({order.coupon_snapshot.code})</span>
+                    )}
+                  </span>
+                  <span>-{formatMoney(totals.coupon_discount_total)}</span>
+                </div>
+              )}
+
+              {/* 7. Markup */}
+              {totals.markup_amount > 0 && (
+                <div className="od-b-row"><span>{t('admin.orderDetail.markup', 'Markup')}</span><span>{formatMoney(totals.markup_amount)}</span></div>
+              )}
+
+              {/* 8. Min. objednavka */}
               {totals.min_order_delta !== 0 && (
                 <div className="od-b-row"><span>{t('admin.orderDetail.minOrderAdjust', 'Min. objednavka (dorovnani)')}</span><span>{formatMoney(totals.min_order_delta)}</span></div>
               )}
+
+              {/* 9. Zaokrouhleni */}
               {totals.rounding_delta !== 0 && (
                 <div className="od-b-row"><span>{t('admin.orderDetail.rounding', 'Zaokrouhleni')}</span><span>{formatMoney(totals.rounding_delta)}</span></div>
               )}
+
+              {/* 10. Doprava */}
+              <div className="od-b-row">
+                <span>
+                  {t('admin.orderDetail.shipping', 'Doprava')}
+                  {order.shipping_snapshot?.name && (
+                    <span style={{ fontFamily: 'var(--forge-font-tech)', fontSize: '11px', marginLeft: '6px', opacity: 0.8 }}>({order.shipping_snapshot.name})</span>
+                  )}
+                </span>
+                <span>{formatMoney(totals.shipping_total)}</span>
+              </div>
+
+              {/* 11. Celkem */}
               <div className="od-b-row od-b-total"><span>{t('admin.orderDetail.total', 'Celkem')}</span><span>{formatMoney(totals.total)}</span></div>
             </div>
 

@@ -157,7 +157,8 @@ export default function Routes() {
               <Route path="payments" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminPayments /></PageTransition></Suspense>} />
               <Route path="model-storage" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminModelStorage /></PageTransition></Suspense>} />
               <Route path="widget" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminWidget /></PageTransition></Suspense>} />
-              <Route path="analytics" element={<Suspense fallback={<AdminDashboardFallback />}><PageTransition><AdminAnalytics /></PageTransition></Suspense>} />
+              {/* Hidden for beta - analytics not ready yet */}
+              <Route path="lockanalytics" element={<Suspense fallback={<AdminDashboardFallback />}><PageTransition><AdminAnalytics /></PageTransition></Suspense>} />
               <Route path="team" element={<Suspense fallback={<AdminTableFallback />}><PageTransition><AdminTeamAccess /></PageTransition></Suspense>} />
               <Route path="express" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminExpress /></PageTransition></Suspense>} />
               <Route path="shipping" element={<Suspense fallback={<AdminFormFallback />}><PageTransition><AdminShipping /></PageTransition></Suspense>} />

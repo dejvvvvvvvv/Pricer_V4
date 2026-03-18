@@ -525,7 +525,7 @@ function CardPaymentCard({ t }) {
   );
 }
 
-export default function OrderConfirmation({ order, onStartNew }) {
+export default function OrderConfirmation({ order, onStartNew, isWidget = false }) {
   const { language } = useLanguage();
   const t = (cs, en) => (language === 'en' ? en : cs);
   const confettiFiredRef = useRef(false);
@@ -756,34 +756,36 @@ export default function OrderConfirmation({ order, onStartNew }) {
         gap: '0.75rem',
         alignItems: 'stretch',
       }}>
-        {/* Track order — primary CTA */}
-        <button
-          onClick={handleTrackOrder}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            padding: '12px 24px',
-            fontSize: 'var(--forge-text-base)',
-            fontFamily: 'var(--forge-font-heading)',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--forge-bg-primary)',
-            background: 'var(--forge-accent-primary)',
-            border: 'none',
-            borderRadius: 'var(--forge-radius-md)',
-            cursor: 'pointer',
-            transition: 'opacity 0.15s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-          aria-label={t('Sledovat objednavku', 'Track your order')}
-        >
-          <Icon name="PackageSearch" size={18} />
-          {t('Sledovat objednavku', 'Track Your Order')}
-        </button>
+        {/* Track order — primary CTA (hidden in widget context) */}
+        {!isWidget && (
+          <button
+            onClick={handleTrackOrder}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '12px 24px',
+              fontSize: 'var(--forge-text-base)',
+              fontFamily: 'var(--forge-font-heading)',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--forge-bg-primary)',
+              background: 'var(--forge-accent-primary)',
+              border: 'none',
+              borderRadius: 'var(--forge-radius-md)',
+              cursor: 'pointer',
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            aria-label={t('Sledovat objednavku', 'Track your order')}
+          >
+            <Icon name="PackageSearch" size={18} />
+            {t('Sledovat objednavku', 'Track Your Order')}
+          </button>
+        )}
 
         {/* Secondary row: print + new order */}
         <div style={{ display: 'flex', gap: '0.75rem' }}>

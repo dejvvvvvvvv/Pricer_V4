@@ -21,6 +21,7 @@ const ShopifyCartButton = ({
   publicWidgetId = null,
   disabled = false,
   onCheckoutUrl,
+  onAddToCartClicked,
   tenantId = undefined,
 }) => {
   const [status, setStatus] = useState('idle'); // idle | loading | success | error | warning
@@ -34,6 +35,9 @@ const ShopifyCartButton = ({
     setStatus('loading');
     setErrorMsg('');
     setUnmappedModels([]);
+
+    // Notify parent for analytics tracking
+    try { onAddToCartClicked?.(); } catch { /* analytics must not break the widget */ }
 
     try {
       // Map quote to Shopify line items
@@ -169,7 +173,7 @@ const ShopifyCartButton = ({
       setErrorMsg(err.message || 'Unknown error');
       setStatus('error');
     }
-  }, [quoteResult, shopifyConfig, uploadedFiles, embedded, publicWidgetId, onCheckoutUrl, tenantId]);
+  }, [quoteResult, shopifyConfig, uploadedFiles, embedded, publicWidgetId, onCheckoutUrl, onAddToCartClicked, tenantId]);
 
   const handleRetry = useCallback(() => {
     setStatus('idle');

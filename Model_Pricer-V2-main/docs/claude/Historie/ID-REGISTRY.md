@@ -1,8 +1,8 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Posledni pouzite ID:** 205
-**Dalsi ID k pouziti:** 206
-**Poslední aktualizace:** 2026-03-15 (Session S06 — Finalizace Admin Analytics planu, 204-AN + 205-AN)
+**Posledni pouzite ID:** 206
+**Dalsi ID k pouziti:** 207
+**Poslední aktualizace:** 2026-03-16 (Session S02 — Analytics Bug Fixes Round 2, 206-AN)
 
 ---
 
@@ -54,6 +54,7 @@
 | **203-AN** | 2026-03-15 | Analytics | **Admin Analytics analyza a planovani — prechod na realna data** | **0** |
 | **204-AN** | 2026-03-15 | Analytics | **Finalizace Analytics planu — Q&A, 6 otazek, rozhodnuti** | **0** |
 | **205-AN** | 2026-03-15 | Analytics | **Admin Analytics Q&A — otazky a odpovedi k planu** | **0** |
+| **206-AN** | 2026-03-16 | Analytics | **Analytics Bug Fixes Round 2 — weight_grams, granularity, widget tenantId** | **5** |
 
 ---
 

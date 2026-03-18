@@ -204,6 +204,22 @@
 
 ---
 
+## 2026-03-16
+
+### S07: Admin Analytics Implementace Vlna 1
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **205-AN** | 2026-03-16 | KONVERZACE | AN | Admin Analytics implementace — Faze 2-7 HOTOVO, build PASS, testovani kompletni | 3 | AdminAnalytics.jsx (expanze metrik, Orders tab prepis), AnalyticsCharts.jsx (4 nove grafy), AnalyticsDashboardGrid.jsx (NOVY, drag&drop); 0 JS errors, 15/19 admin PASS, 9/9 public PASS; 4 audit reporty |
+
+### S02: Analytics Bug Fixes Round 2
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **206-AN** | 2026-03-16 | UPRAVY | AN | Analytics Bug Fixes Round 2 — weight_grams field mismatch, granularity switcher, widget tenantId override | 5 | 1) adminAnalyticsStorage.js fallback field names; 2) test-kalkulacka + widget-kalkulacka kanonske field names; 3) AnalyticsDashboardGrid.jsx useMemo re-agregace; 4) adminTenantStorage.js UUID validace + widget tenantId override; Build PASS |
+
+---
+
 ## 2026-03-13
 
 ### S25: Security Fixes Waves 4-7

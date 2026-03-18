@@ -108,7 +108,19 @@ export default function TabItemsFiles({ order, onClose }) {
                       </span>
                     </div>
                   </td>
-                  <td style={{ padding: '10px', color: 'var(--forge-text-secondary)' }}>{material}</td>
+                  <td style={{ padding: '10px', color: 'var(--forge-text-secondary)' }}>
+                    {material}
+                    {model?.material_snapshot?.price_per_gram != null && Number(model.material_snapshot.price_per_gram) > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        fontFamily: 'var(--forge-font-tech)',
+                        color: 'var(--forge-text-muted)',
+                        marginLeft: '4px',
+                      }}>
+                        ({round2(model.material_snapshot.price_per_gram)} Kc/g)
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '10px', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-tech)' }}>{qty}</td>
                   <td style={{ padding: '10px', color: 'var(--forge-text-secondary)', fontFamily: 'var(--forge-font-tech)' }}>
                     {timeMin != null ? formatTime(timeMin) : '-'}
@@ -143,6 +155,65 @@ export default function TabItemsFiles({ order, onClose }) {
           </tbody>
         </table>
       </div>
+
+      {/* Per-model fees detail */}
+      {models.some(m => {
+        const fd = m?.price_breakdown_snapshot?.fees_detail;
+        return Array.isArray(fd) && fd.length > 0;
+      }) && (
+        <div>
+          <h4 style={{
+            fontSize: '11px',
+            fontFamily: 'var(--forge-font-tech)',
+            color: 'var(--forge-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '8px',
+          }}>Fees Breakdown per Model</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {models.map((model) => {
+              const fd = model?.price_breakdown_snapshot?.fees_detail;
+              if (!Array.isArray(fd) || fd.length === 0) return null;
+              const filename = model?.file_snapshot?.filename || 'unknown';
+              return (
+                <div key={model.id} style={{
+                  padding: '10px 14px',
+                  background: 'var(--forge-bg-elevated)',
+                  borderRadius: 'var(--forge-radius-sm)',
+                  border: '1px solid var(--forge-border-default)',
+                }}>
+                  <div style={{
+                    fontSize: '12px',
+                    fontFamily: 'var(--forge-font-body)',
+                    color: 'var(--forge-text-primary)',
+                    fontWeight: 600,
+                    marginBottom: '6px',
+                  }}>{filename}</div>
+                  {fd.map((fee, fi) => (
+                    <div key={fee.id || fi} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '2px 0',
+                    }}>
+                      <span style={{
+                        fontSize: '11px',
+                        fontFamily: 'var(--forge-font-body)',
+                        color: 'var(--forge-text-muted)',
+                      }}>{fee.name || `Fee #${fi + 1}`}{fee.type ? ` (${fee.type})` : ''}</span>
+                      <span style={{
+                        fontSize: '11px',
+                        fontFamily: 'var(--forge-font-tech)',
+                        color: 'var(--forge-text-primary)',
+                      }}>{formatMoney(Number(fee.amount) || 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Storage status + actions */}
       <div style={{

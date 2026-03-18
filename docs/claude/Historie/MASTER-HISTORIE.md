@@ -7,13 +7,36 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 221+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU)
-- **Posledni zaznam:** 185-AU (UPRAVY 2026-03-15, Session S03 — Auth Security Fixes: 7 souboru, 2 P0 + 3 P1 + 2 P2 opraveno)
-- **Posledni aktualizace:** 2026-03-15 (Session S03 — Security review Supabase Auth migrace, 2 nove zaznamy: 184-AU KONVERZACE + 185-AU UPRAVY)
+- **Celkem zaznamu:** 228+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-212 WK)
+- **Posledni zaznam:** 212-WK (UPRAVY 2026-03-18, Session S02 — Widget P1 Code Review Fixes)
+- **Posledni aktualizace:** 2026-03-18 (Session S02 — Widget P1 Code Review Fixes, novy zaznam: 212-WK UPRAVY)
 
 ---
 
 ## Zaznamy podle dne
+
+### 2026-03-18 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **211** | **WK** | **UPRAVY** | **Widget Checkout Flow + Pricing Layout Fix — checkout step 4 (CheckoutForm) + step 5 (OrderConfirmation) importovany z test-kalkulacky, 5-step WidgetStepper (Lucide ikony, responzivni), PricingCalculator kompletne prepsan na inline styles (Tailwind→inline pro iframe), postMessage MODELPRICER_ORDER_CREATED, ShopifyCartButton jen v Shopify mode, build PASS** |
+| **212** | **WK** | **UPRAVY** | **Widget P1 Code Review Fixes — handleStartNewOrder chybejici resety (express/shipping/batch/priceShownSetRef), Tailwind→inline styles v CTA/filelist (12+ vyskytu), PricingCalculator nepoouzivany import odstranen + formatCzk() misto hardcoded "Kc", OrderConfirmation isWidget prop pro skryti navigace ve widgetu, build PASS** |
+
+### 2026-03-16 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **205** | **AN** | **KONVERZACE** | **Admin Analytics — Real Data + Drag & Drop Grid Implementation (Faze 2-5 implementovany)** |
+| **206** | **AT** | **UPRAVY** | **Analytics Tracking Wiring — Calculator events (model upload, slicing, price shown, add-to-cart, order created) + widget tracking, 5 souboru, CSV bugfix, real data flow Calculator → Firestore → Dashboard** |
+
+### 2026-03-17 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **207** | **BH** | **UPRAVY** | **Analytics Hidden for Beta — route lockanalytics, menu commented, data accuracy issues pending** |
+| **208** | **AO** | **UPRAVY** | **P0 Order Data Completeness — CheckoutForm 6 novych snapshot poli (shipping/express/volume/fees/totals), AdminOrderDetail pricing 5→11 polozek, TabShipping+TabCustomer nove sekce, computeOrderTotals 6 novych return poli, zpetna kompatibilita** |
+| **209** | **AO** | **UPRAVY** | **P1 Order Data Display Fix — computeOrderTotals early return pro totals_snapshot (autoritativni zdroj), oprava shipping double-add, legacy fallback rozsiren (express/coupon/volume/fees/markup), nova ModelPricingDetail komponenta (per-model pricing breakdown, fees rozpad, volume discounty)** |
+| **210** | **AO** | **UPRAVY** | **P2 Order Detail Modal, Export, Per-model Fees — PricingSummary sticky footer (subtotal/fees/express/kupon/volume/markup/doprava/zaokrouhleni/celkem), TabItemsFiles material price_per_gram + per-model fees breakdown, OrderExportActions 9 novych sloupcu (shipping_method/express/coupon/volume/markup/fees/payment)** |
 
 ### 2026-02-19 (S01)
 
@@ -293,3 +316,6 @@
 | `Historie/2026-03-12/` | 1 zaznam (Session S01: 5 implementaci, 15 rate-limited; ID 159) |
 | `Historie/2026-03-13/` | 30 zaznamu + Wave 34-55 (Session S20: Supabase DB Complete Setup (ID 160), Session S25 Wave 3-31: Security/Sync/Bugfixes/Page Polish/Error Handling/Storage Helpers/TeamAccess+Settings Final/Shopify Payments (ID 161-198), Session S26 P1 Bugs + Data Flow (ID 164-165), Session S27 P1 Bugs Wave 6 + Utilities Wave 7 (ID 166-168), Session S28 Pricing Engine + Checkout (ID 169-171), Session S29 Browser Testing (ID 172-173), Session S30 Critical Bug Fix (ID 174-175), Session S31 Public Pages Testing (ID 176-177), Session S32 E2E Testing + Widget Embed (ID 178-179), Session S33 Wave 33: API Docs + XSS Fix (ID 200), Wave 34-37: Final P0/Storage/Colors/Console cleanup, Wave 38-41: Code Splitting/i18n Cleanup, Wave 42-45: A11y Fixes/Backend Security/ErrorBoundary Coverage, Wave 46-49: Build Verify/Empty States/Logger/Masivni i18n Part 1 (370+ klicu), **Wave 50-52: Masivni i18n Part 2 (860+ klicu, 15 admin stranek)**, **Wave 53-55: Masivni i18n Part 3 — FINALIZACE (1,100+ klicu total, ALL 23 admin stranek)**, WAVE-53-55-i18n-complete.md) |
 | `Historie/2026-03-15/` | 6 zaznamu (S01: Supabase Auth Migrace Faze 1-5 ID 180-181, S02: Auth Bugfix + Tenant Audit ID 182-183, S03: Auth Security Review + Fixes ID 184-185) |
+| `Historie/2026-03-16/` | 2 zaznamu (S01: Admin Analytics Real Data + Grid ID 205-AN, Analytics Tracking Wiring ID 206-AT) |
+| `Historie/2026-03-17/` | 4 zaznamy (S01: Analytics Hidden for Beta ID 207-BH; S02: P0 Order Data Completeness ID 208-AO; S03: P1 Order Data Display Fix ID 209-AO; S04: P2 Order Detail Modal/Export/Fees ID 210-AO) |
+| `Historie/2026-03-18/` | 2 zaznamy (S01: Widget Checkout Flow + Pricing Layout Fix ID 211-WK; S02: Widget P1 Code Review Fixes ID 212-WK) |

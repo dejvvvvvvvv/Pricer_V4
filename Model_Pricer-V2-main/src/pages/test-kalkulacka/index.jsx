@@ -25,6 +25,7 @@ import { loadCouponsConfigV1 } from '../../utils/adminCouponStorage';
 import { getShopifyConfig } from '../../utils/adminEcommerceStorage';
 import { getBranding } from '../../utils/adminBrandingWidgetStorage';
 import { getTenantId } from '../../utils/adminTenantStorage';
+import { trackAnalyticsEvent, generateSessionId, ANALYTICS_EVENT_TYPES } from '../../utils/adminAnalyticsStorage';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 import { parseSlicerError } from '../../utils/slicerErrorClassifier';
 import useDebouncedRecalculation from './hooks/useDebouncedRecalculation';
@@ -122,12 +123,30 @@ const TestKalkulacka = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [sliceAllProcessing, setSliceAllProcessing] = useState(false);
 
+  // Analytics session tracking
+  const [analyticsSessionId] = useState(() => generateSessionId());
+
   // Wrapper: track highest step reached for breadcrumb navigation
   const setCurrentStep = useCallback((step) => {
     const nextStep = typeof step === 'function' ? step(currentStep) : step;
     setCurrentStepRaw(nextStep);
     setHighestStepReached(prev => Math.max(prev, nextStep));
   }, [currentStep]);
+
+  // Analytics helper — wraps trackAnalyticsEvent so failures never break the calculator
+  const trackEvent = useCallback((eventType, metadata = {}) => {
+    try {
+      trackAnalyticsEvent({
+        tenantId: getTenantId(),
+        sessionId: analyticsSessionId,
+        eventType,
+        metadata,
+      });
+    } catch (e) {
+      // Analytics should never break the calculator
+      console.warn('[Analytics] tracking failed:', e);
+    }
+  }, [analyticsSessionId]);
 
   // Navigate to a previously completed step (preserves all data)
   const handleStepClick = useCallback((stepId) => {
@@ -226,6 +245,41 @@ const TestKalkulacka = () => {
   }, [uploadedFiles, printConfigs, pricingConfig, feesConfig, feeSelections,
       expressConfig, selectedExpressTierId, couponsConfig, appliedCouponCode,
       shippingConfig, selectedShippingMethodId]);
+
+  // Analytics: track first price shown per session
+  const priceShownRef = useRef(false);
+
+  useEffect(() => {
+    if (stickyTotalPrice > 0 && !priceShownRef.current) {
+      priceShownRef.current = true;
+      const completedFiles = uploadedFiles.filter(f => f.status === 'completed');
+      const firstFile = completedFiles[0];
+      const config = firstFile ? printConfigs[firstFile.id] : {};
+      const firstResult = firstFile?.result;
+      trackEvent(ANALYTICS_EVENT_TYPES.PRICE_SHOWN, {
+        material: config?.material || '',
+        preset: config?.quality || '',
+        weight_grams: firstResult?.metrics?.filamentGrams || firstResult?.metrics?.weight_g || 0,
+        print_time_seconds: (firstResult?.metrics?.estimatedTimeSeconds || (firstResult?.metrics?.time_min ?? 0) * 60) || 0,
+        price_total: stickyTotalPrice,
+        currency: 'CZK',
+        model_count: completedFiles.length,
+      });
+    }
+  }, [stickyTotalPrice, uploadedFiles, printConfigs, trackEvent]);
+
+  // Analytics: track step 3 -> step 4 transition (add to cart)
+  const prevStepRef = useRef(currentStep);
+  useEffect(() => {
+    if (prevStepRef.current === 3 && currentStep === 4) {
+      trackEvent(ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, {
+        price_total: stickyTotalPrice,
+        currency: 'CZK',
+        model_count: uploadedFiles.filter(f => f.status === 'completed').length,
+      });
+    }
+    prevStepRef.current = currentStep;
+  }, [currentStep, stickyTotalPrice, uploadedFiles, trackEvent]);
 
   const animatedPrice = useCountUp(stickyTotalPrice ?? 0, 500);
 
@@ -442,6 +496,12 @@ const TestKalkulacka = () => {
     const presetId = selectedPresetIds[fileId] ?? null;
 
     updateModelStatus(fileId, { status: 'processing', error: null });
+    trackEvent(ANALYTICS_EVENT_TYPES.SLICING_STARTED, {
+      file_name: file.name,
+      material: (printConfigs[fileId] || {}).material || '',
+      preset: (printConfigs[fileId] || {}).quality || '',
+      source: 'auto_recalc',
+    });
 
     const trySliceWithFallback = async (pid) => {
       try {
@@ -461,6 +521,15 @@ const TestKalkulacka = () => {
         const ok = (res?.ok ?? res?.success ?? true);
         if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
         updateModelStatus(fileId, { status: 'completed', result: res, error: null });
+        trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+          file_name: file.name,
+          material: (printConfigs[fileId] || {}).material || '',
+          preset: (printConfigs[fileId] || {}).quality || '',
+          weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || 0,
+          print_time_seconds: (res?.metrics?.estimatedTimeSeconds || (res?.metrics?.time_min ?? 0) * 60) || 0,
+          result_status: 'success',
+          source: 'auto_recalc',
+        });
       })
       .catch(err => {
         debug('[test-kalkulacka] Auto-recalc failed:', err);
@@ -472,8 +541,14 @@ const TestKalkulacka = () => {
           errorSeverity: classified.severity,
           errorRaw: classified.raw,
         });
+        trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+          file_name: file.name,
+          result_status: 'failed',
+          error: classified?.userMessage || String(err),
+          source: 'auto_recalc',
+        });
       });
-  }, [uploadedFiles, selectedPresetIds, updateModelStatus]);
+  }, [uploadedFiles, selectedPresetIds, updateModelStatus, printConfigs, trackEvent]);
 
   const { trigger: triggerRecalc, triggerSlider: triggerRecalcSlider, cancel: cancelRecalc } = useDebouncedRecalculation(doRecalc);
 
@@ -669,6 +744,11 @@ const TestKalkulacka = () => {
     try {
       updateModelStatus(selectedFile.id, { status: 'processing', error: null });
       slicingToasts.startSlice(selectedFile.id, selectedFile.name);
+      trackEvent(ANALYTICS_EVENT_TYPES.SLICING_STARTED, {
+        file_name: selectedFile.name,
+        material: cfg?.material || '',
+        preset: cfg?.quality || '',
+      });
 
       debug('[test-kalkulacka] Slicing (local) file:', selectedFile.name, 'config:', cfg);
 
@@ -701,6 +781,14 @@ const TestKalkulacka = () => {
         error: null,
       });
       slicingToasts.completeSlice(selectedFile.id);
+      trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+        file_name: selectedFile.name,
+        material: cfg?.material || '',
+        preset: cfg?.quality || '',
+        weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || 0,
+        print_time_seconds: (res?.metrics?.estimatedTimeSeconds || (res?.metrics?.time_min ?? 0) * 60) || 0,
+        result_status: 'success',
+      });
 
       // Log to admin notification storage
       addNotification({ type: 'slicing', title: `Slicovani dokonceno: ${selectedFile.name}` });
@@ -718,11 +806,16 @@ const TestKalkulacka = () => {
         errorRaw: classified.raw,
       });
       slicingToasts.failSlice(selectedFile.id, classified.userMessage);
+      trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+        file_name: selectedFile.name,
+        result_status: 'failed',
+        error: classified?.userMessage || String(err),
+      });
 
       // Log error to admin notification storage
       addNotification({ type: 'error', title: `Slicovani selhalo: ${selectedFile.name}`, description: classified.userMessage });
     }
-  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, slicingToasts]);
+  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, slicingToasts, trackEvent]);
 
   const runBatchSlice = useCallback(async (targets, mode) => {
     if (!Array.isArray(targets) || targets.length === 0) return;
@@ -754,6 +847,10 @@ const TestKalkulacka = () => {
         try {
           updateModelStatus(fileItem.id, { status: 'processing', error: null });
           slicingToasts.updateBatch(batchId, done, fileItem.name);
+          trackEvent(ANALYTICS_EVENT_TYPES.SLICING_STARTED, {
+            file_name: fileItem.name,
+            batch_mode: mode,
+          });
           debug('[test-kalkulacka] Batch slicing (local):', fileItem.name);
 
           const trySliceWithFallback = async (presetId) => {
@@ -784,6 +881,13 @@ const TestKalkulacka = () => {
             result: res,
             error: null,
           });
+          trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+            file_name: fileItem.name,
+            batch_mode: mode,
+            weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || 0,
+            print_time_seconds: (res?.metrics?.estimatedTimeSeconds || (res?.metrics?.time_min ?? 0) * 60) || 0,
+            result_status: 'success',
+          });
         } catch (err) {
           hasErrors = true;
           debug('[test-kalkulacka] Batch slice failed:', fileItem.name, err);
@@ -794,6 +898,12 @@ const TestKalkulacka = () => {
             errorCategory: classified.category,
             errorSeverity: classified.severity,
             errorRaw: classified.raw,
+          });
+          trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+            file_name: fileItem.name,
+            batch_mode: mode,
+            result_status: 'failed',
+            error: classified?.userMessage || String(err),
           });
         } finally {
           done += 1;
@@ -812,7 +922,7 @@ const TestKalkulacka = () => {
         title: `Davkove slicovani dokonceno ${resultLabel} (${targets.length} souboru)`,
       });
     }
-  }, [currentStep, selectedPresetIds, updateModelStatus, slicingToasts]);
+  }, [currentStep, selectedPresetIds, updateModelStatus, slicingToasts, trackEvent]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0) return;
@@ -857,6 +967,11 @@ const TestKalkulacka = () => {
         error: null,
       };
       setUploadedFiles(prev => [...prev, modelObject]);
+      trackEvent(ANALYTICS_EVENT_TYPES.MODEL_UPLOAD_COMPLETED, {
+        file_name: modelObject.name,
+        file_size: modelObject.size,
+        file_type: modelObject.type,
+      });
 
       // Create default config right away so later selecting this model does NOT
       // clear its slicing result (important for "Spočítat vse" batch slicing).
@@ -895,6 +1010,7 @@ const TestKalkulacka = () => {
     setAppliedCouponCode('');
     clearConfig(); // Clear auto-saved config on reset
     configUndoRedo.clearAll(); // Clear undo/redo history on full reset
+    priceShownRef.current = false; // Reset analytics price tracking for new session
   };
 
   const handleFileDelete = (fileToDelete) => {
@@ -934,7 +1050,13 @@ const TestKalkulacka = () => {
     setLastOrderResult(orderResult);
     setCurrentStep(5);
     clearConfig(); // Clear auto-saved config after successful order
-  }, [clearConfig, setCurrentStep]);
+    trackEvent(ANALYTICS_EVENT_TYPES.ORDER_CREATED, {
+      order_id: orderResult?.id,
+      price_total: orderResult?.totals_snapshot?.grandTotal || orderResult?.totals_snapshot?.total || 0,
+      currency: orderResult?.totals_snapshot?.currency || 'CZK',
+      model_count: orderResult?.models?.length || 0,
+    });
+  }, [clearConfig, setCurrentStep, trackEvent]);
 
   // S02: Called from confirmation page to start fresh
   const handleStartNewOrder = useCallback(() => {

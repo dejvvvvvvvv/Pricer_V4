@@ -7,9 +7,9 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 185
-**Dalsi ID k pouziti:** 186
-**Posledni aktualizace:** 2026-03-15 (Session S03 — Auth Security Review + Fixes, 184-AU + 185-AU)
+**Posledni pouzite ID:** 212
+**Dalsi ID k pouziti:** 213
+**Posledni aktualizace:** 2026-03-18 (Session S02 — Widget P1 Code Review Fixes, 212-WK)
 
 ---
 
@@ -299,5 +299,5 @@ S{NN}
 
 ---
 
-**Posledni aktualizace:** 2026-03-15 (Session S03 — Auth Security Review + Fixes, 184-AU + 185-AU)
-**Posledni session:** S03 (2026-03-15) — Security review Supabase Auth migrace (2 zaznamy: KONVERZACE + UPRAVY)
+**Posledni aktualizace:** 2026-03-18 (Session S01 — Widget Checkout Flow + Pricing Layout Fix, 211-WK)
+**Posledni session:** S01 (2026-03-18) — Widget Checkout Flow + Pricing Layout Fix (1 zaznam: UPRAVY)

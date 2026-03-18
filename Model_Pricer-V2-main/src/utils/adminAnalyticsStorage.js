@@ -123,8 +123,14 @@ export function buildSessionsFromEvents(events) {
     const material = priceShown?.metadata?.material || slicingCompleted?.metadata?.material || '—';
     const preset = priceShown?.metadata?.preset || slicingCompleted?.metadata?.preset || '—';
 
-    const weight_g = Number(priceShown?.metadata?.weight_grams ?? slicingCompleted?.metadata?.weight_grams ?? 0) || 0;
-    const print_time_seconds = Number(priceShown?.metadata?.print_time_seconds ?? slicingCompleted?.metadata?.print_time_seconds ?? 0) || 0;
+    const weight_g = Number(
+      priceShown?.metadata?.weight_grams ?? priceShown?.metadata?.weight_g ?? priceShown?.metadata?.material_used ??
+      slicingCompleted?.metadata?.weight_grams ?? slicingCompleted?.metadata?.weight_g ?? slicingCompleted?.metadata?.material_used ?? 0
+    ) || 0;
+    const print_time_seconds = Number(
+      priceShown?.metadata?.print_time_seconds ?? priceShown?.metadata?.print_time ??
+      slicingCompleted?.metadata?.print_time_seconds ?? slicingCompleted?.metadata?.print_time ?? 0
+    ) || 0;
     const price_total = Number(priceShown?.metadata?.price_total ?? 0) || 0;
     const currency = priceShown?.metadata?.currency || 'CZK';
 

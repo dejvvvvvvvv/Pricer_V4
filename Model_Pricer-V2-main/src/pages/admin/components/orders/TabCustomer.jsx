@@ -92,6 +92,88 @@ export default function TabCustomer({ order, onSaveNote, onUpdateOrders }) {
         <InfoRow label="Company" value={customer.company} />
       </div>
 
+      {/* Company info (if business purchase) */}
+      {order?.is_company_purchase && order?.company_info && (
+        <div>
+          <h4 style={{
+            fontSize: '12px',
+            fontFamily: 'var(--forge-font-tech)',
+            color: 'var(--forge-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '8px',
+          }}>Firemni udaje</h4>
+          <div style={{
+            padding: '16px',
+            background: 'var(--forge-bg-elevated)',
+            borderRadius: 'var(--forge-radius-sm)',
+            border: '1px solid var(--forge-border-default)',
+          }}>
+            <InfoRow label="Firma" value={order.company_info.name} />
+            <InfoRow label="ICO" value={order.company_info.ico} />
+            <InfoRow label="DIC" value={order.company_info.dic} />
+          </div>
+        </div>
+      )}
+
+      {/* Coupon info */}
+      {order?.coupon_snapshot && order.coupon_snapshot.code && (
+        <div>
+          <h4 style={{
+            fontSize: '12px',
+            fontFamily: 'var(--forge-font-tech)',
+            color: 'var(--forge-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '8px',
+          }}>Kupon</h4>
+          <div style={{
+            padding: '16px',
+            background: 'var(--forge-bg-elevated)',
+            borderRadius: 'var(--forge-radius-sm)',
+            border: '1px solid var(--forge-border-default)',
+          }}>
+            <InfoRow label="Kod" value={order.coupon_snapshot.code} />
+            {order.coupon_snapshot.type && <InfoRow label="Typ" value={order.coupon_snapshot.type} />}
+            {order.coupon_snapshot.discount != null && (
+              <InfoRow label="Sleva" value={
+                order.coupon_snapshot.type === 'PERCENT'
+                  ? `${order.coupon_snapshot.discount}%`
+                  : `${Number(order.coupon_snapshot.discount).toFixed(2)} Kc`
+              } />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Payment info */}
+      {(order?.payment_method || order?.payment_info) && (
+        <div>
+          <h4 style={{
+            fontSize: '12px',
+            fontFamily: 'var(--forge-font-tech)',
+            color: 'var(--forge-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '8px',
+          }}>Platebni udaje</h4>
+          <div style={{
+            padding: '16px',
+            background: 'var(--forge-bg-elevated)',
+            borderRadius: 'var(--forge-radius-sm)',
+            border: '1px solid var(--forge-border-default)',
+          }}>
+            {order.payment_method && <InfoRow label="Zpusob platby" value={order.payment_method} />}
+            {order.payment_info?.variable_symbol && <InfoRow label="Variabilni symbol" value={order.payment_info.variable_symbol} />}
+            {order.payment_info?.bank_account?.account_number && <InfoRow label="Cislo uctu" value={order.payment_info.bank_account.account_number} />}
+            {order.payment_info?.bank_account?.iban && <InfoRow label="IBAN" value={order.payment_info.bank_account.iban} />}
+            {order.payment_info?.due_date && (
+              <InfoRow label="Splatnost" value={new Date(order.payment_info.due_date).toLocaleDateString('cs-CZ')} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Internal notes */}
       <div>
         <h4 style={{

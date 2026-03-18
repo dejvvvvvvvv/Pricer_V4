@@ -42,6 +42,15 @@ const CSV_COLUMNS = [
   { key: 'total_price', label: 'Celkova cena' },
   { key: 'file_names', label: 'Soubory' },
   { key: 'flags', label: 'Flags' },
+  { key: 'shipping_method', label: 'Doprava' },
+  { key: 'express_tier', label: 'Express tier' },
+  { key: 'express_surcharge', label: 'Express priplatek' },
+  { key: 'coupon_code', label: 'Kupon kod' },
+  { key: 'coupon_discount', label: 'Kupon sleva' },
+  { key: 'volume_discount', label: 'Objemova sleva' },
+  { key: 'markup', label: 'Marze' },
+  { key: 'order_fees', label: 'Poplatky' },
+  { key: 'payment_method', label: 'Platebni metoda' },
 ];
 
 /**
@@ -68,6 +77,15 @@ function flattenOrder(o) {
     total_price: totals.total,
     file_names: fileNames,
     flags: collectOrderFlags(o).join(', '),
+    shipping_method: o.shipping_snapshot?.name || '',
+    express_tier: o.express_snapshot?.tier_id || '',
+    express_surcharge: o.totals_snapshot?.express_surcharge_total || 0,
+    coupon_code: o.coupon_snapshot?.code || '',
+    coupon_discount: o.coupon_snapshot?.discount || 0,
+    volume_discount: o.totals_snapshot?.volume_discount_total || 0,
+    markup: o.totals_snapshot?.markup_amount || 0,
+    order_fees: o.totals_snapshot?.order_fees_total || 0,
+    payment_method: o.payment_method || '',
   };
 }
 

@@ -73,31 +73,48 @@ export function computeOrderTotals(order) {
     subtotalModels += modelPrice * qty;
   }
 
-  const oneTimeFeesTotal = computeFeesTotal(order.one_time_fees || []);
-
-  // For Variant A (demo), minima/rounding deltas are stored on order snapshot if present.
-  const minOrderDelta = Number(order?.totals_snapshot?.min_order_delta || 0);
-  const roundingDelta = Number(order?.totals_snapshot?.rounding_delta || 0);
-  const shippingTotal = Number(order?.totals_snapshot?.shipping_total || 0);
-
-  // Fallback: if per-model prices are all 0 but order has a pre-computed total, use it
-  // This handles calculator-created orders where model_total is 0 but totals_snapshot.total is correct
-  if (subtotalModels === 0 && order?.totals_snapshot?.total) {
-    const snapshotTotal = Number(order.totals_snapshot.total) || 0;
+  // --- Authoritative source: totals_snapshot from pricing engine ---
+  // If the order has a totals_snapshot with a valid total, use it as the single source of truth.
+  // The pricing engine already computed the correct total including all fees, discounts, surcharges, etc.
+  const ts = order.totals_snapshot;
+  if (ts?.total != null && Number(ts.total) > 0) {
+    const oneTimeFees = computeFeesTotal(order.one_time_fees || []);
     return {
-      subtotal_models: round2(snapshotTotal),
-      one_time_fees_total: oneTimeFeesTotal,
-      shipping_total: shippingTotal,
-      min_order_delta: minOrderDelta,
-      rounding_delta: roundingDelta,
-      total: round2(snapshotTotal + oneTimeFeesTotal + shippingTotal + minOrderDelta + roundingDelta),
+      subtotal_models: Number(ts.subtotal_models) || Number(ts.models_total) || round2(subtotalModels),
+      one_time_fees_total: oneTimeFees,
+      shipping_total: Number(ts.shipping_total) || 0,
+      min_order_delta: Number(ts.min_order_delta) || 0,
+      rounding_delta: Number(ts.rounding_delta) || 0,
+      express_surcharge_total: Number(ts.express_surcharge_total) || 0,
+      coupon_discount_total: Number(ts.coupon_discount_total) || 0,
+      volume_discount_total: Number(ts.volume_discount_total) || 0,
+      order_fees_total: Number(ts.order_fees_total) || 0,
+      markup_amount: Number(ts.markup_amount) || 0,
+      subtotal_before_markup: Number(ts.subtotal_before_markup) || 0,
+      total: round2(Number(ts.total)),
       sum_time_min: round2(timeSum),
       sum_weight_g: round2(weightSum),
       sum_pieces: piecesSum,
     };
   }
 
-  const total = round2(subtotalModels + oneTimeFeesTotal + shippingTotal + minOrderDelta + roundingDelta);
+  // --- Fallback: compute total from parts (legacy orders without totals_snapshot) ---
+  const oneTimeFeesTotal = computeFeesTotal(order.one_time_fees || []);
+  const minOrderDelta = Number(ts?.min_order_delta || 0);
+  const roundingDelta = Number(ts?.rounding_delta || 0);
+  const shippingTotal = Number(ts?.shipping_total || 0);
+  const expressSurchargeTotal = Number(ts?.express_surcharge_total) || 0;
+  const couponDiscountTotal = Number(ts?.coupon_discount_total) || 0;
+  const volumeDiscountTotal = Number(ts?.volume_discount_total) || 0;
+  const orderFeesTotal = Number(ts?.order_fees_total) || 0;
+  const markupAmount = Number(ts?.markup_amount) || 0;
+  const subtotalBeforeMarkup = Number(ts?.subtotal_before_markup) || 0;
+
+  const total = round2(
+    subtotalModels + oneTimeFeesTotal + shippingTotal + minOrderDelta + roundingDelta
+    + expressSurchargeTotal + couponDiscountTotal + volumeDiscountTotal
+    + orderFeesTotal + markupAmount
+  );
 
   return {
     subtotal_models: round2(subtotalModels),
@@ -105,6 +122,12 @@ export function computeOrderTotals(order) {
     shipping_total: shippingTotal,
     min_order_delta: minOrderDelta,
     rounding_delta: roundingDelta,
+    express_surcharge_total: expressSurchargeTotal,
+    coupon_discount_total: couponDiscountTotal,
+    volume_discount_total: volumeDiscountTotal,
+    order_fees_total: orderFeesTotal,
+    markup_amount: markupAmount,
+    subtotal_before_markup: subtotalBeforeMarkup,
     total: total,
     sum_time_min: round2(timeSum),
     sum_weight_g: round2(weightSum),

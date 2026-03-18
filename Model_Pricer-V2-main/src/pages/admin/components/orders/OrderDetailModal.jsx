@@ -7,6 +7,8 @@ import TabItemsFiles from './TabItemsFiles';
 import StorageStatusBadge from './StorageStatusBadge';
 import { getStatusLabel, ORDER_STATUSES } from '../../../../utils/adminOrdersStorage';
 import { STATUS_COLORS, getStatusColor } from '../../../../utils/orderConstants';
+import { formatMoney } from '../../../../utils/formatters';
+import { round2 } from '../../../../utils/adminOrdersStorage';
 
 /* ── StatusDropdown ── */
 function StatusDropdown({ currentStatus, onStatusChange, orderId }) {
@@ -135,6 +137,127 @@ function StatusDropdown({ currentStatus, onStatusChange, orderId }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── PricingSummary ── */
+function PricingSummary({ order }) {
+  const ts = order?.totals_snapshot;
+  if (!ts) return null;
+
+  const total = Number(ts.total) || 0;
+  if (total === 0) return null;
+
+  const subtotalModels = Number(ts.subtotal_models || ts.models_total) || 0;
+  const expressSurcharge = Number(ts.express_surcharge_total) || 0;
+  const couponDiscount = Number(ts.coupon_discount_total) || 0;
+  const volumeDiscount = Number(ts.volume_discount_total) || 0;
+  const markupAmount = Number(ts.markup_amount) || 0;
+  const shippingTotal = Number(ts.shipping_total) || 0;
+  const orderFeesTotal = Number(ts.order_fees_total) || 0;
+  const roundingDelta = Number(ts.rounding_delta) || 0;
+
+  const couponCode = order?.coupon_snapshot?.code;
+  const shippingName = order?.shipping_snapshot?.name;
+
+  const rowStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '4px 0',
+  };
+  const labelStyle = {
+    fontSize: '12px',
+    fontFamily: 'var(--forge-font-body)',
+    color: 'var(--forge-text-secondary)',
+  };
+  const valueStyle = {
+    fontSize: '12px',
+    fontFamily: 'var(--forge-font-tech)',
+    color: 'var(--forge-text-primary)',
+  };
+
+  return (
+    <div style={{
+      padding: '16px 24px',
+      borderTop: '1px solid var(--forge-border-default)',
+      background: 'var(--forge-bg-elevated)',
+      flexShrink: 0,
+    }}>
+      <div style={{ maxWidth: '340px', marginLeft: 'auto' }}>
+        {subtotalModels > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Subtotal modelu</span>
+            <span style={valueStyle}>{formatMoney(subtotalModels)}</span>
+          </div>
+        )}
+        {orderFeesTotal > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Order poplatky</span>
+            <span style={valueStyle}>{formatMoney(orderFeesTotal)}</span>
+          </div>
+        )}
+        {expressSurcharge > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Express prirazka</span>
+            <span style={{ ...valueStyle, color: '#FF6B35' }}>+{formatMoney(expressSurcharge)}</span>
+          </div>
+        )}
+        {couponDiscount > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>
+              Kupon sleva{couponCode ? ` (${couponCode})` : ''}
+            </span>
+            <span style={{ ...valueStyle, color: 'var(--forge-success)' }}>-{formatMoney(couponDiscount)}</span>
+          </div>
+        )}
+        {volumeDiscount > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Volume discount</span>
+            <span style={{ ...valueStyle, color: 'var(--forge-success)' }}>-{formatMoney(volumeDiscount)}</span>
+          </div>
+        )}
+        {markupAmount > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Markup</span>
+            <span style={valueStyle}>+{formatMoney(markupAmount)}</span>
+          </div>
+        )}
+        {shippingTotal > 0 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>
+              Doprava{shippingName ? ` (${shippingName})` : ''}
+            </span>
+            <span style={valueStyle}>{formatMoney(shippingTotal)}</span>
+          </div>
+        )}
+        {Math.abs(roundingDelta) >= 0.01 && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Zaokrouhleni</span>
+            <span style={valueStyle}>{roundingDelta > 0 ? '+' : ''}{formatMoney(roundingDelta)}</span>
+          </div>
+        )}
+        <div style={{
+          ...rowStyle,
+          borderTop: '1px solid var(--forge-border-default)',
+          marginTop: '6px',
+          paddingTop: '8px',
+        }}>
+          <span style={{
+            fontSize: '14px',
+            fontFamily: 'var(--forge-font-heading)',
+            fontWeight: 700,
+            color: 'var(--forge-text-primary)',
+          }}>Celkem</span>
+          <span style={{
+            fontSize: '16px',
+            fontFamily: 'var(--forge-font-tech)',
+            fontWeight: 700,
+            color: 'var(--forge-accent-primary)',
+          }}>{formatMoney(total)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -371,6 +494,9 @@ export default function OrderDetailModal({ open, order, onClose, onSaveNote, onU
             <TabItemsFiles order={order} onClose={onClose} />
           )}
         </div>
+
+        {/* Pricing Summary Footer */}
+        <PricingSummary order={order} />
       </div>
     </div>,
     document.body

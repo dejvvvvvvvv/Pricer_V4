@@ -16,6 +16,8 @@ import WidgetStepper from './components/WidgetStepper';
 import WidgetFooter from './components/WidgetFooter';
 import WidgetSkeleton from './components/WidgetSkeleton';
 import ShopifyCartButton from './components/ShopifyCartButton';
+import CheckoutForm from '../test-kalkulacka/components/CheckoutForm';
+import OrderConfirmation from '../test-kalkulacka/components/OrderConfirmation';
 import { sliceModelLocal } from '../../services/slicerApi';
 import { fetchWidgetPresets } from '../../services/presetsApi';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
@@ -26,6 +28,7 @@ import { loadShippingConfigV1 } from '../../utils/adminShippingStorage';
 import { themeToCssVars, getDefaultWidgetTheme } from '../../utils/widgetThemeStorage';
 import { getBranding } from '../../utils/adminBrandingWidgetStorage';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
+import { trackAnalyticsEvent, generateSessionId, ANALYTICS_EVENT_TYPES } from '../../utils/adminAnalyticsStorage';
 
 /**
  * Get target origin for postMessage.
@@ -228,6 +231,26 @@ const WidgetKalkulacka = ({
 }) => {
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
+  const analyticsSessionId = useRef(generateSessionId());
+  const priceShownSetRef = useRef(new Set());
+
+  /**
+   * Safe analytics tracking helper. Analytics must never break the widget,
+   * so every call is wrapped in try/catch.
+   */
+  const trackEvent = useCallback((eventType, metadata = {}) => {
+    try {
+      trackAnalyticsEvent({
+        tenantId: tenantId || undefined,
+        widgetInstanceId: publicWidgetId || null,
+        sessionId: analyticsSessionId.current,
+        eventType,
+        metadata: { source: 'widget-kalkulacka', ...metadata },
+      });
+    } catch {
+      // Analytics must not break the widget
+    }
+  }, [tenantId, publicWidgetId]);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -267,6 +290,7 @@ const WidgetKalkulacka = ({
   }));
 
   const [batchProgress, setBatchProgress] = useState({ mode: null, done: 0, total: 0 });
+  const [lastOrderResult, setLastOrderResult] = useState(null);
   const [configLoadTimedOut, setConfigLoadTimedOut] = useState(false);
 
   // P1-2: Timeout for pricingConfig loading — show error after 5s instead of infinite skeleton
@@ -362,6 +386,14 @@ const WidgetKalkulacka = ({
     if (!embedded || typeof window === 'undefined') return;
     window.parent.postMessage({ type: 'MODELPRICER_WIDGET_READY', publicWidgetId }, getTargetOrigin());
   }, [embedded, publicWidgetId]);
+
+  // Track widget view on mount
+  useEffect(() => {
+    trackEvent(ANALYTICS_EVENT_TYPES.WIDGET_VIEW, {
+      embedded,
+      public_widget_id: publicWidgetId || null,
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedFile = selectedFileId
     ? (uploadedFiles.find(f => f.id === selectedFileId) || null)
@@ -460,6 +492,47 @@ const WidgetKalkulacka = ({
     if (!exists) setSelectedFileId(uploadedFiles[0].id);
   }, [uploadedFiles, selectedFileId]);
 
+  // Checkout flow callbacks
+  const handleCheckoutComplete = useCallback((orderResult) => {
+    setLastOrderResult(orderResult);
+    setCurrentStep(5);
+    // postMessage about order completion to parent frame
+    try {
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'MODELPRICER_ORDER_CREATED',
+          publicWidgetId,
+          data: {
+            orderId: orderResult.id,
+            total: orderResult.totals_snapshot?.total,
+            currency: orderResult.totals_snapshot?.currency || 'CZK',
+          },
+        }, getTargetOrigin());
+      }
+    } catch (e) { /* ignore postMessage errors */ }
+    trackEvent(ANALYTICS_EVENT_TYPES.ORDER_CREATED, {
+      order_id: orderResult.id,
+      price_total: orderResult.totals_snapshot?.total ?? 0,
+      currency: orderResult.totals_snapshot?.currency || 'CZK',
+      model_count: orderResult.models?.length || 0,
+      source: 'widget-checkout',
+    });
+  }, [publicWidgetId, embedded, trackEvent]);
+
+  const handleStartNewOrder = useCallback(() => {
+    setLastOrderResult(null);
+    setCurrentStep(1);
+    setUploadedFiles([]);
+    setSelectedFileId(null);
+    setPrintConfigs({});
+    setFeeSelections({ selectedFeeIds: new Set(), feeTargetsById: {} });
+    setAppliedCouponCode('');
+    setSelectedExpressTierId(expressConfig?.tiers?.find(t => t.active)?.id || null);
+    setSelectedShippingMethodId(shippingConfig?.methods?.find(m => m.active)?.id || null);
+    setBatchProgress({ mode: null, done: 0, total: 0 });
+    if (priceShownSetRef?.current) priceShownSetRef.current.clear();
+  }, [expressConfig, shippingConfig]);
+
   const cancelledRef = useRef(false);
 
   const loadPresets = useCallback(async () => {
@@ -518,6 +591,10 @@ const WidgetKalkulacka = ({
     if (selectedFile.status === 'processing') return;
     try {
       updateModelStatus(selectedFile.id, { status: 'processing', error: null });
+      trackEvent(ANALYTICS_EVENT_TYPES.SLICING_STARTED, {
+        model_id: selectedFile.id,
+        file_name: selectedFile.name,
+      });
       const filePresetId = selectedPresetIds[selectedFile.id] || selectedPresetIds.__default || null;
       const trySliceWithFallback = async (presetId) => {
         try { return await sliceModelLocal(selectedFile.file, { presetId }); }
@@ -530,6 +607,28 @@ const WidgetKalkulacka = ({
       const ok = (res?.ok ?? res?.success ?? true);
       if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
       updateModelStatus(selectedFile.id, { status: 'completed', result: res, error: null });
+      trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+        model_id: selectedFile.id,
+        success: true,
+        result_status: 'success',
+        price: res?.totalPrice ?? res?.price ?? null,
+        weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || res?.materialUsed || 0,
+        print_time_seconds: (res?.metrics?.estimatedTimeSeconds || res?.printTime || (res?.metrics?.time_min ?? 0) * 60) || 0,
+        material: selectedFile?.material || '',
+        preset: selectedFile?.quality || '',
+      });
+      if (!priceShownSetRef.current.has(selectedFile.id)) {
+        priceShownSetRef.current.add(selectedFile.id);
+        trackEvent(ANALYTICS_EVENT_TYPES.PRICE_SHOWN, {
+          model_id: selectedFile.id,
+          price_total: res?.totalPrice ?? res?.price ?? null,
+          weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || res?.materialUsed || 0,
+          print_time_seconds: (res?.metrics?.estimatedTimeSeconds || res?.printTime || (res?.metrics?.time_min ?? 0) * 60) || 0,
+          currency: 'CZK',
+          material: selectedFile?.material || '',
+          preset: selectedFile?.quality || '',
+        });
+      }
       if (currentStep < 3) setCurrentStep(3);
       if (embedded && window.parent !== window) {
         window.parent.postMessage({ type: 'MODELPRICER_PRICE_CALCULATED', publicWidgetId, data: { total: res?.totalPrice ?? res?.price ?? null, currency: 'CZK' } }, getTargetOrigin());
@@ -537,11 +636,16 @@ const WidgetKalkulacka = ({
       if (embedded && onQuoteCalculated) onQuoteCalculated(res);
     } catch (err) {
       updateModelStatus(selectedFile.id, { status: 'failed', error: String(err?.message || err) });
+      trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+        model_id: selectedFile.id,
+        success: false,
+        error: String(err?.message || err),
+      });
       if (embedded && window.parent !== window) {
         window.parent.postMessage({ type: 'MODELPRICER_ERROR', publicWidgetId, data: { message: err?.message || 'Unknown error', code: 'SLICING_ERROR' } }, getTargetOrigin());
       }
     }
-  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, embedded, onQuoteCalculated]);
+  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, embedded, onQuoteCalculated, trackEvent]);
 
   const runBatchSlice = useCallback(async (targets, mode) => {
     if (!Array.isArray(targets) || targets.length === 0) return;
@@ -554,6 +658,11 @@ const WidgetKalkulacka = ({
         if (!fileItem?.file) { done += 1; setBatchProgress(prev => ({ ...prev, done })); continue; }
         try {
           updateModelStatus(fileItem.id, { status: 'processing', error: null });
+          trackEvent(ANALYTICS_EVENT_TYPES.SLICING_STARTED, {
+            model_id: fileItem.id,
+            file_name: fileItem.name,
+            batch_mode: mode,
+          });
           const filePresetId = selectedPresetIds[fileItem.id] || selectedPresetIds.__default || null;
           const trySliceWithFallback = async (presetId) => {
             try { return await sliceModelLocal(fileItem.file, { presetId }); }
@@ -566,11 +675,36 @@ const WidgetKalkulacka = ({
           const ok = (res?.ok ?? res?.success ?? true);
           if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
           updateModelStatus(fileItem.id, { status: 'completed', result: res, error: null });
+          trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+            model_id: fileItem.id,
+            success: true,
+            result_status: 'success',
+            price: res?.totalPrice ?? res?.price ?? null,
+            weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || res?.materialUsed || 0,
+            print_time_seconds: (res?.metrics?.estimatedTimeSeconds || res?.printTime || (res?.metrics?.time_min ?? 0) * 60) || 0,
+            batch_mode: mode,
+          });
+          if (!priceShownSetRef.current.has(fileItem.id)) {
+            priceShownSetRef.current.add(fileItem.id);
+            trackEvent(ANALYTICS_EVENT_TYPES.PRICE_SHOWN, {
+              model_id: fileItem.id,
+              price_total: res?.totalPrice ?? res?.price ?? null,
+              weight_grams: res?.metrics?.filamentGrams || res?.metrics?.weight_g || res?.materialUsed || 0,
+              print_time_seconds: (res?.metrics?.estimatedTimeSeconds || res?.printTime || (res?.metrics?.time_min ?? 0) * 60) || 0,
+              currency: 'CZK',
+            });
+          }
           if (embedded && window.parent !== window) {
             window.parent.postMessage({ type: 'MODELPRICER_PRICE_CALCULATED', publicWidgetId, data: { total: res?.totalPrice ?? res?.price ?? null, currency: 'CZK' } }, getTargetOrigin());
           }
         } catch (err) {
           updateModelStatus(fileItem.id, { status: 'failed', error: String(err?.message || err) });
+          trackEvent(ANALYTICS_EVENT_TYPES.SLICING_COMPLETED, {
+            model_id: fileItem.id,
+            success: false,
+            error: String(err?.message || err),
+            batch_mode: mode,
+          });
           if (embedded && window.parent !== window) {
             window.parent.postMessage({ type: 'MODELPRICER_ERROR', publicWidgetId, data: { message: err?.message || 'Unknown error', code: 'SLICING_ERROR' } }, getTargetOrigin());
           }
@@ -580,7 +714,7 @@ const WidgetKalkulacka = ({
         }
       }
     } finally { setSliceAllProcessing(false); }
-  }, [currentStep, selectedPresetIds, updateModelStatus, embedded, publicWidgetId]);
+  }, [currentStep, selectedPresetIds, updateModelStatus, embedded, publicWidgetId, trackEvent]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0 || sliceAllProcessing) return;
@@ -603,6 +737,11 @@ const WidgetKalkulacka = ({
       const newId = crypto.randomUUID();
       setUploadedFiles(prev => [...prev, { id: newId, name: fileToProcess.name, size: fileToProcess.size, type: fileToProcess.type, file: fileToProcess, uploadedAt: new Date(), status: 'pending', result: null, error: null }]);
       setPrintConfigs(prev => (prev[newId] ? prev : ({ ...prev, [newId]: { ...DEFAULT_PRINT_CONFIG } })));
+      trackEvent(ANALYTICS_EVENT_TYPES.MODEL_UPLOAD_COMPLETED, {
+        file_name: fileToProcess.name,
+        file_size: fileToProcess.size,
+        model_id: newId,
+      });
     }
   };
 
@@ -681,7 +820,7 @@ const WidgetKalkulacka = ({
   }
 
   // Layout-aware rendering
-  const DEFAULT_ELEMENT_ORDER = ['header', 'steps', 'upload', 'config', 'viewer', 'fees', 'pricing', 'cta', 'footer'];
+  const DEFAULT_ELEMENT_ORDER = ['header', 'steps', 'upload', 'config', 'viewer', 'fees', 'pricing', 'cta', 'checkout', 'confirmation', 'footer'];
   const elementOrder = layoutConfig?.elementOrder || DEFAULT_ELEMENT_ORDER;
   const hiddenSet = new Set(layoutConfig?.hiddenElements || []);
   const customBlocks = layoutConfig?.customBlocks || [];
@@ -690,6 +829,7 @@ const WidgetKalkulacka = ({
     header: 'top', steps: 'top',
     upload: 'left', config: 'left', fees: 'left',
     viewer: 'right', pricing: 'right', cta: 'right',
+    checkout: 'top', confirmation: 'top',
     footer: 'bottom',
   };
 
@@ -730,7 +870,7 @@ const WidgetKalkulacka = ({
     ) : null,
 
     steps: () => (
-      <SW elementId="steps"><WidgetStepper currentStep={displayStep} stepperProgressVisible={effectiveTheme.stepperProgressVisible} builderMode={builderMode} elementId="steps" onElementSelect={onElementSelect} /></SW>
+      <SW elementId="steps"><WidgetStepper currentStep={displayStep} totalSteps={5} stepperProgressVisible={effectiveTheme.stepperProgressVisible} builderMode={builderMode} elementId="steps" onElementSelect={onElementSelect} /></SW>
     ),
 
     upload: () => (displayFiles.length === 0 && displayStep === 1) ? (
@@ -757,10 +897,10 @@ const WidgetKalkulacka = ({
 
     cta: () => (displayFiles.length > 0 && displaySelected) ? (
       <SW elementId="cta">
-        <div className="flex flex-col items-center gap-2">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           {/* Task 2: Batch slicing progress indicator */}
           <BatchProgressBar sliceAllProcessing={sliceAllProcessing} batchProgress={batchProgress} />
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
             <GenerateButton size="top" label="Spocitat cenu" onClick={handleSliceSelected} loading={displaySelected?.status === 'processing'} disabled={builderMode || !displaySelected || displaySelected.status === 'processing' || sliceAllProcessing} theme={effectiveTheme} />
             {hasMultipleModels && (
               <GenerateButton size="top" label="Spocitat vse" onClick={handleSliceAll} loading={sliceAllProcessing && batchProgress.mode === 'all'} disabled={builderMode || sliceAllProcessing || displayFiles.some(f => f.status === 'processing')} theme={effectiveTheme} />
@@ -768,6 +908,32 @@ const WidgetKalkulacka = ({
           </div>
         </div>
       </SW>
+    ) : null,
+
+    checkout: () => (displayStep === 4) ? (
+      <CheckoutForm
+        uploadedFiles={displayFiles}
+        printConfigs={printConfigs}
+        pricingConfig={pricingConfig}
+        feesConfig={feesConfig}
+        feeSelections={feeSelections}
+        expressConfig={expressConfig}
+        selectedExpressTierId={selectedExpressTierId}
+        shippingConfig={shippingConfig}
+        selectedShippingMethodId={selectedShippingMethodId}
+        couponsConfig={couponsConfig}
+        appliedCouponCode={appliedCouponCode}
+        onComplete={handleCheckoutComplete}
+        onBack={() => setCurrentStep(3)}
+      />
+    ) : null,
+
+    confirmation: () => (displayStep === 5 && lastOrderResult) ? (
+      <OrderConfirmation
+        order={lastOrderResult}
+        onStartNew={handleStartNewOrder}
+        isWidget={true}
+      />
     ) : null,
 
     footer: () => (
@@ -809,34 +975,63 @@ const WidgetKalkulacka = ({
         {topElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
 
         <div className="wk-grid">
-          <div className="wk-left space-y-6">
+          <div className="wk-left" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {leftElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
             {customBlockElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
           </div>
 
-          <div className="wk-right space-y-4">
+          <div className="wk-right" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {rightElements.map(id => (<React.Fragment key={id}>{renderElement(id)}</React.Fragment>))}
 
-            {isShopifyMode && shopifyQuoteResult && displayFiles.length > 0 && (
-              <SW elementId="shopify-cart"><ShopifyCartButton quoteResult={shopifyQuoteResult} shopifyConfig={shopifyConfig} uploadedFiles={displayFiles} embedded={embedded} publicWidgetId={publicWidgetId} disabled={builderMode} tenantId={tenantId} /></SW>
+            {isShopifyMode && shopifyQuoteResult && displayFiles.length > 0 && displayStep <= 3 && (
+              <SW elementId="shopify-cart"><ShopifyCartButton quoteResult={shopifyQuoteResult} shopifyConfig={shopifyConfig} uploadedFiles={displayFiles} embedded={embedded} publicWidgetId={publicWidgetId} disabled={builderMode} tenantId={tenantId} onAddToCartClicked={() => {
+                trackEvent(ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, {
+                  model_count: displayFiles.length,
+                  total_price: shopifyQuoteResult?.grandTotal ?? shopifyQuoteResult?.total ?? null,
+                  currency: 'CZK',
+                  integration: 'shopify',
+                });
+              }} /></SW>
+            )}
+
+            {/* Checkout button — only in non-Shopify mode when pricing is complete */}
+            {!isShopifyMode && displayStep === 3 && displayFiles.some(f => f.status === 'completed') && (
+              <button
+                onClick={() => !builderMode && setCurrentStep(4)}
+                disabled={builderMode}
+                style={{
+                  width: '100%',
+                  padding: '14px 24px',
+                  backgroundColor: 'var(--widget-accent, var(--forge-accent, #00D4AA))',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  cursor: builderMode ? 'default' : 'pointer',
+                  opacity: builderMode ? 0.5 : 1,
+                }}
+              >
+                Prejit k objednavce
+              </button>
             )}
 
             {displayFiles.length > 0 && (
               <SW elementId="filelist">
-                <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--widget-card, #F9FAFB)', border: '1px solid var(--widget-border, #E5E7EB)', borderRadius: 'var(--widget-radius, 12px)' }}>
-                  <div className="flex justify-between items-center mb-2">
-                    <h2 className="font-semibold" style={{ color: 'var(--widget-header, #1F2937)' }}>Nahrane modely</h2>
+                <div style={{ padding: '16px', backgroundColor: 'var(--widget-card, #F9FAFB)', border: '1px solid var(--widget-border, #E5E7EB)', borderRadius: 'var(--widget-radius, 12px)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h2 style={{ fontWeight: 600, color: 'var(--widget-header, #1F2937)', margin: 0 }}>Nahrane modely</h2>
                     {!builderMode && (<Button variant="ghost" size="icon" onClick={handleAddModelClick} aria-label="Add model"><Icon name="Plus" size={16} aria-hidden="true" /></Button>)}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {displayFiles.map((file) => (
-                      <Button key={file.id} variant={displaySelected && displaySelected.id === file.id ? 'default' : 'outline'} size="sm" onClick={() => !builderMode && setSelectedFileId(file.id)} className="w-full justify-start text-left h-auto py-2 px-3" title={statusTooltips[file.status] || 'Neznamy stav'}>
-                        <div className="flex items-center gap-2 w-full">
-                          {file.status === 'processing' && (<Icon name="Loader" size={14} className="animate-spin flex-shrink-0" aria-label="Processing" role="img" title="Processing" />)}
-                          {file.status === 'pending' && <Icon name="Clock" size={14} className="flex-shrink-0" aria-label="Queued" role="img" title="Queued" />}
-                          {file.status === 'completed' && (<Icon name="CheckCircle" size={14} className="text-green-500 flex-shrink-0" aria-label="Ready" role="img" title="Ready" />)}
-                          {file.status === 'failed' && (<Icon name="XCircle" size={14} className="text-red-500 flex-shrink-0" aria-label="Error" role="img" title="Error" />)}
-                          <span className="truncate flex-grow text-left">{file.name}</span>
+                      <Button key={file.id} variant={displaySelected && displaySelected.id === file.id ? 'default' : 'outline'} size="sm" onClick={() => !builderMode && setSelectedFileId(file.id)} style={{ width: '100%', justifyContent: 'flex-start', textAlign: 'left', height: 'auto', padding: '8px 12px' }} title={statusTooltips[file.status] || 'Neznamy stav'}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                          {file.status === 'processing' && (<Icon name="Loader" size={14} style={{ flexShrink: 0, animation: 'spin 1s linear infinite' }} aria-label="Processing" role="img" title="Processing" />)}
+                          {file.status === 'pending' && <Icon name="Clock" size={14} style={{ flexShrink: 0 }} aria-label="Queued" role="img" title="Queued" />}
+                          {file.status === 'completed' && (<Icon name="CheckCircle" size={14} style={{ color: '#22c55e', flexShrink: 0 }} aria-label="Ready" role="img" title="Ready" />)}
+                          {file.status === 'failed' && (<Icon name="XCircle" size={14} style={{ color: '#ef4444', flexShrink: 0 }} aria-label="Error" role="img" title="Error" />)}
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexGrow: 1, textAlign: 'left' }}>{file.name}</span>
                         </div>
                       </Button>
                     ))}
