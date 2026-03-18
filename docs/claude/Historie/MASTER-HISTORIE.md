@@ -7,20 +7,22 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 228+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-212 WK)
-- **Posledni zaznam:** 212-WK (UPRAVY 2026-03-18, Session S02 — Widget P1 Code Review Fixes)
-- **Posledni aktualizace:** 2026-03-18 (Session S02 — Widget P1 Code Review Fixes, novy zaznam: 212-WK UPRAVY)
+- **Celkem zaznamu:** 230+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN)
+- **Posledni zaznam:** 214-GN (UPRAVY 2026-03-18, Session S03 — Komplexni testovani)
+- **Posledni aktualizace:** 2026-03-18 (Session S03 — Komplexni testovani, 2 nove zaznamy: 213-GN KONVERZACE + 214-GN UPRAVY)
 
 ---
 
 ## Zaznamy podle dne
 
-### 2026-03-18 (S01)
+### 2026-03-18 (S01-S03)
 
 | ID | Zkratka | Typ | Popis |
 |----|---------|-----|-------|
-| **211** | **WK** | **UPRAVY** | **Widget Checkout Flow + Pricing Layout Fix — checkout step 4 (CheckoutForm) + step 5 (OrderConfirmation) importovany z test-kalkulacky, 5-step WidgetStepper (Lucide ikony, responzivni), PricingCalculator kompletne prepsan na inline styles (Tailwind→inline pro iframe), postMessage MODELPRICER_ORDER_CREATED, ShopifyCartButton jen v Shopify mode, build PASS** |
-| **212** | **WK** | **UPRAVY** | **Widget P1 Code Review Fixes — handleStartNewOrder chybejici resety (express/shipping/batch/priceShownSetRef), Tailwind→inline styles v CTA/filelist (12+ vyskytu), PricingCalculator nepoouzivany import odstranen + formatCzk() misto hardcoded "Kc", OrderConfirmation isWidget prop pro skryti navigace ve widgetu, build PASS** |
+| **211** | **WK** | **UPRAVY** | **Widget Checkout Flow + Pricing Layout Fix - checkout step 4 (CheckoutForm) + step 5 (OrderConfirmation) importovany z test-kalkulacky, 5-step WidgetStepper (Lucide ikony, responzivni), PricingCalculator kompletne prepsan na inline styles (Tailwind do inline pro iframe), postMessage MODELPRICER_ORDER_CREATED, ShopifyCartButton jen v Shopify mode, build PASS** |
+| **212** | **WK** | **UPRAVY** | **Widget P1 Code Review Fixes - handleStartNewOrder chybejici resety (express/shipping/batch/priceShownSetRef), Tailwind do inline styles v CTA/filelist (12+ vyskytu), PricingCalculator nepoouzivany import odstranen + formatCzk() miste hardcoded "Kc", OrderConfirmation isWidget prop pro skryti navigace ve widgetu, build PASS** |
+| **213** | **GN** | **KONVERZACE** | **Komplexni testovani celeho projektu (S03) - 20 stranek otestovano (verejne 6, auth 4, admin 10), 61 bugs identifikovano (1 P0, aproximatne 26 P1, aproximatne 23 P2, aproximatne 11 P3), testovaci dokumentace vytvorena (7 souboru), 10 screenshot ulozeno, autonomni rezim bez dotazovani** |
+| **214** | **GN** | **UPRAVY** | **Testovani (61 bugs dokumentovano) - Testing-2026-03-18/ (7 souboru: MASTER-Test-Overview, Errors-And-Bugs, Correct-Behavior, Design-Audit, Translation-Audit, Cross-Function-Tests prep, Console-Errors) + 10 screenshot (Pricing duplikace, i18n chyby, footer 404, AdminPresets bugs)** |
 
 ### 2026-03-16 (S01)
 
@@ -318,4 +320,4 @@
 | `Historie/2026-03-15/` | 6 zaznamu (S01: Supabase Auth Migrace Faze 1-5 ID 180-181, S02: Auth Bugfix + Tenant Audit ID 182-183, S03: Auth Security Review + Fixes ID 184-185) |
 | `Historie/2026-03-16/` | 2 zaznamu (S01: Admin Analytics Real Data + Grid ID 205-AN, Analytics Tracking Wiring ID 206-AT) |
 | `Historie/2026-03-17/` | 4 zaznamy (S01: Analytics Hidden for Beta ID 207-BH; S02: P0 Order Data Completeness ID 208-AO; S03: P1 Order Data Display Fix ID 209-AO; S04: P2 Order Detail Modal/Export/Fees ID 210-AO) |
-| `Historie/2026-03-18/` | 2 zaznamy (S01: Widget Checkout Flow + Pricing Layout Fix ID 211-WK; S02: Widget P1 Code Review Fixes ID 212-WK) |
+| `Historie/2026-03-18/` | 4 zaznamy (S01: Widget Checkout Flow + Pricing Layout Fix ID 211-WK; S02: Widget P1 Code Review Fixes ID 212-WK; S03: Komplexni testovani ID 213-GN KONVERZACE + 214-GN UPRAVY) |

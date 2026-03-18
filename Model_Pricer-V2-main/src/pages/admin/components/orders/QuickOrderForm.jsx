@@ -1,12 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Icon from '../../../../components/AppIcon';
+import ForgeDialog from '../../../../components/ui/forge/ForgeDialog';
 import { useAuth } from '../../../../context/AuthContext';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { loadOrders, saveOrders, nowIso, round2 } from '../../../../utils/adminOrdersStorage';
 import { logActivity } from '../../../../utils/adminActivityLog';
 import { generateId } from '../../../../utils/generateId';
 
-/* ── Constants ──────────────────────────────────────────────────────── */
+/* -- Constants ------------------------------------------------------------ */
 
 const PRIORITY_LEVELS = ['standard', 'express', 'rush'];
 
@@ -26,7 +27,7 @@ const EMPTY_MODEL = () => ({
   price: 0,
 });
 
-/* ── Validation ─────────────────────────────────────────────────────── */
+/* -- Validation ----------------------------------------------------------- */
 
 function validateForm(customer, models, cs) {
   const errors = [];
@@ -53,7 +54,7 @@ function validateForm(customer, models, cs) {
   return errors;
 }
 
-/* ── Main Component ─────────────────────────────────────────────────── */
+/* -- Main Component ------------------------------------------------------- */
 
 export default function QuickOrderForm({ open, onClose, onCreated }) {
   const { user: authUser } = useAuth();
@@ -79,7 +80,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
 
-  // ── Model CRUD ──
+  // -- Model CRUD --
 
   const addModel = useCallback(() => {
     setModels(prev => [...prev, EMPTY_MODEL()]);
@@ -98,7 +99,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
     }));
   }, []);
 
-  // ── Totals ──
+  // -- Totals --
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -123,7 +124,7 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
     };
   }, [models]);
 
-  // ── Submit ──
+  // -- Submit --
 
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
@@ -139,6 +140,8 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
     const validationErrors = validateForm(customer, models, cs);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
+      // Scroll to top so errors are visible
+      if (bodyRef.current) bodyRef.current.scrollTop = 0;
       return;
     }
 
@@ -219,9 +222,9 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
     } finally {
       setSubmitting(false);
     }
-  }, [customerName, customerEmail, customerPhone, models, priority, notes, initialStatus, totals, cs, onCreated]);
+  }, [customerName, customerEmail, customerPhone, models, priority, notes, initialStatus, totals, cs, onCreated, currentUser]);
 
-  // ── Reset form ──
+  // -- Reset form --
 
   const resetForm = useCallback(() => {
     setCustomerName('');
@@ -239,235 +242,254 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
     onClose?.();
   }, [resetForm, onClose]);
 
-  // ── Render ──
+  // -- Render --
 
-  if (!open) return null;
+  const dialogTitle = success
+    ? (cs ? 'Objednavka vytvorena' : 'Order created')
+    : (cs ? 'Nova objednavka' : 'New order');
+
+  const footerButtons = success ? (
+    <div style={{ display: 'flex', gap: '10px' }}>
+      <button className="qof-btn qof-btn--secondary" onClick={handleClose}>
+        {cs ? 'Zavrit' : 'Close'}
+      </button>
+      <button className="qof-btn qof-btn--primary" onClick={() => { resetForm(); }}>
+        <Icon name="Plus" size={14} />
+        {cs ? 'Dalsi objednavka' : 'Another order'}
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: 'flex', gap: '10px' }}>
+      <button type="button" className="qof-btn qof-btn--secondary" onClick={handleClose}>
+        {cs ? 'Zrusit' : 'Cancel'}
+      </button>
+      <button
+        type="button"
+        className="qof-btn qof-btn--primary"
+        disabled={submitting}
+        onClick={handleSubmit}
+      >
+        {submitting ? (
+          <>{cs ? 'Ukladam...' : 'Saving...'}</>
+        ) : (
+          <>
+            <Icon name="Check" size={16} />
+            {cs ? 'Vytvorit objednavku' : 'Create order'}
+          </>
+        )}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="qof-overlay" onClick={handleClose}>
-      <div className="qof-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        {/* Header */}
-        <div className="qof-header">
-          <div className="qof-header-left">
-            <Icon name="Plus" size={20} color="var(--forge-accent-primary, #00D4AA)" />
-            <h2 className="qof-title">{cs ? 'Nova objednavka' : 'New order'}</h2>
+    <ForgeDialog
+      open={open}
+      onClose={handleClose}
+      title={dialogTitle}
+      maxWidth="860px"
+      footer={footerButtons}
+    >
+      <style>{quickOrderStyles}</style>
+
+      {success ? (
+        <div className="qof-success">
+          <div className="qof-success-icon">
+            <Icon name="CheckCircle" size={48} color="#00D4AA" />
           </div>
-          <button className="qof-close-btn" onClick={handleClose} aria-label="Close">
-            <Icon name="X" size={20} />
-          </button>
+          <p className="qof-success-id">{success.orderNumber}</p>
         </div>
-
-        {/* Success state */}
-        {success ? (
-          <div className="qof-success">
-            <div className="qof-success-icon">
-              <Icon name="CheckCircle" size={48} color="#00D4AA" />
+      ) : (
+        <div className="qof-form-content">
+          {/* Errors */}
+          {errors.length > 0 && (
+            <div className="qof-errors">
+              <Icon name="AlertCircle" size={16} color="#EF4444" />
+              <ul>
+                {errors.map((err, i) => <li key={i}>{err}</li>)}
+              </ul>
             </div>
-            <h3 className="qof-success-title">
-              {cs ? 'Objednavka vytvorena' : 'Order created'}
+          )}
+
+          {/* Section: Customer */}
+          <div className="qof-section">
+            <h3 className="qof-section-title">
+              <Icon name="User" size={16} />
+              {cs ? 'Zakaznik' : 'Customer'}
             </h3>
-            <p className="qof-success-id">{success.orderNumber}</p>
-            <div className="qof-success-actions">
-              <button className="qof-btn qof-btn--primary" onClick={() => { resetForm(); }}>
-                <Icon name="Plus" size={14} />
-                {cs ? 'Dalsi objednavka' : 'Another order'}
-              </button>
-              <button className="qof-btn qof-btn--secondary" onClick={handleClose}>
-                {cs ? 'Zavrit' : 'Close'}
-              </button>
+            <div className="qof-fields-row">
+              <div className="qof-field">
+                <label className="qof-label">{cs ? 'Jmeno' : 'Name'} *</label>
+                <input
+                  className="qof-input"
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder={cs ? 'Jan Novak' : 'John Doe'}
+                  maxLength={200}
+                />
+              </div>
+              <div className="qof-field">
+                <label className="qof-label">Email *</label>
+                <input
+                  className="qof-input"
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="jan@firma.cz"
+                  maxLength={254}
+                />
+              </div>
+              <div className="qof-field qof-field--narrow">
+                <label className="qof-label">{cs ? 'Telefon' : 'Phone'}</label>
+                <input
+                  className="qof-input"
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="+420 ..."
+                  maxLength={30}
+                />
+              </div>
             </div>
           </div>
-        ) : (
-          <form className="qof-form" onSubmit={handleSubmit}>
-            {/* Errors */}
-            {errors.length > 0 && (
-              <div className="qof-errors">
-                <Icon name="AlertCircle" size={16} color="#EF4444" />
-                <ul>
-                  {errors.map((err, i) => <li key={i}>{err}</li>)}
-                </ul>
-              </div>
-            )}
 
-            {/* Section: Customer */}
-            <div className="qof-section">
+          {/* Section: Models */}
+          <div className="qof-section">
+            <div className="qof-section-header">
               <h3 className="qof-section-title">
-                <Icon name="User" size={16} />
-                {cs ? 'Zakaznik' : 'Customer'}
+                <Icon name="Box" size={16} />
+                {cs ? 'Modely' : 'Models'}
               </h3>
-              <div className="qof-fields-row">
-                <div className="qof-field">
-                  <label className="qof-label">{cs ? 'Jmeno' : 'Name'} *</label>
-                  <input
-                    className="qof-input"
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder={cs ? 'Jan Novak' : 'John Doe'}
-                    maxLength={200}
-                  />
-                </div>
-                <div className="qof-field">
-                  <label className="qof-label">Email *</label>
-                  <input
-                    className="qof-input"
-                    type="email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="jan@firma.cz"
-                    maxLength={254}
-                  />
-                </div>
-                <div className="qof-field qof-field--narrow">
-                  <label className="qof-label">{cs ? 'Telefon' : 'Phone'}</label>
-                  <input
-                    className="qof-input"
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="+420 ..."
-                    maxLength={30}
-                  />
-                </div>
-              </div>
+              <button type="button" className="qof-btn qof-btn--small qof-btn--primary" onClick={addModel}>
+                <Icon name="Plus" size={14} />
+                {cs ? 'Pridat model' : 'Add model'}
+              </button>
             </div>
 
-            {/* Section: Models */}
-            <div className="qof-section">
-              <div className="qof-section-header">
-                <h3 className="qof-section-title">
-                  <Icon name="Box" size={16} />
-                  {cs ? 'Modely' : 'Models'}
-                </h3>
-                <button type="button" className="qof-btn qof-btn--small qof-btn--primary" onClick={addModel}>
-                  <Icon name="Plus" size={14} />
-                  {cs ? 'Pridat model' : 'Add model'}
-                </button>
-              </div>
-
-              <div className="qof-models-list">
-                {models.map((model, idx) => (
-                  <div key={model.id} className="qof-model-card">
-                    <div className="qof-model-header">
-                      <span className="qof-model-number">#{idx + 1}</span>
-                      {models.length > 1 && (
-                        <button
-                          type="button"
-                          className="qof-remove-btn"
-                          onClick={() => removeModel(idx)}
-                          aria-label={cs ? 'Odebrat model' : 'Remove model'}
-                        >
-                          <Icon name="Minus" size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="qof-model-fields">
-                      <div className="qof-field qof-field--wide">
-                        <label className="qof-label">{cs ? 'Nazev' : 'Name'} *</label>
-                        <input
-                          className="qof-input"
-                          type="text"
-                          value={model.name}
-                          onChange={(e) => updateModel(idx, 'name', e.target.value)}
-                          placeholder={cs ? 'Nazev modelu' : 'Model name'}
-                        />
-                      </div>
-                      <div className="qof-field">
-                        <label className="qof-label">{cs ? 'Material' : 'Material'}</label>
-                        <input
-                          className="qof-input"
-                          type="text"
-                          value={model.material}
-                          onChange={(e) => updateModel(idx, 'material', e.target.value)}
-                          placeholder="PLA"
-                        />
-                      </div>
-                      <div className="qof-field qof-field--narrow">
-                        <label className="qof-label">{cs ? 'Pocet' : 'Qty'}</label>
-                        <input
-                          className="qof-input qof-input--number"
-                          type="number"
-                          min="1"
-                          value={model.quantity}
-                          onChange={(e) => updateModel(idx, 'quantity', e.target.value)}
-                        />
-                      </div>
-                      <div className="qof-field qof-field--narrow">
-                        <label className="qof-label">{cs ? 'Vaha (g)' : 'Weight (g)'}</label>
-                        <input
-                          className="qof-input qof-input--number"
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={model.weight_g}
-                          onChange={(e) => updateModel(idx, 'weight_g', e.target.value)}
-                        />
-                      </div>
-                      <div className="qof-field qof-field--narrow">
-                        <label className="qof-label">{cs ? 'Cas (min)' : 'Time (min)'}</label>
-                        <input
-                          className="qof-input qof-input--number"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={model.time_min}
-                          onChange={(e) => updateModel(idx, 'time_min', e.target.value)}
-                        />
-                      </div>
-                      <div className="qof-field qof-field--narrow">
-                        <label className="qof-label">{cs ? 'Cena (Kc)' : 'Price'}</label>
-                        <input
-                          className="qof-input qof-input--number"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={model.price}
-                          onChange={(e) => updateModel(idx, 'price', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Section: Order Options */}
-            <div className="qof-section">
-              <h3 className="qof-section-title">
-                <Icon name="Settings" size={16} />
-                {cs ? 'Moznosti' : 'Options'}
-              </h3>
-              <div className="qof-fields-row">
-                <div className="qof-field">
-                  <label className="qof-label">{cs ? 'Priorita' : 'Priority'}</label>
-                  <div className="qof-priority-group">
-                    {PRIORITY_LEVELS.map(p => (
+            <div className="qof-models-list">
+              {models.map((model, idx) => (
+                <div key={model.id} className="qof-model-card">
+                  <div className="qof-model-header">
+                    <span className="qof-model-number">#{idx + 1}</span>
+                    {models.length > 1 && (
                       <button
-                        key={p}
                         type="button"
-                        className={`qof-priority-btn${priority === p ? ' qof-priority-btn--active' : ''}${p === 'rush' ? ' qof-priority-btn--rush' : ''}`}
-                        onClick={() => setPriority(p)}
+                        className="qof-remove-btn"
+                        onClick={() => removeModel(idx)}
+                        aria-label={cs ? 'Odebrat model' : 'Remove model'}
                       >
-                        {cs ? PRIORITY_LABELS[p].cs : PRIORITY_LABELS[p].en}
+                        <Icon name="Minus" size={14} />
                       </button>
-                    ))}
+                    )}
+                  </div>
+                  <div className="qof-model-fields">
+                    <div className="qof-field qof-field--wide">
+                      <label className="qof-label">{cs ? 'Nazev' : 'Name'} *</label>
+                      <input
+                        className="qof-input"
+                        type="text"
+                        value={model.name}
+                        onChange={(e) => updateModel(idx, 'name', e.target.value)}
+                        placeholder={cs ? 'Nazev modelu' : 'Model name'}
+                      />
+                    </div>
+                    <div className="qof-field">
+                      <label className="qof-label">{cs ? 'Material' : 'Material'}</label>
+                      <input
+                        className="qof-input"
+                        type="text"
+                        value={model.material}
+                        onChange={(e) => updateModel(idx, 'material', e.target.value)}
+                        placeholder="PLA"
+                      />
+                    </div>
+                    <div className="qof-field qof-field--narrow">
+                      <label className="qof-label">{cs ? 'Pocet' : 'Qty'}</label>
+                      <input
+                        className="qof-input qof-input--number"
+                        type="number"
+                        min="1"
+                        value={model.quantity}
+                        onChange={(e) => updateModel(idx, 'quantity', e.target.value)}
+                      />
+                    </div>
+                    <div className="qof-field qof-field--narrow">
+                      <label className="qof-label">{cs ? 'Vaha (g)' : 'Weight (g)'}</label>
+                      <input
+                        className="qof-input qof-input--number"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={model.weight_g}
+                        onChange={(e) => updateModel(idx, 'weight_g', e.target.value)}
+                      />
+                    </div>
+                    <div className="qof-field qof-field--narrow">
+                      <label className="qof-label">{cs ? 'Cas (min)' : 'Time (min)'}</label>
+                      <input
+                        className="qof-input qof-input--number"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={model.time_min}
+                        onChange={(e) => updateModel(idx, 'time_min', e.target.value)}
+                      />
+                    </div>
+                    <div className="qof-field qof-field--narrow">
+                      <label className="qof-label">{cs ? 'Cena (Kc)' : 'Price'}</label>
+                      <input
+                        className="qof-input qof-input--number"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={model.price}
+                        onChange={(e) => updateModel(idx, 'price', e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="qof-field qof-field--wide">
-                  <label className="qof-label">{cs ? 'Interni poznamky' : 'Internal notes'}</label>
-                  <textarea
-                    className="qof-textarea"
-                    rows={2}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder={cs ? 'Poznamky k objednavce...' : 'Order notes...'}
-                    maxLength={2000}
-                  />
+              ))}
+            </div>
+          </div>
+
+          {/* Section: Order Options */}
+          <div className="qof-section">
+            <h3 className="qof-section-title">
+              <Icon name="Settings" size={16} />
+              {cs ? 'Moznosti' : 'Options'}
+            </h3>
+            <div className="qof-fields-row">
+              <div className="qof-field">
+                <label className="qof-label">{cs ? 'Priorita' : 'Priority'}</label>
+                <div className="qof-priority-group">
+                  {PRIORITY_LEVELS.map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`qof-priority-btn${priority === p ? ' qof-priority-btn--active' : ''}${p === 'rush' ? ' qof-priority-btn--rush' : ''}`}
+                      onClick={() => setPriority(p)}
+                    >
+                      {cs ? PRIORITY_LABELS[p].cs : PRIORITY_LABELS[p].en}
+                    </button>
+                  ))}
                 </div>
               </div>
+              <div className="qof-field qof-field--wide">
+                <label className="qof-label">{cs ? 'Interni poznamky' : 'Internal notes'}</label>
+                <textarea
+                  className="qof-textarea"
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={cs ? 'Poznamky k objednavce...' : 'Order notes...'}
+                  maxLength={2000}
+                />
+              </div>
             </div>
+          </div>
 
-            {/* Totals */}
+          {/* Section: Totals */}
+          <div className="qof-section">
             <div className="qof-totals">
               <div className="qof-totals-row">
                 <span className="qof-totals-label">{cs ? 'Modely' : 'Models'}</span>
@@ -487,115 +509,18 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
                 <span className="qof-totals-value">{totals.total} Kc</span>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="qof-actions">
-              <button type="button" className="qof-btn qof-btn--secondary" onClick={handleClose}>
-                {cs ? 'Zrusit' : 'Cancel'}
-              </button>
-              <button type="submit" className="qof-btn qof-btn--primary" disabled={submitting}>
-                {submitting ? (
-                  <>{cs ? 'Ukladam...' : 'Saving...'}</>
-                ) : (
-                  <>
-                    <Icon name="Check" size={16} />
-                    {cs ? 'Vytvorit objednavku' : 'Create order'}
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        )}
-
-        <style>{quickOrderStyles}</style>
-      </div>
-    </div>
+          </div>
+        </div>
+      )}
+    </ForgeDialog>
   );
 }
 
-/* ── Styles ──────────────────────────────────────────────────────────── */
+/* -- Styles --------------------------------------------------------------- */
 
 const quickOrderStyles = `
-  .qof-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    animation: qof-fadeIn 0.15s ease;
-  }
-
-  @keyframes qof-fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .qof-modal {
-    background: var(--forge-bg-surface, #111827);
-    border: 1px solid var(--forge-border-default, #1E293B);
-    border-radius: var(--forge-radius-lg, 8px);
-    width: 100%;
-    max-width: 780px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
-  }
-
-  .qof-modal::-webkit-scrollbar { width: 4px; }
-  .qof-modal::-webkit-scrollbar-track { background: transparent; }
-  .qof-modal::-webkit-scrollbar-thumb {
-    background: var(--forge-border-default, #1E293B);
-    border-radius: 2px;
-  }
-
-  /* Header */
-  .qof-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--forge-border-default, #1E293B);
-    position: sticky;
-    top: 0;
-    background: var(--forge-bg-surface, #111827);
-    z-index: 1;
-  }
-
-  .qof-header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .qof-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-    font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
-    color: var(--forge-text-primary, #F1F5F9);
-  }
-
-  .qof-close-btn {
-    background: none;
-    border: none;
-    color: var(--forge-text-muted, #7A8291);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: color 0.15s;
-  }
-
-  .qof-close-btn:hover {
-    color: var(--forge-text-primary, #F1F5F9);
-  }
-
-  /* Form */
-  .qof-form {
-    padding: 24px;
+  /* Form content layout */
+  .qof-form-content {
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -624,6 +549,7 @@ const quickOrderStyles = `
     display: flex;
     flex-direction: column;
     gap: 12px;
+    scroll-margin-top: 8px;
   }
 
   .qof-section-header {
@@ -835,14 +761,7 @@ const quickOrderStyles = `
     font-size: 18px;
   }
 
-  /* Actions */
-  .qof-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding-top: 4px;
-  }
-
+  /* Buttons */
   .qof-btn {
     display: inline-flex;
     align-items: center;
@@ -898,6 +817,7 @@ const quickOrderStyles = `
     gap: 16px;
     padding: 48px 24px;
     text-align: center;
+    flex: 1;
   }
 
   .qof-success-icon {
@@ -933,18 +853,6 @@ const quickOrderStyles = `
 
   /* Responsive */
   @media (max-width: 640px) {
-    .qof-overlay {
-      padding: 8px;
-    }
-
-    .qof-modal {
-      max-height: 95vh;
-    }
-
-    .qof-form {
-      padding: 16px;
-    }
-
     .qof-fields-row {
       flex-direction: column;
     }
