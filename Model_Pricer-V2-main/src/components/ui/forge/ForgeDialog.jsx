@@ -22,6 +22,7 @@ export default function ForgeDialog({
 }) {
   const overlayRef = useRef(null);
   const bodyRef = useRef(null);
+  const prevOverflowRef = useRef('');
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -34,12 +35,13 @@ export default function ForgeDialog({
 
   useEffect(() => {
     if (open) {
-      document.addEventListener('keydown', handleKeyDown);
+      prevOverflowRef.current = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevOverflowRef.current;
     };
   }, [open, handleKeyDown]);
 

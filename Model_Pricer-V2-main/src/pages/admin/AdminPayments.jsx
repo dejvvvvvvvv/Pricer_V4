@@ -8,6 +8,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/AppIcon';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -298,10 +299,11 @@ export default function AdminPayments() {
                       <label>{t('admin.payments.vsNextValue')}</label>
                       <input
                         className="input"
-                        type="number"
-                        min={1}
-                        value={vs.next_value || 70001}
-                        onChange={(e) => updateVariableSymbol({ next_value: Math.max(1, Number(e.target.value) || 1) })}
+                        type="text"
+                        inputMode="numeric"
+                        value={vs.next_value ?? ''}
+                        onChange={(e) => updateVariableSymbol({ next_value: parseIntInput(e.target.value) })}
+                        onBlur={() => updateVariableSymbol({ next_value: Math.max(1, finalizeDecimal(vs.next_value, 70001)) })}
                       />
                     </div>
                     <div className="field">

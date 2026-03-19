@@ -13,6 +13,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 import ForgePageHeader from '../../components/ui/forge/ForgePageHeader';
 import ForgeSelect from '../../components/ui/forge/ForgeSelect';
 import ForgeInput from '../../components/ui/forge/ForgeInput';
@@ -399,9 +400,11 @@ export default function AdminSettings() {
           />
           <ForgeInput
             label={t('admin.settings.autoArchive', 'Auto-archivace po (dny)')}
-            type="number"
-            value={settings.orderAutoArchiveDays}
-            onChange={(e) => update('orderAutoArchiveDays', parseInt(e.target.value, 10) || 0)}
+            type="text"
+            inputMode="numeric"
+            value={settings.orderAutoArchiveDays ?? ''}
+            onChange={(e) => update('orderAutoArchiveDays', parseIntInput(e.target.value))}
+            onBlur={() => update('orderAutoArchiveDays', finalizeDecimal(settings.orderAutoArchiveDays, 0))}
             placeholder="90"
           />
         </div>

@@ -262,7 +262,7 @@ const TestKalkulacka = () => {
         weight_grams: firstResult?.metrics?.filamentGrams || firstResult?.metrics?.weight_g || 0,
         print_time_seconds: (firstResult?.metrics?.estimatedTimeSeconds || (firstResult?.metrics?.time_min ?? 0) * 60) || 0,
         price_total: stickyTotalPrice,
-        currency: 'CZK',
+        currency: pricingConfig?.currency || 'CZK',
         model_count: completedFiles.length,
       });
     }
@@ -274,7 +274,7 @@ const TestKalkulacka = () => {
     if (prevStepRef.current === 3 && currentStep === 4) {
       trackEvent(ANALYTICS_EVENT_TYPES.ADD_TO_CART_CLICKED, {
         price_total: stickyTotalPrice,
-        currency: 'CZK',
+        currency: pricingConfig?.currency || 'CZK',
         model_count: uploadedFiles.filter(f => f.status === 'completed').length,
       });
     }

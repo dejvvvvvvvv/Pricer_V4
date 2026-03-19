@@ -17,22 +17,23 @@ import { useNavigate } from 'react-router-dom';
  *
  * @returns {{ showHelp: boolean, setShowHelp: Function, pendingG: boolean }}
  */
+// Navigation targets for the "G then X" sequence — module-level constant,
+// no dependency on component state so it does not need to live inside the hook.
+const GO_TARGETS = {
+  d: '/admin',
+  o: '/admin/orders',
+  p: '/admin/pricing',
+  a: '/admin/analytics',
+  b: '/admin/branding',
+  w: '/admin/widget',
+  s: '/admin/model-storage',
+};
+
 export function useAdminShortcuts() {
   const navigate = useNavigate();
   const [showHelp, setShowHelp] = useState(false);
   const [pendingG, setPendingG] = useState(false);
   const pendingGTimer = useRef(null);
-
-  // Navigation targets for the "G then X" sequence
-  const GO_TARGETS = {
-    d: '/admin',
-    o: '/admin/orders',
-    p: '/admin/pricing',
-    a: '/admin/analytics',
-    b: '/admin/branding',
-    w: '/admin/widget',
-    s: '/admin/model-storage',
-  };
 
   const clearPendingG = useCallback(() => {
     setPendingG(false);

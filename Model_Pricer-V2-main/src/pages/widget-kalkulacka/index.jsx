@@ -571,7 +571,7 @@ const WidgetKalkulacka = ({
     cancelledRef.current = false;
     loadPresets();
     return () => { cancelledRef.current = true; };
-  }, []);
+  }, [loadPresets]);
 
   useEffect(() => {
     if (!selectedFile) return;

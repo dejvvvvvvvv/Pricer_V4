@@ -104,7 +104,7 @@ function saveHistory(items) {
 function STLPreview({ url, onInfo }) {
   const geometry = useLoader(STLLoader, url);
 
-  useMemo(() => {
+  useEffect(() => {
     if (!geometry) return;
     geometry.computeBoundingBox();
     const box = geometry.boundingBox;

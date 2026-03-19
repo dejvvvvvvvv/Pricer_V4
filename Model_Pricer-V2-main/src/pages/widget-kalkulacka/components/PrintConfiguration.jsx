@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Icon from '../../../components/AppIcon';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { calculateOrderQuote } from '../../../lib/pricing/pricingEngineV3';
@@ -37,6 +38,8 @@ const PrintConfiguration = ({
       : 'Presety se nepodarilo nacist — pouzivam default profil.',
     placeholder: language === 'en' ? 'Select preset...' : 'Vyber preset...',
   };
+
+  const [quantityRaw, setQuantityRaw] = useState(null);
 
   const [config, setConfig] = useState(initialConfig || {
     material: 'pla',
@@ -413,7 +416,7 @@ const PrintConfiguration = ({
               <label className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>Material</label>
               {selectedMaterial?.price_per_gram != null && (
                 <span style={{ fontSize: '10px', color: 'var(--widget-muted, #6B7280)', marginLeft: 'auto' }}>
-                  od {Number(selectedMaterial.price_per_gram).toFixed(2)} Kc/g
+                  od {Number(selectedMaterial.price_per_gram).toFixed(2)} Kč/g
                 </span>
               )}
             </div>
@@ -523,11 +526,15 @@ const PrintConfiguration = ({
         <div className="grid grid-cols-1 gap-4">
           <Input
             label="Pocet kusu"
-            type="number"
-            min="1"
-            max="100"
-            value={config?.quantity}
-            onChange={(e) => handleConfigChange('quantity', parseInt(e?.target?.value) || 1)}
+            type="text"
+            inputMode="numeric"
+            value={quantityRaw !== null ? quantityRaw : String(config?.quantity ?? 1)}
+            onChange={(e) => setQuantityRaw(parseIntInput(e.target.value))}
+            onBlur={() => {
+              const val = Math.max(1, finalizeDecimal(quantityRaw, config?.quantity ?? 1));
+              handleConfigChange('quantity', val);
+              setQuantityRaw(null);
+            }}
           />
           {config?.quantity > 1 && (() => {
             if (!selectedFile || selectedFile.status !== 'completed' || !selectedFile.result || !pricingConfig) return null;

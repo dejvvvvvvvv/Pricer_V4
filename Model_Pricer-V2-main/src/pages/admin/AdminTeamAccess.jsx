@@ -522,7 +522,7 @@ function PermissionsMatrix() {
     const colors = {
       full: { bg: 'rgba(0,212,170,0.12)', color: 'var(--forge-success)', icon: 'Check' },
       read: { bg: 'rgba(96,165,250,0.12)', color: 'var(--forge-info)', icon: 'Eye' },
-      none: { bg: 'rgba(255,71,87,0.06)', color: 'var(--forge-text-disabled)', icon: 'Minus' },
+      none: { bg: 'rgba(255,71,87,0.06)', color: 'var(--forge-text-muted)', icon: 'Minus' },
     };
     return colors[level] || colors.none;
   };
@@ -618,7 +618,7 @@ function PermissionsMatrix() {
         {[
           { icon: 'Check', label: t('admin.team.legend.full', 'Full access'), color: 'var(--forge-success)' },
           { icon: 'Eye', label: t('admin.team.legend.read', 'Read only'), color: 'var(--forge-info)' },
-          { icon: 'Minus', label: t('admin.team.legend.none', 'No access'), color: 'var(--forge-text-disabled)' },
+          { icon: 'Minus', label: t('admin.team.legend.none', 'No access'), color: 'var(--forge-text-muted)' },
         ].map((item) => (
           <span key={item.label} style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',

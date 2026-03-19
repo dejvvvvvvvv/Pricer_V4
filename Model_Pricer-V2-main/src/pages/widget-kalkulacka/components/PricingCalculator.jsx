@@ -12,7 +12,7 @@ function formatCzk(amount) {
       maximumFractionDigits: 2,
     }).format(n);
   } catch {
-    return `${n.toFixed(2)} Kc`;
+    return `${n.toFixed(2)} Kč`;
   }
 }
 

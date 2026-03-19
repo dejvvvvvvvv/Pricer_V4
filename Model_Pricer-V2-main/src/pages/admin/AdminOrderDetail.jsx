@@ -56,6 +56,7 @@ function getSlicerWeightG(slicer) {
 // ── StatusBadge ──
 function StatusBadge({ status }) {
   const sc = getStatusColor(status);
+  const { language } = useLanguage();
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -64,7 +65,7 @@ function StatusBadge({ status }) {
       fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
       backgroundColor: sc.bg, color: sc.color, border: `1px solid ${sc.border}`,
     }}>
-      {getStatusLabel(status, 'cs')}
+      {getStatusLabel(status, language)}
     </span>
   );
 }
@@ -3065,8 +3066,9 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                 <button className="od-btn" type="button" onClick={handlePrintInvoice} style={{ fontSize: '11px', padding: '5px 10px' }}>
                   <Icon name="Download" size={12} /> PDF
                 </button>
+                {/* Invoice preview is intentionally light-theme (#fff bg). color: #374151 = gray-700, contrast 9.3:1 on white (WCAG AAA) */}
                 <button type="button" onClick={() => setInvoicePreviewOpen(false)} style={{
-                  background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '4px',
+                  background: 'none', border: 'none', cursor: 'pointer', color: '#374151', padding: '4px',
                 }}>
                   <Icon name="X" size={18} />
                 </button>

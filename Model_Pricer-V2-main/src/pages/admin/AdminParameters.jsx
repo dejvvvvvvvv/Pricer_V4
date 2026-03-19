@@ -2500,7 +2500,7 @@ const adminParametersStyles = `
 }
 .ap-paramCard-badge-muted {
   background: var(--forge-bg-overlay);
-  color: var(--forge-text-disabled);
+  color: var(--forge-text-muted);
 }
 .ap-paramCard-badge-inactive {
   background: rgba(255,181,71,0.1);
@@ -2709,7 +2709,7 @@ const adminParametersStyles = `
   font-size: 16px;
   font-family: var(--forge-font-mono);
 }
-.ap-lib-filter-result-sep { color: var(--forge-text-disabled); }
+.ap-lib-filter-result-sep { color: var(--forge-text-muted); }
 .ap-lib-filter-result-total {
   font-weight: 600;
   font-family: var(--forge-font-mono);
@@ -3095,7 +3095,7 @@ const adminParametersStyles = `
   border-radius: var(--forge-radius-md);
   color: var(--forge-accent-primary);
 }
-.ap-arrow { color: var(--forge-text-disabled); }
+.ap-arrow { color: var(--forge-text-muted); }
 .ap-to { font-weight: 700; color: var(--forge-text-primary); }
 .ap-more { font-size: 12px; color: var(--forge-text-muted); }
 

@@ -43,7 +43,7 @@ function isToday(dateStr) {
 
 function fmtCurrency(n, language) {
   const fmt = new Intl.NumberFormat(language === 'cs' ? 'cs-CZ' : 'en-US', { maximumFractionDigits: 0 });
-  return `${fmt.format(n)} Kc`;
+  return `${fmt.format(n)} Kč`;
 }
 
 /* ── Status colors ────────────────────────────────────────────────────── */
@@ -67,7 +67,7 @@ const QUICK_LINKS = [
   { icon: 'DollarSign', path: '/admin/pricing', labelKey: 'admin.dashboard.link.pricing', labelFallback: 'Pricing' },
   { icon: 'Layers', path: '/admin/parameters', labelKey: 'admin.dashboard.link.materials', labelFallback: 'Materials' },
   { icon: 'Palette', path: '/admin/branding', labelKey: 'admin.dashboard.link.branding', labelFallback: 'Branding' },
-  { icon: 'BarChart3', path: '/admin/analytics', labelKey: 'admin.dashboard.link.analytics', labelFallback: 'Analytics' },
+  // Analytics link hidden — route /admin/analytics is beta-locked (lockanalytics in Routes.jsx)
   { icon: 'Layout', path: '/admin/widget', labelKey: 'admin.dashboard.link.widget', labelFallback: 'Widget' },
   { icon: 'Receipt', path: '/admin/fees', labelKey: 'admin.dashboard.link.fees', labelFallback: 'Fees' },
   { icon: 'BookOpen', path: '/admin/presets', labelKey: 'admin.dashboard.link.presets', labelFallback: 'Presets' },
@@ -434,7 +434,6 @@ const AdminDashboard = () => {
           sub={analytics30d?.metrics?.total_revenue > 0
             ? `${t('admin.dashboard.card.total30d', '30d total')}: ${fmtCurrency(analytics30d.metrics.total_revenue, language)}`
             : null}
-          onClick={() => navigate('/admin/analytics')}
         />
         <SummaryCard
           icon="ShoppingCart"
@@ -610,10 +609,7 @@ const AdminDashboard = () => {
                 <Icon name="ShoppingCart" size={16} />
                 {t('admin.dashboard.allOrders', 'All orders')}
               </button>
-              <button className="dash-btn dash-btn--secondary dash-btn--full" onClick={() => navigate('/admin/analytics')}>
-                <Icon name="BarChart3" size={16} />
-                {t('admin.dashboard.analytics', 'Analytics')}
-              </button>
+              {/* Analytics button hidden — route beta-locked */}
               <button className="dash-link-btn" onClick={() => setShowOnboarding(true)} style={{ marginTop: 4, justifyContent: 'center' }}>
                 <Icon name="Rocket" size={12} />
                 {t('admin.dashboard.setupWizard', 'Setup wizard')}

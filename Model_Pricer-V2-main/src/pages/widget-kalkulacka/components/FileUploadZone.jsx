@@ -195,9 +195,6 @@ const FileUploadZone = ({ onFilesUploaded, uploadedFiles, onRemoveFile, theme })
             <h4 className="text-sm font-medium" style={{ color: 'var(--widget-header, #1F2937)' }}>
               Nahrane soubory ({uploadedFiles.length})
             </h4>
-            <Button variant="ghost" size="sm">
-              <Icon name="MoreHorizontal" size={16} />
-            </Button>
           </div>
 
           <div className="space-y-2">

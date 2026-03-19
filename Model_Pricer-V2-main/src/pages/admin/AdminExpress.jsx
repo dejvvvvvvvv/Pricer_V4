@@ -15,13 +15,13 @@ import { loadExpressConfigV1, saveExpressConfigV1, validateExpressConfigV1 } fro
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
 import { getHelpText } from './helpTexts';
 import { debug } from '../../lib/debug';
-import { safeNum } from '@/utils/formatters';
+import { safeNum, parseDecimal, finalizeDecimal, parseIntInput } from '@/utils/formatters';
 
 function createId(prefix = 'tier') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
   } catch {}
-  return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const SURCHARGE_TYPES = [
@@ -395,10 +395,11 @@ export default function AdminExpress() {
                       <label>{cs ? 'Doba doruceni (dny)' : 'Delivery days'} <ForgeHelpIcon text={getHelpText('express_delivery_days', language)} size={14} /></label>
                       <input
                         className="input"
-                        type="number"
-                        min="0"
-                        value={selectedTier.delivery_days}
-                        onChange={(e) => updateTier(selectedTier.id, { delivery_days: safeNum(e.target.value, 0) })}
+                        type="text"
+                        inputMode="numeric"
+                        value={selectedTier.delivery_days ?? ''}
+                        onChange={(e) => updateTier(selectedTier.id, { delivery_days: parseIntInput(e.target.value) })}
+                        onBlur={() => updateTier(selectedTier.id, { delivery_days: finalizeDecimal(selectedTier.delivery_days, 0) })}
                       />
                     </div>
                   </div>
@@ -419,11 +420,11 @@ export default function AdminExpress() {
                       <label>{cs ? 'Hodnota prirazky' : 'Surcharge value'}</label>
                       <input
                         className="input"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={selectedTier.surcharge_value}
-                        onChange={(e) => updateTier(selectedTier.id, { surcharge_value: safeNum(e.target.value, 0) })}
+                        type="text"
+                        inputMode="decimal"
+                        value={selectedTier.surcharge_value ?? ''}
+                        onChange={(e) => updateTier(selectedTier.id, { surcharge_value: parseDecimal(e.target.value) })}
+                        onBlur={() => updateTier(selectedTier.id, { surcharge_value: finalizeDecimal(selectedTier.surcharge_value, 0) })}
                       />
                       <div className="help">
                         {selectedTier.surcharge_type === 'percent'
@@ -461,11 +462,11 @@ export default function AdminExpress() {
                       <label>{cs ? 'Min. hodnota objednavky (CZK)' : 'Min order value (CZK)'}</label>
                       <input
                         className="input"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={selectedTier.min_order_value}
-                        onChange={(e) => updateTier(selectedTier.id, { min_order_value: safeNum(e.target.value, 0) })}
+                        type="text"
+                        inputMode="decimal"
+                        value={selectedTier.min_order_value ?? ''}
+                        onChange={(e) => updateTier(selectedTier.id, { min_order_value: parseDecimal(e.target.value) })}
+                        onBlur={() => updateTier(selectedTier.id, { min_order_value: finalizeDecimal(selectedTier.min_order_value, 0) })}
                       />
                       <div className="help">
                         {cs

@@ -79,7 +79,7 @@ export default function PwaInstallBanner() {
         height="16"
         viewBox="0 0 16 16"
         fill="none"
-        stroke="var(--forge-accent-teal, #2DD4BF)"
+        stroke="var(--forge-accent-primary, #2DD4BF)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -98,7 +98,7 @@ export default function PwaInstallBanner() {
           padding: '4px 12px',
           borderRadius: '6px',
           border: 'none',
-          background: 'var(--forge-accent-teal, #2DD4BF)',
+          background: 'var(--forge-accent-primary, #2DD4BF)',
           color: '#08090C',
           fontSize: '0.8125rem',
           fontWeight: 600,

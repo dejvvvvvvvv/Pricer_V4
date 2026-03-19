@@ -36,7 +36,7 @@ export const TOUR_STEPS = [
     id: 'generate',
     target: '[data-tour="generate-btn"]',
     title: 'Spustit vypocet',
-    body: 'Kliknete na "Spocitat cenu" nebo pouzijte klavesovou zkratku Ctrl+Enter. Slicovani obvykle trva 5\u201315 sekund.',
+    body: 'Klikněte na "Spočítat cenu" nebo použijte klávesovou zkratku Ctrl+Enter. Slicování obvykle trvá 5\u201315 sekund.',
     icon: 'Play',
     placement: 'bottom',
   },

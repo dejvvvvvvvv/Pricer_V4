@@ -452,9 +452,28 @@ function GridCard({ item, isSelected, isTrash, onClick, onContextMenu, onSelect,
             onError={(e) => {
               if (e?.target) {
                 e.target.style.display = 'none';
-                // SAFE: static SVG fallback, no user input interpolated
                 if (e.target.parentElement) {
-                  e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7A8291" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>';
+                  const wrapper = document.createElement('div');
+                  wrapper.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;height:100%';
+                  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                  svg.setAttribute('width', '40');
+                  svg.setAttribute('height', '40');
+                  svg.setAttribute('viewBox', '0 0 24 24');
+                  svg.setAttribute('fill', 'none');
+                  svg.setAttribute('stroke', '#7A8291');
+                  svg.setAttribute('stroke-width', '1.5');
+                  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                  rect.setAttribute('x', '3'); rect.setAttribute('y', '3');
+                  rect.setAttribute('width', '18'); rect.setAttribute('height', '18');
+                  rect.setAttribute('rx', '2');
+                  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                  circle.setAttribute('cx', '8.5'); circle.setAttribute('cy', '8.5');
+                  circle.setAttribute('r', '1.5');
+                  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                  path.setAttribute('d', 'm21 15-5-5L5 21');
+                  svg.appendChild(rect); svg.appendChild(circle); svg.appendChild(path);
+                  wrapper.appendChild(svg);
+                  e.target.parentElement.appendChild(wrapper);
                 }
               }
             }}

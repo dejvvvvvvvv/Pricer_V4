@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 /**
  * Forge-themed toast notification with left colored border,
@@ -21,6 +21,8 @@ export default function ForgeToast({
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
   const rafRef = useRef(null);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
   const typeColors = {
     success: 'var(--forge-success)',
@@ -49,14 +51,14 @@ export default function ForgeToast({
     rafRef.current = requestAnimationFrame(tick);
 
     timerRef.current = setTimeout(() => {
-      if (onDismiss) onDismiss();
+      if (onDismissRef.current) onDismissRef.current();
     }, duration);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [duration, onDismiss]);
+  }, [duration]);
 
   const containerStyle = {
     backgroundColor: 'var(--forge-bg-elevated)',

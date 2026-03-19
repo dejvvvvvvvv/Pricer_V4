@@ -22,6 +22,7 @@ import { getTenantId } from '../../utils/adminTenantStorage';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { ForgeBreadcrumb } from '../../components/ui/forge/ForgeBreadcrumb';
+import Skeleton, { SkeletonCard } from '../../components/ui/forge/ForgeSkeleton';
 import NotificationCenter from './components/NotificationCenter';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
@@ -989,9 +990,9 @@ const AdminLayout = () => {
             fontSize: '10px',
           }}>
             {[
-              { label: t('admin.footer.docs'), href: '/support', icon: 'BookOpen' },
+              { label: t('admin.footer.docs'), href: '/support?tab=docs', icon: 'BookOpen' },
               { label: t('admin.footer.support'), href: '/support', icon: 'LifeBuoy' },
-              { label: t('admin.footer.changelog'), href: '/support', icon: 'FileText' },
+              { label: t('admin.footer.changelog'), href: '/support#changelog', icon: 'FileText' },
             ].map((link, i) => (
               <React.Fragment key={link.label}>
                 {i > 0 && <span style={{ opacity: 0.3 }}>|</span>}
@@ -1079,12 +1080,14 @@ const AdminLayout = () => {
   if (authLoading) {
     return (
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexDirection: 'column', gap: '1rem',
+        alignItems: 'center', justifyContent: 'center',
         minHeight: '100vh', backgroundColor: 'var(--forge-bg-void)',
-        color: 'var(--forge-text-muted, #7A8291)',
-        fontFamily: 'var(--forge-font-heading)',
+        padding: '2rem',
       }}>
-        Loading...
+        <SkeletonCard textLines={2} />
+        <Skeleton width="60%" height="1.25rem" />
+        <Skeleton width="40%" height="1rem" />
       </div>
     );
   }

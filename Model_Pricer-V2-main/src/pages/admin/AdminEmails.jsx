@@ -33,6 +33,7 @@ import {
   saveEmailTemplates,
 } from '../../utils/adminEmailStorage';
 import EmailTemplatePreview from './components/EmailTemplatePreview';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -646,9 +647,11 @@ export default function AdminEmails() {
                     <input
                       id="smtp-port"
                       className="ae-input"
-                      type="number"
-                      value={config?.smtp_port || 587}
-                      onChange={(e) => updateConfig({ smtp_port: Number(e.target.value) || 587 })}
+                      type="text"
+                      inputMode="numeric"
+                      value={config?.smtp_port ?? ''}
+                      onChange={(e) => updateConfig({ smtp_port: parseIntInput(e.target.value) })}
+                      onBlur={() => updateConfig({ smtp_port: finalizeDecimal(config?.smtp_port, 587) })}
                       placeholder="587"
                     />
                   </div>

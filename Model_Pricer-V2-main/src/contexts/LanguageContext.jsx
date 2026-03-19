@@ -13,12 +13,20 @@ export const useLanguage = () => {
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(() => {
     // Load from localStorage or default to Czech
-    return localStorage.getItem('language') || 'cs';
+    try {
+      return localStorage.getItem('language') || 'cs';
+    } catch {
+      return 'cs';
+    }
   });
 
   useEffect(() => {
     // Save to localStorage when language changes
-    localStorage.setItem('language', language);
+    try {
+      localStorage.setItem('language', language);
+    } catch {
+      // ignore storage errors (private browsing, quota exceeded)
+    }
   }, [language]);
 
   const toggleLanguage = () => {

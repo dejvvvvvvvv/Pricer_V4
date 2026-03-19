@@ -277,7 +277,8 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
       });
 
       if (!result.ok) {
-        return fail(res, 404, "MP_NOT_FOUND", result.error);
+        const status = result.error?.includes('not found') ? 404 : 400;
+        return fail(res, status, status === 404 ? "MP_NOT_FOUND" : "MP_UPDATE_FAILED", result.error);
       }
 
       // Fire webhook (fire-and-forget)

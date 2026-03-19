@@ -59,8 +59,7 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
   const [resetStatus, setResetStatus] = useState(null); // 'success' | 'error' | null
   const [resetLoading, setResetLoading] = useState(false);
 
-  const handlePasswordReset = async (e) => {
-    e.preventDefault();
+  const handlePasswordReset = async () => {
     if (!resetEmail.trim()) return;
     setResetLoading(true);
     setResetStatus(null);
@@ -201,14 +200,13 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
             }}>
               {t('loginForm.resetEmailDescription', 'Zadejte váš email pro obnovení hesla')}
             </p>
-            <form onSubmit={handlePasswordReset} style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="email"
                 value={resetEmail}
                 onChange={e => setResetEmail(e.target.value)}
                 placeholder="vas@email.cz"
                 disabled={resetLoading}
-                required
                 aria-label={t('loginForm.resetEmailDescription', 'Zadejte váš email pro obnovení hesla')}
                 style={{
                   ...inputStyle,
@@ -216,10 +214,12 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
                 }}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
+                onKeyDown={e => { if (e.key === 'Enter') handlePasswordReset(); }}
               />
               <ForgeButton
                 variant="secondary"
-                type="submit"
+                type="button"
+                onClick={handlePasswordReset}
                 disabled={resetLoading || !resetEmail.trim()}
                 style={{ height: '44px', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
@@ -227,7 +227,7 @@ const LoginForm = ({ redirectTo = '/admin' }) => {
                   ? '...'
                   : t('loginForm.sendReset', 'Odeslat odkaz')}
               </ForgeButton>
-            </form>
+            </div>
             {resetStatus === 'success' && (
               <div style={{
                 marginTop: '8px',

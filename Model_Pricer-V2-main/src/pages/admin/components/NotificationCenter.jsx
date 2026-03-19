@@ -204,7 +204,7 @@ const styles = {
   itemClose: {
     background: 'none',
     border: 'none',
-    color: 'var(--forge-text-disabled)',
+    color: 'var(--forge-text-muted)',
     cursor: 'pointer',
     padding: '2px',
     borderRadius: 'var(--forge-radius-sm)',

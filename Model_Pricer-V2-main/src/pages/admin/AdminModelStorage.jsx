@@ -62,7 +62,7 @@ export default function AdminModelStorage() {
   // Load initial folder
   useEffect(() => {
     loadFolder(initialPath);
-  }, []);
+  }, [loadFolder, initialPath]);
 
   // Sync URL params with current path
   useEffect(() => {

@@ -125,6 +125,26 @@ function safeNum(v, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// Parse decimal input: handles comma and dot, allows empty during editing.
+// Returns raw string for display, filters non-numeric characters.
+function parseDecimal(v) {
+  if (v === '' || v == null) return '';
+  const s = String(v).replace(',', '.');
+  // Allow: digits, one dot, optional leading minus
+  if (/^-?\d*\.?\d*$/.test(s)) return v;
+  // Invalid char typed — reject by returning previous-compatible value
+  // Strip last char (the invalid one)
+  const stripped = String(v).slice(0, -1);
+  return stripped === '' ? '' : stripped;
+}
+
+// Finalize decimal on blur: always returns a number (or custom fallback like null)
+function finalizeDecimal(v, fallback = 0) {
+  if (v === '' || v == null) return fallback;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function clampMin0(n) {
   const x = safeNum(n, 0);
   return x < 0 ? 0 : x;
@@ -150,7 +170,7 @@ function createStableId(prefix = 'id') {
   } catch {
     // ignore
   }
-  return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function slugifyMaterialKey(input) {
@@ -788,7 +808,20 @@ const AdminPricing = () => {
 
   const saveMaterialDialog = () => {
     if (dialogDraft == null || editingMaterialIndex == null) return;
-    setMaterials(prev => prev.map((m, i) => i === editingMaterialIndex ? dialogDraft : m));
+    // Normalize all numeric fields before saving (in case user didn't blur)
+    const normalized = {
+      ...dialogDraft,
+      price_per_gram: finalizeDecimal(dialogDraft.price_per_gram, 0),
+      density: finalizeDecimal(dialogDraft.density, 1.0),
+      temp_nozzle_min: finalizeDecimal(dialogDraft.temp_nozzle_min, 0),
+      temp_nozzle_max: finalizeDecimal(dialogDraft.temp_nozzle_max, 0),
+      temp_bed_min: finalizeDecimal(dialogDraft.temp_bed_min, 0),
+      temp_bed_max: finalizeDecimal(dialogDraft.temp_bed_max, 0),
+      cooling_fan: finalizeDecimal(dialogDraft.cooling_fan, 0),
+      speed_min: finalizeDecimal(dialogDraft.speed_min, 0),
+      speed_max: finalizeDecimal(dialogDraft.speed_max, 0),
+    };
+    setMaterials(prev => prev.map((m, i) => i === editingMaterialIndex ? normalized : m));
     setTouched(true);
     closeMaterialDialog();
   };
@@ -804,8 +837,9 @@ const AdminPricing = () => {
         if (slug) next.key = ensureUniqueMaterialKey(slug, materials, prev.id);
       }
       if (field === 'key') next.key = slugifyMaterialKey(value);
-      if (field === 'price_per_gram') next.price_per_gram = safeNum(value, 0);
-      if (field === 'density') next.density = safeNum(value, 1.0);
+      // price_per_gram and density: store raw value during editing (string with comma/dot allowed).
+      // Conversion to number happens on blur (finalizeDecimal) and on save (saveMaterialDialog).
+      // No conversion here — otherwise trailing comma/dot gets stripped immediately.
       // When type changes, auto-fill properties if they haven't been customized
       if (field === 'type') {
         const defaults = getMaterialDefaults(value);
@@ -1879,10 +1913,11 @@ const AdminPricing = () => {
                       <label>{t('admin.pricing.fieldPricePerGram', 'Price per gram')} <ForgeHelpIcon text={getHelpText('pricing_material_price_per_gram', language)} size={14} /></label>
                       <div className="input-with-unit">
                         <input
-                          type="number" min="0" step="0.01"
+                          type="text" inputMode="decimal"
                           className={`input ${priceError ? 'input-error' : ''}`}
-                          value={mat.price_per_gram}
-                          onChange={(e) => updateDialogDraft('price_per_gram', safeNum(e.target.value, 0))}
+                          value={mat.price_per_gram ?? ''}
+                          onChange={(e) => updateDialogDraft('price_per_gram', parseDecimal(e.target.value))}
+                          onBlur={() => updateDialogDraft('price_per_gram', finalizeDecimal(mat.price_per_gram, 0))}
                         />
                         <span className="unit">Kc/g</span>
                       </div>
@@ -1891,10 +1926,11 @@ const AdminPricing = () => {
                       <label>{cs ? 'Hustota' : 'Density'} <ForgeHelpIcon text={getHelpText('pricing_material_density', language)} size={14} /></label>
                       <div className="input-with-unit">
                         <input
-                          type="number" min="0" step="0.01"
+                          type="text" inputMode="decimal"
                           className="input"
-                          value={mat.density || ''}
-                          onChange={(e) => updateDialogDraft('density', safeNum(e.target.value, 0))}
+                          value={mat.density ?? ''}
+                          onChange={(e) => updateDialogDraft('density', parseDecimal(e.target.value))}
+                          onBlur={() => updateDialogDraft('density', finalizeDecimal(mat.density, 1.0))}
                         />
                         <span className="unit">g/cm³</span>
                       </div>
@@ -1924,34 +1960,34 @@ const AdminPricing = () => {
                       <div className="field">
                         <label>{cs ? 'Teplota trysky (min-max)' : 'Nozzle temp (min-max)'}</label>
                         <div className="input-with-unit">
-                          <input type="number" min="0" step="5" className="input" value={mat.temp_nozzle_min || ''} onChange={(e) => updateDialogDraft('temp_nozzle_min', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.temp_nozzle_min ?? ''} onChange={(e) => updateDialogDraft('temp_nozzle_min', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('temp_nozzle_min', finalizeDecimal(mat.temp_nozzle_min, 0))} style={{ width: 70 }} />
                           <span style={{ color: 'var(--forge-text-muted)', margin: '0 2px' }}>-</span>
-                          <input type="number" min="0" step="5" className="input" value={mat.temp_nozzle_max || ''} onChange={(e) => updateDialogDraft('temp_nozzle_max', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.temp_nozzle_max ?? ''} onChange={(e) => updateDialogDraft('temp_nozzle_max', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('temp_nozzle_max', finalizeDecimal(mat.temp_nozzle_max, 0))} style={{ width: 70 }} />
                           <span className="unit">°C</span>
                         </div>
                       </div>
                       <div className="field">
                         <label>{cs ? 'Teplota podlozky (min-max)' : 'Bed temp (min-max)'}</label>
                         <div className="input-with-unit">
-                          <input type="number" min="0" step="5" className="input" value={mat.temp_bed_min || ''} onChange={(e) => updateDialogDraft('temp_bed_min', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.temp_bed_min ?? ''} onChange={(e) => updateDialogDraft('temp_bed_min', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('temp_bed_min', finalizeDecimal(mat.temp_bed_min, 0))} style={{ width: 70 }} />
                           <span style={{ color: 'var(--forge-text-muted)', margin: '0 2px' }}>-</span>
-                          <input type="number" min="0" step="5" className="input" value={mat.temp_bed_max || ''} onChange={(e) => updateDialogDraft('temp_bed_max', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.temp_bed_max ?? ''} onChange={(e) => updateDialogDraft('temp_bed_max', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('temp_bed_max', finalizeDecimal(mat.temp_bed_max, 0))} style={{ width: 70 }} />
                           <span className="unit">°C</span>
                         </div>
                       </div>
                       <div className="field">
                         <label>{cs ? 'Chlazeni (ventilator)' : 'Cooling fan'}</label>
                         <div className="input-with-unit">
-                          <input type="number" min="0" max="100" step="10" className="input" value={mat.cooling_fan != null ? mat.cooling_fan : ''} onChange={(e) => updateDialogDraft('cooling_fan', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.cooling_fan ?? ''} onChange={(e) => updateDialogDraft('cooling_fan', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('cooling_fan', finalizeDecimal(mat.cooling_fan, 0))} style={{ width: 70 }} />
                           <span className="unit">%</span>
                         </div>
                       </div>
                       <div className="field">
                         <label>{cs ? 'Rychlost tisku (min-max)' : 'Print speed (min-max)'}</label>
                         <div className="input-with-unit">
-                          <input type="number" min="0" step="5" className="input" value={mat.speed_min || ''} onChange={(e) => updateDialogDraft('speed_min', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.speed_min ?? ''} onChange={(e) => updateDialogDraft('speed_min', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('speed_min', finalizeDecimal(mat.speed_min, 0))} style={{ width: 70 }} />
                           <span style={{ color: 'var(--forge-text-muted)', margin: '0 2px' }}>-</span>
-                          <input type="number" min="0" step="5" className="input" value={mat.speed_max || ''} onChange={(e) => updateDialogDraft('speed_max', safeNum(e.target.value, 0))} style={{ width: 70 }} />
+                          <input type="text" inputMode="decimal" className="input" value={mat.speed_max ?? ''} onChange={(e) => updateDialogDraft('speed_max', parseDecimal(e.target.value))} onBlur={() => updateDialogDraft('speed_max', finalizeDecimal(mat.speed_max, 0))} style={{ width: 70 }} />
                           <span className="unit">mm/s</span>
                         </div>
                       </div>
@@ -1996,13 +2032,19 @@ const AdminPricing = () => {
                           />
                           <div className="dialog-color-price-field">
                             <input
-                              type="number" min="0" step="0.01"
+                              type="text" inputMode="decimal"
                               className="input"
                               placeholder={`${clampMin0(mat.price_per_gram)}`}
                               value={c.price_per_gram != null ? c.price_per_gram : ''}
                               onChange={(e) => {
-                                const val = e.target.value === '' ? null : safeNum(e.target.value, 0);
+                                const raw = e.target.value;
+                                const val = raw === '' ? null : parseDecimal(raw);
                                 updateDialogColor(c.id, 'price_per_gram', val);
+                              }}
+                              onBlur={() => {
+                                if (c.price_per_gram != null && c.price_per_gram !== '') {
+                                  updateDialogColor(c.id, 'price_per_gram', finalizeDecimal(c.price_per_gram, null));
+                                }
                               }}
                               title={cs ? 'Vlastni cena za gram (prazdne = vychozi)' : 'Custom price per gram (empty = default)'}
                             />

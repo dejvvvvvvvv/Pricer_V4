@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 import ForgeSlider from '../../../components/ui/forge/ForgeSlider';
 import ForgeToggle from '../../../components/ui/forge/ForgeToggle';
 import { validatePresetConfig } from '../../../services/presetsApi';
@@ -199,9 +200,11 @@ export default function PresetInlineEditor({
             <input
               id={`pe-order-${preset.id}`}
               style={styles.input}
-              type="number"
-              value={draft.order}
-              onChange={e => updateField('order', Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              value={draft.order ?? ''}
+              onChange={e => updateField('order', parseIntInput(e.target.value))}
+              onBlur={() => updateField('order', finalizeDecimal(draft.order, 0))}
             />
           </div>
           <div style={styles.field}>

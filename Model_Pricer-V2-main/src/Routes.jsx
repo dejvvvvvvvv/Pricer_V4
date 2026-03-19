@@ -25,7 +25,8 @@ const TestKalkulacka = React.lazy(() => import('./pages/test-kalkulacka'));
 const TestKalkulackaWhite = React.lazy(() => import('./pages/test-kalkulacka-white'));
 const AccountPage = React.lazy(() => import('./pages/account'));
 const WidgetPublicPage = React.lazy(() => import('./pages/widget-public/WidgetPublicPage'));
-const SlicerPage = React.lazy(() => import('./pages/slicer'));
+// SlicerPage — stránka neexistuje, zakomentováno dokud nebude implementována
+// const SlicerPage = React.lazy(() => import('./pages/slicer'));
 const ModelUpload = React.lazy(() => import('./pages/model-upload'));
 const OrderTracking = React.lazy(() => import('./pages/order-tracking'));
 
@@ -87,8 +88,8 @@ export default function Routes() {
           </ErrorBoundary>
         } />
 
-        {/* Slicer - fullscreen, no Header/Footer */}
-        <Route path="/slicer" element={
+        {/* Slicer - zakomentováno, stránka není implementována */}
+        {/* <Route path="/slicer" element={
           <ErrorBoundary module="SlicerEditor" fullPage>
             <Suspense fallback={<div style={{
               width:'100vw', height:'100vh', display:'flex',
@@ -99,7 +100,7 @@ export default function Routes() {
               <SlicerPage />
             </Suspense>
           </ErrorBoundary>
-        } />
+        } /> */}
 
         {/* Widget Builder - fullscreen, no admin sidebar / Header / Footer */}
         <Route path="/admin/widget/builder/:id" element={

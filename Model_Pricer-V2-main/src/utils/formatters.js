@@ -5,7 +5,11 @@
  * Import: import { formatMoney, formatTime, ... } from '@/utils/formatters';
  */
 
-import { round2 } from './adminOrdersStorage';
+// Local copy — avoids a circular-ish dependency on adminOrdersStorage.
+// adminOrdersStorage still exports its own round2 for other consumers.
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
 
 // ─── Mena ────────────────────────────────────────────────────────────────────
 
@@ -183,4 +187,38 @@ export function safeNum(val, fallback = 0, min, max) {
   if (min !== undefined && n < min) n = min;
   if (max !== undefined && n > max) n = max;
   return n;
+}
+
+// ─── Decimal / integer input helpers ─────────────────────────────────────────
+
+/**
+ * Parse decimal input: handles comma and dot, allows empty during editing.
+ * Use in onChange handlers for numeric text inputs.
+ */
+export function parseDecimal(v) {
+  if (v === '' || v == null) return '';
+  const s = String(v).replace(',', '.');
+  if (/^-?\d*\.?\d*$/.test(s)) return v;
+  const stripped = String(v).slice(0, -1);
+  return stripped === '' ? '' : stripped;
+}
+
+/**
+ * Finalize decimal on blur: always returns a number (or custom fallback like null).
+ * Use in onBlur handlers for numeric text inputs.
+ */
+export function finalizeDecimal(v, fallback = 0) {
+  if (v === '' || v == null) return fallback;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * Parse integer input: only allows digits and optional minus.
+ * Use in onChange handlers for integer-only text inputs.
+ */
+export function parseIntInput(v) {
+  if (v === '' || v == null) return '';
+  if (/^-?\d*$/.test(String(v))) return v;
+  return String(v).slice(0, -1) || '';
 }

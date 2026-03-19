@@ -68,7 +68,7 @@ function fail(res, status, errorCode, message) {
 
 const orderUpload = multer({
   dest: path.resolve(backendRoot, "storage", ".tmp"),
-  limits: { fileSize: 250 * 1024 * 1024 }, // 250MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB max (reduced from 250MB per security audit)
   fileFilter: (_req, file, cb) => {
     const name = (file.originalname || "").toLowerCase();
     const allowed = [".stl", ".obj", ".3mf", ".amf", ".step", ".stp"];

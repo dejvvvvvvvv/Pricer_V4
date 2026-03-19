@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
@@ -281,12 +281,12 @@ function OrdersList({ orders, setOrders, onSelectOrder }) {
   const [tagFilter, setTagFilter] = useState(() => new Set());
   const [allTags, setAllTags] = useState(() => loadOrderTags());
   const [tagAssignments, setTagAssignments] = useState(() => getAllOrderTagAssignments());
-  const refreshTags = () => {
+  const refreshTags = useCallback(() => {
     setAllTags(loadOrderTags());
     setTagAssignments(getAllOrderTagAssignments());
-  };
+  }, []);
 
-  const refreshViews = () => setSavedViews(getAllViews());
+  const refreshViews = useCallback(() => setSavedViews(getAllViews()), []);
 
   useEffect(() => {
     try {

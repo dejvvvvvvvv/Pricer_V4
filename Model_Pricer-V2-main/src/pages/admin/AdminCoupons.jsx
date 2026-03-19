@@ -23,20 +23,13 @@ import {
   bulkGenerateCoupons,
 } from '../../utils/adminCouponStorage';
 
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
-function safeNum(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
+import { safeNum, parseDecimal, finalizeDecimal, parseIntInput } from '@/utils/formatters';
 
 function createId(prefix = 'cpn') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}_${crypto.randomUUID()}`;
   } catch { /* fallback */ }
-  return `${prefix}_${crypto.randomUUID()}`;
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function formatDate(isoStr) {
@@ -553,11 +546,11 @@ export default function AdminCoupons() {
                     <label>{t('admin.coupons.bulkCount', 'Count')}</label>
                     <input
                       className="input"
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={bulkCount}
-                      onChange={(e) => setBulkCount(safeNum(e.target.value, 5))}
+                      type="text"
+                      inputMode="numeric"
+                      value={bulkCount ?? ''}
+                      onChange={(e) => setBulkCount(parseIntInput(e.target.value))}
+                      onBlur={() => setBulkCount(finalizeDecimal(bulkCount, 5))}
                     />
                   </div>
                   <div className="field">
@@ -581,10 +574,11 @@ export default function AdminCoupons() {
                     <label>{t('admin.coupons.bulkValue', 'Value')}</label>
                     <input
                       className="input"
-                      type="number"
-                      min="0"
-                      value={bulkValue}
-                      onChange={(e) => setBulkValue(safeNum(e.target.value, 0))}
+                      type="text"
+                      inputMode="decimal"
+                      value={bulkValue ?? ''}
+                      onChange={(e) => setBulkValue(parseDecimal(e.target.value))}
+                      onBlur={() => setBulkValue(finalizeDecimal(bulkValue, 0))}
                     />
                   </div>
                 </div>
@@ -760,13 +754,12 @@ export default function AdminCoupons() {
                               </label>
                               <input
                                 className="input"
-                                type="number"
-                                min="0"
-                                max={coupon.type === 'percent' ? '100' : undefined}
-                                step={coupon.type === 'percent' ? '1' : '10'}
-                                value={coupon.value}
-                                onChange={(e) => {
-                                  let v = safeNum(e.target.value, 0);
+                                type="text"
+                                inputMode="decimal"
+                                value={coupon.value ?? ''}
+                                onChange={(e) => updateCoupon(idx, { value: parseDecimal(e.target.value) })}
+                                onBlur={() => {
+                                  let v = finalizeDecimal(coupon.value, 0);
                                   if (coupon.type === 'percent') v = Math.max(0, Math.min(100, v));
                                   updateCoupon(idx, { value: v });
                                 }}
@@ -778,12 +771,17 @@ export default function AdminCoupons() {
                               <label>{cs ? 'Procento (%)' : 'Percent (%)'}</label>
                               <input
                                 className="input"
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="1"
-                                value={coupon.combined_percent || coupon.value}
-                                onChange={(e) => updateCoupon(idx, { combined_percent: safeNum(e.target.value, 0), value: safeNum(e.target.value, 0) })}
+                                type="text"
+                                inputMode="decimal"
+                                value={coupon.combined_percent ?? coupon.value ?? ''}
+                                onChange={(e) => {
+                                  const raw = parseDecimal(e.target.value);
+                                  updateCoupon(idx, { combined_percent: raw, value: raw });
+                                }}
+                                onBlur={() => {
+                                  const v = Math.max(0, Math.min(100, finalizeDecimal(coupon.combined_percent ?? coupon.value, 0)));
+                                  updateCoupon(idx, { combined_percent: v, value: v });
+                                }}
                               />
                               <div className="help">{cs ? '+ doprava zdarma automaticky' : '+ free shipping included'}</div>
                             </div>
@@ -796,11 +794,11 @@ export default function AdminCoupons() {
                             <label>{cs ? 'Min. objednavka (CZK)' : 'Min. order (CZK)'}</label>
                             <input
                               className="input"
-                              type="number"
-                              min="0"
-                              step="100"
-                              value={coupon.min_order_total}
-                              onChange={(e) => updateCoupon(idx, { min_order_total: safeNum(e.target.value, 0) })}
+                              type="text"
+                              inputMode="decimal"
+                              value={coupon.min_order_total ?? ''}
+                              onChange={(e) => updateCoupon(idx, { min_order_total: parseDecimal(e.target.value) })}
+                              onBlur={() => updateCoupon(idx, { min_order_total: finalizeDecimal(coupon.min_order_total, 0) })}
                               placeholder="0"
                             />
                             <div className="help">{cs ? '0 = bez minima' : '0 = no minimum'}</div>
@@ -809,10 +807,11 @@ export default function AdminCoupons() {
                             <label>{cs ? 'Max. pouziti celkem' : 'Max. total uses'}</label>
                             <input
                               className="input"
-                              type="number"
-                              min="0"
-                              value={coupon.max_uses}
-                              onChange={(e) => updateCoupon(idx, { max_uses: safeNum(e.target.value, 0) })}
+                              type="text"
+                              inputMode="numeric"
+                              value={coupon.max_uses ?? ''}
+                              onChange={(e) => updateCoupon(idx, { max_uses: parseIntInput(e.target.value) })}
+                              onBlur={() => updateCoupon(idx, { max_uses: finalizeDecimal(coupon.max_uses, 0) })}
                               placeholder="0"
                             />
                             <div className="help">{cs ? '0 = neomezeno' : '0 = unlimited'}</div>
@@ -821,10 +820,11 @@ export default function AdminCoupons() {
                             <label>{cs ? 'Max. na zakaznika' : 'Max. per customer'}</label>
                             <input
                               className="input"
-                              type="number"
-                              min="0"
-                              value={coupon.max_uses_per_customer || 0}
-                              onChange={(e) => updateCoupon(idx, { max_uses_per_customer: safeNum(e.target.value, 0) })}
+                              type="text"
+                              inputMode="numeric"
+                              value={coupon.max_uses_per_customer ?? ''}
+                              onChange={(e) => updateCoupon(idx, { max_uses_per_customer: parseIntInput(e.target.value) })}
+                              onBlur={() => updateCoupon(idx, { max_uses_per_customer: finalizeDecimal(coupon.max_uses_per_customer, 0) })}
                               placeholder="0"
                             />
                             <div className="help">{cs ? '0 = neomezeno' : '0 = unlimited'}</div>
@@ -1012,13 +1012,12 @@ export default function AdminCoupons() {
                           </label>
                           <input
                             className="input"
-                            type="number"
-                            min="0"
-                            max={promo.type === 'percent' ? '100' : undefined}
-                            step={promo.type === 'percent' ? '1' : '10'}
-                            value={promo.value}
-                            onChange={(e) => {
-                              let v = safeNum(e.target.value, 0);
+                            type="text"
+                            inputMode="decimal"
+                            value={promo.value ?? ''}
+                            onChange={(e) => updatePromotion(idx, { value: parseDecimal(e.target.value) })}
+                            onBlur={() => {
+                              let v = finalizeDecimal(promo.value, 0);
                               if (promo.type === 'percent') v = Math.max(0, Math.min(100, v));
                               updatePromotion(idx, { value: v });
                             }}
@@ -1175,14 +1174,13 @@ export default function AdminCoupons() {
                   <div className="settings-input-wrap">
                     <input
                       className="input"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={settings.max_discount_percent ?? 100}
-                      onChange={(e) =>
+                      type="text"
+                      inputMode="numeric"
+                      value={settings.max_discount_percent ?? ''}
+                      onChange={(e) => updateSettings({ max_discount_percent: parseIntInput(e.target.value) })}
+                      onBlur={() =>
                         updateSettings({
-                          max_discount_percent: Math.min(100, Math.max(0, safeNum(e.target.value, 0))),
+                          max_discount_percent: Math.min(100, Math.max(0, finalizeDecimal(settings.max_discount_percent, 0))),
                         })
                       }
                       style={{ width: 90, textAlign: 'center' }}

@@ -426,7 +426,7 @@ export default function AdminAnalytics() {
     topFees: t('admin.analytics.overview.topFees', 'Top fees'),
     chosen: t('admin.analytics.overview.chosen', 'Chosen'),
     material: t('admin.analytics.overview.material', 'Material'),
-    preset: 'Preset',
+    preset: t('admin.analytics.preset', 'Preset'),
     // Calculations tab
     searchPlaceholder: t('admin.analytics.calcs.searchPlaceholder', 'Search session / file / material / preset'),
     onlyFailed: t('admin.analytics.calcs.onlyFailed', 'Only failed'),
@@ -436,7 +436,7 @@ export default function AdminAnalytics() {
     weight: t('admin.analytics.calcs.weight', 'Weight'),
     price: t('admin.analytics.calcs.price', 'Price'),
     converted: t('admin.analytics.calcs.converted', 'Converted'),
-    status: 'Status',
+    status: t('admin.analytics.status', 'Status'),
     detail: t('admin.analytics.calcs.detail', 'Detail'),
     noCalcs: t('admin.analytics.calcs.noData', 'No calculations in this period'),
     // Orders sub-tab

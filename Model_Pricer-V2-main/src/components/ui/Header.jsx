@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Icon from '../AppIcon';
 import Button from './Button';
@@ -18,6 +18,7 @@ const Header = () => {
   const langMenuRef = useRef(null);
   const langToggleBtnRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const { currentUser, logout } = useAuth();
 
@@ -226,7 +227,7 @@ const Header = () => {
                   variant="default"
                   size="sm"
                   onClick={() => {
-                    window.location.href = '/register';
+                    navigate('/register');
                   }}
                 >
                   {t('nav.register')}
@@ -239,10 +240,10 @@ const Header = () => {
                 iconName="Upload"
                 iconPosition="left"
                 onClick={() => {
-                  window.location.href = '/test-kalkulacka';
+                  navigate('/test-kalkulacka');
                 }}
               >
-                Upload Model
+                {t('header.uploadModel', 'Upload Model')}
               </Button>
             )}
 
@@ -429,10 +430,10 @@ const Header = () => {
                     iconPosition="left"
                     onClick={() => {
                       setIsMenuOpen(false);
-                      window.location.href = '/test-kalkulacka';
+                      navigate('/test-kalkulacka');
                     }}
                   >
-                    Upload Model
+                    {t('header.uploadModel', 'Upload Model')}
                   </Button>
 
                   <div className="flex items-center justify-center px-4 py-2">

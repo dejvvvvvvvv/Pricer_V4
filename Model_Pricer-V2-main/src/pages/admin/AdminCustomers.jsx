@@ -4,7 +4,7 @@
 // - Extracts unique customers from orders (by email)
 // - Shows: avatar, name, email, phone, segment, order count, total spent, last order
 // - Sortable, searchable, filterable by segment, expandable detail rows
-// - Customer segments: Novy, Pravideln (5+), VIP (10+ orders or 10k+ spent)
+// - Customer segments: Novy, Pravidelný (5+), VIP (10+ orders or 10k+ spent)
 // - Customer notes (tenant-scoped via storage helpers)
 // - CSV export
 // - Contact info with copy buttons
@@ -51,7 +51,7 @@ const SEGMENT_CONFIG = {
     icon: 'UserPlus',
   },
   [SEGMENTS.REGULAR]: {
-    labelCs: 'Pravideln',
+    labelCs: 'Pravidelný',
     labelEn: 'Regular',
     color: 'var(--forge-accent-orange)',
     icon: 'Users',
@@ -749,7 +749,7 @@ function SegmentFilter({ value, onChange, counts, cs }) {
   const options = [
     { key: 'ALL', label: cs ? 'Vsechny' : 'All', count: counts.all },
     { key: SEGMENTS.NEW, label: cs ? 'Novy' : 'New', count: counts[SEGMENTS.NEW] || 0 },
-    { key: SEGMENTS.REGULAR, label: cs ? 'Pravideln' : 'Regular', count: counts[SEGMENTS.REGULAR] || 0 },
+    { key: SEGMENTS.REGULAR, label: cs ? 'Pravidelný' : 'Regular', count: counts[SEGMENTS.REGULAR] || 0 },
     { key: SEGMENTS.VIP, label: 'VIP', count: counts[SEGMENTS.VIP] || 0 },
   ];
 

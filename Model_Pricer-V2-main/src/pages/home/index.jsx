@@ -190,7 +190,7 @@ const Home = () => {
                 const IconComp = item.icon;
                 return (
                   <span
-                    key={i}
+                    key={`${item.label}-${i}`}
                     className="shrink-0 forge-transition-micro inline-flex items-center"
                     style={{
                       fontFamily: 'var(--forge-font-body)',

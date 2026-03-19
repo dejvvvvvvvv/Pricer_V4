@@ -23,13 +23,13 @@ import {
 } from '../../utils/adminShippingStorage';
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
 import { getHelpText } from './helpTexts';
-import { safeNum } from '@/utils/formatters';
+import { safeNum, parseDecimal, finalizeDecimal, parseIntInput } from '@/utils/formatters';
 
 function createId(prefix = 'ship') {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
-  } catch { /* fallback below */ }
-  return `${prefix}-${crypto.randomUUID()}`;
+  } catch { /* fallback */ }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const SHIPPING_TYPES = [
@@ -462,11 +462,11 @@ export default function AdminShipping() {
                   <label>{t('admin.shipping.minOrderAmount', 'Minimum order amount (CZK)')}</label>
                   <input
                     className="input"
-                    type="number"
-                    step="1"
-                    min="0"
-                    value={config?.free_shipping_threshold || 0}
-                    onChange={(e) => updateConfig({ free_shipping_threshold: safeNum(e.target.value, 0) })}
+                    type="text"
+                    inputMode="decimal"
+                    value={config?.free_shipping_threshold ?? ''}
+                    onChange={(e) => updateConfig({ free_shipping_threshold: parseDecimal(e.target.value) })}
+                    onBlur={() => updateConfig({ free_shipping_threshold: finalizeDecimal(config?.free_shipping_threshold, 0) })}
                   />
                   <div className="help">{t('admin.shipping.minOrderHint', 'Orders above this amount get free shipping.')}</div>
                 </div>
@@ -636,22 +636,22 @@ export default function AdminShipping() {
                           <label>{t('admin.shipping.basePrice', 'Base price (CZK)')}</label>
                           <input
                             className="input"
-                            type="number"
-                            step="1"
-                            min="0"
-                            value={selectedMethod.price}
-                            onChange={(e) => updateMethod(selectedMethod.id, { price: safeNum(e.target.value, 0) })}
+                            type="text"
+                            inputMode="decimal"
+                            value={selectedMethod.price ?? ''}
+                            onChange={(e) => updateMethod(selectedMethod.id, { price: parseDecimal(e.target.value) })}
+                            onBlur={() => updateMethod(selectedMethod.id, { price: finalizeDecimal(selectedMethod.price, 0) })}
                           />
                         </div>
                         <div className="field">
                           <label>{t('admin.shipping.pricePerKg', 'Surcharge per kg (CZK/kg)')} <ForgeHelpIcon text={getHelpText('shipping_price_per_kg', language)} size={14} /></label>
                           <input
                             className="input"
-                            type="number"
-                            step="1"
-                            min="0"
-                            value={selectedMethod.price_per_kg || 0}
-                            onChange={(e) => updateMethod(selectedMethod.id, { price_per_kg: safeNum(e.target.value, 0) })}
+                            type="text"
+                            inputMode="decimal"
+                            value={selectedMethod.price_per_kg ?? ''}
+                            onChange={(e) => updateMethod(selectedMethod.id, { price_per_kg: parseDecimal(e.target.value) })}
+                            onBlur={() => updateMethod(selectedMethod.id, { price_per_kg: finalizeDecimal(selectedMethod.price_per_kg, 0) })}
                           />
                           <div className="help">{t('admin.shipping.pricePerKgHelp', '0 = no weight surcharge')}</div>
                         </div>
@@ -663,20 +663,22 @@ export default function AdminShipping() {
                         <label>{t('admin.shipping.deliveryMin', 'Delivery days MIN')}</label>
                         <input
                           className="input"
-                          type="number"
-                          min="0"
-                          value={selectedMethod.delivery_days_min}
-                          onChange={(e) => updateMethod(selectedMethod.id, { delivery_days_min: safeNum(e.target.value, 0) })}
+                          type="text"
+                          inputMode="numeric"
+                          value={selectedMethod.delivery_days_min ?? ''}
+                          onChange={(e) => updateMethod(selectedMethod.id, { delivery_days_min: parseIntInput(e.target.value) })}
+                          onBlur={() => updateMethod(selectedMethod.id, { delivery_days_min: finalizeDecimal(selectedMethod.delivery_days_min, 0) })}
                         />
                       </div>
                       <div className="field">
                         <label>{t('admin.shipping.deliveryMax', 'Delivery days MAX')}</label>
                         <input
                           className="input"
-                          type="number"
-                          min="0"
-                          value={selectedMethod.delivery_days_max}
-                          onChange={(e) => updateMethod(selectedMethod.id, { delivery_days_max: safeNum(e.target.value, 0) })}
+                          type="text"
+                          inputMode="numeric"
+                          value={selectedMethod.delivery_days_max ?? ''}
+                          onChange={(e) => updateMethod(selectedMethod.id, { delivery_days_max: parseIntInput(e.target.value) })}
+                          onBlur={() => updateMethod(selectedMethod.id, { delivery_days_max: finalizeDecimal(selectedMethod.delivery_days_max, 0) })}
                         />
                       </div>
                     </div>
@@ -773,18 +775,19 @@ export default function AdminShipping() {
                               </span>
                               <input
                                 className="input"
-                                type="number"
-                                min="0"
-                                value={wt.max_weight_g}
-                                onChange={(e) => updateWeightTier(idx, { max_weight_g: safeNum(e.target.value, 0) })}
+                                type="text"
+                                inputMode="decimal"
+                                value={wt.max_weight_g ?? ''}
+                                onChange={(e) => updateWeightTier(idx, { max_weight_g: parseDecimal(e.target.value) })}
+                                onBlur={() => updateWeightTier(idx, { max_weight_g: finalizeDecimal(wt.max_weight_g, 0) })}
                               />
                               <input
                                 className="input"
-                                type="number"
-                                step="1"
-                                min="0"
-                                value={wt.price}
-                                onChange={(e) => updateWeightTier(idx, { price: safeNum(e.target.value, 0) })}
+                                type="text"
+                                inputMode="decimal"
+                                value={wt.price ?? ''}
+                                onChange={(e) => updateWeightTier(idx, { price: parseDecimal(e.target.value) })}
+                                onBlur={() => updateWeightTier(idx, { price: finalizeDecimal(wt.price, 0) })}
                               />
                               <button className="icon-btn icon-btn-sm" onClick={() => removeWeightTier(idx)} title={t('admin.shipping.remove', 'Remove')}>
                                 <Icon name="X" size={14} />
@@ -800,11 +803,11 @@ export default function AdminShipping() {
                       <label>{t('admin.shipping.additionalPerKg', 'Additional surcharge per kg (CZK/kg)')}</label>
                       <input
                         className="input"
-                        type="number"
-                        step="1"
-                        min="0"
-                        value={selectedMethod.price_per_kg || 0}
-                        onChange={(e) => updateMethod(selectedMethod.id, { price_per_kg: safeNum(e.target.value, 0) })}
+                        type="text"
+                        inputMode="decimal"
+                        value={selectedMethod.price_per_kg ?? ''}
+                        onChange={(e) => updateMethod(selectedMethod.id, { price_per_kg: parseDecimal(e.target.value) })}
+                        onBlur={() => updateMethod(selectedMethod.id, { price_per_kg: finalizeDecimal(selectedMethod.price_per_kg, 0) })}
                       />
                       <div className="help">{t('admin.shipping.additionalPerKgHelp', '0 = no additional surcharge. Added on top of tier price.')}</div>
                     </div>
@@ -854,14 +857,19 @@ export default function AdminShipping() {
                               <div className="field-inline">
                                 <input
                                   className="input"
-                                  type="number"
-                                  step="1"
-                                  min="0"
+                                  type="text"
+                                  inputMode="decimal"
                                   placeholder={String(safeNum(selectedMethod.price))}
                                   value={zp?.price_override != null ? zp.price_override : ''}
                                   onChange={(e) => {
-                                    const val = e.target.value === '' ? null : safeNum(e.target.value, 0);
+                                    const raw = parseDecimal(e.target.value);
+                                    const val = raw === '' ? null : raw;
                                     setZonePrice(selectedMethod.id, zone.id, { price_override: val });
+                                  }}
+                                  onBlur={() => {
+                                    if (zp?.price_override != null && zp.price_override !== '') {
+                                      setZonePrice(selectedMethod.id, zone.id, { price_override: finalizeDecimal(zp.price_override, 0) });
+                                    }
                                   }}
                                 />
                               </div>
@@ -869,14 +877,19 @@ export default function AdminShipping() {
                                 <div className="field-inline">
                                   <input
                                     className="input"
-                                    type="number"
-                                    step="1"
-                                    min="0"
+                                    type="text"
+                                    inputMode="decimal"
                                     placeholder={String(safeNum(selectedMethod.price_per_kg))}
                                     value={zp?.price_per_kg_override != null ? zp.price_per_kg_override : ''}
                                     onChange={(e) => {
-                                      const val = e.target.value === '' ? null : safeNum(e.target.value, 0);
+                                      const raw = parseDecimal(e.target.value);
+                                      const val = raw === '' ? null : raw;
                                       setZonePrice(selectedMethod.id, zone.id, { price_per_kg_override: val });
+                                    }}
+                                    onBlur={() => {
+                                      if (zp?.price_per_kg_override != null && zp.price_per_kg_override !== '') {
+                                        setZonePrice(selectedMethod.id, zone.id, { price_per_kg_override: finalizeDecimal(zp.price_per_kg_override, 0) });
+                                      }
                                     }}
                                   />
                                 </div>

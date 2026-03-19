@@ -119,10 +119,15 @@ const Select = React.forwardRef(({
                     id={selectId}
                     type="button"
                     className={cn(
-                        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-white text-black px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                        "flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
                         error && "border-destructive focus:ring-destructive",
                         !hasValue && "text-muted-foreground"
                     )}
+                    style={{
+                        backgroundColor: 'var(--forge-bg-elevated)',
+                        color: 'var(--forge-text-primary)',
+                        borderColor: error ? undefined : 'var(--forge-border-default)',
+                    }}
                     onClick={handleToggle}
                     disabled={disabled}
                     aria-expanded={isOpen}
@@ -140,14 +145,17 @@ const Select = React.forwardRef(({
                         )}
 
                         {clearable && hasValue && !loading && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-4 w-4"
-                                onClick={handleClear}
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                className="h-4 w-4 inline-flex items-center justify-center rounded cursor-pointer"
+                                style={{ color: 'var(--forge-text-muted)' }}
+                                onClick={(e) => { e.stopPropagation(); handleClear(e); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleClear(e); } }}
+                                aria-label="Clear selection"
                             >
                                 <X className="h-3 w-3" />
-                            </Button>
+                            </span>
                         )}
 
                         <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
@@ -174,9 +182,16 @@ const Select = React.forwardRef(({
 
                 {/* Dropdown */}
                 {isOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-white text-black border border-border rounded-md shadow-md">
+                    <div
+                        className="absolute z-50 w-full mt-1 rounded-md shadow-md"
+                        style={{
+                            backgroundColor: 'var(--forge-bg-elevated)',
+                            color: 'var(--forge-text-primary)',
+                            border: '1px solid var(--forge-border-default)',
+                        }}
+                    >
                         {searchable && (
-                            <div className="p-2 border-b">
+                            <div className="p-2" style={{ borderBottom: '1px solid var(--forge-border-default)' }}>
                                 <div className="relative">
                                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input

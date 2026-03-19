@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import Icon from '../../../components/AppIcon';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 import { CopyButton } from '../../../components/ui/forge/CopyButton';
 
 /**
@@ -468,12 +469,12 @@ const WidgetEmbedTab = ({ widget }) => {
             <div style={s.configField}>
               <label style={s.configLabel}>Sirka (px)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={s.configInput}
-                value={embedConfig.widthPx}
-                min={200}
-                max={2000}
-                onChange={(e) => updateConfig('widthPx', Number(e.target.value) || 800)}
+                value={embedConfig.widthPx ?? ''}
+                onChange={(e) => updateConfig('widthPx', parseIntInput(e.target.value))}
+                onBlur={() => updateConfig('widthPx', finalizeDecimal(embedConfig.widthPx, 800))}
               />
             </div>
           )}
@@ -494,24 +495,24 @@ const WidgetEmbedTab = ({ widget }) => {
             <div style={s.configField}>
               <label style={s.configLabel}>Vyska (px)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={s.configInput}
-                value={embedConfig.heightPx}
-                min={200}
-                max={3000}
-                onChange={(e) => updateConfig('heightPx', Number(e.target.value) || 700)}
+                value={embedConfig.heightPx ?? ''}
+                onChange={(e) => updateConfig('heightPx', parseIntInput(e.target.value))}
+                onBlur={() => updateConfig('heightPx', finalizeDecimal(embedConfig.heightPx, 700))}
               />
             </div>
           ) : (
             <div style={s.configField}>
               <label style={s.configLabel}>Minimalni vyska (px)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={s.configInput}
-                value={embedConfig.minHeight}
-                min={200}
-                max={2000}
-                onChange={(e) => updateConfig('minHeight', Number(e.target.value) || 600)}
+                value={embedConfig.minHeight ?? ''}
+                onChange={(e) => updateConfig('minHeight', parseIntInput(e.target.value))}
+                onBlur={() => updateConfig('minHeight', finalizeDecimal(embedConfig.minHeight, 600))}
               />
             </div>
           )}

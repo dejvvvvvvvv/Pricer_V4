@@ -14,6 +14,7 @@ import PresetComparison from './components/PresetComparison';
 import PresetTemplates from './components/PresetTemplates';
 import PresetInlineEditor from './components/PresetInlineEditor';
 import { addNotification } from '../../utils/adminNotificationStorage';
+import { finalizeDecimal, parseIntInput } from '@/utils/formatters';
 
 // =============================================================
 // Admin / Presets — Card-based UI with grouping, reorder,
@@ -988,7 +989,7 @@ export default function AdminPresets() {
           <div className="ap-upGrid">
             <div className="ap-field"><div className="ap-label">{str.fileLabel}</div><input className="ap-input" type="file" accept=".ini" disabled={actionsDisabled || uploading} onChange={(e) => { const f = e.target.files?.[0] || null; setUploadFile(f); if (f && !uploadName) setUploadName(String(f.name || '').replace(/\.ini$/i, '')); }} /><div className="ap-hint">{str.hintMax5mb}</div></div>
             <div className="ap-field"><div className="ap-label">{str.colName}</div><input className="ap-input" type="text" placeholder={str.namePlaceholder} value={uploadName} disabled={actionsDisabled || uploading} onChange={(e) => setUploadName(e.target.value)} /></div>
-            <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="number" value={uploadOrder} disabled={actionsDisabled || uploading} onChange={(e) => setUploadOrder(Number(e.target.value))} /></div>
+            <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="text" inputMode="numeric" value={uploadOrder ?? ''} disabled={actionsDisabled || uploading} onChange={(e) => setUploadOrder(parseIntInput(e.target.value))} onBlur={() => setUploadOrder(finalizeDecimal(uploadOrder, 0))} /></div>
             <div className="ap-field"><div className="ap-label">{str.materialLabel}</div><select className="ap-input" value={uploadMaterialKey || ''} disabled={actionsDisabled || uploading} onChange={(e) => setUploadMaterialKey(e.target.value || null)}><option value="">{str.allMaterials}</option>{availableMaterials.map(m => <option key={m.key} value={m.key}>{m.name} ({m.key})</option>)}</select></div>
             <div className="ap-field" style={{ alignSelf: 'end' }}><ForgeCheckbox checked={uploadVisibleInWidget} disabled={actionsDisabled || uploading} onChange={(e) => setUploadVisibleInWidget(e.target.checked)} label={str.visibleInWidget} /></div>
             <div className="ap-field" style={{ alignSelf: 'end', justifySelf: 'end' }}><button className="ap-btn primary" onClick={onUpload} disabled={actionsDisabled || uploading}>{uploading ? <Icon name="Loader2" size={16} className="spin" /> : <Icon name="Upload" size={16} />}{str.uploadPreset}</button></div>
@@ -1114,7 +1115,7 @@ export default function AdminPresets() {
                   <div className="ap-sectionLabel">{str.sectionMeta}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="ap-field"><div className="ap-label">{str.colName}</div><input className="ap-input" value={presetDraft.name} onChange={e => updatePresetDraft('name', e.target.value)} /></div>
-                    <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="number" value={presetDraft.order} onChange={e => updatePresetDraft('order', Number(e.target.value))} /></div>
+                    <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="text" inputMode="numeric" value={presetDraft.order ?? ''} onChange={e => updatePresetDraft('order', parseIntInput(e.target.value))} onBlur={() => updatePresetDraft('order', finalizeDecimal(presetDraft.order, 0))} /></div>
                     <div className="ap-field"><div className="ap-label">{str.materialLabel}</div><select className="ap-input" value={presetDraft.material_key || ''} onChange={e => updatePresetDraft('material_key', e.target.value || null)}><option value="">{str.allMaterials}</option>{availableMaterials.map(m => <option key={m.key} value={m.key}>{m.name} ({m.key})</option>)}</select></div>
                     <div className="ap-field" style={{ display: 'flex', alignItems: 'flex-end' }}><ForgeCheckbox checked={!!presetDraft.visibleInWidget} onChange={e => updatePresetDraft('visibleInWidget', e.target.checked)} label={str.visibleInWidget} /></div>
                   </div>

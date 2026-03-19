@@ -16,7 +16,7 @@ import { loadFeesConfigV3, saveFeesConfigV3, normalizeFeesConfigV3 } from '../..
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
 import ForgeHelpIcon from '../../components/ui/forge/ForgeHelpIcon';
 import { getHelpText } from './helpTexts';
-import { safeNum } from '@/utils/formatters';
+import { safeNum, parseDecimal, finalizeDecimal, parseIntInput } from '@/utils/formatters';
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -1054,7 +1054,7 @@ const AdminFees = () => {
                 <div className="af-grid2" style={{ marginTop: 12 }}>
                   <div className="af-field">
                     <label>{t('admin.fees.fieldValue', 'Value')}</label>
-                    <input className={`af-input ${!Number.isFinite(Number(feeDraft.value)) ? 'af-input-error' : ''}`} type="number" step="0.01" value={feeDraft.value} onChange={e => updateFeeDraft({ value: safeNum(e.target.value, 0) })} />
+                    <input className={`af-input ${!Number.isFinite(Number(feeDraft.value)) ? 'af-input-error' : ''}`} type="text" inputMode="decimal" value={feeDraft.value ?? ''} onChange={e => updateFeeDraft({ value: parseDecimal(e.target.value) })} onBlur={() => updateFeeDraft({ value: finalizeDecimal(feeDraft.value, 0) })} />
                     <div className="af-help">{feeDraft.type === 'percent' ? (cs ? 'Procenta (zaporne = sleva).' : 'Percent (negative = discount).') : (cs ? 'Zaporne = sleva.' : 'Negative = discount.')}</div>
                     {!Number.isFinite(Number(feeDraft.value)) && <div className="af-field-error">{t('admin.fees.validNumber', 'Enter a valid number')}</div>}
                   </div>
@@ -1142,7 +1142,7 @@ const AdminFees = () => {
                                   <option value="true">true</option>
                                 </select>
                               ) : (
-                                <input className="af-input" type="number" step="0.01" value={safeNum(cu.value, 0)} onChange={e => updateDraftCondition(idx, { value: safeNum(e.target.value, 0) })} />
+                                <input className="af-input" type="text" inputMode="decimal" value={cu.value ?? ''} onChange={e => updateDraftCondition(idx, { value: parseDecimal(e.target.value) })} onBlur={() => updateDraftCondition(idx, { value: finalizeDecimal(cu.value, 0) })} />
                               )}
                             </div>
                           </div>
@@ -1164,13 +1164,13 @@ const AdminFees = () => {
                   <div className="af-field"><label>Material</label><select className="af-input" value={sim.material} onChange={e => setSim(p => ({ ...p, material: e.target.value }))}>{materialOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                   <div className="af-field"><label>Quality</label><select className="af-input" value={sim.quality_preset} onChange={e => setSim(p => ({ ...p, quality_preset: e.target.value }))}>{QUALITY_PRESETS.map(o => <option key={o.value} value={o.value}>{cs ? o.label_cs : o.label_en}</option>)}</select></div>
                   <div className="af-field"><label>Supports</label><select className="af-input" value={sim.supports_enabled ? 'true' : 'false'} onChange={e => setSim(p => ({ ...p, supports_enabled: e.target.value === 'true' }))}><option value="false">false</option><option value="true">true</option></select></div>
-                  <div className="af-field"><label>Infill %</label><input className="af-input" type="number" value={sim.infill_percent} onChange={e => setSim(p => ({ ...p, infill_percent: safeNum(e.target.value, 0) }))} /></div>
-                  <div className="af-field"><label>Filament (g)</label><input className="af-input" type="number" step="0.01" value={sim.filamentGrams} onChange={e => setSim(p => ({ ...p, filamentGrams: safeNum(e.target.value, 0) }))} /></div>
-                  <div className="af-field"><label>Time (s)</label><input className="af-input" type="number" value={sim.estimatedTimeSeconds} onChange={e => setSim(p => ({ ...p, estimatedTimeSeconds: safeNum(e.target.value, 0) }))} /></div>
-                  <div className="af-field"><label>Volume (cm3)</label><input className="af-input" type="number" step="0.01" value={sim.volumeCm3} onChange={e => setSim(p => ({ ...p, volumeCm3: safeNum(e.target.value, 0) }))} /></div>
-                  <div className="af-field"><label>Surface (cm2)</label><input className="af-input" type="number" step="0.01" value={sim.surfaceCm2} onChange={e => setSim(p => ({ ...p, surfaceCm2: safeNum(e.target.value, 0) }))} /></div>
-                  <div className="af-field"><label>Quantity</label><input className="af-input" type="number" value={sim.quantity} onChange={e => setSim(p => ({ ...p, quantity: clampMin1(e.target.value) }))} /></div>
-                  <div className="af-field"><label>Percent base (CZK)</label><input className="af-input" type="number" step="0.01" value={sim.percentBase} onChange={e => setSim(p => ({ ...p, percentBase: safeNum(e.target.value, 0) }))} /></div>
+                  <div className="af-field"><label>Infill %</label><input className="af-input" type="text" inputMode="numeric" value={sim.infill_percent ?? ''} onChange={e => setSim(p => ({ ...p, infill_percent: parseIntInput(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, infill_percent: finalizeDecimal(p.infill_percent, 0) }))} /></div>
+                  <div className="af-field"><label>Filament (g)</label><input className="af-input" type="text" inputMode="decimal" value={sim.filamentGrams ?? ''} onChange={e => setSim(p => ({ ...p, filamentGrams: parseDecimal(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, filamentGrams: finalizeDecimal(p.filamentGrams, 0) }))} /></div>
+                  <div className="af-field"><label>Time (s)</label><input className="af-input" type="text" inputMode="numeric" value={sim.estimatedTimeSeconds ?? ''} onChange={e => setSim(p => ({ ...p, estimatedTimeSeconds: parseIntInput(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, estimatedTimeSeconds: finalizeDecimal(p.estimatedTimeSeconds, 0) }))} /></div>
+                  <div className="af-field"><label>Volume (cm3)</label><input className="af-input" type="text" inputMode="decimal" value={sim.volumeCm3 ?? ''} onChange={e => setSim(p => ({ ...p, volumeCm3: parseDecimal(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, volumeCm3: finalizeDecimal(p.volumeCm3, 0) }))} /></div>
+                  <div className="af-field"><label>Surface (cm2)</label><input className="af-input" type="text" inputMode="decimal" value={sim.surfaceCm2 ?? ''} onChange={e => setSim(p => ({ ...p, surfaceCm2: parseDecimal(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, surfaceCm2: finalizeDecimal(p.surfaceCm2, 0) }))} /></div>
+                  <div className="af-field"><label>Quantity</label><input className="af-input" type="text" inputMode="numeric" value={sim.quantity ?? ''} onChange={e => setSim(p => ({ ...p, quantity: parseIntInput(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, quantity: clampMin1(p.quantity) }))} /></div>
+                  <div className="af-field"><label>Percent base (CZK)</label><input className="af-input" type="text" inputMode="decimal" value={sim.percentBase ?? ''} onChange={e => setSim(p => ({ ...p, percentBase: parseDecimal(e.target.value) }))} onBlur={() => setSim(p => ({ ...p, percentBase: finalizeDecimal(p.percentBase, 0) }))} /></div>
                   <div className="af-field"><label>Model selected</label><select className="af-input" value={sim.modelSelected ? 'true' : 'false'} onChange={e => setSim(p => ({ ...p, modelSelected: e.target.value === 'true' }))}><option value="true">true</option><option value="false">false</option></select></div>
                 </div>
 

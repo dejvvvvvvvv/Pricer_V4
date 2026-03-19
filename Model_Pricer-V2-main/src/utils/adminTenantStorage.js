@@ -199,8 +199,8 @@ export function appendTenantLog(namespace, entry, maxItems = 100) {
     const table = getTableForNamespace(namespace);
     if (table) {
       storageAdapter.supabase.insert(table, {
-        tenant_id: tenantId,
         ...entry,
+        tenant_id: tenantId,  // always overrides any tenant_id in entry
         created_at: entry.created_at || entry.timestamp || new Date().toISOString(),
       }).catch((err) => {
         console.warn('[adminTenantStorage] Supabase append failed:', err.message);

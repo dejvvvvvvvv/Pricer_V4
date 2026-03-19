@@ -4,7 +4,8 @@
  * Shows: label with current value + unit, a range slider, and a small
  * number input for direct entry. Changes propagate immediately.
  */
-import React from 'react';
+import React, { useState } from 'react';
+import { parseDecimal, finalizeDecimal } from '@/utils/formatters';
 
 export default function NumberPropertyEditor({
   label,
@@ -15,28 +16,26 @@ export default function NumberPropertyEditor({
   onChange,
 }) {
   const numValue = typeof value === 'number' ? value : parseFloat(value) || min;
+  const [rawInput, setRawInput] = useState(null);
 
   function handleSliderChange(e) {
+    setRawInput(null);
     onChange(Number(e.target.value));
   }
 
   function handleInputChange(e) {
-    const parsed = parseFloat(e.target.value);
-    if (!isNaN(parsed)) {
-      const clamped = Math.min(max, Math.max(min, parsed));
-      onChange(clamped);
-    }
+    const parsed = parseDecimal(e.target.value);
+    setRawInput(parsed);
   }
 
-  function handleInputBlur(e) {
-    const parsed = parseFloat(e.target.value);
-    if (isNaN(parsed)) {
-      onChange(numValue);
-    } else {
-      const clamped = Math.min(max, Math.max(min, parsed));
-      onChange(clamped);
-    }
+  function handleInputBlur() {
+    const finalized = finalizeDecimal(rawInput, numValue);
+    const clamped = Math.min(max, Math.max(min, finalized));
+    setRawInput(null);
+    onChange(clamped);
   }
+
+  const displayValue = rawInput !== null ? rawInput : String(numValue);
 
   return (
     <div style={styles.wrapper}>
@@ -60,11 +59,9 @@ export default function NumberPropertyEditor({
           aria-label={label}
         />
         <input
-          type="number"
-          min={min}
-          max={max}
-          step={1}
-          value={numValue}
+          type="text"
+          inputMode="decimal"
+          value={displayValue}
           onChange={handleInputChange}
           onBlur={handleInputBlur}
           style={styles.numberInput}
