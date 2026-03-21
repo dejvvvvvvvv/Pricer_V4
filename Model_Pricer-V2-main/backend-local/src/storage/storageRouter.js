@@ -28,6 +28,8 @@ import {
   assertWithinRoot,
 } from "./storageService.js";
 
+import { createStorageProviderAsync } from "./storageProviderFactory.js";
+
 const router = Router();
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -488,6 +490,80 @@ router.post("/move", validate(storageSchemas.move), async (req, res) => {
     if (e.code === "PATH_TRAVERSAL") return fail(res, 403, "MP_PATH_TRAVERSAL", e.message);
     if (e.code === "ENOENT") return fail(res, 404, "MP_NOT_FOUND", "Item not found");
     return fail(res, 500, "MP_MOVE_FAILED", String(e?.message || e));
+  }
+});
+
+// ── GET /api/storage/signed-url — Get signed download URL ──────────────
+//
+// Returns a signed (presigned) download URL for the requested file.
+// For R2 provider: returns a real presigned S3/R2 URL with expiry.
+// For filesystem provider (dev): returns a relative API path as fallback.
+
+router.get("/signed-url", async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const filePath = String(req.query.path || "");
+
+    if (!filePath) {
+      return fail(res, 400, "MP_BAD_REQUEST", "Missing path query parameter");
+    }
+
+    // Validate path — reject traversal attempts
+    const safePath = sanitizePath(filePath);
+    if (!safePath) {
+      return fail(res, 400, "MP_BAD_REQUEST", "Invalid path");
+    }
+
+    const expiresInSeconds = 3600; // 1 hour
+    const provider = await createStorageProviderAsync();
+    const url = await provider.getSignedUrl(tenantId, safePath, expiresInSeconds);
+
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    return res.json({ url, expiresAt });
+  } catch (e) {
+    if (e.code === "MP_INVALID_TENANT") return fail(res, 403, e.code, e.message);
+    if (e.code === "MP_INVALID_PATH") return fail(res, 400, e.code, e.message);
+    if (e.code === "MP_NOT_SUPPORTED") return fail(res, 501, e.code, e.message);
+    return fail(res, 500, "MP_SIGNED_URL_FAILED", String(e?.message || e));
+  }
+});
+
+// ── POST /api/storage/signed-upload-url — Get signed upload URL (future) ──
+//
+// Returns a signed URL for direct client-side upload to R2.
+// Currently returns 501 Not Implemented — will be implemented when
+// direct R2 upload is needed for large file uploads.
+
+router.post("/signed-upload-url", async (req, res) => {
+  try {
+    // Validate request has required fields
+    const tenantId = getTenantId(req);
+    const filePath = String(req.body?.path || "");
+    const contentType = String(req.body?.contentType || "");
+
+    if (!filePath) {
+      return fail(res, 400, "MP_BAD_REQUEST", "Missing path in request body");
+    }
+    if (!contentType) {
+      return fail(res, 400, "MP_BAD_REQUEST", "Missing contentType in request body");
+    }
+
+    // Validate path — reject traversal attempts
+    const safePath = sanitizePath(filePath);
+    if (!safePath) {
+      return fail(res, 400, "MP_BAD_REQUEST", "Invalid path");
+    }
+
+    // For now, return 501 — direct upload will be implemented when needed
+    return res.status(501).json({
+      ok: false,
+      errorCode: "MP_NOT_IMPLEMENTED",
+      message: "Direct upload via signed URL is not yet implemented. Use POST /api/storage/upload instead.",
+    });
+  } catch (e) {
+    if (e.code === "MP_INVALID_TENANT") return fail(res, 403, e.code, e.message);
+    return fail(res, 500, "MP_SIGNED_UPLOAD_URL_FAILED", String(e?.message || e));
   }
 });
 

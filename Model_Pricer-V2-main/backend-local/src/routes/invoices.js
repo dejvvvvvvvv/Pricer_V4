@@ -1,8 +1,9 @@
 /**
- * Invoices API — invoice generation and retrieval for orders.
+ * Invoices API — invoice generation, retrieval, and PDF download for orders.
  *
  * Endpoints:
- *   GET  /api/invoices/:orderId          — Get existing invoice for an order
+ *   GET  /api/invoices/:orderId          — Get existing invoice JSON for an order
+ *   GET  /api/invoices/:orderId/pdf      — Download invoice as PDF
  *   POST /api/invoices/:orderId/generate — Generate a new invoice for an order
  *
  * Storage: JSON files per tenant at {workspace}/invoices/{tenantId}/{orderId}.json
@@ -11,11 +12,12 @@
  */
 
 import { Router } from "express";
-import { logInfo } from "../util/logger.js";
+import { logInfo, logError } from "../util/logger.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { validate } from "../middleware/validate.js";
 import { getOrder } from "../ordersStore.js";
+import { generateInvoicePdf, buildInvoiceDataFromOrder } from "../services/invoiceService.js";
 
 /**
  * Assert that a resolved path stays within the given base directory.
@@ -113,7 +115,64 @@ export function createInvoicesRouter({ workspaceRoot, getTenantIdFromReq }) {
   }
 
   // ───────────────────────────────────────────────────
-  // GET /api/invoices/:orderId — Get invoice for order
+  // GET /api/invoices/:orderId/pdf — Download invoice as PDF
+  // (Must be registered BEFORE /:orderId to avoid param capture)
+  // ───────────────────────────────────────────────────
+  router.get("/:orderId/pdf", validate(invoiceSchemas.byOrderId), async (req, res) => {
+    try {
+      const tenantId = getTenantIdFromReq(req);
+      const orderId = String(req.params.orderId).trim();
+
+      // Load the order
+      const order = await getOrder(workspaceRoot, tenantId, orderId);
+      if (!order) {
+        return fail(res, 404, "MP_NOT_FOUND", `Order ${orderId} not found`);
+      }
+
+      // Load existing invoice JSON if available (for invoice number consistency)
+      let existingInvoice = null;
+      try {
+        const raw = await fs.readFile(invoicePath(tenantId, orderId), "utf8");
+        existingInvoice = JSON.parse(raw);
+      } catch {
+        // No existing invoice — will generate fresh
+      }
+
+      // Build tenant config from env vars (in production these come from tenant storage)
+      const tenantCfg = {
+        companyName: process.env.INVOICE_COMPANY_NAME || '',
+        companyAddress: process.env.INVOICE_COMPANY_ADDRESS || '',
+        companyIco: process.env.INVOICE_COMPANY_ICO || '',
+        companyDic: process.env.INVOICE_COMPANY_DIC || '',
+        bankAccount: process.env.INVOICE_BANK_ACCOUNT || '',
+        bankIban: process.env.INVOICE_BANK_IBAN || '',
+        vatPayer: process.env.INVOICE_VAT_PAYER === 'true',
+      };
+
+      // If we have an existing invoice, use its invoice number
+      const orderForPdf = existingInvoice
+        ? { ...order, invoiceNumber: existingInvoice.invoiceNumber }
+        : order;
+
+      const invoiceData = buildInvoiceDataFromOrder(orderForPdf, tenantCfg);
+
+      const pdfBuffer = await generateInvoicePdf(invoiceData);
+
+      const filename = `faktura-${invoiceData.invoiceNumber}.pdf`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      return res.send(pdfBuffer);
+    } catch (e) {
+      logError(`[invoices] PDF generation failed: ${e.message}`);
+      const status = e.code === "MP_DEPENDENCY_MISSING" ? 501 : 500;
+      return fail(res, status, e.code || "MP_PDF_FAILED", `PDF generation failed: ${e.message}`);
+    }
+  });
+
+  // ───────────────────────────────────────────────────
+  // GET /api/invoices/:orderId — Get invoice JSON for order
   // ───────────────────────────────────────────────────
   router.get("/:orderId", validate(invoiceSchemas.byOrderId), async (req, res) => {
     try {

@@ -1,10 +1,19 @@
 /**
- * BuilderTopBar - Top navigation bar for the Widget Builder V3.
+ * BuilderTopBar -- VvvebJs-style top navigation bar.
  *
- * Three sections: left (back + editable name), center (device switcher),
- * right (undo/redo + reset + save).
+ * Layout:
+ *   [Back] [Widget Name] | [Step 1] [Step 2] [Step 3] [Step 4] [Step 5] | [Mobile] [Tablet] [Desktop] | [Undo] [Redo] | [Preview] [Save]
  *
- * Pure presentational component - all state managed externally via props.
+ * Features:
+ *   - Back button navigates to /admin/widget
+ *   - Editable widget name (click to edit, Enter/Escape to commit/cancel)
+ *   - Step tabs with icons for switching calculator steps (1-5)
+ *   - Device mode buttons with active indicator
+ *   - Undo/redo buttons (disabled when stack empty)
+ *   - Preview opens widget in new tab
+ *   - Save with auto-save status indicator
+ *
+ * Pure presentational component -- all state managed externally via props.
  */
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -22,40 +31,51 @@ import {
   ExternalLink,
   Loader2,
   Check,
+  Save,
 } from 'lucide-react';
 
 import '../styles/builder-tokens.css';
 
 const DEVICE_MODES = [
-  { id: 'mobile', icon: Smartphone, label: 'Mobile' },
-  { id: 'tablet', icon: Tablet, label: 'Tablet' },
-  { id: 'desktop', icon: Monitor, label: 'Desktop' },
+  { id: 'mobile', icon: Smartphone, label: 'Mobile (360px)', labelShort: 'Mobile' },
+  { id: 'tablet', icon: Tablet, label: 'Tablet (768px)', labelShort: 'Tablet' },
+  { id: 'desktop', icon: Monitor, label: 'Desktop (1280px)', labelShort: 'Desktop' },
 ];
 
-const PREVIEW_STEPS = [
-  { id: 1, icon: Upload, label: 'Upload' },
-  { id: 2, icon: Settings, label: 'Konfig.' },
-  { id: 3, icon: DollarSign, label: 'Prehled' },
-  { id: 4, icon: ShoppingCart, label: 'Obj.' },
-  { id: 5, icon: CheckCircle, label: 'Hotovo' },
+const STEP_TABS = [
+  { id: 1, icon: Upload, cs: 'Nahrani', en: 'Upload' },
+  { id: 2, icon: Settings, cs: 'Konfigurace', en: 'Config' },
+  { id: 3, icon: DollarSign, cs: 'Cena', en: 'Price' },
+  { id: 4, icon: ShoppingCart, cs: 'Objednavka', en: 'Order' },
+  { id: 5, icon: CheckCircle, cs: 'Potvrzeni', en: 'Confirm' },
 ];
 
 const BuilderTopBar = ({
+  // Widget info
   widgetName,
   onWidgetNameChange,
   onBack,
-  deviceMode,
+  // Steps
+  currentStep = 1,
+  onStepChange,
+  // Device
+  deviceMode = 'desktop',
   onDeviceModeChange,
-  previewStep,
-  onPreviewStepChange,
-  publicWidgetId,
-  canUndo,
-  canRedo,
+  // Undo/redo
+  canUndo = false,
+  canRedo = false,
   onUndo,
   onRedo,
+  // Reset
   onReset,
-  autoSaveStatus,
+  // Preview
+  publicWidgetId,
+  // Save
+  autoSaveStatus = 'idle',
+  onSave,
+  isDirty = false,
 }) => {
+  // Editable name state
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(widgetName || '');
   const nameInputRef = useRef(null);
@@ -96,18 +116,16 @@ const BuilderTopBar = ({
 
   return (
     <div style={styles.bar}>
-      {/* LEFT SECTION */}
+      {/* ---- LEFT: Back + Name ---- */}
       <div style={styles.leftSection}>
         <button
           onClick={onBack}
           style={styles.backButton}
-          title="Zpet na seznam widgetu"
+          title="Zpet na seznam widgetu / Back to widget list"
           aria-label="Zpet"
         >
           <ArrowLeft size={18} />
         </button>
-
-        <span style={styles.title}>Widget Builder</span>
 
         <span style={styles.divider} />
 
@@ -120,23 +138,62 @@ const BuilderTopBar = ({
             onKeyDown={handleNameKeyDown}
             style={styles.nameInput}
             maxLength={60}
-            aria-label="Nazev widgetu"
+            aria-label="Nazev widgetu / Widget name"
           />
         ) : (
           <button
             onClick={() => setIsEditingName(true)}
             style={styles.nameDisplay}
-            title="Klikni pro upravu nazvu"
+            title="Klikni pro upravu nazvu / Click to edit name"
             aria-label="Upravit nazev widgetu"
           >
             {widgetName || 'Bez nazvu'}
           </button>
         )}
+
+        {isDirty && (
+          <span style={styles.dirtyDot} title="Neulozone zmeny / Unsaved changes" />
+        )}
       </div>
 
-      {/* CENTER SECTION - device switcher + step switcher */}
+      {/* ---- CENTER: Step tabs + Device switcher ---- */}
       <div style={styles.centerSection}>
-        <div style={styles.deviceGroup}>
+        {/* Step tabs */}
+        <div style={styles.stepGroup} role="tablist" aria-label="Kroky kalkulacky / Calculator steps">
+          {STEP_TABS.map(({ id, icon: StepIcon, cs, en }) => {
+            const isActive = currentStep === id;
+            return (
+              <button
+                key={id}
+                onClick={() => onStepChange?.(id)}
+                style={{
+                  ...styles.stepButton,
+                  ...(isActive ? styles.stepButtonActive : {}),
+                }}
+                role="tab"
+                aria-selected={isActive}
+                aria-label={`Krok ${id}: ${cs} / Step ${id}: ${en}`}
+                title={`${cs} / ${en}`}
+              >
+                <StepIcon
+                  size={13}
+                  color={isActive ? '#FFFFFF' : 'var(--builder-text-muted)'}
+                />
+                <span style={{
+                  ...styles.stepLabel,
+                  color: isActive ? '#FFFFFF' : 'var(--builder-text-muted)',
+                }}>
+                  {id}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <span style={styles.centerDivider} />
+
+        {/* Device mode switcher */}
+        <div style={styles.deviceGroup} role="radiogroup" aria-label="Zarizeni / Device">
           {DEVICE_MODES.map(({ id, icon: Icon, label }) => {
             const isActive = deviceMode === id;
             return (
@@ -147,78 +204,24 @@ const BuilderTopBar = ({
                   ...styles.deviceButton,
                   ...(isActive ? styles.deviceButtonActive : {}),
                 }}
+                role="radio"
+                aria-checked={isActive}
                 title={label}
                 aria-label={label}
-                aria-pressed={isActive}
               >
                 <Icon
-                  size={18}
+                  size={16}
                   color={isActive ? '#FFFFFF' : 'var(--builder-text-muted)'}
                 />
-              </button>
-            );
-          })}
-        </div>
-
-        <span style={styles.centerDivider} />
-
-        <div style={styles.stepGroup}>
-          {PREVIEW_STEPS.map(({ id, icon: StepIcon, label }) => {
-            const isActive = previewStep === id;
-            return (
-              <button
-                key={id}
-                onClick={() => onPreviewStepChange?.(id)}
-                style={{
-                  ...styles.deviceButton,
-                  ...(isActive ? styles.deviceButtonActive : {}),
-                  paddingLeft: 8,
-                  paddingRight: 10,
-                  gap: 4,
-                  width: 'auto',
-                }}
-                title={label}
-                aria-label={`Krok ${id}: ${label}`}
-                aria-pressed={isActive}
-              >
-                <StepIcon
-                  size={14}
-                  color={isActive ? '#FFFFFF' : 'var(--builder-text-muted)'}
-                />
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: isActive ? '#FFFFFF' : 'var(--builder-text-muted)',
-                    fontFamily: 'var(--builder-font-body)',
-                  }}
-                >
-                  {label}
-                </span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* RIGHT SECTION */}
+      {/* ---- RIGHT: Undo/Redo + Preview + Save ---- */}
       <div style={styles.rightSection}>
-        <button
-          onClick={() => publicWidgetId && window.open('/w/' + publicWidgetId, '_blank')}
-          disabled={!publicWidgetId}
-          style={{
-            ...styles.previewButton,
-            ...(!publicWidgetId ? styles.iconButtonDisabled : {}),
-          }}
-          title="Otevrit nahled v novem tabu"
-          aria-label="Nahled widgetu"
-        >
-          <ExternalLink size={14} />
-          <span>Nahled</span>
-        </button>
-
-        <span style={styles.rightDivider} />
-
+        {/* Undo / Redo */}
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -226,7 +229,7 @@ const BuilderTopBar = ({
             ...styles.iconButton,
             ...(!canUndo ? styles.iconButtonDisabled : {}),
           }}
-          title="Zpet (Undo)"
+          title="Zpet (Ctrl+Z) / Undo"
           aria-label="Undo"
         >
           <Undo2 size={16} />
@@ -239,7 +242,7 @@ const BuilderTopBar = ({
             ...styles.iconButton,
             ...(!canRedo ? styles.iconButtonDisabled : {}),
           }}
-          title="Vpred (Redo)"
+          title="Vpred (Ctrl+Y) / Redo"
           aria-label="Redo"
         >
           <Redo2 size={16} />
@@ -247,41 +250,57 @@ const BuilderTopBar = ({
 
         <span style={styles.rightDivider} />
 
+        {/* Preview button */}
         <button
-          onClick={onReset}
-          style={styles.resetButton}
-          title="Resetovat zmeny"
-          aria-label="Resetovat"
+          onClick={() => publicWidgetId && window.open('/w/' + publicWidgetId, '_blank')}
+          disabled={!publicWidgetId}
+          style={{
+            ...styles.previewButton,
+            ...(!publicWidgetId ? styles.iconButtonDisabled : {}),
+          }}
+          title="Otevrit nahled / Open preview"
+          aria-label="Nahled widgetu / Preview widget"
         >
-          Resetovat
+          <ExternalLink size={14} />
+          <span>Nahled</span>
         </button>
 
-        {/* Auto-save status indicator */}
-        <div style={styles.autoSaveStatus} data-ref="auto-save-status">
-          {autoSaveStatus === 'saving' && (
-            <>
-              <Loader2
-                size={14}
-                color="var(--builder-text-muted)"
-                style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}
-              />
-              <span style={styles.autoSaveText}>Ukladani...</span>
-            </>
+        {/* Save button */}
+        <button
+          onClick={onSave}
+          style={{
+            ...styles.saveButton,
+            ...(autoSaveStatus === 'saving' ? styles.saveButtonSaving : {}),
+          }}
+          title="Ulozit (Ctrl+S) / Save"
+          aria-label="Ulozit / Save"
+        >
+          {autoSaveStatus === 'saving' ? (
+            <Loader2
+              size={14}
+              color="#FFFFFF"
+              style={{ animation: 'spin 1s linear infinite' }}
+            />
+          ) : autoSaveStatus === 'saved' ? (
+            <Check size={14} color="#FFFFFF" />
+          ) : (
+            <Save size={14} color="#FFFFFF" />
           )}
-          {autoSaveStatus === 'saved' && (
-            <>
-              <Check size={14} color="var(--builder-accent-success)" style={{ flexShrink: 0 }} />
-              <span style={styles.autoSaveSavedText}>Ulozeno</span>
-            </>
-          )}
-        </div>
+          <span style={styles.saveLabel}>
+            {autoSaveStatus === 'saving'
+              ? 'Ukladam...'
+              : autoSaveStatus === 'saved'
+                ? 'Ulozeno'
+                : 'Ulozit'}
+          </span>
+        </button>
       </div>
     </div>
   );
 };
 
 /* ------------------------------------------------------------------ */
-/* Inline styles using CSS custom properties from builder-tokens.css  */
+/* Styles                                                              */
 /* ------------------------------------------------------------------ */
 
 const styles = {
@@ -293,8 +312,8 @@ const styles = {
     minHeight: 'var(--builder-topbar-height, 56px)',
     background: 'var(--builder-bg-topbar)',
     borderBottom: '1px solid var(--builder-border-subtle)',
-    padding: '0 16px',
-    gap: '12px',
+    padding: '0 12px',
+    gap: 8,
     flexShrink: 0,
   },
 
@@ -302,7 +321,7 @@ const styles = {
   leftSection: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: 8,
     minWidth: 0,
     flex: '1 1 0%',
   },
@@ -320,14 +339,6 @@ const styles = {
     transition: 'background var(--builder-transition-fast)',
     flexShrink: 0,
   },
-  title: {
-    fontFamily: 'var(--builder-font-heading)',
-    fontWeight: 600,
-    fontSize: 16,
-    color: 'var(--builder-text-primary)',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-  },
   divider: {
     width: 1,
     height: 20,
@@ -335,9 +346,10 @@ const styles = {
     flexShrink: 0,
   },
   nameDisplay: {
-    fontFamily: 'var(--builder-font-code)',
+    fontFamily: 'var(--builder-font-body)',
     fontSize: 14,
-    color: 'var(--builder-text-secondary)',
+    fontWeight: 600,
+    color: 'var(--builder-text-primary)',
     background: 'transparent',
     border: '1px solid transparent',
     borderRadius: 'var(--builder-radius-sm)',
@@ -349,10 +361,12 @@ const styles = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     textAlign: 'left',
+    maxWidth: 200,
   },
   nameInput: {
-    fontFamily: 'var(--builder-font-code)',
+    fontFamily: 'var(--builder-font-body)',
     fontSize: 14,
+    fontWeight: 600,
     color: 'var(--builder-text-primary)',
     background: 'var(--builder-bg-tertiary)',
     border: '1px solid var(--builder-border-focus)',
@@ -360,7 +374,15 @@ const styles = {
     padding: '4px 8px',
     outline: 'none',
     minWidth: 120,
-    maxWidth: 260,
+    maxWidth: 200,
+  },
+  dirtyDot: {
+    display: 'inline-block',
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: 'var(--builder-accent-warning)',
+    flexShrink: 0,
   },
 
   /* CENTER */
@@ -371,13 +393,37 @@ const styles = {
     flexShrink: 0,
     gap: 8,
   },
-  deviceGroup: {
+  stepGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: 2,
     background: 'var(--builder-bg-secondary)',
     borderRadius: 'var(--builder-radius-md)',
     padding: 3,
+  },
+  stepButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    width: 'auto',
+    minWidth: 36,
+    height: 30,
+    paddingLeft: 8,
+    paddingRight: 8,
+    borderRadius: 'var(--builder-radius-sm)',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    transition: 'background var(--builder-transition-fast)',
+  },
+  stepButtonActive: {
+    background: 'var(--builder-accent-primary)',
+  },
+  stepLabel: {
+    fontFamily: 'var(--builder-font-body)',
+    fontSize: 11,
+    fontWeight: 700,
   },
   centerDivider: {
     width: 1,
@@ -385,10 +431,10 @@ const styles = {
     background: 'var(--builder-border-default)',
     flexShrink: 0,
   },
-  stepGroup: {
+  deviceGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: 2,
     background: 'var(--builder-bg-secondary)',
     borderRadius: 'var(--builder-radius-md)',
     padding: 3,
@@ -413,7 +459,7 @@ const styles = {
   rightSection: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: 6,
     flex: '1 1 0%',
     justifyContent: 'flex-end',
   },
@@ -457,40 +503,31 @@ const styles = {
     transition: 'background var(--builder-transition-fast), border-color var(--builder-transition-fast)',
     whiteSpace: 'nowrap',
   },
-  resetButton: {
-    fontFamily: 'var(--builder-font-body)',
-    fontSize: 13,
-    fontWeight: 500,
-    color: 'var(--builder-text-secondary)',
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '6px 10px',
-    borderRadius: 'var(--builder-radius-sm)',
-    transition: 'color var(--builder-transition-fast)',
-    whiteSpace: 'nowrap',
-  },
-  autoSaveStatus: {
+  saveButton: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 6,
-    minWidth: 100,
-    justifyContent: 'flex-end',
-    height: 32,
-  },
-  autoSaveText: {
+    gap: 5,
     fontFamily: 'var(--builder-font-body)',
     fontSize: 12,
-    fontWeight: 500,
-    color: 'var(--builder-text-muted)',
+    fontWeight: 600,
+    color: '#FFFFFF',
+    background: 'var(--builder-accent-primary)',
+    border: 'none',
+    borderRadius: 'var(--builder-radius-sm)',
+    padding: '6px 14px',
+    cursor: 'pointer',
+    transition: 'background var(--builder-transition-fast), opacity var(--builder-transition-fast)',
     whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
-  autoSaveSavedText: {
+  saveButtonSaving: {
+    opacity: 0.7,
+    cursor: 'default',
+  },
+  saveLabel: {
     fontFamily: 'var(--builder-font-body)',
     fontSize: 12,
-    fontWeight: 500,
-    color: 'var(--builder-accent-success)',
-    whiteSpace: 'nowrap',
+    fontWeight: 600,
   },
 };
 

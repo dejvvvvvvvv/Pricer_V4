@@ -1,11 +1,14 @@
 /**
- * Config API — tenant branding, company configuration, and full config export/import.
+ * Config API — tenant branding, company configuration, storage mode, and full config export/import.
  *
  * Endpoints:
- *   GET    /api/config/branding — Get branding config for tenant
- *   GET    /api/config/company  — Get company config for tenant
- *   GET    /api/config/export   — Export all tenant config as JSON
- *   POST   /api/config/import   — Import config JSON (validates structure, overwrites)
+ *   GET    /api/config/branding        — Get branding config for tenant
+ *   GET    /api/config/company         — Get company config for tenant
+ *   GET    /api/config/export          — Export all tenant config as JSON
+ *   POST   /api/config/import          — Import config JSON (validates structure, overwrites)
+ *   GET    /api/config/storage-mode    — Get current storage mode for tenant
+ *   POST   /api/config/storage-mode    — Set storage mode for tenant
+ *   GET    /api/config/supabase-status — Check Supabase connectivity
  *
  * Storage: JSON files per tenant at {workspace}/config/{tenantId}/<section>.json
  *
@@ -13,7 +16,7 @@
  */
 
 import { Router } from "express";
-import { logInfo } from "../util/logger.js";
+import { logInfo, logWarn } from "../util/logger.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { ensureDir } from "../util/fsSafe.js";
@@ -49,6 +52,18 @@ const CONFIG_SECTIONS = [
   "widget",
   "ecommerce",
 ];
+
+/**
+ * Valid storage modes for tenant data persistence.
+ * - localStorage: all data in browser localStorage (default, no backend persistence)
+ * - dual-write: writes to both localStorage and Supabase (migration phase)
+ * - supabase: Supabase-only persistence (target state)
+ * @type {readonly string[]}
+ */
+const VALID_STORAGE_MODES = ["localStorage", "dual-write", "supabase"];
+
+/** Default storage configuration returned when no config file exists. */
+const DEFAULT_STORAGE_CONFIG = { mode: "localStorage" };
 
 /**
  * Creates the config router.
@@ -277,6 +292,183 @@ export function createConfigRouter({ workspaceRoot, getTenantIdFromReq }) {
       });
     } catch (e) {
       return fail(res, 500, "MP_CONFIG_IMPORT_FAILED", String(e?.message || e));
+    }
+  });
+
+  // ───────────────────────────────────────────────────
+  // GET /api/config/storage-mode — Get current storage mode
+  // ───────────────────────────────────────────────────
+  /**
+   * Returns the current storage mode for the authenticated tenant.
+   * If no storage-config.json exists yet, returns the default: { mode: 'localStorage' }.
+   *
+   * @returns {{ ok: true, data: { mode: 'localStorage' | 'dual-write' | 'supabase' } }}
+   */
+  router.get("/storage-mode", async (req, res) => {
+    try {
+      const tenantId = getTenantIdFromReq(req);
+      const config = await readTenantConfig(tenantId, "storage-config.json");
+
+      // If file was empty or missing, return default
+      const mode = VALID_STORAGE_MODES.includes(config.mode)
+        ? config.mode
+        : DEFAULT_STORAGE_CONFIG.mode;
+
+      return ok(res, { mode });
+    } catch (e) {
+      return fail(res, 500, "MP_STORAGE_MODE_READ_FAILED", String(e?.message || e));
+    }
+  });
+
+  // ───────────────────────────────────────────────────
+  // POST /api/config/storage-mode — Set storage mode
+  // ───────────────────────────────────────────────────
+  /**
+   * Changes the storage mode for the authenticated tenant.
+   * Validates that the requested mode is one of the allowed values.
+   * Persists the change to {workspaceRoot}/config/{tenantId}/storage-config.json.
+   *
+   * @param {object} req.body - Must contain { mode: 'localStorage' | 'dual-write' | 'supabase' }
+   * @returns {{ ok: true, data: { mode: string, updatedAt: string } }}
+   */
+  router.post("/storage-mode", async (req, res) => {
+    try {
+      const tenantId = getTenantIdFromReq(req);
+      const { mode } = req.body || {};
+
+      // --- Validation ---
+      if (!mode || typeof mode !== "string") {
+        return fail(
+          res,
+          400,
+          "MP_VALIDATION_ERROR",
+          "Request body must contain a 'mode' string field."
+        );
+      }
+
+      if (!VALID_STORAGE_MODES.includes(mode)) {
+        return fail(
+          res,
+          400,
+          "MP_VALIDATION_ERROR",
+          `Invalid storage mode "${mode}". Must be one of: ${VALID_STORAGE_MODES.join(", ")}`
+        );
+      }
+
+      // Read current config to detect actual changes
+      const currentConfig = await readTenantConfig(tenantId, "storage-config.json");
+      const previousMode = currentConfig.mode || DEFAULT_STORAGE_CONFIG.mode;
+
+      const updatedAt = new Date().toISOString();
+      const newConfig = { mode, updatedAt };
+
+      await writeTenantConfig(tenantId, "storage-config.json", newConfig);
+
+      if (previousMode !== mode) {
+        logInfo(
+          `[config/storage-mode] Tenant "${tenantId}" changed storage mode: "${previousMode}" -> "${mode}"`
+        );
+      } else {
+        logInfo(
+          `[config/storage-mode] Tenant "${tenantId}" set storage mode to "${mode}" (unchanged)`
+        );
+      }
+
+      return ok(res, { mode, updatedAt });
+    } catch (e) {
+      return fail(res, 500, "MP_STORAGE_MODE_WRITE_FAILED", String(e?.message || e));
+    }
+  });
+
+  // ───────────────────────────────────────────────────
+  // GET /api/config/supabase-status — Check Supabase connectivity
+  // ───────────────────────────────────────────────────
+  /**
+   * Performs a lightweight connectivity check against the Supabase REST API.
+   * Uses a simple HTTP fetch to `${SUPABASE_URL}/rest/v1/` with the apikey header.
+   * Does NOT require a Supabase client library — plain fetch only.
+   *
+   * Environment variables used:
+   * - SUPABASE_URL — project URL (required)
+   * - SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY — for the apikey header
+   *
+   * @returns {{ ok: true, data: { connected: boolean, url: string, error?: string } }}
+   */
+  router.get("/supabase-status", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL || "";
+    const apiKey =
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      "";
+
+    // If env vars are not configured at all, report that immediately
+    if (!supabaseUrl) {
+      return ok(res, {
+        connected: false,
+        url: "",
+        error: "SUPABASE_URL is not configured on the server.",
+      });
+    }
+
+    if (!apiKey) {
+      return ok(res, {
+        connected: false,
+        url: supabaseUrl,
+        error:
+          "No Supabase API key configured (SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY).",
+      });
+    }
+
+    // Mask the URL for the response — show host only, no path/credentials
+    let maskedUrl = "";
+    try {
+      const parsed = new URL(supabaseUrl);
+      maskedUrl = parsed.host; // e.g. "xxxx.supabase.co"
+    } catch {
+      maskedUrl = supabaseUrl;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: "GET",
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok || response.status === 200) {
+        return ok(res, { connected: true, url: maskedUrl });
+      }
+
+      // Non-OK status — Supabase is reachable but returned an error
+      logWarn(
+        `[config/supabase-status] Supabase responded with HTTP ${response.status}`
+      );
+      return ok(res, {
+        connected: false,
+        url: maskedUrl,
+        error: `Supabase responded with HTTP ${response.status}`,
+      });
+    } catch (/** @type {any} */ fetchError) {
+      const errorMessage =
+        fetchError?.name === "AbortError"
+          ? "Connection timed out after 8 seconds"
+          : String(fetchError?.message || fetchError);
+
+      logWarn(`[config/supabase-status] Connectivity check failed: ${errorMessage}`);
+
+      return ok(res, {
+        connected: false,
+        url: maskedUrl,
+        error: errorMessage,
+      });
     }
   });
 

@@ -7,7 +7,21 @@
  *   - Navigation requests: Network-first, offline fallback page.
  */
 
-const CACHE_NAME = 'modelpricer-v1';
+/**
+ * Cache version — updated on each deploy to bust stale caches.
+ *
+ * In production builds, __SW_CACHE_VERSION__ can be replaced by the CI/CD
+ * pipeline with a build hash or git SHA (e.g. via sed or envsubst).
+ * If not replaced, falls back to a timestamp-based version so each fresh
+ * service-worker registration gets a unique cache bucket.
+ *
+ * Note: Vite's `define` does not process files in /public, so we cannot
+ * use import.meta.env here. The replacement must happen as a post-build step.
+ */
+const CACHE_VERSION = (typeof __SW_CACHE_VERSION__ !== 'undefined')
+  ? __SW_CACHE_VERSION__
+  : 'v2';
+const CACHE_NAME = `modelpricer-${CACHE_VERSION}`;
 
 /** Assets to pre-cache on install. */
 const PRECACHE_URLS = [

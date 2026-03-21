@@ -11,6 +11,7 @@ import multer from "multer";
 import { ensureDir, fileExists } from "./util/fsSafe.js";
 import { getHealthStatus, getDetailedHealthStatus, parseSlicerVersion } from "./util/health.js";
 import { findPrusaSlicerConsole } from "./util/findSlicer.js";
+import { validateEnvironment } from "./util/envValidator.js";
 import { runPrusaSlicer } from "./slicer/runPrusaSlicer.js";
 import { parseGcodeMetrics } from "./slicer/parseGcode.js";
 import { runPrusaInfo } from "./slicer/runPrusaInfo.js";
@@ -42,6 +43,8 @@ import { createConfigRouter } from "./routes/config.js";
 import { createInvoicesRouter } from "./routes/invoices.js";
 import { createStatsRouter } from "./routes/stats.js";
 import { createNotificationsRouter } from "./routes/notifications.js";
+import { createStripeRouter } from "./routes/stripeRoutes.js";
+import { initSentry, setupSentryErrorHandler, captureException } from "./services/sentryService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +52,13 @@ const backendRoot = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(backendRoot, "..");
 
 const isWin = process.platform === "win32";
+
+// ===== Environment validation (must run after dotenv, before app setup) =====
+const envCheck = validateEnvironment();
+if (!envCheck.valid && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: Missing required environment variables. Server cannot start in production mode.');
+  process.exit(1);
+}
 
 // Read version from package.json (safe — no sensitive data exposed)
 const PKG_VERSION = await fs.readFile(path.join(backendRoot, "package.json"), "utf8")
@@ -60,6 +70,9 @@ const WORKSPACE_ROOT = process.env.SLICER_WORKSPACE_ROOT || (isWin ? "C:\\modelp
 const DEFAULT_INI = process.env.PRUSA_DEFAULT_INI || "";
 
 const app = express();
+
+// ===== Sentry (must be initialised before any middleware/routes) =====
+await initSentry(app);
 
 // ===== Security headers (P0 — before all other middleware) =====
 app.use((_req, res, next) => {
@@ -74,30 +87,71 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Stripe webhook needs raw body for signature verification (MUST be before express.json)
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 // JSON for PATCH endpoints etc.
 app.use(express.json({ limit: "2mb" }));
 
-// CORS for local dev
-const corsOriginsRaw = (process.env.CORS_ORIGINS || "").trim();
-const corsOrigins = corsOriginsRaw
-  ? corsOriginsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-  : ["http://localhost:4028", "http://127.0.0.1:4028", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"];
+// ===== CORS configuration =====
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // curl/postman
-      if (corsOrigins.includes("*")) return cb(null, true);
-      if (corsOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error(`CORS blocked origin: ${origin}`));
-    },
+/**
+ * Build CORS config based on NODE_ENV.
+ * - Development: allow all origins (origin: true) for easy local dev.
+ * - Production: strict allowlist from CORS_ORIGINS env var (comma-separated).
+ *   Requests with no origin (server-to-server, curl, health checks) are allowed.
+ */
+function buildCorsConfig() {
+  const env = process.env.NODE_ENV || "development";
+
+  const sharedConfig = {
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-tenant-id", "x-api-version"],
     exposedHeaders: ["X-API-Version", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"],
     maxAge: 86400, // Cache preflight for 24 hours
+  };
+
+  if (env === "development") {
+    return { ...sharedConfig, origin: true };
+  }
+
+  // Production: strict origins from CORS_ORIGINS env var
+  const allowedOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  return {
+    ...sharedConfig,
+    origin: (origin, cb) => {
+      // Allow requests with no origin (server-to-server, curl, health checks)
+      if (!origin) return cb(null, true);
+      // Wildcard escape hatch (not recommended for production)
+      if (allowedOrigins.includes("*")) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked origin: ${origin}`));
+    },
+  };
+}
+
+// Widget-specific CORS: /api/widget/* allows ANY origin because the widget
+// is embedded on customer websites whose domains we cannot predict.
+// Security: no credentials, limited methods, limited headers.
+app.use(
+  "/api/widget",
+  cors({
+    origin: true,
+    credentials: false,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-tenant-id"],
+    exposedHeaders: ["X-API-Version"],
+    maxAge: 86400,
   })
 );
+
+// General CORS (all other routes)
+app.use(cors(buildCorsConfig()));
 
 // ===== /api/v1/* prefix rewrite =====
 // Placed before all other /api middleware so /api/v1/health -> /api/health etc.
@@ -167,12 +221,46 @@ app.get("/api/health", async (_req, res) => {
 });
 
 /**
- * GET /api/health/detailed — detailed health check with system diagnostics.
- * Returns: uptime, memory usage, storage status, slicer availability, CPU info.
- * Does NOT expose: file paths, env vars, IPs, credentials.
+ * GET /api/health/detailed — comprehensive health check with system diagnostics
+ * and status of all integrated services (storage, Supabase, email, Stripe, Sentry).
+ * Returns: uptime, memory, CPU, slicer, workspace, and all external service statuses.
+ * Does NOT expose: file paths, env vars, API keys, secrets, IPs, credentials.
  */
 app.get("/api/health/detailed", requireAuth, async (_req, res) => {
   try {
+    // --- Build external services status from env (no secrets exposed) ---
+    const storageProvider = process.env.STORAGE_PROVIDER || "filesystem";
+    const emailProvider = process.env.EMAIL_PROVIDER || "none";
+    const supabaseConfigured = !!(process.env.SUPABASE_URL);
+    const stripeConfigured = !!(process.env.STRIPE_SECRET_KEY);
+    const stripeTestMode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") ?? false;
+    const sentryConfigured = !!(process.env.SENTRY_DSN);
+
+    const externalServices = {
+      storage: {
+        provider: storageProvider,
+        status: "ok", // If the server started, storage provider is loaded
+      },
+      supabase: {
+        configured: supabaseConfigured,
+        status: supabaseConfigured ? "ok" : "not_configured",
+      },
+      email: {
+        provider: emailProvider,
+        configured: emailProvider !== "none",
+        status: emailProvider !== "none" ? "ok" : "mock",
+      },
+      stripe: {
+        configured: stripeConfigured,
+        mode: stripeTestMode ? "test" : stripeConfigured ? "live" : "none",
+        status: stripeConfigured ? "ok" : "not_configured",
+      },
+      sentry: {
+        configured: sentryConfigured,
+        status: sentryConfigured ? "ok" : "not_configured",
+      },
+    };
+
     const health = await getDetailedHealthStatus({
       version: PKG_VERSION,
       checkSlicer: resolveSlicerCmd,
@@ -180,6 +268,7 @@ app.get("/api/health/detailed", requireAuth, async (_req, res) => {
       workspaceRoot: WORKSPACE_ROOT,
       getCacheStats: () => slicerCache.getStats(),
       getQueueStats: () => slicingQueue.getQueueStats(),
+      externalServices,
     });
     res.json({ ok: true, data: health });
   } catch (e) {
@@ -189,6 +278,37 @@ app.get("/api/health/detailed", requireAuth, async (_req, res) => {
       message: String(e?.message || e),
     });
   }
+});
+
+/**
+ * GET /api/health/services-status — public endpoint returning which services are configured.
+ * Returns only boolean flags and provider names. No auth required.
+ * Does NOT expose: API keys, secrets, tokens, file paths, or any sensitive data.
+ */
+app.get("/api/health/services-status", (_req, res) => {
+  const storageProvider = process.env.STORAGE_PROVIDER || "filesystem";
+  const emailProvider = process.env.EMAIL_PROVIDER || "none";
+  const supabaseConfigured = !!(process.env.SUPABASE_URL);
+  const stripeConfigured = !!(process.env.STRIPE_SECRET_KEY);
+  const stripeTestMode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") ?? false;
+  const sentryConfigured = !!(process.env.SENTRY_DSN);
+
+  res.json({
+    ok: true,
+    data: {
+      storage: { provider: storageProvider },
+      supabase: { configured: supabaseConfigured },
+      email: {
+        provider: emailProvider,
+        configured: emailProvider !== "none",
+      },
+      stripe: {
+        configured: stripeConfigured,
+        testMode: stripeTestMode,
+      },
+      sentry: { configured: sentryConfigured },
+    },
+  });
 });
 
 /**
@@ -217,6 +337,8 @@ app.use("/api/invoices", requireAuth, requireTenant);
 app.use("/api/config", requireAuth, requireTenant);
 app.use("/api/stats", requireAuth, requireTenant);
 app.use("/api/notifications", requireAuth, requireTenant);
+app.use("/api/payments/create-checkout", requireAuth, requireTenant);
+app.use("/api/payments/session", requireAuth, requireTenant);
 
 // ===== Auth claims API (Firebase-to-Supabase RLS bridge) =====
 app.use("/api/auth", requireAuth, requireTenant, authClaimsRouter);
@@ -447,6 +569,10 @@ const notificationsRouter = createNotificationsRouter({
   getTenantIdFromReq,
 });
 app.use("/api/notifications", notificationsRouter);
+
+// ===== Stripe Payments API =====
+const stripeRouter = createStripeRouter();
+app.use("/api/payments", stripeRouter);
 
 // ===== Initialize workspace and queue persistence =====
 
@@ -973,6 +1099,9 @@ app.delete("/api/slice/queue/:jobId", (req, res) => {
   return ok(res, { jobId, status: "cancelled" });
 });
 
+// ===== Sentry error handler (must be after all routes, before custom error handlers) =====
+setupSentryErrorHandler(app);
+
 // ===== 404 handler — catch unmatched routes =====
 app.use((req, res) => {
   res.status(404).json({
@@ -1072,6 +1201,13 @@ app.use((err, _req, res, _next) => {
   // Log unexpected errors
   console.error("[API] Unhandled error:", err);
 
+  // Report unexpected errors to Sentry
+  captureException(err, {
+    route: `${_req.method} ${_req.originalUrl}`,
+    tenantId: _req.tenantId,
+    userId: _req.user?.uid,
+  });
+
   // Generic fallback — don't leak stack traces in production
   res.status(err.status || 500).json({
     ok: false,
@@ -1082,23 +1218,60 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`[backend-local] listening on http://127.0.0.1:${PORT}`);
-  console.log(`[backend-local] workspace: ${WORKSPACE_ROOT}`);
-  console.log(`[backend-local] API docs: http://127.0.0.1:${PORT}/api/docs/html`);
-  console.log(`[backend-local] API version: ${API_VERSION_FULL} (${API_VERSION})`);
+  const env = process.env.NODE_ENV || "development";
+  const storage = process.env.STORAGE_PROVIDER || "filesystem";
+  const email = process.env.EMAIL_PROVIDER || "none";
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripe = stripeKey
+    ? (stripeKey.startsWith("sk_test_") ? "test" : "live")
+    : "off";
+  const sentry = process.env.SENTRY_DSN ? "on" : "off";
+  const version = process.env.APP_VERSION || API_VERSION_FULL || "1.0.0";
+
+  const pad = (label, value) =>
+    `\u2551 ${label.padEnd(13)} ${String(value).padEnd(25)}\u2551`;
+
+  console.log("");
+  console.log("\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
+  console.log("\u2551         ModelPricer API Server          \u2551");
+  console.log("\u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563");
+  console.log(pad("Port:", PORT));
+  console.log(pad("Environment:", env));
+  console.log(pad("Storage:", storage));
+  console.log(pad("Email:", email));
+  console.log(pad("Stripe:", stripe));
+  console.log(pad("Sentry:", sentry));
+  console.log(pad("Version:", version));
+  console.log(pad("Workspace:", WORKSPACE_ROOT.length > 25 ? "..." + WORKSPACE_ROOT.slice(-22) : WORKSPACE_ROOT));
+  console.log("\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D");
+  console.log(`  API docs: http://127.0.0.1:${PORT}/api/docs/html`);
+  console.log("");
 });
 
-// Graceful shutdown — persist queue, clear caches
+// Graceful shutdown — stop accepting connections, persist queue, clear caches
+let isShuttingDown = false;
 function gracefulShutdown(signal) {
-  console.log(`[backend-local] Received ${signal}, shutting down gracefully...`);
+  if (isShuttingDown) return;           // prevent double-shutdown
+  isShuttingDown = true;
+
+  console.log(`[backend-local] Received ${signal}. Starting graceful shutdown...`);
+  console.log("[backend-local] Stopping new connections...");
+
   slicingQueue.shutdown();
   slicerCache.shutdown();
+  console.log("[backend-local] Queue and cache shut down.");
+
   server.close(() => {
-    console.log(`[backend-local] Server closed.`);
+    console.log("[backend-local] All connections closed. Goodbye.");
     process.exit(0);
   });
-  // Force exit after 10 seconds if graceful shutdown hangs
-  setTimeout(() => process.exit(1), 10000).unref();
+
+  // Force exit after 30s if graceful shutdown hangs (Cloud Run sends SIGTERM)
+  const SHUTDOWN_TIMEOUT_MS = 30_000;
+  setTimeout(() => {
+    console.error(`[backend-local] Forced shutdown after ${SHUTDOWN_TIMEOUT_MS / 1000}s timeout.`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS).unref();
 }
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));

@@ -13,6 +13,7 @@ import ForgeCheckbox from '../../components/ui/forge/ForgeCheckbox';
 import { useConfirmDialog } from '../../components/ui/forge/ForgeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getPaymentConfig, savePaymentConfig } from '../../utils/adminPaymentStorage';
+import { isStripeConfigured } from '@/lib/stripe/stripeClient';
 import { debug } from '../../lib/debug';
 
 const DUE_DAYS_OPTIONS = [7, 14, 21, 30];
@@ -41,6 +42,26 @@ export default function AdminPayments() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- Stripe status ---
+  const [stripeStatus, setStripeStatus] = useState(null); // null = loading, true = configured, false = not configured
+  const stripePublicKey = import.meta.env?.VITE_STRIPE_PUBLISHABLE_KEY || '';
+  const stripeIsTestKey = stripePublicKey.startsWith('pk_test_');
+  const stripeIsLiveKey = stripePublicKey.startsWith('pk_live_');
+  const stripeHasKey = stripeIsTestKey || stripeIsLiveKey;
+  const stripeMaskedKey = stripeHasKey
+    ? `${stripePublicKey.slice(0, 8)}${'*'.repeat(12)}${stripePublicKey.slice(-4)}`
+    : '';
+
+  useEffect(() => {
+    isStripeConfigured()
+      .then(setStripeStatus)
+      .catch(() => setStripeStatus(false));
+  }, []);
+
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/payments/webhook`
+    : '/api/payments/webhook';
 
   const dirty = useMemo(() => {
     if (!config) return false;
@@ -378,6 +399,109 @@ export default function AdminPayments() {
         </div>
       </div>
 
+      {/* SECTION 3: Stripe Configuration */}
+      <div className="admin-card" style={{ marginTop: 20 }}>
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="Zap" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
+            <div>
+              <h2>{t('admin.payments.stripeConfigTitle')}</h2>
+              <p className="card-description">
+                {t('admin.payments.stripeConfigDesc')}
+              </p>
+            </div>
+          </div>
+          {stripeStatus === null ? (
+            <span className="stripe-status-badge stripe-status-checking">
+              <Icon name="Loader2" size={14} className="stripe-spinner" />
+              {t('admin.payments.stripeChecking')}
+            </span>
+          ) : stripeStatus && stripeHasKey ? (
+            <span className={`stripe-status-badge ${stripeIsTestKey ? 'stripe-status-test' : 'stripe-status-active'}`}>
+              <Icon name={stripeIsTestKey ? 'FlaskConical' : 'CheckCircle2'} size={14} />
+              {stripeIsTestKey ? t('admin.payments.stripeTestMode') : t('admin.payments.stripeActive')}
+            </span>
+          ) : (
+            <span className="stripe-status-badge stripe-status-inactive">
+              <Icon name="XCircle" size={14} />
+              {t('admin.payments.stripeNotConfigured')}
+            </span>
+          )}
+        </div>
+        <div className="card-body">
+          <div className="stripe-config-grid">
+            {/* Public Key */}
+            <div className="stripe-config-row">
+              <div className="stripe-config-label">
+                <Icon name="Key" size={14} />
+                <span>{t('admin.payments.stripePublicKey')}</span>
+              </div>
+              <div className="stripe-config-value">
+                {stripeHasKey ? (
+                  <code className="stripe-key-display">{stripeMaskedKey}</code>
+                ) : (
+                  <span style={{ color: 'var(--forge-text-muted)', fontStyle: 'italic' }}>
+                    {t('admin.payments.stripeNoKey')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Mode */}
+            <div className="stripe-config-row">
+              <div className="stripe-config-label">
+                <Icon name="ToggleLeft" size={14} />
+                <span>{t('admin.payments.stripeMode')}</span>
+              </div>
+              <div className="stripe-config-value">
+                {stripeHasKey ? (
+                  <span className={`stripe-mode-badge ${stripeIsTestKey ? 'test' : 'live'}`}>
+                    <Icon name={stripeIsTestKey ? 'FlaskConical' : 'Shield'} size={12} />
+                    {stripeIsTestKey ? t('admin.payments.stripeTest') : t('admin.payments.stripeLive')}
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--forge-text-muted)' }}>-</span>
+                )}
+              </div>
+            </div>
+
+            {/* Webhook URL */}
+            <div className="stripe-config-row">
+              <div className="stripe-config-label">
+                <Icon name="Webhook" size={14} />
+                <span>{t('admin.payments.stripeWebhookUrl')}</span>
+              </div>
+              <div className="stripe-config-value">
+                <code className="stripe-key-display">{webhookUrl}</code>
+              </div>
+            </div>
+          </div>
+
+          <div className="info-box" style={{ marginTop: 14 }}>
+            <Icon name="Info" size={16} />
+            <span>{t('admin.payments.stripeWebhookHint')}</span>
+          </div>
+
+          {/* Setup Guide */}
+          {!stripeStatus && (
+            <div className="stripe-setup-guide">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Icon name="BookOpen" size={16} style={{ color: 'var(--forge-accent-primary)' }} />
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--forge-text-primary)', fontFamily: 'var(--forge-font-heading)' }}>
+                  {t('admin.payments.stripeSetupGuide')}
+                </h3>
+              </div>
+              <div className="stripe-steps">
+                <p>{t('admin.payments.stripeStep1')}</p>
+                <p>{t('admin.payments.stripeStep2')}</p>
+                <p>{t('admin.payments.stripeStep3')}</p>
+                <p>{t('admin.payments.stripeStep4')}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <ConfirmDialog />
 
       <style>{`
@@ -502,6 +626,84 @@ export default function AdminPayments() {
           background: var(--forge-bg-elevated); border: 1px solid var(--forge-border-default);
           font-size: 14px; font-weight: 600; color: var(--forge-text-primary);
           font-family: var(--forge-font-tech);
+        }
+
+        /* Stripe Config Section */
+        .stripe-status-badge {
+          display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+          padding: 6px 12px; font-size: 12px; font-weight: 700;
+          font-family: var(--forge-font-tech); letter-spacing: 0.02em;
+          white-space: nowrap;
+        }
+        .stripe-status-active {
+          border: 1px solid rgba(0,212,170,0.4); background: rgba(0,212,170,0.1); color: var(--forge-success);
+        }
+        .stripe-status-test {
+          border: 1px solid rgba(255,181,71,0.4); background: rgba(255,181,71,0.1); color: var(--forge-warning);
+        }
+        .stripe-status-inactive {
+          border: 1px solid rgba(255,71,87,0.4); background: rgba(255,71,87,0.1); color: var(--forge-error);
+        }
+        .stripe-status-checking {
+          border: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); color: var(--forge-text-muted);
+        }
+        .stripe-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .stripe-config-grid {
+          display: flex; flex-direction: column; gap: 0;
+        }
+        .stripe-config-row {
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          padding: 10px 0;
+          border-bottom: 1px solid var(--forge-border-default);
+        }
+        .stripe-config-row:last-child { border-bottom: none; }
+        .stripe-config-label {
+          display: flex; align-items: center; gap: 8px;
+          font-size: 13px; font-weight: 600; color: var(--forge-text-secondary);
+          min-width: 200px;
+        }
+        .stripe-config-value {
+          font-size: 13px; color: var(--forge-text-primary); text-align: right;
+          flex: 1; overflow: hidden; text-overflow: ellipsis;
+        }
+        .stripe-key-display {
+          font-family: var(--forge-font-tech); font-size: 12px;
+          background: var(--forge-bg-elevated); border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-sm, 4px); padding: 4px 8px;
+          color: var(--forge-text-primary); user-select: all;
+          word-break: break-all;
+        }
+        .stripe-mode-badge {
+          display: inline-flex; align-items: center; gap: 4px;
+          padding: 3px 8px; border-radius: var(--forge-radius-sm, 4px);
+          font-size: 12px; font-weight: 700; font-family: var(--forge-font-tech);
+        }
+        .stripe-mode-badge.test {
+          background: rgba(255,181,71,0.1); color: var(--forge-warning);
+          border: 1px solid rgba(255,181,71,0.3);
+        }
+        .stripe-mode-badge.live {
+          background: rgba(0,212,170,0.1); color: var(--forge-success);
+          border: 1px solid rgba(0,212,170,0.3);
+        }
+        .stripe-setup-guide {
+          margin-top: 16px; padding: 14px;
+          border: 1px solid var(--forge-border-default);
+          border-radius: var(--forge-radius-md);
+          background: var(--forge-bg-elevated);
+        }
+        .stripe-steps p {
+          margin: 0 0 6px 0; font-size: 13px; color: var(--forge-text-secondary);
+          line-height: 1.6;
+        }
+        .stripe-steps p:last-child { margin-bottom: 0; }
+
+        @media (max-width: 640px) {
+          .stripe-config-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+          .stripe-config-label { min-width: auto; }
+          .stripe-config-value { text-align: left; }
         }
       `}</style>
     </div>

@@ -68,6 +68,7 @@ export function getHealthStatus({ version = "unknown", getCacheStats, getQueueSt
  * @param {string} [opts.workspaceRoot] - Path to workspace root (existence is checked, path not exposed)
  * @param {Function} [opts.getCacheStats] - Function returning cache statistics
  * @param {Function} [opts.getQueueStats] - Function returning queue statistics
+ * @param {object} [opts.externalServices] - External service configuration status (env-derived, no secrets)
  * @returns {Promise<object>} Detailed health status payload
  */
 export async function getDetailedHealthStatus({
@@ -77,6 +78,7 @@ export async function getDetailedHealthStatus({
   workspaceRoot,
   getCacheStats,
   getQueueStats,
+  externalServices,
 } = {}) {
   const mem = process.memoryUsage();
   const cpus = await import("node:os").then((os) => os.cpus());
@@ -103,14 +105,14 @@ export async function getDetailedHealthStatus({
   }
 
   // Check workspace directory exists without exposing path
-  let storageAvailable = false;
+  let workspaceAvailable = false;
   if (workspaceRoot) {
     try {
       const fsmod = await import("node:fs/promises");
       await fsmod.access(workspaceRoot);
-      storageAvailable = true;
+      workspaceAvailable = true;
     } catch {
-      storageAvailable = false;
+      workspaceAvailable = false;
     }
   }
 
@@ -118,8 +120,40 @@ export async function getDetailedHealthStatus({
   const cacheStats = getCacheStats ? getCacheStats() : null;
   const queueStats = getQueueStats ? getQueueStats() : null;
 
+  // Build services object with slicer + workspace + external integrations
+  const services = {
+    slicer: {
+      status: slicerAvailable ? "ok" : "unavailable",
+      version: slicerVersion || "unknown",
+    },
+    workspace: {
+      status: workspaceAvailable ? "ok" : "unavailable",
+    },
+  };
+
+  // Merge external service statuses (Supabase, Stripe, Email, Sentry, Storage provider)
+  if (externalServices) {
+    for (const [key, value] of Object.entries(externalServices)) {
+      services[key] = value;
+    }
+  }
+
+  // Determine overall status from all services
+  const allStatuses = Object.values(services).map((s) =>
+    typeof s === "object" && s !== null ? s.status : s
+  );
+  const hasError = allStatuses.some((s) => s === "error");
+  const hasUnavailable = allStatuses.some(
+    (s) => s === "unavailable" || s === "not_configured"
+  );
+  const overallStatus = hasError
+    ? "degraded"
+    : hasUnavailable
+      ? "partial"
+      : "healthy";
+
   return {
-    status: "healthy",
+    status: overallStatus,
     service: "modelpricer-backend-local",
     version,
     uptime: Math.floor(process.uptime()),
@@ -137,11 +171,7 @@ export async function getDetailedHealthStatus({
       cpuCount: cpus.length,
       nodeVersion: process.version,
     },
-    services: {
-      slicer: slicerAvailable ? "available" : "unavailable",
-      slicerVersion: slicerVersion || "unknown",
-      storage: storageAvailable ? "available" : "unavailable",
-    },
+    services,
     ...(cacheStats ? { cache: cacheStats } : {}),
     ...(queueStats ? { queue: queueStats } : {}),
     node: process.version,

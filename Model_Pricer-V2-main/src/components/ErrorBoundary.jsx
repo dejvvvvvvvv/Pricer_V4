@@ -2,6 +2,12 @@
 import React from 'react';
 
 /**
+ * Sentry module name stored as a variable so Rollup/Vite cannot resolve it
+ * statically — the build succeeds even when @sentry/react is not installed.
+ */
+const SENTRY_MODULE = '@sentry/' + 'react';
+
+/**
  * Application-level Error Boundary.
  *
  * Props:
@@ -66,6 +72,19 @@ class ErrorBoundary extends React.Component {
     const label = this.props.module || 'General';
     console.error(`[ErrorBoundary:${label}]`, error, errorInfo);
     this.setState({ errorInfo });
+
+    // Report to Sentry if available (dynamic import — never blocks rendering)
+    import(/* @vite-ignore */ SENTRY_MODULE)
+      .then((Sentry) => {
+        Sentry.withScope((scope) => {
+          scope.setTag('errorBoundary', label);
+          scope.setExtra('componentStack', errorInfo?.componentStack);
+          Sentry.captureException(error);
+        });
+      })
+      .catch(() => {
+        // @sentry/react not installed — no-op
+      });
   }
 
   handleReset = () => {

@@ -7,13 +7,36 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 230+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN)
-- **Posledni zaznam:** 214-GN (UPRAVY 2026-03-18, Session S03 — Komplexni testovani)
-- **Posledni aktualizace:** 2026-03-18 (Session S03 — Komplexni testovani, 2 nove zaznamy: 213-GN KONVERZACE + 214-GN UPRAVY)
+- **Celkem zaznamu:** 252+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN + 215-232 GN/BK/AD/DC/AS + 233-236 WB)
+- **Posledni zaznam:** 236-WB (UPRAVY 2026-03-21, Session S01 — Widget Builder Wave 1 Property Editor System)
+- **Posledni aktualizace:** 2026-03-21 (Session S01, 4 zaznamy: 233-236 WB Widget Builder Wave 1 Core Infrastructure)
 
 ---
 
 ## Zaznamy podle dne
+
+### 2026-03-19 (S01 FINALNI)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **215** | **GN** | **KONVERZACE** | **BETA infrastrukturni rozhodnuti (S01) — diskuze o deployment moznostech, porovnani Cloud Run vs VPS, Cloudflare R2 vs Supabase Storage, cenova analyza (300 GB: R2 $4.50 vs Supabase $30), finalni architektura 5 vrstev (Firebase Hosting + Cloud Functions + Cloud Run + Cloudflare R2 + Supabase PostgreSQL)** |
+| **216** | **GN** | **OTAZKY** | **5 Q&A o BETA architekture — backend deployment (Cloud Run 4CPU/2GB), file storage (R2 6x levnejsi, $0 egress), cenove porovnani 4 provideru, celkova architektura, MCP servery pro implementaci** |
+| **217** | **GN** | **UPRAVY** | **Vlna 2 Planovani — Master plan BETA infrastruktury (8 casti A-H, 6 fazi, 45 checklistu), Cloud Run plan aktualizovan (R2, Resend, Sentry, pdfmake, CI/CD), MEMORY ulozena (project_beta_infrastructure.md, reference_mcp_servers.md)** |
+| **218** | **BK** | **UPRAVY** | **Vlna 3 Backend infrastruktura — R2 Storage abstrakce (storageProvider base class + r2Provider + filesystemProvider + factory, 4 soubory), Docker+CI/CD (Dockerfile multi-stage + .dockerignore + ci.yml + deploy-cloudrun.sh + firebase.json, 5 souboru), Email+PDF (resendProvider + 4 ceske sablony + invoiceService pdfmake+QR SPAYD + emailProvider case + invoices endpoint + .env.example, 9 souboru), celkem 15 novych + 3 upravene** |
+| **219** | **GN** | **UPRAVY** | **Vlna 4 Sentry monitoring — Backend sentryService.js (initSentry, captureException, PII scrubbing beforeSend, dynamicky import), Frontend sentryInit.js (lazy import, session replay maskAllText, browserTracing), integrace do index.js/index.jsx + oba ErrorBoundary (dynamicky Sentry import v componentDidCatch), .env.example (SENTRY_DSN, APP_VERSION), celkem 2 nove + 5 upravenych** |
+| **220** | **GN** | **UPRAVY** | **Vlna 4 Stripe platebni integrace — Backend stripeService.js (createCheckoutSession, constructWebhookEvent, processWebhookEvent, dynamicky import), stripeRoutes.js (4 endpointy: /status, /create-checkout, /webhook raw body!, /session/:id), Frontend stripeClient.js (createPaymentSession, redirectToCheckout s URL validaci stripe.com, verifyPaymentSession, buildCheckoutUrls), .env.example (STRIPE keys), celkem 3 nove + 2 upravene** |
+| **221** | **GN** | **UPRAVY** | **Vlna 5 Frontend Storage API + Build Verify — storageApi.js/slicerApi.js/presetsApi.js/apiClient.js API_BASE z VITE_API_BASE_URL, storageRouter 2 nove signed URL endpointy (/signed-url, /signed-upload-url), sw.js dynamicky CACHE_VERSION, vite.config.mjs produkcni komentar, build PASS (52.97s, 3978 modulu), celkem 7 souboru** |
+| **222** | **GN** | **UPRAVY** | **Vlna 6 Dokumentace + Stripe mount + AdminPayments — NOVY Infrastructure-Dokumentace.md (568 radku, 8 systemu), aktualizace Storage-Utilities/Build-Config/00-MASTER doku, backend index.js Stripe routes mount (raw body parser PRED express.json, auth middleware), AdminPayments.jsx Section 3 Stripe Configuration (status badge, masked key, webhook URL, setup guide), 17 i18n klicu CZ+EN, build PASS, celkem 1 novy + 6 upravenych** |
+| **223** | **GN** | **UPRAVY** | **Vlna 7 Health Check + MCP Cloudflare + BETA Checklist — health.js rozsiren o externalServices parametr (5 sluzeb: storage/supabase/email/stripe/sentry, overall status computation), index.js novy GET /api/health/services-status (verejny, boolean flagy), NOVY MCP_SETUP_CLOUDFLARE.md (prerekvizity, API token, 3 integracni varianty, R2 bucket, troubleshooting), NOVY BETA-CHECKLIST-STATUS.md (~70% kod hotov, ~20% ceka na uzivatele, ~10% zbyva), celkem 2 nove + 2 upravene** |
+| **224** | **GN** | **UPRAVY** | **Vlna 8 System Health UI + Email Notification Triggers — AdminSystemHealth.jsx nova sekce "Stav sluzeb" (5 service karet: Storage/DB/Email/Payments/Monitoring, color-coded badges, auto-refresh 30s), LanguageContext 12 novych i18n klicu (admin.system.svc*), NOVY emailNotificationService.js (onOrderStatusChange, status->template mapping confirmed/printing/shipped/completed, tenant config, PII masking, fire-and-forget), orders.js integrace emailNotificationService do PATCH /:id/status (.then/.catch, backwards compatible), celkem 1 novy + 3 upravene** |
+| **225** | **GN** | **UPRAVY** | **Vlna 9 Build Verify + Memory — Frontend build PASS (53.69s, 3979 modulu), backend syntax PASS (vsechny nove soubory z Vln 3-8), MEMORY.md aktualizovan (122 radku)** |
+| **226** | **AD** | **UPRAVY** | **Vlna 10 Admin Setup Wizard — AdminDashboard.jsx nova SetupProgress komponenta (progress bar, 5 sluzeb: Firebase/Supabase/Stripe/Resend/Sentry, klikatelne kroky s presmerovanim na admin stranky, Forge design), LanguageContext 8 novych i18n klicu (admin.dashboard.setup*), celkem 2 upravene** |
+| **227** | **BK** | **UPRAVY** | **Vlna 10 Env Validator — NOVY envValidator.js (validateEnvironment(), 7 feature groups: Core/Firebase/Supabase/Stripe/Resend/Sentry/Storage, 16 promennych, ASCII box output, production exit(1) pri chybejicich REQUIRED), index.js integrace pri startu, celkem 1 novy + 1 upraveny** |
+| **228** | **DC** | **UPRAVY** | **Vlna 10 Deployment Guide — NOVY DEPLOYMENT-GUIDE-STEP-BY-STEP.md (10 kroku krok-za-krokem: Firebase, Supabase, R2, Cloud Run, Firebase Hosting, Stripe, Resend, Sentry, DNS, Post-deployment; cestina, pro ne-technickeho uzivatele)** |
+| **229** | **GN** | **UPRAVY** | **Vlna 11 — Build verify PASS (38.26s, 3979 modulu), backend startup banner (ASCII box: Port, Environment, Storage, Email, Stripe, Sentry, Version, Workspace) + graceful shutdown (isShuttingDown guard, 30s timeout, step-by-step logging), historie Vln 8-10 ulozena (IDs 225-228, DENNI-PREHLED, MASTER-HISTORIE, ID-REGISTRY aktualizovany)** |
+| **230** | **GN** | **UPRAVY** | **Vlna 12 — CORS production config: buildCorsConfig() funkce (dev allow all, production CORS_ORIGINS whitelist, widget-specific /api/widget credentials:false). API Client error handling: response interceptor rozsiren o 5 error typu (NETWORK_ERROR, AUTH_EXPIRED, FORBIDDEN, RATE_LIMITED, SERVER_ERROR), ceske chybove zpravy, nova isApiReachable() utility. Historie Vlny 11 (ID 229) ulozena.** |
+| **231** | **AS** | **UPRAVY** | **Vlna 13 — Admin Settings Storage Mode UI: nova sekce "Uloziste dat" (select localStorage/dual-write/supabase, Supabase connectivity status check, varovani pri prepnuti, badges). LanguageContext 22 novych i18n klicu (admin.settings.storage.*). 2 upravene soubory.** |
+| **232** | **BK** | **UPRAVY** | **Vlna 14 — Config routes backend: storage-mode endpoint (GET/POST) pro tenant-level storage konfiguraci, Supabase connectivity check endpoint. Finalni build verify Frontend + Backend PASS. Posledni vlna dnesni FINALNI session (14 vln, 18 zaznamu: 215-232).** |
 
 ### 2026-03-18 (S01-S03)
 
@@ -321,3 +344,4 @@
 | `Historie/2026-03-16/` | 2 zaznamu (S01: Admin Analytics Real Data + Grid ID 205-AN, Analytics Tracking Wiring ID 206-AT) |
 | `Historie/2026-03-17/` | 4 zaznamy (S01: Analytics Hidden for Beta ID 207-BH; S02: P0 Order Data Completeness ID 208-AO; S03: P1 Order Data Display Fix ID 209-AO; S04: P2 Order Detail Modal/Export/Fees ID 210-AO) |
 | `Historie/2026-03-18/` | 4 zaznamy (S01: Widget Checkout Flow + Pricing Layout Fix ID 211-WK; S02: Widget P1 Code Review Fixes ID 212-WK; S03: Komplexni testovani ID 213-GN KONVERZACE + 214-GN UPRAVY) |
+| `Historie/2026-03-19/` | 8 zaznamu (S01: BETA infrastruktura — 215-GN KONVERZACE + 216-GN OTAZKY + 217-GN UPRAVY planovani + 218-BK UPRAVY backend infra + 219-GN UPRAVY Sentry + 220-GN UPRAVY Stripe + 221-GN UPRAVY Frontend API + 222-GN UPRAVY Doku+Stripe mount) |

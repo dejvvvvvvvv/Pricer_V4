@@ -69,6 +69,8 @@ export default defineConfig({
     host: "0.0.0.0",
     strictPort: true,
     // Local dev proxy to backend-local (Express) on :3001.
+    // In production, VITE_API_BASE_URL env var points to the Cloud Run service
+    // and all /api/* calls go directly to that URL (no proxy needed).
     // IMPORTANT: backend-local has CORS allowlist; we strip the Origin header
     // so the request behaves like a same-origin server-side call.
     proxy: {

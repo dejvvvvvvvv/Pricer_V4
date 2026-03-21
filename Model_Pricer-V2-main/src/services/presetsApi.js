@@ -1,6 +1,7 @@
 // src/services/presetsApi.js
 // Unified API client for Presets (backend-local).
-// Uses Vite proxy: /api -> http://127.0.0.1:3001
+// In development, Vite proxy handles /api -> localhost:3001.
+// In production, VITE_API_BASE_URL points to the Cloud Run backend service.
 
 /**
  * @typedef {{ ok: true, data: any }} ApiOk
@@ -9,6 +10,12 @@
  */
 
 import { getTenantId } from '../utils/adminTenantStorage';
+
+/**
+ * API base URL — empty string in dev (Vite proxy), full URL in production.
+ * @type {string}
+ */
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 function tryJson(text) {
   try {
@@ -29,7 +36,8 @@ function tryJson(text) {
  * @returns {Promise<ApiResult>}
  */
 export async function apiFetch(path, options = {}) {
-  const url = path.startsWith('/') ? path : `/${path}`;
+  const relPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${API_BASE}${relPath}`;
   const tenantId = getTenantId();
 
   const headers = new Headers(options.headers || {});

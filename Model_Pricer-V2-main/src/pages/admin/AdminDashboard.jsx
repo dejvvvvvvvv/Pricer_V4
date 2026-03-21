@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -103,6 +103,118 @@ function RevenueSparkline({ data, language }) {
           <span key={i} style={{ fontSize: 10, color: 'var(--forge-text-muted, #7A8291)', textAlign: 'center', flex: 1 }}>
             {d.label}
           </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── SetupProgress ────────────────────────────────────────────────────── */
+
+const SETUP_STEPS = [
+  { key: 'storage', icon: 'HardDrive', route: '/admin/settings', check: (s) => s?.storage?.provider !== 'filesystem' },
+  { key: 'supabase', icon: 'Database', route: '/admin/settings', check: (s) => !!s?.supabase?.configured },
+  { key: 'email', icon: 'Mail', route: '/admin/emails', check: (s) => !!s?.email?.configured },
+  { key: 'stripe', icon: 'CreditCard', route: '/admin/payments', check: (s) => !!s?.stripe?.configured },
+  { key: 'sentry', icon: 'Shield', route: '/admin/integrations', check: (s) => !!s?.sentry?.configured },
+];
+
+function SetupProgress({ t, navigate }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+    fetch(`${API_BASE}/api/health/services-status`)
+      .then(r => { if (!r.ok) throw new Error('fetch failed'); return r.json(); })
+      .then(data => {
+        if (!cancelled) {
+          setStatus(data.data || data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Don't render while loading or on network error (graceful degradation)
+  if (loading || error || !status) return null;
+
+  const steps = SETUP_STEPS.map(step => ({
+    ...step,
+    label: t(`admin.dashboard.setup.${step.key}`, step.key),
+    configured: step.check(status),
+  }));
+
+  const completedCount = steps.filter(s => s.configured).length;
+  const percentage = Math.round((completedCount / steps.length) * 100);
+
+  // All done — show compact green banner
+  if (percentage === 100) {
+    return (
+      <div className="dash-setup-complete-banner">
+        <Icon name="CheckCircle" size={18} color="#00D4AA" />
+        <span>{t('admin.dashboard.setup.allConfigured', 'System is fully configured and ready.')}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dash-setup-progress">
+      <div className="dash-setup-header">
+        <div className="dash-setup-header-left">
+          <Icon name="Settings" size={18} color="var(--forge-accent-primary, #00D4AA)" />
+          <h3 className="dash-setup-title">
+            {t('admin.dashboard.setup.title', 'Service configuration')}
+          </h3>
+        </div>
+        <span className="dash-setup-pct">{percentage}%</span>
+      </div>
+
+      <div className="dash-setup-bar-track">
+        <div
+          className="dash-setup-bar-fill"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+
+      <div className="dash-setup-steps">
+        {steps.map(step => (
+          <div
+            key={step.key}
+            className={`dash-setup-step ${step.configured ? 'dash-setup-step--done' : 'dash-setup-step--pending'}`}
+            onClick={() => { if (!step.configured) navigate(step.route); }}
+            role={step.configured ? undefined : 'button'}
+            tabIndex={step.configured ? undefined : 0}
+            onKeyDown={e => {
+              if (!step.configured && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                navigate(step.route);
+              }
+            }}
+          >
+            <div className="dash-setup-step-left">
+              <span className={`dash-setup-check ${step.configured ? 'dash-setup-check--ok' : ''}`}>
+                {step.configured
+                  ? <Icon name="Check" size={12} />
+                  : <Icon name={step.icon} size={12} />}
+              </span>
+              <span className="dash-setup-step-label">{step.label}</span>
+            </div>
+            {!step.configured && (
+              <span className="dash-setup-step-action">
+                {t('admin.dashboard.setup.configure', 'Configure')}
+                <Icon name="ArrowRight" size={12} />
+              </span>
+            )}
+          </div>
         ))}
       </div>
     </div>
@@ -423,6 +535,9 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Setup progress */}
+      <SetupProgress t={t} navigate={navigate} />
 
       {/* Summary cards */}
       <div className="dash-summary-cards">
@@ -1497,6 +1612,151 @@ const dashboardStyles = `
     letter-spacing: 0.05em;
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  /* Setup progress */
+  .dash-setup-progress {
+    background: var(--forge-bg-surface, #111827);
+    border: 1px solid var(--forge-border-default, #1E293B);
+    border-radius: var(--forge-radius-md, 6px);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .dash-setup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .dash-setup-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dash-setup-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--forge-font-heading, 'Space Grotesk', sans-serif);
+    color: var(--forge-text-primary, #F1F5F9);
+  }
+
+  .dash-setup-pct {
+    font-size: 14px;
+    font-family: var(--forge-font-mono, 'JetBrains Mono', monospace);
+    font-weight: 700;
+    color: var(--forge-accent-primary, #00D4AA);
+  }
+
+  .dash-setup-bar-track {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--forge-bg-elevated, #1E293B);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .dash-setup-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--forge-accent-primary, #00D4AA);
+    transition: width 0.4s ease;
+  }
+
+  .dash-setup-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .dash-setup-step {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: var(--forge-radius-md, 6px);
+    transition: background 0.15s;
+  }
+
+  .dash-setup-step--pending {
+    background: var(--forge-bg-elevated, #0D1117);
+    cursor: pointer;
+  }
+
+  .dash-setup-step--pending:hover {
+    background: rgba(0, 212, 170, 0.06);
+  }
+
+  .dash-setup-step--done {
+    opacity: 0.6;
+  }
+
+  .dash-setup-step-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dash-setup-check {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1.5px solid var(--forge-border-default, #1E293B);
+    color: var(--forge-text-muted, #7A8291);
+    background: transparent;
+    transition: all 0.2s;
+  }
+
+  .dash-setup-check--ok {
+    border-color: var(--forge-accent-primary, #00D4AA);
+    background: rgba(0, 212, 170, 0.12);
+    color: var(--forge-accent-primary, #00D4AA);
+  }
+
+  .dash-setup-step-label {
+    font-size: 13px;
+    font-family: var(--forge-font-body, 'IBM Plex Sans', sans-serif);
+    color: var(--forge-text-secondary, #94A3B8);
+    font-weight: 500;
+  }
+
+  .dash-setup-step--done .dash-setup-step-label {
+    color: var(--forge-text-muted, #7A8291);
+  }
+
+  .dash-setup-step-action {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-family: var(--forge-font-tech, 'Space Mono', monospace);
+    color: var(--forge-accent-primary, #00D4AA);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .dash-setup-complete-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    background: rgba(0, 212, 170, 0.06);
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    border-radius: var(--forge-radius-md, 6px);
+    font-size: 13px;
+    font-family: var(--forge-font-body, 'IBM Plex Sans', sans-serif);
+    color: var(--forge-accent-primary, #00D4AA);
+    font-weight: 500;
   }
 
   /* Responsive */

@@ -1,6 +1,12 @@
 import React from 'react';
 
 /**
+ * Sentry module name stored as a variable so Rollup/Vite cannot resolve it
+ * statically — the build succeeds even when @sentry/react is not installed.
+ */
+const SENTRY_MODULE = '@sentry/' + 'react';
+
+/**
  * Simple Error Boundary for the widget embed.
  * Uses Forge CSS vars (no Tailwind — widget does not load Tailwind).
  * Protects against crashes in the 3D preview and heavy model parsing.
@@ -18,6 +24,19 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     // eslint-disable-next-line no-console
     console.error('[Widget:ErrorBoundary]', error, info);
+
+    // Report to Sentry if available (dynamic import — never blocks rendering)
+    import(/* @vite-ignore */ SENTRY_MODULE)
+      .then((Sentry) => {
+        Sentry.withScope((scope) => {
+          scope.setTag('errorBoundary', 'Widget');
+          scope.setExtra('componentStack', info?.componentStack);
+          Sentry.captureException(error);
+        });
+      })
+      .catch(() => {
+        // @sentry/react not installed — no-op
+      });
   }
 
   handleReset = () => {

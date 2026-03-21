@@ -1,9 +1,26 @@
-// Email Provider Adapter
-// Supports: none (demo), smtp, resend, sendgrid
-// Actual API calls are stubbed for now (no real dependencies needed)
+/**
+ * Email Provider Adapter
+ *
+ * Factory that creates a provider object based on configuration.
+ * Supports: none (demo), smtp (stub), resend (PRODUCTION), sendgrid (stub).
+ *
+ * The provider selection is driven by:
+ *   - config.provider parameter passed to createProvider()
+ *   - process.env.EMAIL_PROVIDER as fallback
+ *
+ * @module email/emailProvider
+ */
 
+import { logInfo, logWarn } from '../util/logger.js';
+
+/**
+ * Create an email provider instance.
+ *
+ * @param {{ provider?: string }} [config]
+ * @returns {{ type: string, send: (params: { to: string, from?: string, subject: string, html?: string, text?: string, replyTo?: string }) => Promise<{ success: boolean, messageId?: string, error?: string, mode?: string }>, sendBatch?: (emails: Array) => Promise<object> }}
+ */
 export function createProvider(config) {
-  const type = String(config?.provider || 'none');
+  const type = String(config?.provider || process.env.EMAIL_PROVIDER || 'none');
 
   switch (type) {
     case 'smtp':
@@ -12,7 +29,7 @@ export function createProvider(config) {
         async send({ to, subject, html, from }) {
           // In production: use nodemailer
           // For now: simulate success
-          console.log(`[SMTP] Would send to ${to}: ${subject}`);
+          logInfo(`[SMTP] Would send to ${to}: ${subject}`);
           return { success: true, messageId: `smtp_${Date.now()}` };
         },
       };
@@ -20,10 +37,14 @@ export function createProvider(config) {
     case 'resend':
       return {
         type: 'resend',
-        async send({ to, subject, html, from }) {
-          // In production: use @resend/node or fetch
-          console.log(`[Resend] Would send to ${to}: ${subject}`);
-          return { success: true, messageId: `resend_${Date.now()}` };
+        async send({ to, from, subject, html, text, replyTo }) {
+          // Dynamic import to avoid hard dependency when not using Resend
+          const { sendEmail } = await import('./providers/resendProvider.js');
+          return sendEmail({ to, from, subject, html, text, replyTo });
+        },
+        async sendBatch(emails) {
+          const { sendBatchEmails } = await import('./providers/resendProvider.js');
+          return sendBatchEmails(emails);
         },
       };
 
@@ -32,7 +53,7 @@ export function createProvider(config) {
         type: 'sendgrid',
         async send({ to, subject, html, from }) {
           // In production: use @sendgrid/mail or fetch
-          console.log(`[SendGrid] Would send to ${to}: ${subject}`);
+          logInfo(`[SendGrid] Would send to ${to}: ${subject}`);
           return { success: true, messageId: `sg_${Date.now()}` };
         },
       };
@@ -41,7 +62,7 @@ export function createProvider(config) {
       return {
         type: 'none',
         async send({ to, subject }) {
-          console.log(`[Demo] Email to ${to}: ${subject} (no provider)`);
+          logInfo(`[Demo] Email to ${to}: ${subject} (no provider)`);
           return { success: true, messageId: `demo_${Date.now()}`, mode: 'demo' };
         },
       };

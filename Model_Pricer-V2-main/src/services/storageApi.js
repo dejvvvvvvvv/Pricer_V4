@@ -1,11 +1,21 @@
 /**
  * Storage API client — Fetch wrapper for /api/storage/* endpoints.
  * Used by checkout flow, Model Storage page, and Orders modal.
+ *
+ * Supports both local filesystem (dev) and R2 signed URLs (production).
+ * In production, VITE_API_BASE_URL points to the Cloud Run backend service.
+ * In development, Vite proxy handles /api -> localhost:3001.
  */
 
 import { getTenantId } from "../utils/adminTenantStorage";
 
-const BASE = "/api/storage";
+/**
+ * API base URL — empty string in dev (Vite proxy), full URL in production.
+ * @type {string}
+ */
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+const BASE = `${API_BASE}/api/storage`;
 
 /**
  * Sanitize a file/folder path to prevent path traversal attacks.
@@ -305,4 +315,61 @@ export async function moveItem(filePath, destination) {
 export async function getStats() {
   const res = await fetch(`${BASE}/stats`, { headers: await authHeaders() });
   return handleResponse(res);
+}
+
+// ── Signed URL support (R2 / provider-agnostic) ────────────────────────
+
+/**
+ * Get a signed URL for direct download from R2 (or fallback filesystem URL).
+ * Backend decides the URL format based on STORAGE_PROVIDER env var:
+ *   - R2: returns a presigned S3/R2 URL valid for `expiresIn` seconds
+ *   - Filesystem (dev): returns a relative /api/storage/file?path=... URL
+ *
+ * @param {string} filePath - Tenant-relative path (e.g. "orders/ORD-001/model.stl")
+ * @returns {Promise<{ url: string, expiresAt: string }>}
+ */
+export async function getSignedDownloadUrl(filePath) {
+  filePath = sanitizePath(filePath);
+  const headers = await authHeaders();
+  const params = new URLSearchParams({ path: filePath });
+  const response = await fetch(`${BASE}/signed-url?${params}`, { headers });
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await response.json();
+      throw new Error(data.message || `Failed to get signed URL: ${response.status}`);
+    }
+    throw new Error(`Failed to get signed URL: ${response.status}`);
+  }
+  return response.json(); // { url, expiresAt }
+}
+
+/**
+ * Get a signed URL for direct upload to R2 (future feature).
+ * Enables client-side upload without proxying through the backend.
+ *
+ * Currently returns 501 Not Implemented from the backend.
+ * Will be implemented when direct R2 upload is needed for large files.
+ *
+ * @param {string} filePath - Tenant-relative path
+ * @param {string} contentType - MIME type (e.g. "model/stl", "application/octet-stream")
+ * @returns {Promise<{ url: string, expiresAt: string }>}
+ */
+export async function getSignedUploadUrl(filePath, contentType) {
+  filePath = sanitizePath(filePath);
+  const headers = await authHeaders({ 'Content-Type': 'application/json' });
+  const response = await fetch(`${BASE}/signed-upload-url`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ path: filePath, contentType }),
+  });
+  if (!response.ok) {
+    const ct = response.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const data = await response.json();
+      throw new Error(data.message || data.error || `Failed to get upload URL: ${response.status}`);
+    }
+    throw new Error(`Failed to get upload URL: ${response.status}`);
+  }
+  return response.json(); // { url, expiresAt }
 }

@@ -758,6 +758,174 @@ Viz `Testing-Dokumentace.md` — 336 unit testu ve 7 souborech s pokrytim pricin
 
 ---
 
+---
+
+## 19. Dockerfile (backend kontejnerizace)
+
+### 19.1 Zakladni informace
+
+**Cesta:** `Model_Pricer-V2-main/backend-local/Dockerfile`
+**Typ:** Multi-stage build
+**Base image:** `node:20-slim` (~180 MB, oproti ~900 MB plneho node:20)
+**Cilova platforma:** Google Cloud Run
+
+### 19.2 Build stages
+
+| Stage | Base | Co dela |
+|-------|------|---------|
+| `deps` | node:20-slim | `npm ci --production --ignore-scripts` — cisty node_modules bez devDependencies |
+| runtime | node:20-slim | Kopiruje node_modules z deps, instaluje dumb-init, vytvari non-root usera |
+
+### 19.3 Bezpecnostni opatreni
+
+| Opatreni | Popis |
+|----------|-------|
+| Non-root user | `appuser:1001` — kontejner nebezi jako root |
+| dumb-init | Spravne forwardovani signalu (PID 1 problem v kontejnerech) |
+| --ignore-scripts | Preskoceni postinstall skriptu (supply chain ochrana) |
+| .dockerignore | Excluduje `.env`, testy, storage data, dokumentaci |
+
+### 19.4 Klicove ENV promenne v kontejneru
+
+```dockerfile
+ENV NODE_ENV=production
+ENV PORT=8080
+ENV SLICER_WORKSPACE_ROOT=/tmp/modelpricer
+```
+
+Cloud Run automaticky nastavi `$PORT` (typicky 8080). Health check: `GET /api/health`.
+
+### 19.5 .dockerignore
+
+**Cesta:** `Model_Pricer-V2-main/backend-local/.dockerignore`
+
+Ignoruje: `node_modules`, `.env*`, `*.test.js`, `*.spec.js`, `__tests__/`, `storage/`, `.git`, IDE soubory, OS soubory, Dockerfile sebe.
+
+---
+
+## 20. GitHub Actions CI
+
+### 20.1 Zakladni informace
+
+**Cesta:** `.github/workflows/ci.yml`
+**Trigger:** Push a pull_request do vetce `main`
+**Concurrency:** `ci-${{ github.ref }}` s `cancel-in-progress: true`
+
+### 20.2 Joby
+
+| Job | Co dela | Working dir | Zavislosti |
+|-----|---------|-------------|------------|
+| `frontend-build` | `npm ci` → `npm run build` (Vite) → `npm test` (vitest) | `Model_Pricer-V2-main/` | Node 20, npm cache |
+| `backend-build` | `npm ci` → `node --check src/index.js` | `Model_Pricer-V2-main/backend-local/` | Node 20, npm cache |
+| `docker-build` | `docker build` (overeni platnosti Dockerfile, bez push) | root | backend-build |
+
+**Poznamka:** Testy (`npm test`) aktualne bezi s `|| true` — nekteré testy mohou selhat v CI prostredi kvuli chybejicim browser API nebo env promennym.
+
+---
+
+## 21. Deploy script (Cloud Run)
+
+### 21.1 Zakladni informace
+
+**Cesta:** `scripts/deploy-cloudrun.sh`
+**Pouziti:** `export GCP_PROJECT_ID="my-project" && ./scripts/deploy-cloudrun.sh`
+
+### 21.2 Kroky deploymentu
+
+1. Zajisteni existence Artifact Registry repositare
+2. Konfigurace Docker autentizace pro Artifact Registry
+3. Build Docker image
+4. Push do Artifact Registry
+5. Deploy na Cloud Run
+
+### 21.3 Konfigurovatelne env vars
+
+| Promenna | Vychozi | Popis |
+|----------|---------|-------|
+| `GCP_PROJECT_ID` | (povinne) | Google Cloud projekt |
+| `GCP_REGION` | `europe-west1` | Region |
+| `SERVICE_NAME` | `modelpricer-api` | Nazev sluzby |
+| `MEMORY` | `2Gi` | Pametovy limit |
+| `CPU` | `4` | CPU count |
+| `MAX_INSTANCES` | `10` | Max instanci |
+| `IMAGE_TAG` | `latest` | Docker tag |
+
+---
+
+## 22. firebase.json (Hosting konfigurace)
+
+### 22.1 Zakladni informace
+
+**Cesta:** `Model_Pricer-V2-main/firebase.json`
+
+### 22.2 Security headers
+
+Aplikovany na vsechny soubory (`**`):
+
+| Header | Hodnota | Ucel |
+|--------|---------|------|
+| X-Content-Type-Options | nosniff | Prevence MIME sniffing |
+| X-Frame-Options | SAMEORIGIN | Prevence clickjacking (iframe embedding) |
+| Referrer-Policy | strict-origin-when-cross-origin | Omezeni Referer headeru |
+| Permissions-Policy | camera=(), microphone=(), geolocation=() | Blokace nepotrebnych browseru API |
+
+### 22.3 Cache headers pro static assety
+
+Soubory `**/*.@(js|css|svg|png|jpg|jpeg|webp|woff2)`:
+```
+Cache-Control: public, max-age=31536000, immutable
+```
+= 1 rok, immutable (Vite hash v nazvu souboru zajisti invalidaci pri zmene).
+
+### 22.4 Rewrites
+
+| Pattern | Cil | Popis |
+|---------|-----|-------|
+| `/api/**` | Cloud Run `modelpricer-api` (europe-west1) | Backend API proxy v produkci |
+| `**` | `/index.html` | SPA fallback pro React Router |
+
+### 22.5 Firestore sekce
+
+```json
+{
+  "database": "(default)",
+  "location": "nam5",
+  "rules": "firestore.rules",
+  "indexes": "firestore.indexes.json"
+}
+```
+
+---
+
+## 23. Service Worker — cache verzovani
+
+### 23.1 Zakladni informace
+
+**Cesta:** `Model_Pricer-V2-main/public/sw.js`
+
+### 23.2 Verzovani
+
+```javascript
+const CACHE_VERSION = (typeof __SW_CACHE_VERSION__ !== 'undefined')
+  ? __SW_CACHE_VERSION__
+  : 'v2';
+const CACHE_NAME = `modelpricer-${CACHE_VERSION}`;
+```
+
+`__SW_CACHE_VERSION__` muze byt nahrazen CI pipeline (napr. `sed -i "s/__SW_CACHE_VERSION__/'${GIT_SHA}'/" sw.js`).
+Pokud neni nahrazen, pouzije se `'v2'`.
+
+### 23.3 Cachovaci strategie
+
+| Typ pozadavku | Strategie | Duvod |
+|---------------|-----------|-------|
+| Static assety (JS, CSS, fonty, obrazky) | Cache-first, network fallback | Immutable s hash v nazvu |
+| API volani (/api/*) | Network-first, bez cache | Data a ceny musi byt aktualni |
+| Navigace | Network-first, offline fallback | SPA musi fungovat online |
+
+---
+
 *Dokumentace vytvorena: 2026-02-13*
 *Aktualizovano: 2026-03-10 (vitest.config.mjs, testovaci skripty)*
-*Zdrojove soubory: vite.config.mjs, vitest.config.mjs, tailwind.config.js, postcss.config.js, package.json, jsconfig.json*
+*Aktualizovano: 2026-03-19 (Dockerfile, CI, deploy-cloudrun.sh, firebase.json, service worker)*
+*Zdrojove soubory: vite.config.mjs, vitest.config.mjs, tailwind.config.js, postcss.config.js, package.json, jsconfig.json, Dockerfile, .dockerignore, ci.yml, deploy-cloudrun.sh, firebase.json, sw.js*

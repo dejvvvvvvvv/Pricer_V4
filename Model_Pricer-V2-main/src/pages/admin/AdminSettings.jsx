@@ -6,7 +6,8 @@
  * 2. Orders (auto-numbering, prefix, default status, auto-archive)
  * 3. Notifications (email, sound, desktop)
  * 4. Display (default view, items per page, date display, compact mode)
- * 5. Data Management (clear orders, reset pricing, factory reset, backup link)
+ * 5. Storage Mode (localStorage / dual-write / Supabase, connection status)
+ * 6. Data Management (clear orders, reset pricing, factory reset, backup link)
  *
  * Storage: settings:v1 via adminSettingsStorage helpers.
  */
@@ -23,6 +24,8 @@ import Icon from '../../components/AppIcon';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { isSupabaseAvailable, checkSupabaseConnection } from '../../lib/supabase/client';
+import { getAllStorageModes, setAllStorageModes, VALID_MODES } from '../../lib/supabase/featureFlags';
 import {
   loadSettings,
   saveSettings,
@@ -194,6 +197,60 @@ export default function AdminSettings() {
   React.useEffect(() => {
     return () => clearTimeout(savedTimerRef.current);
   }, []);
+
+  // ─── Storage Mode state ────────────────────────────────────────────
+  const [storageMode, setStorageModeLocal] = useState(() => {
+    const modes = getAllStorageModes();
+    const values = Object.values(modes);
+    // Determine dominant mode — if all same, use that; otherwise 'mixed'
+    const unique = [...new Set(values)];
+    return unique.length === 1 ? unique[0] : 'localStorage';
+  });
+  const [supabaseStatus, setSupabaseStatus] = useState({ checked: false, ok: false, error: null });
+  const [storageSaving, setStorageSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkConnection() {
+      const available = isSupabaseAvailable();
+      if (!available) {
+        setSupabaseStatus({ checked: true, ok: false, error: t('admin.settings.storage.notConfigured', 'Supabase neni nakonfigurovano') });
+        return;
+      }
+      try {
+        const result = await checkSupabaseConnection();
+        if (!cancelled) {
+          setSupabaseStatus({ checked: true, ok: result.ok, error: result.ok ? null : result.error });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSupabaseStatus({ checked: true, ok: false, error: err.message });
+        }
+      }
+    }
+    checkConnection();
+    return () => { cancelled = true; };
+  }, [t]);
+
+  const handleStorageModeChange = useCallback((newMode) => {
+    setStorageModeLocal(newMode);
+  }, []);
+
+  const handleStorageModeSave = useCallback(() => {
+    setStorageSaving(true);
+    try {
+      setAllStorageModes(storageMode);
+      setSaved(true);
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(e?.message || 'Failed to save storage mode');
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaveError(null), 4000);
+    } finally {
+      setStorageSaving(false);
+    }
+  }, [storageMode]);
 
   // Confirm dialogs
   const clearOrdersDialog = useConfirmDialog();
@@ -506,7 +563,205 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      {/* ─── 5. Data Management ────────────────────────────────────────── */}
+      {/* ─── 5. Storage Mode ────────────────────────────────────────────── */}
+      <div style={cardStyle}>
+        <div style={cardTitleStyle}>
+          <Icon name="HardDrive" size={18} style={{ color: '#3B82F6' }} />
+          {t('admin.settings.storage.title', 'Uloziste dat')}
+        </div>
+
+        {/* Current status row */}
+        <div style={rowStyle}>
+          <div>
+            <div style={rowLabelStyle}>{t('admin.settings.storage.currentMode', 'Aktualni rezim')}</div>
+            <div style={rowDescStyle}>{t('admin.settings.storage.currentModeDesc', 'Kde jsou aktualne ukladana data tenanta')}</div>
+          </div>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 12px',
+            borderRadius: 'var(--forge-radius-sm, 6px)',
+            backgroundColor: storageMode === 'supabase'
+              ? 'rgba(0,212,170,0.1)'
+              : storageMode === 'dual-write'
+                ? 'rgba(245,158,11,0.1)'
+                : 'rgba(139,92,246,0.1)',
+            border: `1px solid ${storageMode === 'supabase'
+              ? 'rgba(0,212,170,0.3)'
+              : storageMode === 'dual-write'
+                ? 'rgba(245,158,11,0.3)'
+                : 'rgba(139,92,246,0.3)'}`,
+            fontFamily: 'var(--forge-font-tech, "Space Mono", monospace)',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: storageMode === 'supabase'
+              ? 'var(--forge-accent-primary, #00D4AA)'
+              : storageMode === 'dual-write'
+                ? '#F59E0B'
+                : '#8B5CF6',
+          }}>
+            {storageMode === 'localStorage' && t('admin.settings.storage.modeLocal', 'localStorage')}
+            {storageMode === 'dual-write' && t('admin.settings.storage.modeDual', 'dual-write')}
+            {storageMode === 'supabase' && t('admin.settings.storage.modeSupabase', 'Supabase')}
+          </div>
+        </div>
+
+        {/* Supabase connection status */}
+        <div style={rowStyle}>
+          <div>
+            <div style={rowLabelStyle}>{t('admin.settings.storage.supabaseStatus', 'Supabase pripojeni')}</div>
+            <div style={rowDescStyle}>
+              {!supabaseStatus.checked
+                ? t('admin.settings.storage.checking', 'Overuji pripojeni...')
+                : supabaseStatus.ok
+                  ? t('admin.settings.storage.connected', 'Pripojeno a funkcni')
+                  : supabaseStatus.error}
+            </div>
+          </div>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '100px',
+            backgroundColor: !supabaseStatus.checked
+              ? 'rgba(122,130,145,0.1)'
+              : supabaseStatus.ok
+                ? 'rgba(0,212,170,0.1)'
+                : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${!supabaseStatus.checked
+              ? 'rgba(122,130,145,0.2)'
+              : supabaseStatus.ok
+                ? 'rgba(0,212,170,0.3)'
+                : 'rgba(239,68,68,0.3)'}`,
+            fontSize: '12px',
+            fontWeight: 600,
+            color: !supabaseStatus.checked
+              ? 'var(--forge-text-muted, #7A8291)'
+              : supabaseStatus.ok
+                ? 'var(--forge-accent-primary, #00D4AA)'
+                : 'var(--forge-error, #EF4444)',
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: !supabaseStatus.checked
+                ? 'var(--forge-text-muted, #7A8291)'
+                : supabaseStatus.ok
+                  ? 'var(--forge-accent-primary, #00D4AA)'
+                  : 'var(--forge-error, #EF4444)',
+            }} />
+            {!supabaseStatus.checked
+              ? '...'
+              : supabaseStatus.ok
+                ? t('admin.settings.storage.statusOk', 'OK')
+                : t('admin.settings.storage.statusError', 'Chyba')}
+          </div>
+        </div>
+
+        {/* Mode selector */}
+        <div style={{ ...rowStyle, borderBottom: 'none', flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+          <div>
+            <div style={rowLabelStyle}>{t('admin.settings.storage.changeMode', 'Zmenit rezim uloziste')}</div>
+            <div style={rowDescStyle}>{t('admin.settings.storage.changeModeDesc', 'Urcete kam se budou ukladat data tenanta')}</div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <ForgeSelect
+              label=""
+              value={storageMode}
+              onChange={(e) => handleStorageModeChange(e.target.value)}
+              options={[
+                { value: 'localStorage', label: t('admin.settings.storage.optLocal', 'Lokalni uloziste (prohlizec)') },
+                { value: 'dual-write', label: t('admin.settings.storage.optDual', 'Dualni zapis (localStorage + Supabase)') },
+                { value: 'supabase', label: t('admin.settings.storage.optSupabase', 'Pouze Supabase (produkce)') },
+              ]}
+              style={{ flex: 1 }}
+            />
+            <button
+              style={{ ...saveBtnStyle, padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+              onClick={handleStorageModeSave}
+              disabled={storageSaving}
+            >
+              <Icon name="Save" size={14} />
+              {t('admin.settings.storage.saveMode', 'Ulozit')}
+            </button>
+          </div>
+
+          {/* Warning for supabase-only mode */}
+          {storageMode === 'supabase' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '12px 16px',
+              backgroundColor: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 'var(--forge-radius-sm, 6px)',
+            }}>
+              <Icon name="AlertTriangle" size={16} style={{ color: '#F59E0B', marginTop: '1px', flexShrink: 0 }} />
+              <div style={{
+                fontFamily: 'var(--forge-font-body, Inter, sans-serif)',
+                fontSize: '13px',
+                color: '#F59E0B',
+                lineHeight: '1.5',
+              }}>
+                {t('admin.settings.storage.supabaseWarning', 'Ujistete se, ze vsechna data jsou migrovana do Supabase. V opacnem pripade mohou byt ztracena.')}
+              </div>
+            </div>
+          )}
+
+          {/* Warning for dual-write mode */}
+          {storageMode === 'dual-write' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '12px 16px',
+              backgroundColor: 'rgba(59,130,246,0.08)',
+              border: '1px solid rgba(59,130,246,0.25)',
+              borderRadius: 'var(--forge-radius-sm, 6px)',
+            }}>
+              <Icon name="Info" size={16} style={{ color: '#3B82F6', marginTop: '1px', flexShrink: 0 }} />
+              <div style={{
+                fontFamily: 'var(--forge-font-body, Inter, sans-serif)',
+                fontSize: '13px',
+                color: '#3B82F6',
+                lineHeight: '1.5',
+              }}>
+                {t('admin.settings.storage.dualInfo', 'Data se zapisuji do localStorage i Supabase. Cteni preferuje Supabase s fallbackem na localStorage.')}
+              </div>
+            </div>
+          )}
+
+          {/* Supabase not configured warning */}
+          {storageMode !== 'localStorage' && supabaseStatus.checked && !supabaseStatus.ok && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '12px 16px',
+              backgroundColor: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 'var(--forge-radius-sm, 6px)',
+            }}>
+              <Icon name="XCircle" size={16} style={{ color: 'var(--forge-error, #EF4444)', marginTop: '1px', flexShrink: 0 }} />
+              <div style={{
+                fontFamily: 'var(--forge-font-body, Inter, sans-serif)',
+                fontSize: '13px',
+                color: 'var(--forge-error, #EF4444)',
+                lineHeight: '1.5',
+              }}>
+                {t('admin.settings.storage.noConnection', 'Supabase neni pripojeno. Rezim nebude funkcni bez aktivniho pripojeni.')}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── 6. Data Management ────────────────────────────────────────── */}
       <div style={{ ...cardStyle, borderColor: 'var(--forge-border-active, #2A2E35)' }}>
         <div style={cardTitleStyle}>
           <Icon name="Database" size={18} style={{ color: 'var(--forge-error, #EF4444)' }} />

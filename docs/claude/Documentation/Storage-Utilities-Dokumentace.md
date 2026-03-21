@@ -982,6 +982,7 @@ Helpery neposlouchaji `window.addEventListener('storage', ...)`. Zmeny v localSt
 | 2026-02-26 | Bug fix: pridano `getWidgetByIdOrPublicId()` a `getWidgetBuilderData()` do adminBrandingWidgetStorage (chybejici exporty pro WidgetEmbed). Fix cross-tenant pricing leak: `loadPricingConfigV3()` a `loadFeesConfigV3()` nyni prijimaji `tenantIdOverride` parametr. WidgetPublicPage predava `tenantId` prop do WidgetKalkulacka. |
 | 2026-02-27 | Dokumentace aktualizace: Nove sekce 7 (Supabase Dual-Write Mody) s detaily o trzech modech (localStorage, supabase, dual-write), feature flag API, rollback postupu. Sekce 6.4 expandovana s funkcemi z featureFlags.js. Nova sekce 7.6 s detaily o StorageAdapter API. |
 | 2026-03-10 | Pridana sekce 19 (generateId utility) a sekce 20 (debug logger). Storage helpery nyni pouzivaji crypto.randomUUID pro generovani ID. |
+| 2026-03-19 | Pridana sekce 21 (Backend Storage Provider System) — StorageProvider abstrakce, R2Provider, FilesystemProvider, StorageProviderFactory. |
 
 ---
 
@@ -1073,7 +1074,97 @@ export const debug = (...args) => {
 
 ---
 
+## 21. Backend Storage Provider System (NEW 2026-03-19)
+
+> Backend storage system pro souborove operace (3D modely, g-kody, faktury).
+> Oddeleny od frontend localStorage/Supabase storage helperu (sekce 1-20).
+> Kompletni dokumentace: `docs/claude/Documentation/Infrastructure-Dokumentace.md` sekce 3.
+
+### 21.1 Prehled
+
+Backend ma vlastni storage provider system pro fyzicke soubory. Pouziva Strategy pattern
+s abstraktni tridou `StorageProvider` a dvema implementacemi.
+
+```
+storageProviderFactory.js       -- Factory (singleton cache)
+    |
+    +-- FilesystemProvider      -- Lokalni disk (obaluje storageService.js)
+    +-- R2Provider              -- Cloudflare R2 (S3-kompatibilni)
+```
+
+**Dulezite:** Toto NENI stejna vec jako frontend storage helpery (`adminTenantStorage.js` atd.).
+Frontend helpery ukladaji konfiguraci (JSON) do localStorage/Supabase.
+Backend storage provider uklada fyzicke soubory (STL, GCODE, PDF, ...) na disk nebo do cloudu.
+
+### 21.2 Soubory
+
+| Soubor | Cesta | Popis |
+|--------|-------|-------|
+| `storageProvider.js` | `backend-local/src/storage/storageProvider.js` | Abstraktni trida + validace tenant ID + sanitizace cest |
+| `r2Provider.js` | `backend-local/src/storage/providers/r2Provider.js` | Cloudflare R2 implementace (@aws-sdk/client-s3) |
+| `filesystemProvider.js` | `backend-local/src/storage/providers/filesystemProvider.js` | Filesystem implementace (wrapper nad storageService.js) |
+| `storageProviderFactory.js` | `backend-local/src/storage/storageProviderFactory.js` | Factory — vybira provider podle env `STORAGE_PROVIDER` |
+
+### 21.3 StorageProvider interface
+
+Kazdy provider MUSI implementovat tyto metody:
+
+```javascript
+async uploadFile(tenantId, path, buffer, contentType)    // -> { key, size, etag }
+async downloadFile(tenantId, path)                       // -> { buffer, contentType, size }
+async deleteFile(tenantId, path)                         // -> boolean
+async listFiles(tenantId, prefix, { maxKeys, cursor })   // -> { items[], cursor? }
+async getSignedUrl(tenantId, path, expiresIn)             // -> string (URL)
+async copyFile(tenantId, sourcePath, destPath)            // -> { key }
+async moveFile(tenantId, sourcePath, destPath)            // -> { key }
+async fileExists(tenantId, path)                         // -> boolean
+async getStats(tenantId)                                 // -> { totalFiles, totalSize }
+```
+
+### 21.4 Tenant izolace
+
+Kazdy object key je prefixovany validovanym `tenantId`: `<tenantId>/<relativni-cesta>`.
+
+Validace (`validateTenantId`):
+- Non-empty string, max 128 znaku
+- Zakazane znaky: `/`, `\`, `..`, `\0`, `<`, `>`, `|`, `:`, `*`, `?`, `"`
+- Nesmi byt `.` nebo `..`
+
+Cesty jsou sanitizovany (`sanitizeStoragePath`):
+- Null byte kontrola
+- `..` segment zamitnut (path traversal ochrana)
+- Normalizace: backslash → forward slash, odebrani leading slash
+
+### 21.5 Jak prepnout provider
+
+```bash
+# Lokalni vyvoj (vychozi):
+STORAGE_PROVIDER=filesystem
+
+# Produkce:
+STORAGE_PROVIDER=r2
+R2_ACCOUNT_ID=abc123
+R2_ACCESS_KEY_ID=...
+R2_ACCESS_KEY_SECRET=...
+R2_BUCKET_NAME=modelpricer-files
+```
+
+### 21.6 R2Provider — specialni vlastnosti
+
+- **Retry s exponencialnim backoffem:** Max 3 retrye pro transientni chyby (429, 500-504, ECONNRESET, ETIMEDOUT)
+- **Presigned URL:** Generovani casove omezenych URL pro stahovani souboru (default 1 hodina)
+- **Strukturovane error codes:** `MP_NOT_FOUND`, `MP_R2_ACCESS_DENIED`, `MP_R2_ERROR`, `MP_INVALID_TENANT`, `MP_INVALID_PATH`
+
+### 21.7 FilesystemProvider — specialni vlastnosti
+
+- **Delegace na storageService.js:** Kde to jde, deleguje na existujici funkce (`resolveTenantPath`, `getStats`)
+- **MIME guessing:** Odvozuje Content-Type z pripony souboru (19 typu)
+- **Atomicky move:** Pouziva `fs.rename` (atomicke na stejnem svazku), fallback na copy+delete pri `EXDEV`
+- **Signed URL v dev modu:** Vraci relativni API cestu (`/api/storage/file?path=...`) misto real signed URL
+
+---
+
 > **Vlastnik:** `mp-mid-storage-tenant` (SINGLE OWNER pro `src/utils/admin*Storage.js`)
 > **Eskalace:** `mp-sr-storage`
 > **Konzumenti:** `mp-mid-frontend-admin`, `mp-mid-frontend-widget`
-> **Posledni aktualizace:** 2026-02-27
+> **Posledni aktualizace:** 2026-03-19

@@ -80,6 +80,17 @@
 
 /* === Onboarding Overlay Animations === */
 
+/* === Builder Spinner Animation === */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes onboardingCardIn {
   from {
     opacity: 0;

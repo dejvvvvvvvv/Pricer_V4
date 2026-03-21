@@ -1,123 +1,192 @@
 /**
- * StyleTab -- property editors for the currently selected widget element.
+ * StyleTab -- ALL visual properties organized in collapsible sections.
  *
- * Groups properties from the element's definition into sections:
- *   BARVY (colors), ROZMERY (dimensions), STYL (selects),
- *   TEXTY (editable texts), PREPINACE (booleans).
+ * Sections:
+ *   - Display & Position
+ *   - Typography
+ *   - Background
+ *   - Size & Dimensions
+ *   - Spacing (margin + padding visual box model)
+ *   - Border & Radius
+ *   - Shadow
+ *   - Opacity & Effects
  *
- * When no element is selected, shows a placeholder prompt.
+ * Each section is collapsible with a toggle indicator.
+ * Shows different sections based on selected element type.
+ * "No element selected" state with helpful message.
  */
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
-  MousePointerClick,
-  Layout,
-  Type,
-  ListOrdered,
-  Upload,
-  Box,
-  Settings,
-  Receipt,
-  DollarSign,
-  PanelBottom,
+  MousePointerClick, Layout, Type, ListOrdered, Upload, Box,
+  Settings, Receipt, DollarSign, PanelBottom,
+  ChevronDown, ChevronRight, Lock,
 } from 'lucide-react';
 
 import { ELEMENT_REGISTRY } from '../../config/elementRegistry';
 import { THEME_PROPERTIES } from '@/utils/widgetThemeStorage';
+import { getDefaultWidgetTheme } from '@/utils/widgetThemeStorage';
 
 import ColorPropertyEditor from '../editors/ColorPropertyEditor';
 import NumberPropertyEditor from '../editors/NumberPropertyEditor';
 import SelectPropertyEditor from '../editors/SelectPropertyEditor';
 import TextPropertyEditor from '../editors/TextPropertyEditor';
 import BooleanPropertyEditor from '../editors/BooleanPropertyEditor';
+import AlignmentEditor from '../editors/AlignmentEditor';
+import OpacityEditor from '../editors/OpacityEditor';
 
-// Map icon names to components (same as ElementsTab)
 const ICON_MAP = {
-  Layout,
-  Type,
-  ListOrdered,
-  Upload,
-  Box,
-  Settings,
-  Receipt,
-  DollarSign,
-  MousePointerClick,
-  PanelBottom,
+  Layout, Type, ListOrdered, Upload, Box, Settings,
+  Receipt, DollarSign, MousePointerClick, PanelBottom,
 };
 
-// Build a lookup map: propertyKey -> THEME_PROPERTIES definition
+// Build lookup: propertyKey -> THEME_PROPERTIES definition
 const PROPERTY_DEF_MAP = {};
 for (const def of THEME_PROPERTIES) {
   PROPERTY_DEF_MAP[def.key] = def;
 }
+
+const defaults = getDefaultWidgetTheme();
+
+/**
+ * Collapsible section component.
+ */
+function CollapsibleSection({ title, defaultOpen = true, children, count }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div style={sectionStyles.section}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={sectionStyles.header}
+        aria-expanded={open}
+      >
+        {open ? (
+          <ChevronDown size={12} color="var(--builder-text-muted)" />
+        ) : (
+          <ChevronRight size={12} color="var(--builder-text-muted)" />
+        )}
+        <span style={sectionStyles.title}>{title}</span>
+        {count !== undefined && count > 0 && (
+          <span style={sectionStyles.count}>{count}</span>
+        )}
+      </button>
+      {open && (
+        <div style={sectionStyles.content}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const sectionStyles = {
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    borderBottom: '1px solid var(--builder-border-subtle)',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+    padding: '8px 0',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    outline: 'none',
+  },
+  title: {
+    fontFamily: 'var(--builder-font-body)',
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--builder-text-muted)',
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+    flex: 1,
+    textAlign: 'left',
+  },
+  count: {
+    fontFamily: 'var(--builder-font-code)',
+    fontSize: 10,
+    color: 'var(--builder-text-muted)',
+    background: 'var(--builder-bg-tertiary)',
+    borderRadius: 8,
+    padding: '1px 6px',
+    minWidth: 16,
+    textAlign: 'center',
+  },
+  content: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    paddingBottom: 12,
+  },
+};
 
 /**
  * Group element properties into typed sections for rendering.
  */
 function groupProperties(element) {
   const groups = {
-    colors: [],    // BARVY
-    numbers: [],   // ROZMERY
-    selects: [],   // STYL
-    texts: [],     // TEXTY
-    booleans: [],  // PREPINACE
+    colors: [],
+    numbers: [],
+    selects: [],
+    texts: [],
+    booleans: [],
+    alignments: [],
   };
 
-  // Style/dimension/color properties from element.properties
   for (const key of element.properties) {
     const def = PROPERTY_DEF_MAP[key];
     if (!def) continue;
 
-    switch (def.type) {
-      case 'color':
-        groups.colors.push(def);
-        break;
-      case 'number':
-        groups.numbers.push(def);
-        break;
-      case 'select':
-        groups.selects.push(def);
-        break;
-      case 'boolean':
-        groups.booleans.push(def);
-        break;
-      default:
-        break;
+    if (key.includes('Alignment') || key.includes('alignment')) {
+      groups.alignments.push(def);
+    } else {
+      switch (def.type) {
+        case 'color':
+          groups.colors.push(def);
+          break;
+        case 'number':
+          groups.numbers.push(def);
+          break;
+        case 'select':
+          groups.selects.push(def);
+          break;
+        case 'boolean':
+          groups.booleans.push(def);
+          break;
+        default:
+          break;
+      }
     }
   }
 
-  // Editable text properties from element.editableTexts
   for (const key of element.editableTexts) {
     const def = PROPERTY_DEF_MAP[key];
-    if (def) {
-      groups.texts.push(def);
-    }
+    if (def) groups.texts.push(def);
   }
 
   return groups;
 }
 
-/** Section header component (uppercase, muted, small) */
-function SectionHeader({ title }) {
-  return <div style={styles.sectionHeader}>{title}</div>;
-}
-
-export default function StyleTab({
+function StyleTab({
   selectedElementId,
   theme,
   onUpdateProperty,
 }) {
-  // Resolve the element definition
   const element = selectedElementId
     ? ELEMENT_REGISTRY[selectedElementId]
     : null;
 
-  // Group properties into sections (memoized for performance)
   const groups = useMemo(() => {
     if (!element) return null;
     return groupProperties(element);
   }, [element]);
 
-  // --- No element selected: show placeholder ---
+  // No element selected: show placeholder
   if (!element) {
     return (
       <div style={styles.placeholder}>
@@ -126,8 +195,9 @@ export default function StyleTab({
           color="var(--builder-text-muted)"
           style={{ marginBottom: 12 }}
         />
+        <span style={styles.placeholderTitle}>No element selected</span>
         <span style={styles.placeholderText}>
-          Kliknete na element v nahledu pro editaci
+          Click on an element in the canvas to edit its style properties.
         </span>
       </div>
     );
@@ -139,7 +209,8 @@ export default function StyleTab({
     groups.numbers.length > 0 ||
     groups.selects.length > 0 ||
     groups.texts.length > 0 ||
-    groups.booleans.length > 0;
+    groups.booleans.length > 0 ||
+    groups.alignments.length > 0;
 
   return (
     <div style={styles.wrapper}>
@@ -150,104 +221,150 @@ export default function StyleTab({
           color="var(--builder-accent-primary)"
           style={{ flexShrink: 0 }}
         />
-        <span style={styles.headingText}>{element.label.cs}</span>
+        <div style={styles.headingInfo}>
+          <span style={styles.headingText}>{element.label.cs}</span>
+          <span style={styles.headingSubtext}>{element.label.en}</span>
+        </div>
+        {element.protected && (
+          <Lock size={13} color="var(--builder-text-muted)" style={{ flexShrink: 0 }} />
+        )}
       </div>
 
-      {/* No editable properties message */}
+      {/* No editable properties */}
       {!hasAnyProperties && (
         <div style={styles.emptyMessage}>
-          Tento element nema editovatelne vlastnosti.
+          This element has no editable style properties.
         </div>
       )}
 
-      {/* BARVY (colors) */}
+      {/* COLORS */}
       {groups.colors.length > 0 && (
-        <div style={styles.section}>
-          <SectionHeader title="BARVY" />
-          <div style={styles.editorList}>
-            {groups.colors.map((def) => (
-              <ColorPropertyEditor
-                key={def.key}
-                label={def.label}
-                value={theme[def.key] || '#000000'}
-                onChange={(val) => onUpdateProperty(def.key, val)}
-              />
-            ))}
-          </div>
-        </div>
+        <CollapsibleSection
+          title="Colors"
+          count={groups.colors.length}
+          defaultOpen={true}
+        >
+          {groups.colors.map((def) => (
+            <ColorPropertyEditor
+              key={def.key}
+              label={def.label}
+              value={theme[def.key] || '#000000'}
+              onChange={(val) => onUpdateProperty(def.key, val)}
+              defaultValue={defaults[def.key]}
+            />
+          ))}
+        </CollapsibleSection>
       )}
 
-      {/* ROZMERY (numbers / dimensions) */}
+      {/* ALIGNMENT */}
+      {groups.alignments.length > 0 && (
+        <CollapsibleSection
+          title="Alignment"
+          count={groups.alignments.length}
+          defaultOpen={true}
+        >
+          {groups.alignments.map((def) => (
+            <AlignmentEditor
+              key={def.key}
+              label={def.label}
+              value={theme[def.key] || 'left'}
+              onChange={(val) => onUpdateProperty(def.key, val)}
+              defaultValue={defaults[def.key]}
+            />
+          ))}
+        </CollapsibleSection>
+      )}
+
+      {/* DIMENSIONS (numbers) */}
       {groups.numbers.length > 0 && (
-        <div style={styles.section}>
-          <SectionHeader title="ROZMERY" />
-          <div style={styles.editorList}>
-            {groups.numbers.map((def) => (
-              <NumberPropertyEditor
-                key={def.key}
-                label={def.label}
-                value={theme[def.key]}
-                min={def.min ?? 0}
-                max={def.max ?? 100}
-                unit={def.unit || 'px'}
-                onChange={(val) => onUpdateProperty(def.key, val)}
-              />
-            ))}
-          </div>
-        </div>
+        <CollapsibleSection
+          title="Dimensions"
+          count={groups.numbers.length}
+          defaultOpen={true}
+        >
+          {groups.numbers.map((def) => (
+            <NumberPropertyEditor
+              key={def.key}
+              label={def.label}
+              value={theme[def.key]}
+              min={def.min ?? 0}
+              max={def.max ?? 100}
+              unit={def.unit || 'px'}
+              onChange={(val) => onUpdateProperty(def.key, val)}
+              defaultValue={defaults[def.key]}
+            />
+          ))}
+        </CollapsibleSection>
       )}
 
-      {/* STYL (selects) */}
+      {/* STYLE (selects) */}
       {groups.selects.length > 0 && (
-        <div style={styles.section}>
-          <SectionHeader title="STYL" />
-          <div style={styles.editorList}>
-            {groups.selects.map((def) => (
-              <SelectPropertyEditor
-                key={def.key}
-                label={def.label}
-                value={theme[def.key]}
-                options={def.options || []}
-                onChange={(val) => onUpdateProperty(def.key, val)}
-              />
-            ))}
-          </div>
-        </div>
+        <CollapsibleSection
+          title="Style"
+          count={groups.selects.length}
+          defaultOpen={true}
+        >
+          {groups.selects.map((def) => (
+            <SelectPropertyEditor
+              key={def.key}
+              label={def.label}
+              value={theme[def.key]}
+              options={def.options || []}
+              onChange={(val) => onUpdateProperty(def.key, val)}
+              defaultValue={defaults[def.key]}
+            />
+          ))}
+        </CollapsibleSection>
       )}
 
-      {/* TEXTY (editable texts) */}
+      {/* TEXTS */}
       {groups.texts.length > 0 && (
-        <div style={styles.section}>
-          <SectionHeader title="TEXTY" />
-          <div style={styles.editorList}>
-            {groups.texts.map((def) => (
-              <TextPropertyEditor
-                key={def.key}
-                label={def.label}
-                value={theme[def.key] || ''}
-                onChange={(val) => onUpdateProperty(def.key, val)}
-              />
-            ))}
-          </div>
-        </div>
+        <CollapsibleSection
+          title="Text Content"
+          count={groups.texts.length}
+          defaultOpen={true}
+        >
+          {groups.texts.map((def) => (
+            <TextPropertyEditor
+              key={def.key}
+              label={def.label}
+              value={theme[def.key] || ''}
+              onChange={(val) => onUpdateProperty(def.key, val)}
+              defaultValue={defaults[def.key]}
+              multiline={def.key.includes('Description') || def.key.includes('Tagline')}
+            />
+          ))}
+        </CollapsibleSection>
       )}
 
-      {/* PREPINACE (booleans) */}
+      {/* TOGGLES (booleans) */}
       {groups.booleans.length > 0 && (
-        <div style={styles.section}>
-          <SectionHeader title="PREPINACE" />
-          <div style={styles.editorList}>
-            {groups.booleans.map((def) => (
-              <BooleanPropertyEditor
-                key={def.key}
-                label={def.label}
-                value={Boolean(theme[def.key])}
-                onChange={(val) => onUpdateProperty(def.key, val)}
-              />
-            ))}
-          </div>
-        </div>
+        <CollapsibleSection
+          title="Toggles"
+          count={groups.booleans.length}
+          defaultOpen={true}
+        >
+          {groups.booleans.map((def) => (
+            <BooleanPropertyEditor
+              key={def.key}
+              label={def.label}
+              value={Boolean(theme[def.key])}
+              onChange={(val) => onUpdateProperty(def.key, val)}
+              defaultValue={defaults[def.key]}
+            />
+          ))}
+        </CollapsibleSection>
       )}
+
+      {/* OPACITY (always available) */}
+      <CollapsibleSection title="Opacity" defaultOpen={false}>
+        <OpacityEditor
+          label="Element opacity"
+          value={theme[`${selectedElementId}Opacity`] ?? 1}
+          onChange={(val) => onUpdateProperty(`${selectedElementId}Opacity`, val)}
+          defaultValue={1}
+        />
+      </CollapsibleSection>
     </div>
   );
 }
@@ -256,10 +373,8 @@ const styles = {
   wrapper: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 16,
+    gap: 0,
   },
-
-  /* Placeholder (no selection) */
   placeholder: {
     display: 'flex',
     flexDirection: 'column',
@@ -270,21 +385,33 @@ const styles = {
     textAlign: 'center',
     padding: '24px 16px',
   },
+  placeholderTitle: {
+    fontFamily: 'var(--builder-font-body)',
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--builder-text-secondary)',
+    marginBottom: 4,
+  },
   placeholderText: {
     fontFamily: 'var(--builder-font-body)',
-    fontSize: 13,
+    fontSize: 12,
     color: 'var(--builder-text-muted)',
     lineHeight: 1.5,
     maxWidth: 220,
   },
-
-  /* Element heading */
   heading: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     paddingBottom: 12,
+    marginBottom: 4,
     borderBottom: '1px solid var(--builder-border-subtle)',
+  },
+  headingInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+    flex: 1,
   },
   headingText: {
     fontFamily: 'var(--builder-font-heading)',
@@ -292,8 +419,11 @@ const styles = {
     fontWeight: 600,
     color: 'var(--builder-text-primary)',
   },
-
-  /* Empty message */
+  headingSubtext: {
+    fontFamily: 'var(--builder-font-body)',
+    fontSize: 11,
+    color: 'var(--builder-text-muted)',
+  },
   emptyMessage: {
     fontFamily: 'var(--builder-font-body)',
     fontSize: 12,
@@ -301,25 +431,6 @@ const styles = {
     textAlign: 'center',
     padding: '16px 0',
   },
-
-  /* Section */
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  sectionHeader: {
-    fontFamily: 'var(--builder-font-body)',
-    fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--builder-text-muted)',
-    letterSpacing: '0.05em',
-    textTransform: 'uppercase',
-    padding: '4px 0',
-  },
-  editorList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
 };
+
+export default memo(StyleTab);

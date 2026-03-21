@@ -396,6 +396,10 @@ export default function AdminSystemHealth() {
   const [error, setError] = useState(null);
   const [latencyHistory, setLatencyHistory] = useState([]);
 
+  // Services status
+  const [servicesStatus, setServicesStatus] = useState(null);
+  const [servicesError, setServicesError] = useState(false);
+
   // Storage data
   const [storageData, setStorageData] = useState([]);
   const [totalStorageBytes, setTotalStorageBytes] = useState(0);
@@ -412,6 +416,21 @@ export default function AdminSystemHealth() {
 
   // Confirm dialog for cache clear
   const clearCacheDialog = useConfirmDialog();
+
+  /** Fetch services status from backend */
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+  const fetchServicesStatus = useCallback(() => {
+    fetch(`${API_BASE}/api/health/services-status`)
+      .then(r => r.json())
+      .then(data => {
+        setServicesStatus(data.data || data);
+        setServicesError(false);
+      })
+      .catch(() => {
+        setServicesStatus(null);
+        setServicesError(true);
+      });
+  }, [API_BASE]);
 
   /** Check configuration status of various features */
   const checkConfigSummary = useCallback(() => {
@@ -567,8 +586,9 @@ export default function AdminSystemHealth() {
     checkHealth();
     measureStorage();
     checkConfigSummary();
+    fetchServicesStatus();
     setCountdown(POLL_INTERVAL);
-  }, [checkHealth, measureStorage, checkConfigSummary]);
+  }, [checkHealth, measureStorage, checkConfigSummary, fetchServicesStatus]);
 
   // Initial check
   useEffect(() => {
@@ -835,6 +855,305 @@ export default function AdminSystemHealth() {
                 usedMB={health.memory.heapUsedMB}
                 totalMB={health.memory.heapTotalMB}
               />
+            </div>
+          )}
+        </StatusCard>
+
+        {/* ===== SERVICES STATUS ===== */}
+        <StatusCard title={t('admin.system.servicesTitle')} icon="Plug" status={null}>
+          {servicesError && !servicesStatus && (
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--forge-radius-sm, 6px)',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '13px',
+              color: 'var(--forge-error, #EF4444)',
+              textAlign: 'center',
+            }}>
+              {t('admin.system.servicesLoadError')}
+            </div>
+          )}
+
+          {!servicesStatus && !servicesError && (
+            <div style={{
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '13px',
+              color: 'var(--forge-text-muted)',
+              textAlign: 'center',
+              padding: '12px 0',
+            }}>
+              {t('admin.system.servicesLoading')}
+            </div>
+          )}
+
+          {servicesStatus && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '12px',
+            }}>
+              {/* Storage */}
+              <div style={{
+                padding: '14px',
+                borderRadius: 'var(--forge-radius-md, 8px)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="HardDrive" size={16} style={{ color: 'var(--forge-accent-primary)' }} />
+                  <span style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--forge-text-primary)',
+                  }}>
+                    {t('admin.system.svcStorage')}
+                  </span>
+                </div>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(0, 212, 170, 0.12)',
+                  color: 'var(--forge-success, #10B981)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <StatusDot status="healthy" size={7} />
+                  {t('admin.system.svcActive')}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  color: 'var(--forge-text-muted)',
+                }}>
+                  {servicesStatus.storage?.provider || 'filesystem'}
+                </span>
+              </div>
+
+              {/* Database (Supabase) */}
+              <div style={{
+                padding: '14px',
+                borderRadius: 'var(--forge-radius-md, 8px)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="Database" size={16} style={{ color: '#3B82F6' }} />
+                  <span style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--forge-text-primary)',
+                  }}>
+                    {t('admin.system.svcDatabase')}
+                  </span>
+                </div>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: servicesStatus.supabase?.configured
+                    ? 'rgba(0, 212, 170, 0.12)'
+                    : 'rgba(122, 130, 145, 0.12)',
+                  color: servicesStatus.supabase?.configured
+                    ? 'var(--forge-success, #10B981)'
+                    : 'var(--forge-text-muted, #7A8291)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <StatusDot status={servicesStatus.supabase?.configured ? 'healthy' : null} size={7} />
+                  {servicesStatus.supabase?.configured ? t('admin.system.svcActive') : t('admin.system.svcNotConfigured')}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  color: 'var(--forge-text-muted)',
+                }}>
+                  Supabase
+                </span>
+              </div>
+
+              {/* Email */}
+              <div style={{
+                padding: '14px',
+                borderRadius: 'var(--forge-radius-md, 8px)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="Mail" size={16} style={{ color: '#0EA5E9' }} />
+                  <span style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--forge-text-primary)',
+                  }}>
+                    {t('admin.system.svcEmail')}
+                  </span>
+                </div>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: servicesStatus.email?.configured
+                    ? 'rgba(0, 212, 170, 0.12)'
+                    : 'rgba(122, 130, 145, 0.12)',
+                  color: servicesStatus.email?.configured
+                    ? 'var(--forge-success, #10B981)'
+                    : 'var(--forge-text-muted, #7A8291)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <StatusDot status={servicesStatus.email?.configured ? 'healthy' : null} size={7} />
+                  {servicesStatus.email?.configured ? t('admin.system.svcActive') : t('admin.system.svcNotConfigured')}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  color: 'var(--forge-text-muted)',
+                }}>
+                  {servicesStatus.email?.provider && servicesStatus.email.provider !== 'none'
+                    ? servicesStatus.email.provider
+                    : '--'}
+                </span>
+              </div>
+
+              {/* Payments (Stripe) */}
+              <div style={{
+                padding: '14px',
+                borderRadius: 'var(--forge-radius-md, 8px)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="CreditCard" size={16} style={{ color: '#8B5CF6' }} />
+                  <span style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--forge-text-primary)',
+                  }}>
+                    {t('admin.system.svcPayments')}
+                  </span>
+                </div>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: servicesStatus.stripe?.configured
+                    ? servicesStatus.stripe?.testMode
+                      ? 'rgba(245, 158, 11, 0.12)'
+                      : 'rgba(0, 212, 170, 0.12)'
+                    : 'rgba(122, 130, 145, 0.12)',
+                  color: servicesStatus.stripe?.configured
+                    ? servicesStatus.stripe?.testMode
+                      ? 'var(--forge-warning, #F59E0B)'
+                      : 'var(--forge-success, #10B981)'
+                    : 'var(--forge-text-muted, #7A8291)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <StatusDot
+                    status={servicesStatus.stripe?.configured
+                      ? servicesStatus.stripe?.testMode ? 'degraded' : 'healthy'
+                      : null}
+                    size={7}
+                  />
+                  {servicesStatus.stripe?.configured
+                    ? servicesStatus.stripe?.testMode
+                      ? t('admin.system.svcTestMode')
+                      : t('admin.system.svcActive')
+                    : t('admin.system.svcNotConfigured')}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  color: 'var(--forge-text-muted)',
+                }}>
+                  Stripe
+                </span>
+              </div>
+
+              {/* Monitoring (Sentry) */}
+              <div style={{
+                padding: '14px',
+                borderRadius: 'var(--forge-radius-md, 8px)',
+                backgroundColor: 'var(--forge-bg-elevated)',
+                border: '1px solid var(--forge-border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="Eye" size={16} style={{ color: '#EC4899' }} />
+                  <span style={{
+                    fontFamily: 'var(--forge-font-heading)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--forge-text-primary)',
+                  }}>
+                    {t('admin.system.svcMonitoring')}
+                  </span>
+                </div>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: servicesStatus.sentry?.configured
+                    ? 'rgba(0, 212, 170, 0.12)'
+                    : 'rgba(122, 130, 145, 0.12)',
+                  color: servicesStatus.sentry?.configured
+                    ? 'var(--forge-success, #10B981)'
+                    : 'var(--forge-text-muted, #7A8291)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <StatusDot status={servicesStatus.sentry?.configured ? 'healthy' : null} size={7} />
+                  {servicesStatus.sentry?.configured ? t('admin.system.svcActive') : t('admin.system.svcNotConfigured')}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--forge-font-tech)',
+                  fontSize: '11px',
+                  color: 'var(--forge-text-muted)',
+                }}>
+                  Sentry
+                </span>
+              </div>
             </div>
           )}
         </StatusCard>

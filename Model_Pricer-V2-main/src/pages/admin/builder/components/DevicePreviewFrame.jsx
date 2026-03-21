@@ -1,10 +1,10 @@
 /**
- * DevicePreviewFrame - Simulates device dimensions around its children.
+ * DevicePreviewFrame -- simulates device dimensions around its children.
  *
  * Supported device modes:
- *   - mobile:  375px wide, max-height 812px
- *   - tablet:  768px wide, max-height 1024px
- *   - desktop: 100% width (max 1200px), no max-height constraint
+ *   - mobile:  360px wide, max-height 740px (iPhone SE form factor)
+ *   - tablet:  768px wide, max-height 1024px (iPad form factor)
+ *   - desktop: 100% width (max 1280px), no max-height constraint
  *
  * Visual: white background, rounded corners, medium shadow, scrollable
  * content, smooth width transition on device mode change.
@@ -15,8 +15,8 @@ import React from 'react';
 
 const DEVICE_DIMENSIONS = {
   mobile: {
-    width: 375,
-    maxHeight: 812,
+    width: 360,
+    maxHeight: 740,
   },
   tablet: {
     width: 768,
@@ -24,7 +24,7 @@ const DEVICE_DIMENSIONS = {
   },
   desktop: {
     width: '100%',
-    maxWidth: 1200,
+    maxWidth: 1280,
     maxHeight: 'none',
   },
 };

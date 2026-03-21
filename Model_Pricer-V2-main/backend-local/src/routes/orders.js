@@ -21,7 +21,7 @@
  */
 
 import { Router } from "express";
-import { logInfo } from "../util/logger.js";
+import { logInfo, logWarn } from "../util/logger.js";
 import { validate } from "../middleware/validate.js";
 import {
   listOrders,
@@ -35,6 +35,7 @@ import {
   normalizeStatus,
 } from "../ordersStore.js";
 import { generateOrderSummaryHtml } from "../services/pdfService.js";
+import { onOrderStatusChange } from "../services/emailNotificationService.js";
 
 // ── Validation Schemas ──
 
@@ -81,10 +82,10 @@ const orderSchemas = {
 /**
  * Creates the orders router.
  *
- * @param {{ workspaceRoot: string, getTenantIdFromReq: (req) => string, fireWebhook: Function }} opts
+ * @param {{ workspaceRoot: string, getTenantIdFromReq: (req) => string, fireWebhook: Function, getTenantConfig?: (tenantId: string) => Promise<Object> }} opts
  * @returns {Router}
  */
-export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebhook }) {
+export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebhook, getTenantConfig }) {
   const router = Router();
 
   // ── Helpers ──
@@ -341,6 +342,29 @@ export function createOrdersRouter({ workspaceRoot, getTenantIdFromReq, fireWebh
       logInfo(
         `[orders] Status changed: ${result.previousStatus} -> ${result.newStatus} for order ${orderId} (tenant ${tenantId})`
       );
+
+      // Send email notification (fire-and-forget — must NOT block response)
+      try {
+        const tenantConfig = typeof getTenantConfig === 'function'
+          ? await getTenantConfig(tenantId).catch(() => ({}))
+          : {};
+
+        // Fire-and-forget: do not await, catch any rejection silently
+        onOrderStatusChange(result.order, result.previousStatus, result.newStatus, tenantConfig)
+          .then((emailResult) => {
+            if (emailResult?.sent) {
+              logInfo(`[orders] Email notification sent for ${result.newStatus}: ${emailResult.templateId}`);
+            } else if (emailResult?.reason) {
+              logInfo(`[orders] Email notification skipped: ${emailResult.reason}`);
+            }
+          })
+          .catch((emailErr) => {
+            logWarn(`[orders] Email notification error (non-blocking): ${emailErr?.message || emailErr}`);
+          });
+      } catch (emailSetupErr) {
+        // Even getTenantConfig failure must not block the response
+        logWarn(`[orders] Email setup error (non-blocking): ${emailSetupErr?.message || emailSetupErr}`);
+      }
 
       return ok(res, result.order);
     } catch (e) {

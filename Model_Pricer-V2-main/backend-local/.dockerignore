@@ -1,0 +1,41 @@
+# Dependencies (rebuilt inside container)
+node_modules
+
+# Environment files (secrets — never bake into image)
+.env
+.env.*
+.env.local
+.env.production
+
+# Documentation
+*.md
+README.md
+docs/
+
+# Tests
+__tests__/
+tests/
+*.test.js
+*.spec.js
+
+# Local storage data (runtime-generated, not needed in image)
+storage/
+
+# Git
+.git
+.gitignore
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker (prevent recursive copy)
+Dockerfile
+.dockerignore
+docker-compose*.yml

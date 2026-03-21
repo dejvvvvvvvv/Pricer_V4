@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { debug } from '@/lib/debug';
 
 import { getWidgets, updateWidget } from '@/utils/adminBrandingWidgetStorage';
@@ -9,56 +9,20 @@ import useElementSelection from './useElementSelection';
 import useLayoutState from './useLayoutState';
 
 /**
- * useBuilderState -- top-level composition hook for the Widget Builder V3.
+ * useBuilderState -- top-level composition hook for the Widget Builder (VvvebJs edition).
  *
  * Combines:
- *  - useUndoRedo   (theme history with undo/redo)
- *  - useElementSelection (selected / hovered element tracking)
- *  - local UI state (device mode, active tab, inline text editing)
- *  - widget metadata (name, full widget object)
- *  - persistence   (load from localStorage on mount, save back)
- *  - keyboard shortcuts (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
+ *  - useUndoRedo       (theme history with undo/redo)
+ *  - useElementSelection (selected / hovered element, keyboard nav)
+ *  - useLayoutState    (element ordering, visibility, custom blocks, presets)
+ *  - local UI state    (device mode, panel tabs, inline text editing, zoom, panels)
+ *  - widget metadata   (name, full widget object)
+ *  - persistence       (load from localStorage on mount, auto-save with debounce)
+ *  - keyboard shortcuts (Ctrl+Z / Ctrl+Y / Ctrl+S / Escape / Delete / Arrow keys)
+ *  - import/export     (layout as JSON)
  *
  * @param {string} widgetId   Internal widget ID (e.g. "w_abc123").
  * @param {string} tenantId   Tenant ID from getTenantId().
- *
- * @returns {{
- *   theme: object,
- *   updateThemeProperty: (key: string, value: any) => void,
- *   undo: () => void,
- *   redo: () => void,
- *   canUndo: boolean,
- *   canRedo: boolean,
- *   isDirty: boolean,
- *   resetToOriginal: () => void,
- *   resetToDefaults: () => void,
- *
- *   selectedElementId: string | null,
- *   hoveredElementId: string | null,
- *   selectElement: (id: string | null) => void,
- *   hoverElement: (id: string | null) => void,
- *   clearSelection: () => void,
- *   isSelected: (id: string) => boolean,
- *   isHovered: (id: string) => boolean,
- *
- *   deviceMode: 'mobile' | 'tablet' | 'desktop',
- *   setDeviceMode: (mode: string) => void,
- *
- *   activeTab: 'style' | 'elements' | 'global',
- *   setActiveTab: (tab: string) => void,
- *
- *   editingTextId: string | null,
- *   setEditingTextId: (id: string | null) => void,
- *
- *   widget: object | null,
- *   widgetName: string,
- *   setWidgetName: (name: string) => void,
- *
- *   save: () => void,
- *   saving: boolean,
- *
- *   loading: boolean,
- * }}
  */
 export default function useBuilderState(widgetId, tenantId) {
   // ---------------------------------------------------------------------------
@@ -74,8 +38,7 @@ export default function useBuilderState(widgetId, tenantId) {
   const [widgetName, setWidgetName] = useState('');
 
   // ---------------------------------------------------------------------------
-  // Theme via useUndoRedo.
-  // We initialise with defaults; the real value is set once the widget loads.
+  // Theme via useUndoRedo
   // ---------------------------------------------------------------------------
   const undoRedo = useUndoRedo(getDefaultWidgetTheme());
   const {
@@ -89,14 +52,8 @@ export default function useBuilderState(widgetId, tenantId) {
     isDirty,
   } = undoRedo;
 
-  // Keep a ref to the originally-loaded theme so we can resetToOriginal even
-  // after the user has made many changes.
+  // Keep a ref to the originally-loaded theme for resetToOriginal
   const loadedThemeRef = useRef(null);
-
-  // ---------------------------------------------------------------------------
-  // Element selection
-  // ---------------------------------------------------------------------------
-  const selection = useElementSelection();
 
   // ---------------------------------------------------------------------------
   // Layout state (element ordering, visibility, custom blocks, presets)
@@ -104,15 +61,68 @@ export default function useBuilderState(widgetId, tenantId) {
   const layoutState = useLayoutState(null);
 
   // ---------------------------------------------------------------------------
-  // Local UI state
+  // Element selection with keyboard integration
   // ---------------------------------------------------------------------------
-  /** @type {'mobile' | 'tablet' | 'desktop'} */
+  const selection = useElementSelection({
+    elementOrder: layoutState.elementOrder,
+    onDeleteElement: (id) => {
+      if (id?.startsWith('cb_')) {
+        layoutState.removeCustomBlock(id);
+      }
+    },
+    onToggleVisibility: layoutState.toggleElementVisibility,
+  });
+
+  // ---------------------------------------------------------------------------
+  // UI state: Device mode
+  // ---------------------------------------------------------------------------
   const [deviceMode, setDeviceMode] = useState('desktop');
 
-  /** @type {'style' | 'elements' | 'global'} */
-  const [activeTab, setActiveTab] = useState('style');
+  // ---------------------------------------------------------------------------
+  // UI state: Panel tabs
+  // ---------------------------------------------------------------------------
+  const [leftPanelTab, setLeftPanelTab] = useState('components');
+  const [rightPanelTab, setRightPanelTab] = useState('content');
 
-  /** ID of the text element currently being inline-edited, or null. */
+  // ---------------------------------------------------------------------------
+  // UI state: Panel visibility & widths
+  // ---------------------------------------------------------------------------
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(280);
+  const [rightPanelWidth, setRightPanelWidth] = useState(300);
+
+  // ---------------------------------------------------------------------------
+  // UI state: Step tabs (which calculator step is being edited 1-5)
+  // ---------------------------------------------------------------------------
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // ---------------------------------------------------------------------------
+  // UI state: Canvas zoom
+  // ---------------------------------------------------------------------------
+  const [zoom, setZoom] = useState(100);
+
+  // ---------------------------------------------------------------------------
+  // Legacy compat: activeTab (maps to leftPanelTab)
+  // ---------------------------------------------------------------------------
+  const activeTab = leftPanelTab === 'components' ? 'style'
+    : leftPanelTab === 'blocks' ? 'blocks'
+    : leftPanelTab === 'layers' ? 'layers'
+    : 'global';
+
+  const setActiveTab = useCallback((tab) => {
+    const mapping = {
+      style: 'components',
+      blocks: 'blocks',
+      layers: 'layers',
+      global: 'components',
+    };
+    setLeftPanelTab(mapping[tab] || 'components');
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Text editing
+  // ---------------------------------------------------------------------------
   const [editingTextId, setEditingTextId] = useState(null);
 
   // ---------------------------------------------------------------------------
@@ -134,7 +144,7 @@ export default function useBuilderState(widgetId, tenantId) {
       return;
     }
 
-    // Merge stored theme with defaults so newly-added keys always exist.
+    // Merge stored theme with defaults so newly-added keys always exist
     const resolvedTheme = {
       ...getDefaultWidgetTheme(),
       ...(found.themeConfig || {}),
@@ -144,27 +154,22 @@ export default function useBuilderState(widgetId, tenantId) {
     setWidgetName(found.name || '');
     loadedThemeRef.current = resolvedTheme;
 
-    // Initialise undoRedo -- reset clears stacks and sets original.
+    // Initialise undoRedo -- reset clears stacks and sets original
     resetUndoRedo(resolvedTheme);
 
-    // Initialise layout state from saved config (if any).
+    // Initialise layout state from saved config (if any)
     if (found.layoutConfig) {
       layoutState.resetLayout(found.layoutConfig);
     }
 
     setLoading(false);
-    // We intentionally only run this on mount (widgetId / tenantId change).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widgetId, tenantId]);
 
   // ---------------------------------------------------------------------------
-  // updateThemeProperty -- convenience to update a single key.
+  // updateThemeProperty -- convenience to update a single key
   // ---------------------------------------------------------------------------
   const updateThemeProperty = useCallback(
-    /**
-     * @param {string} key   Theme property key (e.g. "buttonPrimaryColor").
-     * @param {any}    value New value for the property.
-     */
     (key, value) => {
       setThemeState({ ...theme, [key]: value });
     },
@@ -172,8 +177,7 @@ export default function useBuilderState(widgetId, tenantId) {
   );
 
   // ---------------------------------------------------------------------------
-  // setThemeBulk -- replace entire theme at once (single undo entry).
-  // Used by Quick Themes to avoid 56 individual undo records.
+  // setThemeBulk -- replace entire theme at once (single undo entry)
   // ---------------------------------------------------------------------------
   const setThemeBulk = useCallback(
     (newTheme) => {
@@ -183,18 +187,15 @@ export default function useBuilderState(widgetId, tenantId) {
   );
 
   // ---------------------------------------------------------------------------
-  // updateThemePropertyDebounced -- instant visual update + debounced undo entry.
-  // Used by sliders to avoid flooding the undo stack.
+  // updateThemePropertyDebounced -- instant visual + debounced undo entry
   // ---------------------------------------------------------------------------
   const debounceRef = useRef(null);
 
   const updateThemePropertyDebounced = useCallback(
     (key, value, ms = 300) => {
-      // Immediate visual update (no undo record)
       if (undoRedo.setWithoutHistory) {
         undoRedo.setWithoutHistory((prev) => ({ ...prev, [key]: value }));
       }
-      // Debounced undo entry
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         setThemeState({ ...theme, [key]: value });
@@ -204,7 +205,7 @@ export default function useBuilderState(widgetId, tenantId) {
   );
 
   // ---------------------------------------------------------------------------
-  // resetToOriginal -- restore theme to what was loaded from storage.
+  // resetToOriginal -- restore theme to what was loaded from storage
   // ---------------------------------------------------------------------------
   const resetToOriginal = useCallback(() => {
     if (!loadedThemeRef.current) return;
@@ -212,16 +213,14 @@ export default function useBuilderState(widgetId, tenantId) {
   }, [resetUndoRedo]);
 
   // ---------------------------------------------------------------------------
-  // resetToDefaults -- load factory defaults from getDefaultWidgetTheme().
-  // This is a forward edit (pushes onto undo stack) so the user can still
-  // undo back to their previous state.
+  // resetToDefaults -- load factory defaults
   // ---------------------------------------------------------------------------
   const resetToDefaults = useCallback(() => {
     setThemeState(getDefaultWidgetTheme());
   }, [setThemeState]);
 
   // ---------------------------------------------------------------------------
-  // save -- persist theme + name to localStorage via storage helpers.
+  // save -- persist theme + name to localStorage
   // ---------------------------------------------------------------------------
   const save = useCallback(async () => {
     if (!widget || !tenantId) return { ok: false };
@@ -234,12 +233,10 @@ export default function useBuilderState(widgetId, tenantId) {
         name: widgetName,
       });
 
-      // Advance the "original" reference so isDirty resets to false.
       loadedThemeRef.current = theme;
       resetUndoRedo(theme);
       layoutState.resetLayout(layoutState.layout);
 
-      // Keep the local widget object in sync.
       if (updated) {
         setWidget(updated);
       }
@@ -253,14 +250,10 @@ export default function useBuilderState(widgetId, tenantId) {
   }, [widget, tenantId, theme, widgetName, resetUndoRedo, layoutState]);
 
   // ---------------------------------------------------------------------------
-  // Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Y / Ctrl+Shift+Z (redo).
+  // Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Y / Ctrl+Shift+Z (redo)
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    /**
-     * @param {KeyboardEvent} e
-     */
     function handleKeyDown(e) {
-      // Ignore shortcuts when user is typing in an input / textarea / contenteditable.
       const tag = (e.target && e.target.tagName) || '';
       if (
         tag === 'INPUT' ||
@@ -272,7 +265,7 @@ export default function useBuilderState(widgetId, tenantId) {
 
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
 
-      // Ctrl+Shift+Z  OR  Ctrl+Y  ->  Redo
+      // Ctrl+Shift+Z OR Ctrl+Y -> Redo
       if (isCtrlOrMeta && e.shiftKey && (e.key === 'Z' || e.key === 'z')) {
         e.preventDefault();
         e.stopPropagation();
@@ -286,7 +279,7 @@ export default function useBuilderState(widgetId, tenantId) {
         return;
       }
 
-      // Ctrl+Z  ->  Undo
+      // Ctrl+Z -> Undo
       if (isCtrlOrMeta && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         e.stopPropagation();
@@ -307,8 +300,7 @@ export default function useBuilderState(widgetId, tenantId) {
   const combinedIsDirty = isDirty || layoutState.isLayoutDirty;
 
   // ---------------------------------------------------------------------------
-  // Auto-save: debounced persistence on every change.
-  // Does NOT reset undo/redo — only persists to storage.
+  // Auto-save: debounced persistence on every change (2s debounce)
   // ---------------------------------------------------------------------------
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle');
   const autoSaveTimerRef = useRef(null);
@@ -318,7 +310,6 @@ export default function useBuilderState(widgetId, tenantId) {
 
   useEffect(() => {
     if (loading || !widget || !tenantId) return;
-    // Guard: skip while a save is in progress (prevents re-trigger loop).
     if (isSavingRef.current) return;
 
     const snapshot = JSON.stringify({
@@ -327,13 +318,13 @@ export default function useBuilderState(widgetId, tenantId) {
       l: layoutState.layout,
     });
 
-    // First render after load — initialize snapshot, skip save.
+    // First render after load -- initialize snapshot, skip save
     if (savedSnapshotRef.current === null) {
       savedSnapshotRef.current = snapshot;
       return;
     }
 
-    // Nothing changed since last save.
+    // Nothing changed since last save
     if (snapshot === savedSnapshotRef.current) return;
 
     clearTimeout(autoSaveTimerRef.current);
@@ -342,8 +333,6 @@ export default function useBuilderState(widgetId, tenantId) {
       isSavingRef.current = true;
       setAutoSaveStatus('saving');
 
-      // Small delay so React renders the 'saving' state before the
-      // synchronous localStorage write completes.
       setTimeout(() => {
         try {
           const updated = updateWidget(tenantId, widget.id, {
@@ -367,12 +356,12 @@ export default function useBuilderState(widgetId, tenantId) {
           isSavingRef.current = false;
         }
       }, 50);
-    }, 800);
+    }, 2000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
   });
 
-  // Cleanup timers on unmount.
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       clearTimeout(autoSaveTimerRef.current);
@@ -381,7 +370,7 @@ export default function useBuilderState(widgetId, tenantId) {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Ctrl+S — force immediate save (bypass debounce).
+  // Ctrl+S -- force immediate save (bypass debounce)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     function handleCtrlS(e) {
@@ -389,7 +378,6 @@ export default function useBuilderState(widgetId, tenantId) {
       if (isCtrlOrMeta && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         e.stopPropagation();
-        // Cancel debounced auto-save and trigger immediate save.
         clearTimeout(autoSaveTimerRef.current);
         if (!widget || !tenantId) return;
 
@@ -431,6 +419,38 @@ export default function useBuilderState(widgetId, tenantId) {
   }, [widget, tenantId, theme, widgetName, layoutState.layout]);
 
   // ---------------------------------------------------------------------------
+  // Import/export layout as JSON
+  // ---------------------------------------------------------------------------
+  const exportLayoutJSON = useCallback(() => {
+    return JSON.stringify({
+      themeConfig: theme,
+      layoutConfig: layoutState.layout,
+      widgetName,
+      exportedAt: new Date().toISOString(),
+      version: 2,
+    }, null, 2);
+  }, [theme, layoutState.layout, widgetName]);
+
+  const importLayoutJSON = useCallback((jsonString) => {
+    try {
+      const data = JSON.parse(jsonString);
+      if (data.themeConfig) {
+        const merged = { ...getDefaultWidgetTheme(), ...data.themeConfig };
+        setThemeState(merged);
+      }
+      if (data.layoutConfig) {
+        layoutState.resetLayout(data.layoutConfig);
+      }
+      if (data.widgetName) {
+        setWidgetName(data.widgetName);
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }, [setThemeState, layoutState]);
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
   return {
@@ -463,7 +483,31 @@ export default function useBuilderState(widgetId, tenantId) {
     deviceMode,
     setDeviceMode,
 
-    // Tab navigation
+    // Step tabs
+    currentStep,
+    setCurrentStep,
+
+    // Panel tabs
+    leftPanelTab,
+    setLeftPanelTab,
+    rightPanelTab,
+    setRightPanelTab,
+
+    // Panel visibility & widths
+    leftPanelOpen,
+    setLeftPanelOpen,
+    rightPanelOpen,
+    setRightPanelOpen,
+    leftPanelWidth,
+    setLeftPanelWidth,
+    rightPanelWidth,
+    setRightPanelWidth,
+
+    // Canvas zoom
+    zoom,
+    setZoom,
+
+    // Legacy tab compat
     activeTab,
     setActiveTab,
 
@@ -480,6 +524,10 @@ export default function useBuilderState(widgetId, tenantId) {
     save,
     saving,
     autoSaveStatus,
+
+    // Import/export
+    exportLayoutJSON,
+    importLayoutJSON,
 
     // Loading
     loading,

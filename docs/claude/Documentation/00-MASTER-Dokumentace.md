@@ -5,11 +5,11 @@
 > detailni dokumenty.
 
 **Verze:** 3.0
-**Posledni aktualizace:** 2026-02-26
+**Posledni aktualizace:** 2026-03-19
 **Pocet zdrojovych souboru:** 291 (JS/JSX/MJS)
 **Pocet radku kodu:** ~72 500 (frontend + backend, bez node_modules/build/tools)
 **Pocet CSS souboru:** 12 (~1 440 radku)
-**Dokumentacnich souboru:** 46+ (viz sekce 20)
+**Dokumentacnich souboru:** 47+ (viz sekce 20)
 
 ---
 
@@ -1365,8 +1365,9 @@ npm run serve        # → nahled produkciho buildu
 
 | Dokument | Popis | Soubor |
 |----------|-------|--------|
+| [Infrastructure](Infrastructure-Dokumentace.md) | Deployment, CI/CD, externi sluzby, env vars | Dockerfile, ci.yml, deploy-cloudrun.sh, firebase.json |
 | [Supabase](Supabase-Dokumentace.md) | Schema, RLS, migrace | `supabase/` + `src/lib/supabase/` |
-| [Build-Config](Build-Config-Dokumentace.md) | Vite, Tailwind, PostCSS | `vite.config.mjs` + configs |
+| [Build-Config](Build-Config-Dokumentace.md) | Vite, Tailwind, PostCSS, Dockerfile, CI | `vite.config.mjs` + configs |
 | [Firebase](Firebase-Dokumentace.md) | Auth, Hosting, Firestore | `firebase.json` + `firestore.rules` |
 | [Forge-Design-System](Forge-Design-System-Dokumentace.md) | Design tokeny, 27 komponent, CSS | `src/styles/` + `src/components/ui/forge/` |
 

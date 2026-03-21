@@ -1,8 +1,15 @@
 // src/services/slicerApi.js
 // Local API client for backend-local (Express + PrusaSlicer CLI).
-// Uses Vite proxy: /api -> http://127.0.0.1:3001
+// In development, Vite proxy handles /api -> localhost:3001.
+// In production, VITE_API_BASE_URL points to the Cloud Run backend service.
 
 import { getTenantId } from '../utils/adminTenantStorage';
+
+/**
+ * API base URL — empty string in dev (Vite proxy), full URL in production.
+ * @type {string}
+ */
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 /**
  * @typedef {{
@@ -73,7 +80,7 @@ export async function sliceModelLocal(modelFile, opts = {}) {
       } catch { /* continue without auth */ }
     }
 
-    const res = await fetch('/api/slice', {
+    const res = await fetch(`${API_BASE}/api/slice`, {
       method: 'POST',
       body: formData,
       headers,

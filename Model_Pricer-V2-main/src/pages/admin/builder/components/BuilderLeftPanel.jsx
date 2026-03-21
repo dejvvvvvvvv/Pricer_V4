@@ -1,13 +1,20 @@
 /**
- * BuilderLeftPanel - Left sidebar panel for Widget Builder V2.
+ * BuilderLeftPanel -- Left sidebar for Widget Builder.
  *
- * Contains a 4-tab navigation bar (Styl / Bloky / Vrstvy / Globalni) and a
- * scrollable content area below.
+ * Component palette (VvvebJs-inspired) with:
+ *   - Search field that filters components by name
+ *   - 3 tabs: Components (draggable blocks), Blocks (pre-made sections), Layers (element tree)
+ *   + Global tab (settings)
+ *   - Components shown in 2-column grid with icon + name
+ *   - Categories collapsible
+ *   - Layers tab shows element hierarchy
  *
- * Pure presentational component - no hooks for data fetching.
+ * Pure presentational component. Tab content is passed via props.
  */
-import React from 'react';
-import { MousePointerClick, LayoutGrid, Layers, Settings2 } from 'lucide-react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
+import {
+  MousePointerClick, LayoutGrid, Layers, Settings2, Search, X,
+} from 'lucide-react';
 
 const TABS = [
   { id: 'style', label: 'Styl', icon: MousePointerClick },
@@ -16,7 +23,7 @@ const TABS = [
   { id: 'global', label: 'Globalni', icon: Settings2 },
 ];
 
-/* Default placeholder for each tab when no content is provided */
+/* Default placeholders for each tab */
 const DefaultStylePlaceholder = () => (
   <div style={styles.placeholder}>
     <MousePointerClick
@@ -70,7 +77,7 @@ const PLACEHOLDER_MAP = {
   global: DefaultGlobalPlaceholder,
 };
 
-const BuilderLeftPanel = ({
+function BuilderLeftPanel({
   activeTab = 'style',
   onTabChange,
   children,
@@ -80,14 +87,28 @@ const BuilderLeftPanel = ({
   globalContent,
   // Legacy prop support
   elementsContent,
-}) => {
+  // Search support
+  searchQuery: externalSearchQuery,
+  onSearchChange: externalOnSearchChange,
+}) {
+  // Internal search state (used if external not provided)
+  const [internalSearch, setInternalSearch] = useState('');
+
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearch;
+  const onSearchChange = externalOnSearchChange || setInternalSearch;
+
+  const showSearch = activeTab === 'blocks' || activeTab === 'style';
+
+  const handleClearSearch = useCallback(() => {
+    onSearchChange('');
+  }, [onSearchChange]);
+
   /* Determine what to render in the content area */
   const contentMap = {
     style: styleContent,
     blocks: blocksContent,
     layers: layersContent,
     global: globalContent,
-    // Legacy fallback
     elements: elementsContent,
   };
 
@@ -96,6 +117,35 @@ const BuilderLeftPanel = ({
 
   return (
     <div style={styles.panel}>
+      {/* SEARCH BAR (conditional) */}
+      {showSearch && (
+        <div style={styles.searchBar}>
+          <Search
+            size={13}
+            color="var(--builder-text-muted)"
+            style={{ flexShrink: 0 }}
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search..."
+            style={styles.searchInput}
+            aria-label="Search components"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              style={styles.clearSearchBtn}
+              aria-label="Clear search"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* TAB BAR */}
       <div style={styles.tabBar} role="tablist">
         {TABS.map(({ id, label, icon: Icon }) => {
@@ -139,11 +189,7 @@ const BuilderLeftPanel = ({
       </div>
     </div>
   );
-};
-
-/* ------------------------------------------------------------------ */
-/* Inline styles using CSS custom properties from builder-tokens.css  */
-/* ------------------------------------------------------------------ */
+}
 
 const styles = {
   panel: {
@@ -153,6 +199,39 @@ const styles = {
     background: 'var(--builder-bg-secondary)',
     borderRight: '1px solid var(--builder-border-subtle)',
     minWidth: 0,
+  },
+
+  /* SEARCH BAR */
+  searchBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '8px 12px',
+    borderBottom: '1px solid var(--builder-border-subtle)',
+    flexShrink: 0,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: 'var(--builder-font-body)',
+    fontSize: 12,
+    color: 'var(--builder-text-primary)',
+    background: 'transparent',
+    border: 'none',
+    outline: 'none',
+    padding: 0,
+  },
+  clearSearchBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 18,
+    height: 18,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    color: 'var(--builder-text-muted)',
+    padding: 0,
+    flexShrink: 0,
   },
 
   /* TAB BAR */
@@ -198,7 +277,6 @@ const styles = {
     overflowX: 'hidden',
     overscrollBehavior: 'contain',
     padding: '12px',
-    /* dark scrollbar styling using builder tokens */
     scrollbarWidth: 'thin',
     scrollbarColor: 'var(--builder-scrollbar-thumb) var(--builder-scrollbar-track)',
   },
@@ -223,4 +301,4 @@ const styles = {
   },
 };
 
-export default BuilderLeftPanel;
+export default memo(BuilderLeftPanel);
