@@ -27,17 +27,17 @@ export default defineConfig({
          if (id.includes('firebase')) return 'vendor-firebase';
          // Supabase
          if (id.includes('@supabase') || id.includes('supabase')) return 'vendor-supabase';
-         // React core
+         // React core + Charts (merged to avoid circular chunk dependency)
          if (
            id.includes('/react/') ||
            id.includes('/react-dom/') ||
            id.includes('/react-router') ||
-           id.includes('/scheduler/')
+           id.includes('/scheduler/') ||
+           id.includes('recharts') ||
+           id.includes('d3-')
          ) return 'vendor-react';
          // Drag-and-drop kit
          if (id.includes('@dnd-kit')) return 'vendor-dnd';
-         // Charts
-         if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
          // Zod schema validation
          if (id.includes('zod')) return 'vendor-zod';
        },

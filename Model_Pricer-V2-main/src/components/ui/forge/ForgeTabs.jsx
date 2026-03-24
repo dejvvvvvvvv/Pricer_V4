@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 
 /**
  * Forge-themed horizontal tab navigation bar.
+ * Accessible: role="tablist" / role="tab", aria-selected, roving tabindex,
+ * Left/Right arrow key navigation per WAI-ARIA Tabs pattern.
  *
  * Props:
  *  - tabs: Array of strings or { key, label } objects
@@ -16,9 +18,46 @@ export default function ForgeTabs({
   className = '',
 }) {
   const [hoveredTab, setHoveredTab] = useState(null);
+  const tabListRef = useRef(null);
 
   const normalizedTabs = tabs.map((tab) =>
     typeof tab === 'string' ? { key: tab, label: tab } : tab
+  );
+
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (!tabListRef.current) return;
+
+      const tabButtons = Array.from(
+        tabListRef.current.querySelectorAll('[role="tab"]')
+      );
+      const currentIndex = tabButtons.indexOf(e.currentTarget);
+      if (currentIndex === -1) return;
+
+      let nextIndex = -1;
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextIndex = (currentIndex + 1) % tabButtons.length;
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        nextIndex = (currentIndex - 1 + tabButtons.length) % tabButtons.length;
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        nextIndex = 0;
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        nextIndex = tabButtons.length - 1;
+      }
+
+      if (nextIndex >= 0) {
+        tabButtons[nextIndex].focus();
+        if (onTabChange) {
+          onTabChange(normalizedTabs[nextIndex].key);
+        }
+      }
+    },
+    [normalizedTabs, onTabChange]
   );
 
   const containerStyle = {
@@ -59,19 +98,31 @@ export default function ForgeTabs({
   };
 
   return (
-    <div className={className} style={containerStyle}>
-      {normalizedTabs.map((tab) => (
-        <button
-          key={tab.key}
-          type="button"
-          style={getTabStyle(tab)}
-          onMouseEnter={() => setHoveredTab(tab.key)}
-          onMouseLeave={() => setHoveredTab(null)}
-          onClick={() => onTabChange && onTabChange(tab.key)}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div
+      ref={tabListRef}
+      className={className}
+      style={containerStyle}
+      role="tablist"
+    >
+      {normalizedTabs.map((tab) => {
+        const isActive = tab.key === activeTab;
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            style={getTabStyle(tab)}
+            onMouseEnter={() => setHoveredTab(tab.key)}
+            onMouseLeave={() => setHoveredTab(null)}
+            onClick={() => onTabChange && onTabChange(tab.key)}
+            onKeyDown={handleKeyDown}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

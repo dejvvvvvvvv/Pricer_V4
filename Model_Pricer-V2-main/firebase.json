@@ -1,6 +1,7 @@
 {
   "hosting": {
-    "public": "dist",
+    "site": "modelpricer3d",
+    "public": "build",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -24,13 +25,6 @@
       }
     ],
     "rewrites": [
-      {
-        "source": "/api/**",
-        "run": {
-          "serviceId": "modelpricer-api",
-          "region": "europe-west1"
-        }
-      },
       {
         "source": "**",
         "destination": "/index.html"

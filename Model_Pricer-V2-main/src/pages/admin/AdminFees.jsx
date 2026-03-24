@@ -567,7 +567,18 @@ const AdminFees = () => {
   };
 
   const updateFeeDraft = (patch) => {
-    setFeeDraft(prev => { if (!prev) return prev; return normalizeFeeUi({ ...prev, ...(patch || {}) }); });
+    setFeeDraft(prev => {
+      if (!prev) return prev;
+      const merged = { ...prev, ...(patch || {}) };
+      // During editing, skip full normalization to allow empty name/value.
+      // Normalization runs on save (saveFeeDialog) and on open (openFeeDialog).
+      // Only apply select/checkbox-driven corrections here:
+      if (merged.required) { merged.selectable = false; merged.selected_by_default = true; }
+      else if (!merged.selectable) { merged.selected_by_default = false; }
+      if (merged.scope === 'ORDER') merged.charge_basis = 'PER_FILE';
+      if (merged.type === 'percent') merged.charge_basis = 'PER_FILE';
+      return merged;
+    });
   };
 
   /* Draft condition handlers */
@@ -585,7 +596,7 @@ const AdminFees = () => {
     const next = { ...cur, ...(patch || {}) };
     const key = String(next.key || '').trim();
     if (BOOL_KEYS.has(key)) { next.op = 'eq'; if (next.value !== true && next.value !== false) next.value = false; }
-    if (NUMERIC_KEYS.has(key)) { next.op = mapLegacyOp(next.op) || 'gte'; next.value = safeNum(next.value, 0); }
+    if (NUMERIC_KEYS.has(key)) { next.op = mapLegacyOp(next.op) || 'gte'; if (next.value !== '' && next.value != null) next.value = safeNum(next.value, 0); }
     if (key === 'material') { next.op = mapLegacyOp(next.op) || 'eq'; if (next.value === undefined || next.value === null) next.value = ''; }
     if (key === 'quality_preset') { next.op = 'eq'; if (!next.value) next.value = 'standard'; }
     list[idx] = next;

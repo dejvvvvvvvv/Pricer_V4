@@ -246,6 +246,16 @@
 
 ---
 
+## 2026-03-22
+
+### S01: Customer Portal Phase 2 — Bug-Fix Implementation
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **259-CP** | 2026-03-22 | UPRAVY | CP | Phase 2 Bug-Fix Implementation — 6 backend endpointy, response shape normalizace, frontend integration | 8 | 19 issues z Phase 1 audit; backend: support/tickets, change-password, models/upload, models/:id/download, orders/:id/invoice, notification-preferences; frontend: dashboard stats, address type, notification bell, support form, model upload/download, order invoice; tenant-scoped storage; Build PASS |
+
+---
+
 ## Navi & Links
 
 - **ID-REGISTRY:** `docs/claude/Historie/ID-REGISTRY.md` — seznam zkratek + globalni pocitadlo

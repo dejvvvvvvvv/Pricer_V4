@@ -12,6 +12,9 @@ import { createPortal } from 'react-dom';
  * @param {React.ReactNode} footer - Optional footer content (typically action buttons)
  * @param {string} maxWidth - Max width of the dialog container (default '540px')
  */
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function ForgeDialog({
   open,
   onClose,
@@ -22,26 +25,72 @@ export default function ForgeDialog({
 }) {
   const overlayRef = useRef(null);
   const bodyRef = useRef(null);
+  const containerRef = useRef(null);
   const prevOverflowRef = useRef('');
+  const triggerRef = useRef(null);
+
+  // Use ref for onClose so keydown handler stays stable across renders
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   const handleKeyDown = useCallback(
     (e) => {
-      if (e.key === 'Escape' && onClose) {
-        onClose();
+      if (e.key === 'Escape' && onCloseRef.current) {
+        onCloseRef.current();
+        return;
+      }
+
+      // Focus trap: cycle Tab within the dialog
+      if (e.key === 'Tab' && containerRef.current) {
+        const focusable = containerRef.current.querySelectorAll(FOCUSABLE_SELECTOR);
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     },
-    [onClose]
+    [] // stable — reads onClose from ref
   );
 
+  // Store trigger element on open; restore focus on close
   useEffect(() => {
     if (open) {
+      triggerRef.current = document.activeElement;
       prevOverflowRef.current = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       document.addEventListener('keydown', handleKeyDown);
+
+      // Focus the first focusable element inside the dialog after render (only on open)
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          const focusable = containerRef.current.querySelectorAll(FOCUSABLE_SELECTOR);
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          }
+        }
+      });
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = prevOverflowRef.current;
+
+      // Restore focus to trigger element
+      if (!open && triggerRef.current && typeof triggerRef.current.focus === 'function') {
+        triggerRef.current.focus();
+        triggerRef.current = null;
+      }
     };
   }, [open, handleKeyDown]);
 
@@ -195,7 +244,7 @@ export default function ForgeDialog({
       aria-modal="true"
       aria-label={title}
     >
-      <div style={containerStyle}>
+      <div ref={containerRef} style={containerStyle}>
         {/* Header */}
         <div style={headerStyle}>
           <h2 style={titleStyle}>{title}</h2>

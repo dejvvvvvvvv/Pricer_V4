@@ -1321,6 +1321,7 @@ npm run serve        # → nahled produkciho buildu
 | [AdminParameters](AdminParameters-Dokumentace.md) | PrusaSlicer parametry | `AdminParameters.jsx` |
 | [AdminPresets](AdminPresets-Dokumentace.md) | Preset management | `AdminPresets.jsx` |
 | [AdminWidget](AdminWidget-Dokumentace.md) | Widget config + builder | `AdminWidget.jsx` |
+| [Widget-Builder](Widget-Builder-Dokumentace.md) | Vizualni editor widgetu (VvvebJs-inspired, 32 bloku, 12 theme presetu) | `src/pages/admin/builder/` |
 | [AdminBranding](AdminBranding-Dokumentace.md) | Logo, barvy, nazev | `AdminBranding.jsx` |
 | [AdminAnalytics](AdminAnalytics-Dokumentace.md) | Statistiky, export | `AdminAnalytics.jsx` |
 | [AdminTeamAccess](AdminTeamAccess-Dokumentace.md) | Tym, role, pozvani | `AdminTeamAccess.jsx` |

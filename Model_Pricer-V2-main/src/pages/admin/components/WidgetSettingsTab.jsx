@@ -11,7 +11,7 @@ import ForgeCheckbox from '../../../components/ui/forge/ForgeCheckbox';
  *   onToggleEnabled  - (widgetId) => void
  *   onDuplicate      - (widgetId) => void
  *   onDelete         - (widgetId) => void
- *   onNavigateBuilder - (widgetId) => void
+ *   onNavigateBuilder - WIDGET_BUILDER_DEACTIVATED (widgetId) => void
  */
 const WidgetSettingsTab = ({
   widget,
@@ -19,7 +19,7 @@ const WidgetSettingsTab = ({
   onToggleEnabled,
   onDuplicate,
   onDelete,
-  onNavigateBuilder,
+  /* WIDGET_BUILDER_DEACTIVATED: onNavigateBuilder, */
 }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -61,20 +61,25 @@ const WidgetSettingsTab = ({
         </div>
       </div>
 
-      {/* Builder CTA */}
+      {/* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21
       <div className="aw-settings-section">
         <div className="aw-settings-label">Vizualni editor</div>
         <div className="aw-muted" style={{ marginBottom: 10 }}>
           Otevrete Widget Builder pro vizualni upravu vzhledu widgetu -- barvy, zaobleni, fonty a dalsi.
         </div>
         <button
+          type="button"
           className="aw-btn aw-btn-primary aw-btn-large"
-          onClick={() => onNavigateBuilder(widget.id)}
+          onClick={(e) => {
+            e.preventDefault();
+            onNavigateBuilder(widget.id);
+          }}
         >
           <Icon name="Palette" size={18} />
           Otevrit Builder
         </button>
       </div>
+      */}
 
       {/* Duplicate */}
       <div className="aw-settings-section">

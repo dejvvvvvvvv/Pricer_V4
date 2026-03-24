@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 /**
  * Forge-themed text input with label and error display.
- * Accessible: label linked via wrapping, error announced inline.
+ * Accessible: label linked via htmlFor/id, error linked via aria-describedby.
  */
-const ForgeInput = React.forwardRef(({ label, error, className = '', type = 'text', ...props }, ref) => {
+const ForgeInput = React.forwardRef(({ label, error, className = '', type = 'text', id: externalId, ...props }, ref) => {
+  const reactId = useId();
+  const inputId = externalId || reactId;
+  const errorId = inputId + '-error';
   const baseStyle = {
     height: '40px',
     width: '100%',
@@ -43,11 +46,14 @@ const ForgeInput = React.forwardRef(({ label, error, className = '', type = 'tex
 
   return (
     <div className={className}>
-      {label && <label style={labelStyle}>{label}</label>}
+      {label && <label htmlFor={inputId} style={labelStyle}>{label}</label>}
       <input
         ref={ref}
+        id={inputId}
         type={type}
         style={baseStyle}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         onFocus={(e) => {
           if (!error) {
             e.target.style.borderColor = 'var(--forge-accent-primary)';
@@ -62,7 +68,7 @@ const ForgeInput = React.forwardRef(({ label, error, className = '', type = 'tex
         }}
         {...props}
       />
-      {error && <span style={errorStyle}>{error}</span>}
+      {error && <span id={errorId} role="alert" style={errorStyle}>{error}</span>}
     </div>
   );
 });

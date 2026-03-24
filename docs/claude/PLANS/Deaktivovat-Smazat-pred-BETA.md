@@ -51,49 +51,123 @@
 - **Proč skrýt:** Ukazuje firmy nekonfigurované interní služby. Firma nepotřebuje vědět o Sentry.
 - **Akce:** Skrýt nebo nahradit zjednodušeným onboarding checklist pro firmy
 
+### 8. Widget Builder — vizualni editor ✅ PROVEDENO 2026-03-21
+- **Stav:** DEAKTIVOVANO + SMAZANO (zalohovano uzivatelem pred smazanim)
+- **Co to delalo:** VvvebJs-inspired vizualni drag-and-drop editor pro kastomizaci widgetu kalkulacky
+- **Proc smazano:** Pouze ~20% funkci fungovalo spravne. Prilis brzy pro BETA. Bude se dodelavat separatne.
+- **DULEZITE:** AdminWidget.jsx (sprava widgetu, embed kody, domeny) ZUSTAVA plne funkcni!
+
+#### Co bylo SMAZANO (uzivatel ma zalohu):
+  ```
+  src/pages/admin/AdminWidgetBuilder.jsx        (smazano — router wrapper)
+  src/pages/admin/builder/                       (smazano — cela slozka, 69 souboru)
+  ```
+
+#### Co bylo ZAKOMENTOVANO (hledej `WIDGET_BUILDER_DEACTIVATED` v kodu):
+
+  **1. `src/Routes.jsx` — radek 42 (lazy import)**
+  ```javascript
+  /* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21
+  const AdminWidgetBuilder = React.lazy(() => import('./pages/admin/AdminWidgetBuilder'));
+  */
+  ```
+
+  **2. `src/Routes.jsx` — radky 105-114 (route definice)**
+  ```javascript
+  {/* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21
+  <Route element={<PrivateRoute />}>
+    <Route path="/admin/widget/builder/:id" element={...} />
+  </Route>
+  */}
+  ```
+
+  **3. `src/pages/admin/AdminWidget.jsx` — radky ~644-655 (Builder ikona v widget karte)**
+  ```javascript
+  {/* WIDGET_BUILDER_DEACTIVATED: ... <button title="Open Builder" onClick={...}>
+    <Palette size={16} /> </button> */}
+  ```
+
+  **4. `src/pages/admin/AdminWidget.jsx` — radek ~819 (onNavigateBuilder prop)**
+  ```javascript
+  /* WIDGET_BUILDER_DEACTIVATED: onNavigateBuilder={(id) => navigate(`/admin/widget/builder/${id}`)} */
+  ```
+
+  **5. `src/pages/admin/components/WidgetSettingsTab.jsx` — radky 16-23 (prop destrukce)**
+  ```javascript
+  /* WIDGET_BUILDER_DEACTIVATED: onNavigateBuilder, */
+  ```
+
+  **6. `src/pages/admin/components/WidgetSettingsTab.jsx` — radky 64-81 (Builder CTA sekce)**
+  ```javascript
+  {/* WIDGET_BUILDER_DEACTIVATED: ... Vizualni editor sekce s tlacitkem "Otevrit Builder" */}
+  ```
+
+#### Co ZUSTALO nezmeneno (neskodne, builderMode props se nepouzivaji):
+  - `src/pages/widget-kalkulacka/index.jsx` — `builderMode` prop (default false)
+  - `src/pages/widget-kalkulacka/components/WidgetHeader.jsx` — `builderMode` prop
+  - `src/pages/widget-kalkulacka/components/WidgetFooter.jsx` — `builderMode` prop
+  - `src/pages/widget-kalkulacka/components/WidgetStepper.jsx` — `builderMode` prop
+  - `src/pages/widget-kalkulacka/components/ModelViewer.jsx` — `builderMode` prop
+  - `src/contexts/LanguageContext.jsx` — ~100 i18n klicu (neskodne, nepouzivane)
+
+#### Jak reaktivovat v budoucnu:
+  1. Obnovit `src/pages/admin/builder/` ze zalohy
+  2. Obnovit `src/pages/admin/AdminWidgetBuilder.jsx` ze zalohy
+  3. Odkomentovat vsechna mista oznacena `WIDGET_BUILDER_DEACTIVATED` (6 mist, viz vyse)
+  4. `npm run build` — overit
+  5. Hledani v kodu: `grep -r "WIDGET_BUILDER_DEACTIVATED" src/`
+
+#### Dokumentace (zachovana, informativni):
+  ```
+  docs/claude/Documentation/Widget-Builder-Dokumentace.md
+  docs/claude/Documentation/Widget-Builder-Audit-Funkci.md
+  ```
+
+#### Build overeni: `npm run build` — PASS (0 errors) po deaktivaci
+
 ---
 
 ## P1 — Mělo by se skrýt (důležité ale neblokuje launch)
 
-### 8. Admin Settings — Clear Orders (Smazat objednávky)
+### 9. Admin Settings — Clear Orders (Smazat objednávky)
 - **Soubor:** `src/pages/admin/AdminSettings.jsx` (řádky ~772–787)
 - **Co to dělá:** Smaže všechny objednávky bez archivu
 - **Proč skrýt:** Destruktivní akce bez undo. V produkci by mělo být jen archivování.
 - **Akce:** Skrýt nebo přidat extra potvrzení + audit log
 
-### 9. Admin Settings — Reset Pricing (Reset ceníku)
+### 10. Admin Settings — Reset Pricing (Reset ceníku)
 - **Soubor:** `src/pages/admin/AdminSettings.jsx` (řádky ~790–804)
 - **Co to dělá:** Resetuje všechny ceny na výchozí hodnoty
 - **Proč skrýt:** Firma by si omylem resetovala ceník.
 - **Akce:** Skrýt nebo dát za potvrzovací dialog s heslem
 
-### 10. Admin Activity Log — celá stránka
+### 11. Admin Activity Log — celá stránka
 - **Soubor:** `src/pages/admin/AdminActivityLog.jsx`
 - **Route:** `/admin/activity`
 - **Co to dělá:** Kompletní log všech akcí, export CSV/JSON
 - **Proč skrýt:** Obsahuje interní operační data. Mohlo by být užitečné ale potřebuje filtrování.
 - **Akce:** Skrýt z navigace NEBO filtrovat jen relevantní akce pro firmu
 
-### 11. Admin Webhooks — celá stránka
+### 12. Admin Webhooks — celá stránka
 - **Soubor:** `src/pages/admin/AdminWebhooks.jsx`
 - **Route:** `/admin/webhooks`
 - **Co to dělá:** Webhook konfigurace a testování
 - **Proč skrýt:** Není připravené pro produkci. Obsahuje example kód.
 - **Akce:** Skrýt route dokud není feature hotová
 
-### 12. DEV badge v headeru
+### 13. DEV badge v headeru
 - **Soubor:** `src/pages/admin/AdminLayout.jsx` (řádky ~185–186)
 - **Co to dělá:** Zobrazuje "DEV" nebo "PROD" badge v admin headeru
 - **Proč skrýt:** Firmy nemusí vědět v jakém prostředí běží.
 - **Akce:** Skrýt badge — `if (isDev)` podmínka
 
-### 13. Admin Dashboard — Data Import Wizard
+### 14. Admin Dashboard — Data Import Wizard
 - **Soubor:** `src/pages/admin/AdminDashboard.jsx`
 - **Co to dělá:** Bulk import testovacích/demo dat (objednávky, ceník, presety)
 - **Proč skrýt:** Mohl by poškodit produkční data. Určeno jen pro interní testování.
 - **Akce:** Skrýt komponentu v BETA
 
-### 14. Admin System Health — localStorage analytics
+### 15. Admin System Health — localStorage analytics
 - **Soubor:** `src/pages/admin/AdminSystemHealth.jsx` (řádky ~40–58)
 - **Co to dělá:** Inspekce raw localStorage namespaces
 - **Proč skrýt:** Debug nástroj. Firmy nemusí vidět interní storage strukturu.
@@ -103,25 +177,25 @@
 
 ## P2 — Zvážit (nice to have ale ne kritické)
 
-### 15. Config Backup/Restore
+### 16. Config Backup/Restore
 - **Soubor:** `AdminSystemHealth.jsx`
 - **Co to dělá:** Export/import celé konfigurace
 - **Proč zvážit:** Užitečné pro firmy (záloha nastavení) ale rizikovné (restore špatné konfigurace).
 - **Akce:** Ponechat jen Export, skrýt Import/Restore
 
-### 16. Command Palette (Ctrl+K)
+### 17. Command Palette (Ctrl+K)
 - **Soubor:** `src/pages/admin/components/CommandPalette.jsx`
 - **Co to dělá:** Globální vyhledávání a navigace
 - **Proč zvážit:** Užitečné ale mohlo by zobrazovat dev-only stránky v výsledcích.
 - **Akce:** Filtrovat výsledky — nezobrazovat skryté stránky (System Health, Migration, atd.)
 
-### 17. Keyboard Shortcuts overlay
+### 18. Keyboard Shortcuts overlay
 - **Soubor:** `src/hooks/useAdminShortcuts.js`
 - **Co to dělá:** Klávesové zkratky pro navigaci
 - **Proč zvážit:** Užitečné, ale shortcuty nesmí navigovat na skryté stránky.
 - **Akce:** Aktualizovat shortcuty aby odpovídaly viditelným stránkám
 
-### 18. Onboarding Wizard
+### 19. Onboarding Wizard
 - **Soubor:** `AdminDashboard.jsx`
 - **Co to dělá:** Průvodce prvním nastavením
 - **Proč zvážit:** Dobrý pro UX, ale kroky musí odpovídat BETA funkčnosti (ne dev kroky).
@@ -167,4 +241,4 @@ const isOwner = user?.role === 'owner';
 
 ---
 
-*Poslední aktualizace: 2026-03-20*
+*Poslední aktualizace: 2026-03-21 — polozka #8 Widget Builder PROVEDENA (deaktivovano + smazano, zakomentovano 6 mist, build PASS)*

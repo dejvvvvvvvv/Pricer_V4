@@ -641,13 +641,20 @@ const AdminWidget = () => {
                       className="aw-card-actions"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      {/* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21
                       <button
+                        type="button"
                         className="aw-icon-btn"
                         title={t('admin.widget.page.openBuilder', 'Open Builder')}
-                        onClick={() => navigate(`/admin/widget/builder/${w.id}`)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/admin/widget/builder/${w.id}`);
+                        }}
                       >
                         <Icon name="Palette" size={15} />
                       </button>
+                      */}
                       <button
                         className="aw-icon-btn"
                         title={t('admin.widget.page.copyEmbed', 'Copy embed')}
@@ -811,7 +818,8 @@ const AdminWidget = () => {
                     onToggleEnabled={onToggleEnabled}
                     onDuplicate={onDuplicate}
                     onDelete={onDelete}
-                    onNavigateBuilder={(id) => navigate(`/admin/widget/builder/${id}`)}
+                    /* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21 */
+                    /* onNavigateBuilder={(id) => navigate(`/admin/widget/builder/${id}`)} */
                   />
                 ) : null}
               </div>

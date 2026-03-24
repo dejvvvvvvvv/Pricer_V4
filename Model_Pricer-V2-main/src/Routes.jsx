@@ -39,7 +39,9 @@ const AdminParameters = React.lazy(() => import('./pages/admin/AdminParameters')
 const AdminPresets = React.lazy(() => import('./pages/admin/AdminPresets'));
 const AdminOrders = React.lazy(() => import('./pages/admin/AdminOrders'));
 const AdminWidget = React.lazy(() => import('./pages/admin/AdminWidget'));
+/* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21
 const AdminWidgetBuilder = React.lazy(() => import('./pages/admin/AdminWidgetBuilder'));
+*/
 const AdminTeamAccess = React.lazy(() => import('./pages/admin/AdminTeamAccess'));
 const AdminAnalytics = React.lazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminExpress = React.lazy(() => import('./pages/admin/AdminExpress'));
@@ -102,14 +104,17 @@ export default function Routes() {
           </ErrorBoundary>
         } /> */}
 
-        {/* Widget Builder - fullscreen, no admin sidebar / Header / Footer */}
-        <Route path="/admin/widget/builder/:id" element={
-          <ErrorBoundary module="WidgetBuilder">
-            <Suspense fallback={<PageFallback />}>
-              <AdminWidgetBuilder />
-            </Suspense>
-          </ErrorBoundary>
-        } />
+        {/* WIDGET_BUILDER_DEACTIVATED: vizualni builder deaktivovan pro BETA, zalohovano 2026-03-21
+        <Route element={<PrivateRoute />}>
+          <Route path="/admin/widget/builder/:id" element={
+            <ErrorBoundary module="WidgetBuilder">
+              <Suspense fallback={<PageFallback />}>
+                <AdminWidgetBuilder />
+              </Suspense>
+            </ErrorBoundary>
+          } />
+        </Route>
+        */}
 
         {/* Main app with Header/Footer */}
         <Route

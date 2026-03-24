@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 /**
  * Forge-themed select dropdown with label and error display.
  * Styled to match ForgeInput — dark elevated background, accent focus ring.
- * Props: label, error, options [{value, label}], value, onChange, className, disabled.
+ * Accessible: label linked via htmlFor/id, error linked via aria-describedby.
+ * Props: label, error, options [{value, label}], value, onChange, className, disabled, id.
  */
-const ForgeSelect = React.forwardRef(({ label, error, options = [], className = '', ...props }, ref) => {
+const ForgeSelect = React.forwardRef(({ label, error, options = [], className = '', id: externalId, ...props }, ref) => {
+  const reactId = useId();
+  const selectId = externalId || reactId;
+  const errorId = selectId + '-error';
   const baseStyle = {
     height: '40px',
     width: '100%',
@@ -56,10 +60,13 @@ const ForgeSelect = React.forwardRef(({ label, error, options = [], className = 
 
   return (
     <div className={className}>
-      {label && <label style={labelStyle}>{label}</label>}
+      {label && <label htmlFor={selectId} style={labelStyle}>{label}</label>}
       <select
         ref={ref}
+        id={selectId}
         style={baseStyle}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         onFocus={(e) => {
           if (!error) {
             e.target.style.borderColor = 'var(--forge-accent-primary)';
@@ -80,7 +87,7 @@ const ForgeSelect = React.forwardRef(({ label, error, options = [], className = 
           </option>
         ))}
       </select>
-      {error && <span style={errorStyle}>{error}</span>}
+      {error && <span id={errorId} role="alert" style={errorStyle}>{error}</span>}
     </div>
   );
 });

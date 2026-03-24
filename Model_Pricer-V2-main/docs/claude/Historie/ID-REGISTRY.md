@@ -1,8 +1,8 @@
 # ID-REGISTRY — ModelPricer Historie
 
-**Posledni pouzite ID:** 206
-**Dalsi ID k pouziti:** 207
-**Poslední aktualizace:** 2026-03-16 (Session S02 — Analytics Bug Fixes Round 2, 206-AN)
+**Posledni pouzite ID:** 259
+**Dalsi ID k pouziti:** 260
+**Poslední aktualizace:** 2026-03-22 (Session S01 — Customer Portal Phase 2 Bug Fixes, 259-CP)
 
 ---
 
@@ -28,6 +28,7 @@
 | AN | Analytics (admin analytics, grafy, reporty) | 3 |
 | MC | MCP Servers (Firebase, GitHub, Stripe, Sentry, Vercel) | 1 |
 | SP | Support (public support page, FAQ, troubleshooting) | 1 |
+| CP | Customer Portal (portal features, user data, orders) | 1 |
 
 ---
 
@@ -55,6 +56,7 @@
 | **204-AN** | 2026-03-15 | Analytics | **Finalizace Analytics planu — Q&A, 6 otazek, rozhodnuti** | **0** |
 | **205-AN** | 2026-03-15 | Analytics | **Admin Analytics Q&A — otazky a odpovedi k planu** | **0** |
 | **206-AN** | 2026-03-16 | Analytics | **Analytics Bug Fixes Round 2 — weight_grams, granularity, widget tenantId** | **5** |
+| **259-CP** | 2026-03-22 | Customer Portal | **Phase 2 Bug-Fix Implementation — 6 backend endpointy, response shape normalizace, frontend integration** | **8** |
 
 ---
 

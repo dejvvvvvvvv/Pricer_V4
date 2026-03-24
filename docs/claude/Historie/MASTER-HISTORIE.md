@@ -7,13 +7,86 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 252+ (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN + 215-232 GN/BK/AD/DC/AS + 233-236 WB)
-- **Posledni zaznam:** 236-WB (UPRAVY 2026-03-21, Session S01 — Widget Builder Wave 1 Property Editor System)
-- **Posledni aktualizace:** 2026-03-21 (Session S01, 4 zaznamy: 233-236 WB Widget Builder Wave 1 Core Infrastructure)
+- **Celkem zaznamu:** 280 (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN + 215-232 GN/BK/AD/DC/AS + 233-236 WB + 237-238 WB + 239-241 WB + 242-243 WB + 244-246 WB + 247-248 WB + 249-252 WB + 253-255 WB + 256-258 CP + 260-261 CP + 262-263 FD/AP)
+- **Posledni zaznam:** 263-AP (UPRAVY 2026-03-23, Session S01 — AdminPricing Volume Discount Inputs Fix)
+- **Posledni aktualizace:** 2026-03-23 (Session S01, 2 zaznamu: 262-FD ForgeDialog Focus Bug Fix + 263-AP AdminPricing Volume Discount Inputs)
 
 ---
 
 ## Zaznamy podle dne
+
+### 2026-03-21 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **233** | **WB** | **KONVERZACE** | **Widget Builder VvvebJs-inspired redesign Wave 1 — 3 paralelni agenti (Block Definitions, Builder Page Layout, Property Editor System), rozhodnuti: HTML5 DnD bez externi knihovny, CSS-in-JS misto Tailwind, 32 bloku, 6 LOCKED elementu, bilingualni labels** |
+| **234** | **WB** | **UPRAVY** | **Wave 1 Agent 1: Block Definitions System — 7 novych souboru v blocks/ (calculatorBlocks 12 bloku, layoutBlocks 6, contentBlocks 8, formBlocks 6, lockedElements constraints, defaultLayouts 4 presety, index.js registry 32 bloku)** |
+| **235** | **WB** | **UPRAVY** | **Wave 1 Agent 2: Builder Page Layout — BuilderPage.jsx rewrite (VvvebJs 3-panel, resizable), BuilderTopBar.jsx rewrite (step tabs 1-5, device switcher, undo/redo), NOVY BuilderCanvas.jsx (zoom, device frame, drop overlay), useBuilderState.js enhance (per-step, import/export JSON), useDragAndDrop.js rewrite (HTML5 DnD API), useElementSelection.js enhance (keyboard nav), DevicePreviewFrame updated, builder-tokens.css spin animation** |
+| **236** | **WB** | **UPRAVY** | **Wave 1 Agent 3: Property Editor System — 7 NOVYCH editoru (SpacingEditor Chrome DevTools box model, BorderEditor, ShadowEditor multiple shadows, FontEditor 15 families, BackgroundEditor Color/Image/Gradient, AlignmentEditor, OpacityEditor), 5 REWRITTEN (ColorPropertyEditor preset palette, TextPropertyEditor multiline, NumberPropertyEditor slider+buttons, BooleanPropertyEditor reset, SelectPropertyEditor object/string), NOVE taby (ContentTab, AdvancedTab custom CSS/responsive/animations, StyleTab collapsible sections), BuilderPropertyPanel 3-tab pravy panel** |
+| **237** | **WB** | **KONVERZACE** | **Widget Builder Wave 2 Integration — 2 paralelni agenti (Agent 4: Canvas+LeftPanel integrace, Agent 5: RightPanel+PropertyEditors integrace), propojeni Wave 1 core infrastructure do funkcniho celku** |
+| **238** | **WB** | **UPRAVY** | **Wave 2 Integration — Agent 4: BuilderElementRenderer.jsx NOVY (24 block type previews, selection/hover/drag/resize/lock), BuilderCanvas.jsx (element rendering ze state, drop indikatory), BuilderLeftPanel.jsx (32 bloku z registry, 2-col grid, search, drag), BuilderPage.jsx (canvas+panel wiring), useLayoutState.js (CRUD operace). Agent 5: PropertyEditorFactory.jsx NOVY (dispatch do 12 editoru), StyleTab.jsx (editableProperties grouped), ContentTab.jsx (text/bool z block def), AdvancedTab.jsx (responsive/animations/CSS), BuilderPropertyPanel.jsx (selectedElement, lock guard). Celkem 2 nove + 9 upravenych souboru.** |
+
+### 2026-03-21 (S03)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **239** | **WB** | **KONVERZACE** | **Widget Builder Wave 3 — Preview + Polish + Interactions — 3 paralelni agenti (Agent 6: PreviewMode+StepNavigator+DeviceFrame, Agent 7: WidgetBuilder.css 2609 radku, Agent 8: ElementContextMenu+FloatingToolbar+KeyboardShortcuts), 5 novych + 4 upravene soubory, 10 klav. zkratek** |
+| **240** | **WB** | **UPRAVY** | **Wave 3 Agent 6+8: PreviewMode.jsx NOVY (fullscreen overlay, device frames, step nav, dark/light, portal), StepNavigator.jsx NOVY (5-step bar, ikony, badges, compact), DeviceFrame.jsx NOVY (iPhone/iPad/Browser mockupy), ElementContextMenu.jsx NOVY (12 akci, ARIA, keyboard nav, viewport-aware), FloatingToolbar.jsx NOVY (7 akci, auto-position, drag, locked guards). BuilderTopBar.jsx (StepNavigator integrace, zoom, Preview/Export), BuilderPage.jsx (10 action handlers, clipboard, Ctrl+C/V/D/Delete shortcuts, dispatcher), BuilderElementRenderer.jsx (onContextMenu), BuilderCanvas.jsx (context menu state). 5 novych + 4 upravene.** |
+| **241** | **WB** | **UPRAVY** | **Wave 3 Agent 7: WidgetBuilder.css NOVY — 2609 radku produkcni CSS. Dark panels (#1e1e2e), dot-grid canvas, 14 CSS sekci (layout, panely, canvas, editory, toolbar, context menu, preview, animace, responsive, scrollbary, print). 9 animaci (fadeIn, slideIn, pulse, bounce, shake, spin, scaleIn, slideUp, glow). 3 breakpointy (1200px/900px/600px). Custom scrollbary webkit+Firefox. WCAG AA kontrast.** |
+
+### 2026-03-21 (S04)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **242** | **WB** | **UPRAVY** | **Wave 3.5 Agent 9: CSS Class Integration — 6 souboru (BuilderPage, BuilderTopBar, BuilderCanvas, BuilderLeftPanel, BuilderElementRenderer, BuilderPropertyPanel), ~930 radku inline styles odebrano a nahrazeno wb-* CSS tridami (wb-topbar__*, wb-canvas__*, wb-left__*, wb-element__*, wb-right__*), import WidgetBuilder.css** |
+| **243** | **WB** | **UPRAVY** | **Wave 3.5 Agent 10: Toast + Undo/Redo + Save Feedback — 3 NOVE soubory (BuilderToast.jsx: useBuilderToast hook + BuilderToastContainer 4 typy auto-dismiss portal, UndoRedoIndicator.jsx: tooltip 1.5s auto-hide, SaveStatusIndicator.jsx: Saved/Saving/Unsaved/Failed), 4 upravene (useUndoRedo.js: {state,description} stack + lastAction, useBuilderState.js: lastAction extraction, BuilderPage.jsx: 7 toast zprav, BuilderTopBar.jsx: UndoRedoIndicator + SaveStatusIndicator)** |
+
+### 2026-03-21 (S05)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **244** | **WB** | **KONVERZACE** | **Widget Builder Wave 4 — Code Editor + Templates + Testing — 3 agenti (Agent 11: Dev Server Verification localhost:4028 + routes + import chain + build 0 errors, Agent 12: CodeEditor.jsx + CSSPreview.jsx + AdvancedTab.jsx, Agent 13: Template System 8 sablon + TemplateGallery + BuilderLeftPanel 5. tab)** |
+| **245** | **WB** | **UPRAVY** | **Wave 4 Agent 11+12: Dev Server Verification (localhost:4028, vsechny routy, build PASS) + Code Editor (CodeEditor.jsx: textarea CSS editor, line numbers, Tab->spaces, auto-indent, bracket auto-closing, format/copy/reset, brace balance, dark theme) + CSS Preview (CSSPreview.jsx: scoped styles, mini widget mockup, error detection, toggle) + AdvancedTab.jsx (Quick Snippets 9 patternu, CSS Variables Reference 18 promennych)** |
+| **246** | **WB** | **UPRAVY** | **Wave 4 Agent 13: Template System — templateLayouts.js (8 predpripravenych sablon: Standard 3D, Quick Quote, Compact, Sales-Focused, Professional, Shopify Integration, Material Comparison, Express Service), TemplatePreviewCard.jsx (ThemePreviewMini, step count, feature tagy, active badge), TemplateGallery.jsx (category filtry, confirmation dialog, Start from Scratch), BuilderLeftPanel.jsx (pridan 5. tab Templates)** |
+
+### 2026-03-21 (S06)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **247** | **WB** | **KONVERZACE** | **Widget Builder Browser Testing v Chrome (MCP) — dev server localhost:4028, widget builder /admin/widget/builder/w_K01fvDdgqT, SaveStatusIndicator.jsx hotfix (dirtyDotStyle hoisting), 9/13 oblasti PASS, 4 bugy nalezeny (levy panel taby, pravy panel properties, UUID element names, tenant ID mismatch)** |
+| **248** | **WB** | **UPRAVY** | **Browser Testing hotfix + bug report — SaveStatusIndicator.jsx dirtyDotStyle presun stylu pred STATUS_CONFIG, 4 neopravene bugy: P1 levy panel taby neprepinaji, P1 pravy panel "no editable style properties", P2 element IDs UUID misto nazvu, P1 tenant ID mismatch getTenantId()** |
+
+### 2026-03-21 (S07)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **249** | **WB** | **KONVERZACE** | **Widget Builder Bug Fix + Successful Retest — 5 bugu opraveno (SaveStatusIndicator hoisting, useBuilderState tab mapping direct pass-through, blocks/index.js ELEMENT_TO_BLOCK_MAP + resolveBlockId(), BuilderPage .find() misto bracket notation, elementRegistry isCustomBlock() cb_ + bi_ prefix), kompletni Chrome retest ALL PASS, zero console errors, vsech 5 tabu leveho panelu prepinaji, pravy panel nacita properties z registry, floating toolbar + breadcrumb funkcni** |
+| **250** | **WB** | **UPRAVY** | **5 bug fixes: SaveStatusIndicator.jsx (dirtyDotStyle nad STATUS_CONFIG), useBuilderState.js (tab state 'components'->'style' mapping odebrano, direct pass-through), blocks/index.js (ELEMENT_TO_BLOCK_MAP + resolveBlockId() pro element->block ID mapping), BuilderPage.jsx (.find() misto bracket notation pro custom block lookup, block resolution), elementRegistry.js (isCustomBlock() rozpoznava cb_ i bi_ prefixy). Retest: 3-panel layout, 5 tabu, 32 bloku, 8 sablon, canvas select, property editor, device frame, floating toolbar — ALL PASS** |
+
+### 2026-03-21 (S08)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **251** | **WB** | **KONVERZACE** | **Widget Builder Final Verification — Wave 5 finalni bug fixy (8 bugu v 8 souborech), kompletni browser test ALL PASS (levy panel 5 tabu, 32 bloku, 8 sablon, element selection metadata, pravy panel 5 skupin properties, device frame, zero console errors), celkovy souhrn projektu (~40 novych + ~15 upravenych souboru, 7 vln, IDs 233-252)** |
+| **252** | **WB** | **UPRAVY** | **Wave 5 finalni bug fixy: useBuilderState.js (tab direct pass-through), StyleTab.jsx (resolveBlockId + ceske labely + 16 group labels + EditorErrorBoundary), BuilderLeftPanel.jsx ("Pridat komponenty" button), BuilderPage.jsx (theme-to-props sync + custom block .find()), PropertyEditorFactory.jsx (shadow dropdown/full editor), blocks/index.js (ELEMENT_TO_BLOCK_MAP + resolveBlockId()), elementRegistry.js (bi_ prefix). Browser test ALL PASS, zero errors.** |
+
+### 2026-03-21 (S09)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **253** | **WB** | **KONVERZACE** | **P1 Bug Fix Wave — kompletni audit 60+ Widget Builder souboru (3 audit agenti, 19 P1 + 25+ P2 nalezeno), 3 fix agenti opravili 14 P1 bugu v 8 souborech (Delete handler duplicita, unified undo/redo, resize acceleration, PropertyEditorFactory keys, FloatingToolbar presun, null guardy, optional chaining, delete three-way toast)** |
+| **254** | **WB** | **UPRAVY** | **P1 Bug Fixes Agent Fix-1+2 (7 oprav, 5 souboru): useElementSelection.js (odebrany Delete/Backspace handlery), useBuilderState.js (unifiedUndo/unifiedRedo), BuilderPage.jsx (resize absolutni sirka, keyboard shortcuts unified), PropertyEditorFactory.jsx (FontEditor->SelectPropertyEditor, BorderEditor+BackgroundEditor dead code odebran), ColorPropertyEditor.jsx (opacity rgba propagace)** |
+| **255** | **WB** | **UPRAVY** | **P1 Bug Fixes Agent Fix-3 (7 oprav + 1 ne-bug, 5 souboru): BuilderCanvas.jsx (FloatingToolbar rendering s canvasRef), BuilderPage.jsx (Duplicate/Copy resolveBlockId(), delete three-way branch custom/hideable/locked), BuilderPropertyPanel.jsx (null guard placeholder), LayerRow.jsx (onSelect optional chaining), TemplateGallery.jsx (onStartFromScratch optional chaining + createPortal confirmation). Loader2 spin overeny jako ne-bug.** |
+
+### 2026-03-22 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **256** | **CP** | **KONVERZACE** | **Customer Portal Research iniciace — zahajena komplexni market research pro novou Customer Portal feature (auth, orders, models, presets, profile, komunikace). 3 paralelne research agenty (Feature matrix, Competitor analysis, Technical architecture). Existujici codebase: Auth 90% (FirebaseAuthProvider), Orders 80% (AdminOrders), Account 60% (4 tabs), Storage 70% (tenant-scoped). P0 rizika: Supabase migration, Email events, Payment flow, RLS customer scope.** |
+| **257** | **CP** | **UPRAVY** | **3 research dokumenty (4301 radku dohromady) — Part1-Features.md (1328 radku: 7 oblasti, 25+ features, P0/P1/P2 priorita), Part2-Competitors.md (1123 radku: 8 platform analyza + learning points), Part3-Technical.md (1850+ radku: API REST design, Auth JWT+RLS, Supabase+R2+Resend+Stripe, Sentry monitoring, Cloud Run deployment). Vse pro kickoff implementacnich planu CP-PHASE-1 az PHASE-4.** |
+| **258** | **CP** | **UPRAVY** | **Phase 1 Implementation — 16 novych frontend+backend souboru (8113 radku: 10 portal pages, 1 Context, 1 PrivateRoute, 1 service layer, 1 storage helpers, 2 backend components), 2 upravene (Routes.jsx +43 lines route tree, backend index.js mount), build PASS (57.91s). Key components: CustomerPortalLayout, Dashboard, Orders+Detail, Models, Presets, Profile (4 tabs), Support, Login/Register. Backend: customerStore.js (mock data), customerPortal.js (12 API routes, requireAuth+requireTenant). Supabase integration planned Phase 2.** |
+| **260** | **CP** | **UPRAVY** | **Phase 2 Final P0 Fixes — 3 kriticke P0 fixes (response parsing mismatch CustomerModels+CustomerOrders, logout cache cleanup CustomerContext), 3 upravene soubory (CustomerModels.jsx line 185, CustomerOrders.jsx line 156, CustomerContext.jsx lines 42/82/126-137), build PASS (38.91s). Bez oprav: seznamy modelu+objednavek vzdy prazdne + PII v localStorage po odhlaseni (security issue).** |
+| **261** | **CP** | **UPRAVY** | **A11y Fixes (WCAG 2.1 AA) — Audit 30 nalezu (25 critical, 5 serious), opraveno 4 komponenty (CustomerPortalLayout skip-to-content+main+sidebar, CustomerDashboard Space handler+aria-label, CustomerOrders Space handler+aria-label, response parsing data.data fix 6 souboru), delegovano na Forge agent (ForgeInput/Select/Dialog/Tabs label+aria-describedby+focus+role), build PASS (54.97s), 0 errors** |
 
 ### 2026-03-19 (S01 FINALNI)
 
@@ -345,3 +418,11 @@
 | `Historie/2026-03-17/` | 4 zaznamy (S01: Analytics Hidden for Beta ID 207-BH; S02: P0 Order Data Completeness ID 208-AO; S03: P1 Order Data Display Fix ID 209-AO; S04: P2 Order Detail Modal/Export/Fees ID 210-AO) |
 | `Historie/2026-03-18/` | 4 zaznamy (S01: Widget Checkout Flow + Pricing Layout Fix ID 211-WK; S02: Widget P1 Code Review Fixes ID 212-WK; S03: Komplexni testovani ID 213-GN KONVERZACE + 214-GN UPRAVY) |
 | `Historie/2026-03-19/` | 8 zaznamu (S01: BETA infrastruktura — 215-GN KONVERZACE + 216-GN OTAZKY + 217-GN UPRAVY planovani + 218-BK UPRAVY backend infra + 219-GN UPRAVY Sentry + 220-GN UPRAVY Stripe + 221-GN UPRAVY Frontend API + 222-GN UPRAVY Doku+Stripe mount) |
+| `Historie/2026-03-23/` | 2 zaznamy (S01: Number Input Fix + ForgeDialog Focus Bug — 262-FD UPRAVY + 263-AP UPRAVY + DENNI-PREHLED) |
+
+### 2026-03-23 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **262** | **FD** | **UPRAVY** | **ForgeDialog Focus Bug Fix — handleKeyDown callback zaviselo na [onClose], zpusobovalo znovucyklus renderu a focus krutil se z inputu na X button. Oprava: useRef + useCallback([], []) + effect jen na [open]. Dopad: vsechny 11 admin stranky s modalama** |
+| **263** | **AP** | **UPRAVY** | **AdminPricing Volume Discount Inputs — min_qty + value zmena z type="number" na type="text" s inputMode="numeric"|"decimal" + parseDecimal/parseIntInput. Duvod: type="number" intern logika nedovoluje smazat nulu, zavisla focus na spinnerech** |

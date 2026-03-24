@@ -81,6 +81,16 @@ function saveCollapsedState(state) {
 
 // --- Number Stepper component ---
 function NumberStepper({ value, onChange, min = 0, step = 1, className = '', error = false, style }) {
+  const [localValue, setLocalValue] = React.useState(() => value ?? '');
+  const isEditing = React.useRef(false);
+
+  // Sync external value changes into local state (only when not actively editing)
+  React.useEffect(() => {
+    if (!isEditing.current) {
+      setLocalValue(value ?? '');
+    }
+  }, [value]);
+
   const handleStep = (dir) => {
     const next = safeNum(value, 0) + dir * step;
     if (next < min) return;
@@ -103,10 +113,27 @@ function NumberStepper({ value, onChange, min = 0, step = 1, className = '', err
         aria-label="Decrease"
       >−</button>
       <input
-        type="number" min={min} step={step}
+        type="text" inputMode="decimal"
         className={`input ${error ? 'input-error' : ''} ${className}`}
-        value={value}
-        onChange={(e) => onChange(safeNum(e.target.value, 0))}
+        value={localValue}
+        onChange={(e) => {
+          const parsed = parseDecimal(e.target.value);
+          isEditing.current = true;
+          setLocalValue(parsed);
+          // Propagate numeric value up for live preview (empty string keeps current value)
+          if (parsed !== '') {
+            const num = Number(String(parsed).replace(',', '.'));
+            if (Number.isFinite(num)) onChange(num);
+          }
+        }}
+        onFocus={() => { isEditing.current = true; }}
+        onBlur={() => {
+          isEditing.current = false;
+          const finalized = finalizeDecimal(localValue, min);
+          const clamped = finalized < min ? min : finalized;
+          setLocalValue(clamped);
+          onChange(clamped);
+        }}
         style={{ textAlign: 'center', MozAppearance: 'textfield', width: '100%' }}
       />
       <button
@@ -143,6 +170,13 @@ function finalizeDecimal(v, fallback = 0) {
   if (v === '' || v == null) return fallback;
   const n = Number(String(v).replace(',', '.'));
   return Number.isFinite(n) ? n : fallback;
+}
+
+// Parse integer input: allows empty during editing, filters non-digit characters.
+function parseIntInput(v) {
+  if (v === '' || v == null) return '';
+  if (/^-?\d*$/.test(String(v))) return v;
+  return String(v).slice(0, -1) || '';
 }
 
 function clampMin0(n) {
@@ -2460,30 +2494,43 @@ const AdminPricing = () => {
                       <tr key={idx} style={{ borderBottom: '1px solid var(--forge-border-default, #1a1a2e)', background: idx % 2 === 0 ? 'var(--forge-bg-surface, #12121a)' : 'var(--forge-bg-void, #0a0a0f)' }}>
                         <td style={{ padding: '6px 8px' }}>
                           <input
-                            type="number"
-                            min="1"
-                            value={tier.min_qty}
+                            type="text"
+                            inputMode="numeric"
+                            value={tier.min_qty ?? ''}
                             onChange={(e) => {
+                              const parsed = parseIntInput(e.target.value);
                               const newTiers = [...volumeDiscounts.tiers];
-                              newTiers[idx] = { ...newTiers[idx], min_qty: Math.max(1, parseInt(e.target.value) || 1) };
-                              newTiers.sort((a, b) => a.min_qty - b.min_qty);
+                              newTiers[idx] = { ...newTiers[idx], min_qty: parsed };
                               setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                               setTouched(true);
+                            }}
+                            onBlur={() => {
+                              const finalized = Math.max(1, finalizeDecimal(tier.min_qty, 1));
+                              const newTiers = [...volumeDiscounts.tiers];
+                              newTiers[idx] = { ...newTiers[idx], min_qty: finalized };
+                              newTiers.sort((a, b) => safeNum(a.min_qty, 0) - safeNum(b.min_qty, 0));
+                              setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                             }}
                             style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--forge-border-default, #1a1a2e)', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)', fontFamily: 'var(--forge-font-mono, JetBrains Mono, monospace)' }}
                           />
                         </td>
                         <td style={{ padding: '6px 8px' }}>
                           <input
-                            type="number"
-                            min="0"
-                            step={volumeDiscounts.mode === 'percent' ? '1' : '0.01'}
-                            value={tier.value}
+                            type="text"
+                            inputMode="decimal"
+                            value={tier.value ?? ''}
                             onChange={(e) => {
+                              const parsed = parseDecimal(e.target.value);
                               const newTiers = [...volumeDiscounts.tiers];
-                              newTiers[idx] = { ...newTiers[idx], value: parseFloat(e.target.value) || 0 };
+                              newTiers[idx] = { ...newTiers[idx], value: parsed };
                               setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                               setTouched(true);
+                            }}
+                            onBlur={() => {
+                              const finalized = Math.max(0, finalizeDecimal(tier.value, 0));
+                              const newTiers = [...volumeDiscounts.tiers];
+                              newTiers[idx] = { ...newTiers[idx], value: finalized };
+                              setVolumeDiscounts(prev => ({ ...prev, tiers: newTiers }));
                             }}
                             style={{ width: '100px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--forge-border-default, #1a1a2e)', background: 'var(--forge-bg-elevated, #1a1a2e)', color: 'var(--forge-text-primary, #e0e0e0)', fontFamily: 'var(--forge-font-mono, JetBrains Mono, monospace)' }}
                           />
@@ -3934,8 +3981,8 @@ const AdminPricing = () => {
         }
 
         /* === NUMBER STEPPER === */
-        .number-stepper-wrap input[type="number"]::-webkit-inner-spin-button,
-        .number-stepper-wrap input[type="number"]::-webkit-outer-spin-button {
+        .number-stepper-wrap input::-webkit-inner-spin-button,
+        .number-stepper-wrap input::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;
         }

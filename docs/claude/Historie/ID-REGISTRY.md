@@ -7,9 +7,9 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 232
-**Dalsi ID k pouziti:** 233
-**Posledni aktualizace:** 2026-03-19 (Session S01 FINALNI — Vlna 14, 232-BK Config Routes + Build Verify)
+**Posledni pouzite ID:** 263
+**Dalsi ID k pouziti:** 264
+**Posledni aktualizace:** 2026-03-23 (Session S01 — ForgeDialog + AdminPricing Fixes, ID 262-FD + 263-AP)
 
 ---
 
@@ -66,6 +66,7 @@ S{NN}
 | TK | Test-Kalkulacka | src/pages/test-kalkulacka/ |
 | WK | Widget-Kalkulacka | src/pages/widget-kalkulacka/ |
 | WB | Widget-Builder | src/pages/admin/AdminWidget.jsx (builder cast) |
+| CP | Customer-Portal | src/pages/customer-portal/ (planovane) |
 
 ### Verejne stranky
 | Zkratka | Oblast | Cesta |
@@ -299,5 +300,37 @@ S{NN}
 
 ---
 
-**Posledni aktualizace:** 2026-03-19 (Session S01 FINALNI — Vlna 14, 232-BK Config Routes + Build Verify)
-**Posledni session:** S01 (2026-03-19) — BETA infrastruktura Vlny 1-14 FINALNI (18 zaznamu: KONVERZACE + OTAZKY + 16x UPRAVY, IDs 215-232)
+### P1 Bug Fix Wave (253-255)
+
+| ID | Zkratka | Oblast | Typ | Datum |
+|----|---------|--------|-----|-------|
+| 253 | WB | Widget-Builder | KONVERZACE — P1 Bug Fix Wave (audit 60+ souboru, 19 P1 + 25+ P2, 14 opraveno) | 2026-03-21 |
+| 254 | WB | Widget-Builder | UPRAVY — Agent Fix-1+2 (Delete, unified undo, resize, FontEditor, Border/Background, color opacity) | 2026-03-21 |
+| 255 | WB | Widget-Builder | UPRAVY — Agent Fix-3 (FloatingToolbar, Duplicate/Copy, null guard, LayerRow, TemplateGallery, delete toast) | 2026-03-21 |
+
+### Customer Portal Phase 1 Implementation (256-258)
+
+| ID | Zkratka | Oblast | Typ | Datum |
+|----|---------|--------|-----|-------|
+| 256 | CP | Customer-Portal | KONVERZACE — Customer Portal research & planning session (S01) | 2026-03-22 |
+| 257 | CP | Customer-Portal | UPRAVY — Research dokumentace Part 1-3 (Feature, Competitors, Technical) | 2026-03-22 |
+| 258 | CP | Customer-Portal | UPRAVY — Phase 1 Implementation (16 nove frontend+backend, 2 upravene routes, build PASS) | 2026-03-22 |
+
+### Customer Portal Phase 2 Final P0 Fixes (260)
+
+| ID | Zkratka | Oblast | Typ | Datum |
+|----|---------|--------|-----|-------|
+| 260 | CP | Customer-Portal | UPRAVY — Phase 2 Final P0 Fixes (response parsing mismatch, logout cache cleanup, security fix, build PASS) | 2026-03-22 |
+
+### Customer Portal A11y Fixes (261)
+
+| ID | Zkratka | Oblast | Typ | Datum |
+|----|---------|--------|-----|-------|
+| 261 | CP | Customer-Portal | UPRAVY — A11y Fixes (WCAG 2.1 AA, 30 nalezu, skip-to-content, landmarks, keyboard, aria-label, Forge delegation) | 2026-03-22 |
+| 262 | FD | ForgeDialog | UPRAVY — Focus-stealing bug fix (useRef onClose + useCallback stabilizace + effect na [open] zavislosti) | 2026-03-23 |
+| 263 | AP | AdminPricing | UPRAVY — Volume discount inputs (min_qty + value type="number"→type="text" s parseDecimal/parseIntInput) | 2026-03-23 |
+
+---
+
+**Posledni aktualizace:** 2026-03-23 (Session S01 — ForgeDialog Focus Bug + AdminPricing Volume Discount Inputs, ID 262-FD + 263-AP)
+**Posledni session:** S01 (2026-03-23) — Number Input Fix + ForgeDialog Focus Bug (2 zaznamy: UPRAVY, ID 262-263)
