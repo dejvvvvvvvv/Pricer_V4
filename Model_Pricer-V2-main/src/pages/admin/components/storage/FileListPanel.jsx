@@ -131,6 +131,8 @@ export default function FileListPanel({
   onDownload,
   onDelete,
   isTrash,
+  isOrders = false,
+  onPermanentDelete,
   viewMode = 'list',
 }) {
   const [sortKey, setSortKey] = useState('name');
@@ -268,11 +270,13 @@ export default function FileListPanel({
               item={item}
               isSelected={selection?.has(item.path)}
               isTrash={isTrash}
+              isOrders={isOrders}
               onClick={handleRowClick}
               onContextMenu={onContextMenu}
               onSelect={onSelect}
               onDownload={onDownload}
               onDelete={onDelete}
+              onPermanentDelete={onPermanentDelete}
             />
           ))}
         </div>
@@ -395,7 +399,7 @@ export default function FileListPanel({
 
 /* ── Grid Card Component ──────────────────────────────────────────────────── */
 
-function GridCard({ item, isSelected, isTrash, onClick, onContextMenu, onSelect, onDownload, onDelete }) {
+function GridCard({ item, isSelected, isTrash, isOrders = false, onClick, onContextMenu, onSelect, onDownload, onDelete, onPermanentDelete }) {
   const [hovered, setHovered] = useState(false);
   const isFolder = item.type === 'folder';
   const ext = isFolder ? 'folder' : getFileExt(item.name);
@@ -602,7 +606,18 @@ function GridCard({ item, isSelected, isTrash, onClick, onContextMenu, onSelect,
               onDownload?.(item.path);
             }}
           />
-          {!isTrash && (
+          {isTrash && (
+            <GridActionBtn
+              icon="Trash2"
+              label="Trvale smazat"
+              danger
+              onClick={(e) => {
+                e.stopPropagation();
+                onPermanentDelete?.(item.name);
+              }}
+            />
+          )}
+          {!isTrash && !isOrders && (
             <GridActionBtn
               icon="Trash2"
               label="Smazat"

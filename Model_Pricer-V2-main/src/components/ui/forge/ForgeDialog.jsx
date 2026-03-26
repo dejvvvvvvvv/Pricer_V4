@@ -22,6 +22,7 @@ export default function ForgeDialog({
   children,
   footer,
   maxWidth = '540px',
+  maxHeight = '85vh',
 }) {
   const overlayRef = useRef(null);
   const bodyRef = useRef(null);
@@ -172,7 +173,7 @@ export default function ForgeDialog({
     boxShadow: 'var(--forge-shadow-lg)',
     maxWidth,
     width: '100%',
-    maxHeight: '85vh',
+    maxHeight,
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
@@ -214,7 +215,7 @@ export default function ForgeDialog({
 
   const bodyStyle = {
     padding: '24px',
-    maxHeight: 'calc(85vh - 140px)',
+    maxHeight: `calc(${maxHeight} - 140px)`,
     overflowY: 'auto',
     overscrollBehavior: 'contain',
     touchAction: 'pan-y',

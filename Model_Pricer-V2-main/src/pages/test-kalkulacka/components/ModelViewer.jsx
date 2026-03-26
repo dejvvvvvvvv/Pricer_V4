@@ -1370,7 +1370,7 @@ function BuildPlateScene({ url, ext, orientQuat, showDimensions, onBoundsCompute
 /**
  * BuildPlateCanvas: wrapper with Canvas, controls, and auto-orient button.
  */
-function BuildPlateCanvas({ file, ext }) {
+function BuildPlateCanvas({ file, ext, onOrientChange }) {
   const url = useMemo(() => URL.createObjectURL(file), [file]);
   const canvasWrapRef = useRef(null);
   const [orientQuat, setOrientQuat] = useState(null);
@@ -1417,6 +1417,11 @@ function BuildPlateCanvas({ file, ext }) {
         // Use the first (largest) geometry for auto-orient computation
         const quat = computeAutoOrientQuaternion(geometries[0]);
         setOrientQuat(quat);
+        // Notify parent about orientation change only if quaternion is not identity
+        // (identity = no rotation needed, skip unnecessary re-slice)
+        if (onOrientChange && quat && (Math.abs(quat.x) > 0.001 || Math.abs(quat.y) > 0.001 || Math.abs(quat.z) > 0.001)) {
+          onOrientChange({ x: quat.x, y: quat.y, z: quat.z, w: quat.w });
+        }
       }
       // Dispose if it's a standalone geometry
       if (loaded.isBufferGeometry) loaded.dispose();
@@ -1424,7 +1429,7 @@ function BuildPlateCanvas({ file, ext }) {
     }, undefined, () => {
       setIsOrienting(false);
     });
-  }, [url, ext]);
+  }, [url, ext, onOrientChange]);
 
   // Camera position: slightly above and angled for a nice perspective of the bed
   const camPos = useMemo(() => [200, 180, 260], []);
@@ -1477,7 +1482,11 @@ function BuildPlateCanvas({ file, ext }) {
         {orientQuat && (
           <button
             type="button"
-            onClick={() => setOrientQuat(null)}
+            onClick={() => {
+              setOrientQuat(null);
+              // Notify parent: identity quaternion = no rotation
+              if (onOrientChange) onOrientChange({ x: 0, y: 0, z: 0, w: 1 });
+            }}
             style={fg.buildPlateBtn}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'rgba(0, 212, 170, 0.15)';
@@ -1606,7 +1615,7 @@ function formatDuration(totalSeconds) {
  * - ErrorBoundary kolem Canvas, aby stranka nespadla (white-screen)
  * - Tab system: "3D Náhled" (original) + "Tisková deska" (build plate viewer)
  */
-const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed, onGeometryLoaded }) => {
+const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed, onGeometryLoaded, onOrientChange }) => {
   const [fileUrl, setFileUrl] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [activeTab, setActiveTab] = useState(TAB_PREVIEW);
@@ -1741,7 +1750,7 @@ const ModelViewer = ({ selectedFile, onRemove, onSurfaceComputed, onGeometryLoad
             ) : activeTab === TAB_PREVIEW ? (
               <ModelCanvas file={fileObj} ext={ext} computeSurface={canComputeSurfaceSafe} onSurfaceComputed={handleSurfaceComputed} onGeometryLoaded={onGeometryLoaded} />
             ) : (
-              <BuildPlateCanvas file={fileObj} ext={ext} />
+              <BuildPlateCanvas file={fileObj} ext={ext} onOrientChange={onOrientChange} />
             )}
           </ErrorBoundary>
         </div>

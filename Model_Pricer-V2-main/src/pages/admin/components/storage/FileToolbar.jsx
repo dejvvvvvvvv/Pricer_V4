@@ -13,6 +13,10 @@ export default function FileToolbar({
   onDownloadSelected,
   viewMode = 'list',
   onViewModeChange,
+  isTrash = false,
+  isOrders = false,
+  onEmptyTrash,
+  trashItemCount = 0,
 }) {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [folderName, setFolderName] = useState('');
@@ -96,8 +100,37 @@ export default function FileToolbar({
             color: 'var(--forge-text-muted)',
           }}>{selectedCount} selected</span>
           <ToolbarBtn icon="Download" label="Download" onClick={onDownloadSelected} />
-          <ToolbarBtn icon="Trash2" label="Delete" onClick={onDeleteSelected} danger />
+          {!isOrders && !isTrash && (
+            <ToolbarBtn icon="Trash2" label="Delete" onClick={onDeleteSelected} danger />
+          )}
         </div>
+      )}
+
+      {/* Empty Trash button */}
+      {isTrash && trashItemCount > 0 && (
+        <button
+          type="button"
+          onClick={onEmptyTrash}
+          title="Trvale smazat vsechny soubory v kosi"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            borderRadius: 'var(--forge-radius-sm)',
+            border: '1px solid var(--forge-error)',
+            background: 'transparent',
+            color: 'var(--forge-error)',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontFamily: 'var(--forge-font-body)',
+            fontWeight: 600,
+            transition: 'all 120ms ease',
+          }}
+        >
+          <Icon name="Trash2" size={14} />
+          Vysypat kos ({trashItemCount})
+        </button>
       )}
 
       {/* Upload (only in library folders) */}

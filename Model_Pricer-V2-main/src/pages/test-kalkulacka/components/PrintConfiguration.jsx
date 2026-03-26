@@ -1544,12 +1544,12 @@ const PrintConfiguration = ({
         </div>
       )}
 
-      {/* Express / Priority delivery */}
+      {/* Express / Priority production */}
       {expressConfig?.enabled && Array.isArray(expressConfig.tiers) && expressConfig.tiers.filter(t => t.active !== false).length > 0 && (
-        <div className="tk-print-config-card" style={fg.card} role="region" aria-label={language === 'en' ? 'Delivery speed' : 'Rychlost dodani'}>
+        <div className="tk-print-config-card" style={fg.card} role="region" aria-label={language === 'en' ? 'Production speed' : 'Rychlost vyroby'}>
           <h3 style={fg.sectionTitle}>
             <Icon name="Zap" size={20} style={{ marginRight: '0.5rem' }} />
-            {language === 'en' ? 'DELIVERY SPEED' : 'RYCHLOST DODANI'}
+            {language === 'en' ? 'PRODUCTION SPEED' : 'RYCHLOST VYROBY'}
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

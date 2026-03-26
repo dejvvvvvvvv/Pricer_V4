@@ -46,7 +46,7 @@ function tryJson(text) {
  * Field name: "model"
  *
  * @param {File} modelFile
- * @param {{ timeoutMs?: number, presetId?: string | null, tenantId?: string }} [opts]
+ * @param {{ timeoutMs?: number, presetId?: string | null, tenantId?: string, quaternion?: { x: number, y: number, z: number, w: number } | null }} [opts]
  * @returns {Promise<SliceResponse>}
  */
 export async function sliceModelLocal(modelFile, opts = {}) {
@@ -66,6 +66,15 @@ export async function sliceModelLocal(modelFile, opts = {}) {
     if (presetId) {
       // Backend expects presetId (optional). If not provided, backend uses default profile.
       formData.append('presetId', presetId);
+    }
+
+    // Auto-orient quaternion — only send if it represents a non-identity rotation
+    const quat = opts.quaternion;
+    if (quat && (quat.x !== 0 || quat.y !== 0 || quat.z !== 0)) {
+      formData.append('quaternion_x', String(quat.x));
+      formData.append('quaternion_y', String(quat.y));
+      formData.append('quaternion_z', String(quat.z));
+      formData.append('quaternion_w', String(quat.w));
     }
 
     const tenantId = typeof opts.tenantId === 'string' && opts.tenantId.trim()

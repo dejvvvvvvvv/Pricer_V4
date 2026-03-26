@@ -12,6 +12,7 @@ import { ensureDir, fileExists } from "./util/fsSafe.js";
 import { getHealthStatus, getDetailedHealthStatus, parseSlicerVersion } from "./util/health.js";
 import { findPrusaSlicerConsole } from "./util/findSlicer.js";
 import { validateEnvironment } from "./util/envValidator.js";
+import { transformSTLFile } from "./util/stlTransform.js";
 import { runPrusaSlicer } from "./slicer/runPrusaSlicer.js";
 import { parseGcodeMetrics } from "./slicer/parseGcode.js";
 import { runPrusaInfo } from "./slicer/runPrusaInfo.js";
@@ -599,6 +600,8 @@ app.post(
     { name: "ini", maxCount: 1 }
   ]),
   async (req, res) => {
+    // Track transformed file path for cleanup in finally block
+    let transformedPath = null;
     try {
       const slicerCmd = await resolveSlicerCmd();
       if (!slicerCmd) {
@@ -659,10 +662,16 @@ app.post(
         return res.status(400).json({ ok: false, errorCode: "MP_VALIDATION_ERROR", message: `INI not found: ${iniPath}` });
       }
 
+      // ===== Parse and apply quaternion rotation =====
+      const quaternion = parseQuaternion(req.body);
+      const transformResult = await applyQuaternionTransform(modelFile.path, quaternion);
+      const slicingModelPath = transformResult.modelPath;
+      transformedPath = transformResult.transformedPath;
+
       // ===== Check slicer result cache =====
       let cacheKey = null;
       try {
-        cacheKey = await slicerCache.computeKey(modelFile.path, iniPath);
+        cacheKey = await slicerCache.computeKey(slicingModelPath, iniPath);
         const cached = slicerCache.get(cacheKey);
         if (cached) {
           console.log(`[slice] Cache HIT for job ${req.jobId} (key: ${cacheKey.slice(0, 12)}...)`);
@@ -681,13 +690,13 @@ app.post(
       }
 
       // Optional: get model dimensions (bounding box) before slicing.
-      // Useful for enforcing max X/Y/Z limits later.
+      // Uses the rotated model so dimensions reflect the actual orientation being sliced.
       let modelInfo = null;
       let modelInfoError = "";
       try {
         const infoRun = await runPrusaInfo({
           slicerCmd,
-          modelPath: modelFile.path,
+          modelPath: slicingModelPath,
           timeoutMs: 20000
         });
 
@@ -712,7 +721,7 @@ app.post(
       try {
         run = await runPrusaSlicer({
           slicerCmd,
-          modelPath: modelFile.path,
+          modelPath: slicingModelPath,
           iniPath,
           outDir: req.jobOutputDir,
           timeoutMs: 300000
@@ -783,6 +792,7 @@ app.post(
         modelUsed: modelFile.originalname,
         modelInfo,
         modelInfoError: modelInfoError || undefined,
+        rotationApplied: !!transformedPath,
         metrics,
       };
 
@@ -817,6 +827,9 @@ app.post(
           ...(isDevCatch && { jobDir: req.jobDir }),
         },
       });
+    } finally {
+      // Always cleanup the transformed STL file to prevent temp file accumulation
+      await cleanupTransformedFile(transformedPath);
     }
   }
 );
@@ -827,114 +840,127 @@ app.post(
 // It reuses the same slicing logic as the synchronous /api/slice endpoint.
 slicingQueue.setExecutor(async (job, updateProgress) => {
   const { config } = job;
+  let transformedPath = null;
 
-  const slicerCmd = await resolveSlicerCmd();
-  if (!slicerCmd) {
-    throw new Error("PrusaSlicer CLI not configured.");
-  }
-
-  // Resolve INI path (same logic as /api/slice)
-  let iniPath = config.iniPath || "";
-  let usedPreset = null;
-
-  // 1) explicit presetId
-  if (!iniPath && config.presetId) {
-    const fromPreset = await getIniPathForPreset(WORKSPACE_ROOT, config.tenantId, config.presetId);
-    if (fromPreset) {
-      iniPath = fromPreset;
-      usedPreset = config.presetId;
+  try {
+    const slicerCmd = await resolveSlicerCmd();
+    if (!slicerCmd) {
+      throw new Error("PrusaSlicer CLI not configured.");
     }
-  }
 
-  // 2) tenant default preset
-  if (!iniPath) {
-    const state = await readPresetsState(WORKSPACE_ROOT, config.tenantId);
-    if (state.defaultPresetId) {
-      const fromDefault = await getIniPathForPreset(WORKSPACE_ROOT, config.tenantId, state.defaultPresetId);
-      if (fromDefault) {
-        iniPath = fromDefault;
-        usedPreset = state.defaultPresetId;
+    // Resolve INI path (same logic as /api/slice)
+    let iniPath = config.iniPath || "";
+    let usedPreset = null;
+
+    // 1) explicit presetId
+    if (!iniPath && config.presetId) {
+      const fromPreset = await getIniPathForPreset(WORKSPACE_ROOT, config.tenantId, config.presetId);
+      if (fromPreset) {
+        iniPath = fromPreset;
+        usedPreset = config.presetId;
       }
     }
-  }
 
-  // 3) env default ini
-  if (!iniPath) iniPath = DEFAULT_INI;
-
-  if (!iniPath) {
-    throw new Error("No .ini profile available. Upload an INI file, create presets, or set PRUSA_DEFAULT_INI.");
-  }
-  if (!(await fileExists(iniPath))) {
-    throw new Error(`INI not found: ${iniPath}`);
-  }
-
-  // Optional: model info
-  let modelInfo = null;
-  try {
-    const infoRun = await runPrusaInfo({
-      slicerCmd,
-      modelPath: config.modelPath,
-      timeoutMs: 20000,
-    });
-    if (infoRun.exitCode === 0) {
-      modelInfo = parseModelInfo(infoRun.stdout);
+    // 2) tenant default preset
+    if (!iniPath) {
+      const state = await readPresetsState(WORKSPACE_ROOT, config.tenantId);
+      if (state.defaultPresetId) {
+        const fromDefault = await getIniPathForPreset(WORKSPACE_ROOT, config.tenantId, state.defaultPresetId);
+        if (fromDefault) {
+          iniPath = fromDefault;
+          usedPreset = state.defaultPresetId;
+        }
+      }
     }
-  } catch {
-    // Non-critical — continue without model info
+
+    // 3) env default ini
+    if (!iniPath) iniPath = DEFAULT_INI;
+
+    if (!iniPath) {
+      throw new Error("No .ini profile available. Upload an INI file, create presets, or set PRUSA_DEFAULT_INI.");
+    }
+    if (!(await fileExists(iniPath))) {
+      throw new Error(`INI not found: ${iniPath}`);
+    }
+
+    // ===== Apply quaternion rotation if provided =====
+    const quaternion = config.quaternion || null;
+    const transformResult = await applyQuaternionTransform(config.modelPath, quaternion);
+    const slicingModelPath = transformResult.modelPath;
+    transformedPath = transformResult.transformedPath;
+
+    // Optional: model info (uses rotated model for accurate dimensions)
+    let modelInfo = null;
+    try {
+      const infoRun = await runPrusaInfo({
+        slicerCmd,
+        modelPath: slicingModelPath,
+        timeoutMs: 20000,
+      });
+      if (infoRun.exitCode === 0) {
+        modelInfo = parseModelInfo(infoRun.stdout);
+      }
+    } catch {
+      // Non-critical — continue without model info
+    }
+
+    updateProgress(5); // Starting slicer
+
+    // Run PrusaSlicer with progress parsing from stderr
+    const run = await runPrusaSlicerWithProgress({
+      slicerCmd,
+      modelPath: slicingModelPath,
+      iniPath,
+      outDir: config.jobOutputDir,
+      timeoutMs: 300000,
+      onProgress: (pct) => {
+        // Map slicer progress (0-100) to job progress (5-95 range)
+        updateProgress(5 + Math.round(pct * 0.9));
+      },
+      onChildProcess: (child) => {
+        // Store reference for cancellation support
+        job._childProcess = child;
+      },
+    });
+
+    // Persist logs
+    if (run.stderr && config.jobDir) {
+      await fs.writeFile(path.join(config.jobDir, "prusa_stderr.log"), run.stderr, "utf8").catch(() => {});
+    }
+    if (run.stdout && config.jobDir) {
+      await fs.writeFile(path.join(config.jobDir, "prusa_stdout.log"), run.stdout, "utf8").catch(() => {});
+    }
+
+    if (run.exitCode !== 0) {
+      const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "slice" });
+      const err = new Error(classified.message);
+      err.errorCode = classified.errorCode;
+      throw err;
+    }
+
+    if (!(await fileExists(run.outGcodePath))) {
+      const err = new Error("PrusaSlicer did not produce out.gcode.");
+      err.errorCode = "MP_SLICING_FAILED";
+      throw err;
+    }
+
+    updateProgress(95); // Parsing gcode
+
+    const gcodeText = await fs.readFile(run.outGcodePath, "utf8");
+    const metrics = parseGcodeMetrics(gcodeText);
+
+    return {
+      durationMs: run.durationMs,
+      usedPreset,
+      modelUsed: config.modelOriginalName,
+      modelInfo,
+      rotationApplied: !!transformedPath,
+      metrics,
+    };
+  } finally {
+    // Always cleanup the transformed STL file to prevent temp file accumulation
+    await cleanupTransformedFile(transformedPath);
   }
-
-  updateProgress(5); // Starting slicer
-
-  // Run PrusaSlicer with progress parsing from stderr
-  const run = await runPrusaSlicerWithProgress({
-    slicerCmd,
-    modelPath: config.modelPath,
-    iniPath,
-    outDir: config.jobOutputDir,
-    timeoutMs: 300000,
-    onProgress: (pct) => {
-      // Map slicer progress (0-100) to job progress (5-95 range)
-      updateProgress(5 + Math.round(pct * 0.9));
-    },
-    onChildProcess: (child) => {
-      // Store reference for cancellation support
-      job._childProcess = child;
-    },
-  });
-
-  // Persist logs
-  if (run.stderr && config.jobDir) {
-    await fs.writeFile(path.join(config.jobDir, "prusa_stderr.log"), run.stderr, "utf8").catch(() => {});
-  }
-  if (run.stdout && config.jobDir) {
-    await fs.writeFile(path.join(config.jobDir, "prusa_stdout.log"), run.stdout, "utf8").catch(() => {});
-  }
-
-  if (run.exitCode !== 0) {
-    const classified = classifySlicerError({ stderr: run.stderr, exitCode: run.exitCode, context: "slice" });
-    const err = new Error(classified.message);
-    err.errorCode = classified.errorCode;
-    throw err;
-  }
-
-  if (!(await fileExists(run.outGcodePath))) {
-    const err = new Error("PrusaSlicer did not produce out.gcode.");
-    err.errorCode = "MP_SLICING_FAILED";
-    throw err;
-  }
-
-  updateProgress(95); // Parsing gcode
-
-  const gcodeText = await fs.readFile(run.outGcodePath, "utf8");
-  const metrics = parseGcodeMetrics(gcodeText);
-
-  return {
-    durationMs: run.durationMs,
-    usedPreset,
-    modelUsed: config.modelOriginalName,
-    modelInfo,
-    metrics,
-  };
 });
 
 // Log queue events (dev diagnostics) + fire webhooks
@@ -991,6 +1017,9 @@ app.post(
 
       const priority = req.body?.priority === "high" ? "high" : "normal";
 
+      // Parse quaternion for rotation (will be applied by the queue executor)
+      const quaternion = parseQuaternion(req.body);
+
       const result = slicingQueue.addJob({
         tenantId,
         modelPath: modelFile.path,
@@ -998,6 +1027,7 @@ app.post(
         iniPath: iniFile?.path || "",
         presetId,
         priority,
+        quaternion,
         jobDir: req.jobDir,
         jobOutputDir: req.jobOutputDir,
       });
@@ -1319,6 +1349,83 @@ async function resolveTenantFromWidgetId(workspaceRoot, widgetId) {
   }
 
   return null;
+}
+
+// ===== Quaternion helpers for STL rotation before slicing =====
+
+/**
+ * Parse quaternion fields from request body (FormData or JSON).
+ * Returns null if quaternion is not provided or is identity (no rotation needed).
+ * Returns { x, y, z, w } if valid quaternion is present.
+ *
+ * @param {object} body - req.body
+ * @returns {{ x: number, y: number, z: number, w: number } | null}
+ */
+function parseQuaternion(body) {
+  if (!body) return null;
+
+  const x = parseFloat(body.quaternion_x);
+  const y = parseFloat(body.quaternion_y);
+  const z = parseFloat(body.quaternion_z);
+  const w = parseFloat(body.quaternion_w);
+
+  // If any component is not a finite number, skip rotation
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(w)) {
+    return null;
+  }
+
+  // Identity quaternion (0, 0, 0, 1) — no rotation needed
+  const EPSILON = 0.001;
+  if (Math.abs(x) < EPSILON && Math.abs(y) < EPSILON && Math.abs(z) < EPSILON && Math.abs(w - 1) < EPSILON) {
+    return null;
+  }
+
+  // Validate unit quaternion (|q| should be ~1.0)
+  const magnitude = Math.sqrt(x * x + y * y + z * z + w * w);
+  if (Math.abs(magnitude - 1.0) > 0.01) {
+    console.warn(`[slice] Quaternion magnitude ${magnitude.toFixed(4)} is not unit — ignoring rotation.`);
+    return null;
+  }
+
+  return { x, y, z, w };
+}
+
+/**
+ * Apply quaternion rotation to an STL file. Returns the path to the transformed file,
+ * or the original path if no rotation is needed or if transformation fails (fallback).
+ *
+ * @param {string} modelPath - Original STL file path
+ * @param {{ x: number, y: number, z: number, w: number } | null} quaternion - Parsed quaternion or null
+ * @returns {Promise<{ modelPath: string, transformedPath: string | null }>}
+ */
+async function applyQuaternionTransform(modelPath, quaternion) {
+  if (!quaternion) {
+    return { modelPath, transformedPath: null };
+  }
+
+  try {
+    const transformedPath = await transformSTLFile(modelPath, quaternion);
+    console.log(`[slice] STL rotated: quaternion=(${quaternion.x}, ${quaternion.y}, ${quaternion.z}, ${quaternion.w}) → ${transformedPath}`);
+    return { modelPath: transformedPath, transformedPath };
+  } catch (err) {
+    console.warn(`[slice] STL transform failed, falling back to original file: ${err?.message || err}`);
+    return { modelPath, transformedPath: null };
+  }
+}
+
+/**
+ * Cleanup a transformed STL file (if it was created).
+ * Always called in finally blocks to avoid accumulating temp files.
+ *
+ * @param {string | null} transformedPath
+ */
+async function cleanupTransformedFile(transformedPath) {
+  if (!transformedPath) return;
+  try {
+    await fs.unlink(transformedPath);
+  } catch {
+    // File may already be deleted or not exist — ignore
+  }
 }
 
 async function resolveSlicerCmd() {

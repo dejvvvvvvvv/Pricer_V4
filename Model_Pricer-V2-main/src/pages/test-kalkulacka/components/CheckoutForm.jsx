@@ -291,6 +291,8 @@ export default function CheckoutForm({
   selectedShippingMethodId,
   couponsConfig,
   appliedCouponCode,
+  availablePresets,
+  selectedPresetIds,
   onComplete,
   onBack,
 }) {
@@ -493,6 +495,12 @@ export default function CheckoutForm({
               name: (cfg.material || 'pla').toUpperCase(),
               price_per_gram: modelResult?.base?.pricePerGram ?? null,
             },
+            preset_snapshot: (() => {
+              const pid = selectedPresetIds?.[f.id] ?? null;
+              if (!pid) return null;
+              const preset = (availablePresets || []).find(p => p.id === pid);
+              return preset ? { id: preset.id, name: preset.name } : { id: pid, name: pid };
+            })(),
             config_snapshot: cfg,
             slicer_snapshot: {
               ...metrics,
@@ -720,14 +728,6 @@ export default function CheckoutForm({
                   />
                 </div>
 
-                <div>
-                  <Input
-                    label={t('FIRMA', 'COMPANY')}
-                    placeholder={t('Nazev firmy (nepovinne)', 'Company name (optional)')}
-                    {...register('company')}
-                    error={errors.company?.message}
-                  />
-                </div>
               </div>
             </div>
 

@@ -18,6 +18,9 @@ import {
   getFilePath,
   softDelete,
   restoreFromTrash,
+  permanentDeleteTrashItem,
+  emptyTrash,
+  autoCleanupTrash,
   searchFiles,
   createFolder,
   renameItem,
@@ -490,6 +493,54 @@ router.post("/move", validate(storageSchemas.move), async (req, res) => {
     if (e.code === "PATH_TRAVERSAL") return fail(res, 403, "MP_PATH_TRAVERSAL", e.message);
     if (e.code === "ENOENT") return fail(res, 404, "MP_NOT_FOUND", "Item not found");
     return fail(res, 500, "MP_MOVE_FAILED", String(e?.message || e));
+  }
+});
+
+// ── DELETE /api/storage/trash/item — Permanent delete single trash item ──
+
+router.delete("/trash/item", validate(storageSchemas.restore), async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const storageRoot = getStorageRoot();
+    const trashPath = String(req.body?.trashPath || "");
+
+    if (!trashPath) return fail(res, 400, "MP_BAD_REQUEST", "Missing trashPath");
+
+    const result = await permanentDeleteTrashItem(storageRoot, tenantId, trashPath);
+    return ok(res, result);
+  } catch (e) {
+    if (e.code === "PATH_TRAVERSAL") return fail(res, 403, "MP_PATH_TRAVERSAL", e.message);
+    if (e.code === "ENOENT") return fail(res, 404, "MP_NOT_FOUND", "Trash item not found");
+    return fail(res, 500, "MP_PERMANENT_DELETE_FAILED", String(e?.message || e));
+  }
+});
+
+// ── DELETE /api/storage/trash/all — Empty entire trash ─────────────────
+
+router.delete("/trash/all", async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const storageRoot = getStorageRoot();
+
+    const result = await emptyTrash(storageRoot, tenantId);
+    return ok(res, result);
+  } catch (e) {
+    return fail(res, 500, "MP_EMPTY_TRASH_FAILED", String(e?.message || e));
+  }
+});
+
+// ── POST /api/storage/trash/cleanup — Auto-cleanup old trash items ─────
+
+router.post("/trash/cleanup", async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const storageRoot = getStorageRoot();
+    const maxAgeDays = Number(req.body?.maxAgeDays) || 20;
+
+    const result = await autoCleanupTrash(storageRoot, tenantId, maxAgeDays);
+    return ok(res, result);
+  } catch (e) {
+    return fail(res, 500, "MP_CLEANUP_FAILED", String(e?.message || e));
   }
 });
 

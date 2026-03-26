@@ -19,6 +19,7 @@ import {
   collectOrderFlags,
   computeOrderTotals,
   extractOrderMaterials,
+  extractOrderPresets,
   getFlagLabel,
   getStatusLabel,
   loadOrders,
@@ -578,7 +579,7 @@ function StatusTimeline({ order }) {
 }
 
 // ── Card wrapper ──
-function Card({ title, icon, children, style }) {
+function Card({ title, icon, children, style, headerRight }) {
   return (
     <div style={{
       background: 'var(--forge-bg-surface)',
@@ -599,6 +600,7 @@ function Card({ title, icon, children, style }) {
             fontFamily: 'var(--forge-font-tech)', fontSize: '12px',
             textTransform: 'uppercase', letterSpacing: '0.08em',
           }}>{title}</h3>
+          {headerRight && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>{headerRight}</div>}
         </div>
       )}
       {children}
@@ -1516,6 +1518,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
   const totals = computeOrderTotals(order);
   const flags = collectOrderFlags(order);
   const materials = extractOrderMaterials(order);
+  const presets = extractOrderPresets(order);
   const customer = order.customer_snapshot || {};
 
   // Storage data
@@ -1534,7 +1537,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
 
   function initiateStatusChange(nextStatus) {
     if (nextStatus === order.status) return;
-    if (!canTransition(order.status, nextStatus)) return;
+    if (!ORDER_STATUSES.includes(nextStatus)) return;
     setStatusDropdownOpen(false);
     setStatusChangeDialog({ from: order.status, to: nextStatus });
   }
@@ -1830,11 +1833,64 @@ export default function AdminOrderDetail({ orders, setOrders }) {
 
   function handlePrintInvoice() {
     if (!invoice?.htmlContent) return;
-    const printWindow = window.open('', '_blank', 'width=820,height=900');
-    if (!printWindow) return;
-    printWindow.document.write(invoice.htmlContent);
-    printWindow.document.close();
-    setTimeout(() => printWindow.print(), 400);
+
+    // Create a hidden container, render the invoice HTML, convert to PDF via html2pdf.js
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    container.style.background = '#fff';
+    container.style.zIndex = '-1';
+
+    // Insert invoice HTML — strip <html>/<head>/<body> wrappers, keep inner content + styles
+    const bodyMatch = invoice.htmlContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    const styleMatch = invoice.htmlContent.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+    if (styleMatch) {
+      const styleEl = document.createElement('style');
+      styleEl.textContent = styleMatch[1];
+      container.appendChild(styleEl);
+    }
+    container.innerHTML += bodyMatch ? bodyMatch[1] : invoice.htmlContent;
+    document.body.appendChild(container);
+
+    const filename = `faktura-${invoice.invoiceNumber || orderId}.pdf`;
+
+    import('html2pdf.js').then((mod) => {
+      const html2pdf = mod.default || mod;
+      html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        })
+        .from(container)
+        .save()
+        .then(() => {
+          document.body.removeChild(container);
+        })
+        .catch((err) => {
+          console.error('PDF generation failed:', err);
+          document.body.removeChild(container);
+          // Fallback: open print dialog
+          const printWindow = window.open('', '_blank', 'width=820,height=900');
+          if (!printWindow) return;
+          printWindow.document.write(invoice.htmlContent);
+          printWindow.document.close();
+          setTimeout(() => printWindow.print(), 400);
+        });
+    }).catch((err) => {
+      console.error('Failed to load html2pdf.js:', err);
+      document.body.removeChild(container);
+      // Fallback: open print dialog
+      const printWindow = window.open('', '_blank', 'width=820,height=900');
+      if (!printWindow) return;
+      printWindow.document.write(invoice.htmlContent);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 400);
+    });
   }
 
   // ── Email handlers ──
@@ -1936,7 +1992,7 @@ export default function AdminOrderDetail({ orders, setOrders }) {
             fontSize: '13px', color: 'var(--forge-text-muted)',
             marginTop: '4px', fontFamily: 'var(--forge-font-body)',
           }}>
-            {t('admin.orderDetail.created', 'Vytvoreno')}: {formatDateTime(order.created_at)} | {t('admin.orderDetail.models', 'Modelu')}: {(order.models || []).length} | {t('admin.orderDetail.materials', 'Materialy')}: {materials.join(', ') || '-'}
+            {t('admin.orderDetail.created', 'Vytvoreno')}: {formatDateTime(order.created_at)} | {t('admin.orderDetail.models', 'Modelu')}: {(order.models || []).length} | {t('admin.orderDetail.materials', 'Materialy')}: {materials.join(', ') || '-'} | {t('admin.orderDetail.presets', 'Presety')}: {presets.join(', ') || '-'}
           </div>
         </div>
 
@@ -2407,7 +2463,6 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                 { key: 'name', label: 'Jmeno', value: customer.name },
                 { key: 'email', label: 'Email', value: customer.email },
                 { key: 'phone', label: 'Telefon', value: customer.phone },
-                { key: 'company', label: 'Firma', value: customer.company },
               ].map(({ key, label, value }) => (
                 <div key={key} className="od-kv-row od-kv-copyable" onClick={() => copyToClipboard(value || '-', `cust-${key}`)}>
                   <div>
@@ -2552,7 +2607,50 @@ export default function AdminOrderDetail({ orders, setOrders }) {
           <OrderStatsPanel order={order} totals={totals} />
 
           {/* Status change */}
-          <Card title={t('admin.orderDetail.sectionStatus', 'Zmena stavu')} icon="RefreshCcw" style={{ position: 'sticky', top: '64px' }}>
+          <Card
+            title={t('admin.orderDetail.sectionStatus', 'Zmena stavu')}
+            icon="RefreshCcw"
+            style={{ position: 'sticky', top: '64px', zIndex: 10 }}
+            headerRight={(() => {
+              const currentIdx = ORDER_STATUSES.indexOf(order.status);
+              const isFirst = currentIdx <= 0;
+              const isLast = currentIdx >= ORDER_STATUSES.length - 1;
+              const arrowBtnStyle = (disabled) => ({
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: '26px', height: '26px', borderRadius: 'var(--forge-radius-md)',
+                border: '1px solid var(--forge-border-default)',
+                background: disabled ? 'transparent' : 'var(--forge-bg-overlay)',
+                color: disabled ? 'var(--forge-text-muted)' : 'var(--forge-text-primary)',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.35 : 1,
+                padding: 0, transition: 'all 150ms ease',
+              });
+              return (
+                <>
+                  <button
+                    type="button"
+                    title={isFirst ? 'Prvni stav' : `Zpet na: ${getStatusLabel(ORDER_STATUSES[currentIdx - 1], 'cs')}`}
+                    disabled={isFirst}
+                    onClick={() => !isFirst && initiateStatusChange(ORDER_STATUSES[currentIdx - 1])}
+                    style={arrowBtnStyle(isFirst)}
+                    aria-label="Predchozi stav"
+                  >
+                    <Icon name="ChevronLeft" size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    title={isLast ? 'Posledni stav' : `Dalsi: ${getStatusLabel(ORDER_STATUSES[currentIdx + 1], 'cs')}`}
+                    disabled={isLast}
+                    onClick={() => !isLast && initiateStatusChange(ORDER_STATUSES[currentIdx + 1])}
+                    style={arrowBtnStyle(isLast)}
+                    aria-label="Dalsi stav"
+                  >
+                    <Icon name="ChevronRight" size={14} />
+                  </button>
+                </>
+              );
+            })()}
+          >
             <div ref={statusDropdownRef} style={{ position: 'relative', marginBottom: '12px' }}>
               <button
                 type="button"
@@ -2572,36 +2670,32 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                   {ORDER_STATUSES.map((s) => {
                     const sc = getStatusColor(s);
                     const isActive = s === order.status;
-                    const isAllowed = isActive || canTransition(order.status, s);
-                    const nextAllowed = getNextStatuses(order.status);
-                    const isNextStep = nextAllowed.includes(s);
-
-                    let disabledReason = '';
-                    if (!isAllowed && !isActive) {
-                      disabledReason = `Nelze prejit z "${getStatusLabel(order.status, 'cs')}" na "${getStatusLabel(s, 'cs')}"`;
-                    }
+                    const isAllowed = !isActive; // All transitions unlocked for admin
+                    const currentIdx = ORDER_STATUSES.indexOf(order.status);
+                    const targetIdx = ORDER_STATUSES.indexOf(s);
+                    const isNextStep = targetIdx === currentIdx + 1;
+                    const isPrevStep = targetIdx === currentIdx - 1;
 
                     return (
                       <button
                         key={s} type="button" role="option" aria-selected={isActive}
-                        onClick={() => isAllowed && !isActive ? initiateStatusChange(s) : undefined}
-                        disabled={!isAllowed || isActive}
+                        onClick={() => !isActive ? initiateStatusChange(s) : undefined}
+                        disabled={isActive}
                         className="od-status-option"
-                        title={disabledReason || undefined}
                         style={{
                           background: isActive ? 'var(--forge-bg-overlay)' : 'transparent',
-                          fontWeight: isActive ? 600 : isNextStep ? 500 : 400,
-                          opacity: isAllowed ? 1 : 0.35,
-                          cursor: isAllowed && !isActive ? 'pointer' : 'default',
-                          pointerEvents: isAllowed && !isActive ? 'auto' : isActive ? 'none' : 'auto',
+                          fontWeight: isActive ? 600 : (isNextStep || isPrevStep) ? 500 : 400,
+                          opacity: 1,
+                          cursor: !isActive ? 'pointer' : 'default',
+                          pointerEvents: !isActive ? 'auto' : 'none',
                         }}
                       >
                         <span style={{
                           width: '8px', height: '8px', borderRadius: '50%',
-                          backgroundColor: isAllowed ? sc.color : 'var(--forge-text-muted)',
+                          backgroundColor: sc.color,
                           flexShrink: 0,
                         }} />
-                        <span style={{ color: isAllowed ? undefined : 'var(--forge-text-muted)' }}>
+                        <span>
                           {getStatusLabel(s, 'cs')}
                         </span>
                         {isActive && (
@@ -2617,8 +2711,13 @@ export default function AdminOrderDetail({ orders, setOrders }) {
                             textTransform: 'uppercase', letterSpacing: '0.04em',
                           }}>Dalsi</span>
                         )}
-                        {!isAllowed && !isActive && (
-                          <Icon name="Lock" size={10} style={{ marginLeft: 'auto', color: 'var(--forge-text-muted)', opacity: 0.5 }} />
+                        {isPrevStep && !isActive && (
+                          <span style={{
+                            marginLeft: 'auto', fontSize: '9px',
+                            fontFamily: 'var(--forge-font-tech)',
+                            color: 'var(--forge-text-muted)',
+                            textTransform: 'uppercase', letterSpacing: '0.04em',
+                          }}>Zpet</span>
                         )}
                       </button>
                     );

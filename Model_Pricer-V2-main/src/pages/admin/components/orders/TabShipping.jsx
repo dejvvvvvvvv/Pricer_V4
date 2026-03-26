@@ -120,7 +120,7 @@ export default function TabShipping({ order }) {
             letterSpacing: '0.06em',
             marginBottom: '12px',
             margin: '0 0 12px 0',
-          }}>Express doruceni</h4>
+          }}>Express výroba</h4>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {(expressSnap.name || expressSnap.tier) && (

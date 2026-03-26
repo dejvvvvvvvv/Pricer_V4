@@ -110,7 +110,7 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
       </tr>`;
   });
 
-  // Fees
+  // One-time fees (per-model fees set by admin)
   const fees = order.one_time_fees || [];
   const feesTotal = round2(fees.reduce((s, f) => s + (Number(f.amount) || 0), 0));
   const feesRows = fees.filter(f => Number(f.amount) > 0).map(f => `
@@ -123,11 +123,35 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
       </td>
     </tr>`);
 
-  // Shipping
-  const shippingTotal = Number(order.totals_snapshot?.shipping_total) || 0;
-  const minOrderDelta = Number(order.totals_snapshot?.min_order_delta) || 0;
+  // Order-level fees (order_fees_snapshot)
+  const orderFees = order.order_fees_snapshot || [];
+  const orderFeesTotal = round2(orderFees.reduce((s, f) => s + (Number(f.amount) || 0), 0));
+  const orderFeesRows = orderFees.filter(f => Number(f.amount) > 0).map(f => `
+    <tr>
+      <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">
+        ${escHtml(f.name || f.label || 'Order poplatek')}
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">
+        ${formatMoney(f.amount, currency)}
+      </td>
+    </tr>`);
 
-  const subtotal = round2(subtotalModels + feesTotal + shippingTotal + minOrderDelta);
+  // Totals snapshot values
+  const ts = order.totals_snapshot || {};
+  const shippingTotal = Number(ts.shipping_total) || 0;
+  const minOrderDelta = Number(ts.min_order_delta) || 0;
+  const expressSurchargeTotal = Number(ts.express_surcharge_total) || 0;
+  const markupAmount = Number(ts.markup_amount) || 0;
+  const volumeDiscountTotal = Number(ts.volume_discount_total) || 0;
+  const couponDiscountTotal = Number(ts.coupon_discount_total) || 0;
+  const roundingDelta = Number(ts.rounding_delta) || 0;
+
+  // Use authoritative total from totals_snapshot if available, otherwise compute from parts
+  const computedSubtotal = round2(
+    subtotalModels + feesTotal + orderFeesTotal + shippingTotal + minOrderDelta
+    + expressSurchargeTotal + markupAmount + volumeDiscountTotal + couponDiscountTotal + roundingDelta
+  );
+  const subtotal = (ts.total != null && Number(ts.total) > 0) ? round2(Number(ts.total)) : computedSubtotal;
 
   // VAT
   const hasVat = vatRate && Number(vatRate) > 0;
@@ -227,6 +251,17 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
     <tbody>
       ${rows.join('')}
       ${feesRows.join('')}
+      ${orderFeesRows.join('')}
+      ${expressSurchargeTotal > 0 ? `
+      <tr>
+        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Express prirazka</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(expressSurchargeTotal, currency)}</td>
+      </tr>` : ''}
+      ${markupAmount > 0 ? `
+      <tr>
+        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Markup</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(markupAmount, currency)}</td>
+      </tr>` : ''}
       ${shippingTotal > 0 ? `
       <tr>
         <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Doprava</td>
@@ -236,6 +271,21 @@ export function generateInvoiceHTML(order, companyConfig, invoiceNumber, options
       <tr>
         <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Dorovnani min. objednavky</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(minOrderDelta, currency)}</td>
+      </tr>` : ''}
+      ${volumeDiscountTotal < 0 ? `
+      <tr>
+        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#15803d;">Mnozstevni sleva</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">${formatMoney(volumeDiscountTotal, currency)}</td>
+      </tr>` : ''}
+      ${couponDiscountTotal < 0 ? `
+      <tr>
+        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#15803d;">Slevovy kupon</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">${formatMoney(couponDiscountTotal, currency)}</td>
+      </tr>` : ''}
+      ${roundingDelta !== 0 ? `
+      <tr>
+        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Zaokrouhleni</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">${formatMoney(roundingDelta, currency)}</td>
       </tr>` : ''}
     </tbody>
   </table>

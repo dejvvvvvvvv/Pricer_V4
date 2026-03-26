@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Icon from '../../../../components/AppIcon';
 import { getPreviewBlob } from '../../../../services/storageApi';
 import { formatSize } from '../../../../utils/formatters';
 
+const StorageModelViewer = lazy(() => import('./StorageModelViewer'));
+
 function is3DFile(name) {
   const ext = (name || '').split('.').pop().toLowerCase();
-  return ['stl', 'obj', '3mf'].includes(ext);
+  return ['stl', 'obj', '3mf', 'step', 'stp'].includes(ext);
 }
 
 function isImageFile(name) {
@@ -42,14 +44,17 @@ function MetaRow({ label, value }) {
   );
 }
 
-export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownload }) {
+export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownload, isOrders = false }) {
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
 
   useEffect(() => {
     let revoked = false;
     let blobUrl = null;
 
-    if (selectedItem && selectedItem.type === 'file' && isImageFile(selectedItem.name)) {
+    const needsBlob = selectedItem && selectedItem.type === 'file' &&
+      (isImageFile(selectedItem.name) || is3DFile(selectedItem.name));
+
+    if (needsBlob) {
       getPreviewBlob(selectedItem.path)
         .then((url) => {
           if (!revoked) {
@@ -145,8 +150,9 @@ export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownlo
 
       {/* Preview area */}
       <div style={{
-        padding: '16px',
-        minHeight: '200px',
+        padding: show3D ? '0' : '16px',
+        minHeight: show3D ? '280px' : '200px',
+        height: show3D ? '280px' : undefined,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -154,6 +160,7 @@ export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownlo
         margin: '16px',
         borderRadius: 'var(--forge-radius-md)',
         border: '1px solid var(--forge-border-default)',
+        overflow: 'hidden',
       }}>
         {showImage && previewBlobUrl ? (
           <img
@@ -166,11 +173,19 @@ export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownlo
             <Icon name="Image" size={40} style={{ marginBottom: '8px', opacity: 0.3 }} />
             <p>Loading preview...</p>
           </div>
-        ) : show3D ? (
+        ) : show3D && previewBlobUrl ? (
+          <Suspense fallback={
+            <div style={{ textAlign: 'center', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', fontSize: '12px' }}>
+              <Icon name="Box" size={48} style={{ marginBottom: '8px', opacity: 0.4, color: 'var(--forge-accent-primary)' }} />
+              <p>Loading 3D viewer...</p>
+            </div>
+          }>
+            <StorageModelViewer blobUrl={previewBlobUrl} fileName={filename} />
+          </Suspense>
+        ) : show3D && !previewBlobUrl ? (
           <div style={{ textAlign: 'center', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', fontSize: '12px' }}>
             <Icon name="Box" size={48} style={{ marginBottom: '8px', opacity: 0.4, color: 'var(--forge-accent-primary)' }} />
-            <p>3D Preview</p>
-            <p style={{ fontSize: '10px' }}>({ext.toUpperCase()} file)</p>
+            <p>Loading 3D model...</p>
           </div>
         ) : (
           <div style={{ textAlign: 'center', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-body)', fontSize: '12px' }}>
@@ -215,10 +230,33 @@ export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownlo
           Download
         </button>
 
-        <button
-          type="button"
-          onClick={() => onDelete?.(selectedItem.path)}
-          style={{
+        {!isOrders && (
+          <button
+            type="button"
+            onClick={() => onDelete?.(selectedItem.path)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              width: '100%',
+              padding: '8px',
+              borderRadius: 'var(--forge-radius-md)',
+              border: '1px solid var(--forge-border-default)',
+              background: 'transparent',
+              color: 'var(--forge-error)',
+              fontFamily: 'var(--forge-font-body)',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="Trash2" size={14} />
+            Delete
+          </button>
+        )}
+        {isOrders && (
+          <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -228,16 +266,18 @@ export default function PreviewPanel({ selectedItem, onClose, onDelete, onDownlo
             borderRadius: 'var(--forge-radius-md)',
             border: '1px solid var(--forge-border-default)',
             background: 'transparent',
-            color: 'var(--forge-error)',
+            color: 'var(--forge-text-muted)',
             fontFamily: 'var(--forge-font-body)',
             fontSize: '12px',
             fontWeight: 500,
-            cursor: 'pointer',
+            opacity: 0.5,
           }}
-        >
-          <Icon name="Trash2" size={14} />
-          Delete
-        </button>
+            title="Soubory v objednavkach nelze mazat"
+          >
+            <Icon name="ShieldAlert" size={14} />
+            Mazani zakazano
+          </div>
+        )}
       </div>
     </div>
   );

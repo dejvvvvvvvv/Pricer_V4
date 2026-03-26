@@ -123,20 +123,20 @@ const helpTexts = {
 
   // ===== AdminExpress =====
   express_surcharge_percent: {
-    cs: 'Procentualni prirazka k celkove cene objednavky za expresni doruceni.',
-    en: 'Percentage surcharge on total order price for express delivery.',
+    cs: 'Procentualni prirazka k celkove cene objednavky za expresni vyrobu.',
+    en: 'Percentage surcharge on total order price for express production.',
   },
   express_surcharge_fixed: {
-    cs: 'Pevna castka v Kc pridana k cene objednavky za expresni doruceni.',
-    en: 'Fixed amount in CZK added to order price for express delivery.',
+    cs: 'Pevna castka v Kc pridana k cene objednavky za expresni vyrobu.',
+    en: 'Fixed amount in CZK added to order price for express production.',
   },
   express_delivery_days: {
-    cs: 'Pocet pracovnich dnu pro doruceni v teto urovni. Zakaznik vidi tuto informaci v kalkulacce.',
-    en: 'Number of business days for delivery at this tier. Customer sees this info in the calculator.',
+    cs: 'Pocet pracovnich dnu pro vyrobu v teto urovni. Zakaznik vidi tuto informaci v kalkulacce.',
+    en: 'Number of business days for production at this tier. Customer sees this info in the calculator.',
   },
   express_upsell: {
-    cs: 'Upsell zprava zobrazena zakaznikovi pri vyberu standardniho doruceni, nabizejici rychlejsi variantu.',
-    en: 'Upsell message shown to customer when selecting standard delivery, offering a faster option.',
+    cs: 'Upsell zprava zobrazena zakaznikovi pri vyberu standardni vyroby, nabizejici rychlejsi variantu.',
+    en: 'Upsell message shown to customer when selecting standard production, offering a faster option.',
   },
 
   // ===== AdminWidget =====

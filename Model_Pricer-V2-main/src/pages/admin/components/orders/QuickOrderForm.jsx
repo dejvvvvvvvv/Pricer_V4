@@ -286,7 +286,8 @@ export default function QuickOrderForm({ open, onClose, onCreated }) {
       open={open}
       onClose={handleClose}
       title={dialogTitle}
-      maxWidth="860px"
+      maxWidth="1204px"
+      maxHeight="93.5vh"
       footer={footerButtons}
     >
       <style>{quickOrderStyles}</style>

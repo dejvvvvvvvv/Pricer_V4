@@ -5,7 +5,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { sha256File } from "./checksumUtil.js";
-import { buildOrderMeta, buildFileManifest, buildPricingSnapshot } from "./metadataBuilder.js";
+// Meta folder removed (Task 4.3) — metadata JSON files are not useful for company downloads
+// import { buildOrderMeta, buildFileManifest, buildPricingSnapshot } from "./metadataBuilder.js";
 
 // ── Path security ──────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export function resolveTenantPath(storageRoot, tenantId, relPath) {
 // ── Order folder creation ──────────────────────────────────────────────────
 
 /**
- * Create an order folder with subfolders (models/, gcode/, presets/, meta/).
+ * Create an order folder with subfolders (models/, gcode/, presets/).
  * Save model files, generate checksums and metadata.
  *
  * @param {object} params
@@ -88,17 +89,15 @@ export async function createOrderFolder({ storageRoot, tenantId, orderData, mode
   const orderDir = path.resolve(tenantRoot, relPath);
   assertWithinRoot(orderDir, tenantRoot);
 
-  // Create subdirectories
+  // Create subdirectories (meta/ removed — not useful for company downloads)
   const modelsDir = path.join(orderDir, "models");
   const gcodeDir = path.join(orderDir, "gcode");
   const presetsDir = path.join(orderDir, "presets");
-  const metaDir = path.join(orderDir, "meta");
 
   await Promise.all([
     fs.mkdir(modelsDir, { recursive: true }),
     fs.mkdir(gcodeDir, { recursive: true }),
     fs.mkdir(presetsDir, { recursive: true }),
-    fs.mkdir(metaDir, { recursive: true }),
   ]);
 
   const manifestFiles = [];
@@ -127,8 +126,8 @@ export async function createOrderFolder({ storageRoot, tenantId, orderData, mode
   for (const mapping of modelMapping) {
     if (mapping.slicerJobId) {
       // Try to find gcode in the slicer workspace
-      const workspaceRoot = process.env.SLICER_WORKSPACE_ROOT || (process.platform === "win32" ? "C:\\modelpricer\\tmp" : "/tmp/modelpricer");
-      const jobOutputDir = path.join(workspaceRoot, mapping.slicerJobId, "output");
+      const slicerWorkspace = process.env.SLICER_WORKSPACE_ROOT || (process.platform === "win32" ? "C:\\modelpricer\\tmp" : "/tmp/modelpricer");
+      const jobOutputDir = path.join(slicerWorkspace, mapping.slicerJobId, "output");
       try {
         const files = await fs.readdir(jobOutputDir);
         const gcodeFile = files.find((f) => f.endsWith(".gcode"));
@@ -147,45 +146,31 @@ export async function createOrderFolder({ storageRoot, tenantId, orderData, mode
         // Gcode not available — not critical
       }
     }
+  }
 
-    // Try to copy preset .ini
-    if (mapping.presetId) {
-      const workspaceRoot = process.env.SLICER_WORKSPACE_ROOT || (process.platform === "win32" ? "C:\\modelpricer\\tmp" : "/tmp/modelpricer");
+  // Copy unique preset .ini files to order folder (deduplicated across all models)
+  const copiedPresetIds = new Set();
+  for (const mapping of modelMapping) {
+    if (mapping.presetId && !copiedPresetIds.has(mapping.presetId)) {
+      copiedPresetIds.add(mapping.presetId);
       try {
-        const presetDir = path.join(workspaceRoot, tenantId, "presets");
-        const presetFiles = await fs.readdir(presetDir);
-        const iniFile = presetFiles.find((f) => f.includes(mapping.presetId) && f.endsWith(".ini"));
-        if (iniFile) {
-          const src = path.join(presetDir, iniFile);
-          const dest = path.join(presetsDir, iniFile);
-          await fs.copyFile(src, dest);
-          const stat = await fs.stat(dest);
-          const hash = await sha256File(dest);
-          manifestFiles.push({ type: "preset", filename: iniFile, sha256: hash, sizeBytes: stat.size });
-        }
+        // Presets stored by presetsStore at: <storageRoot>/presets/<tenantId>/files/<presetId>.ini
+        const presetIniPath = path.join(storageRoot, "presets", tenantId, "files", `${mapping.presetId}.ini`);
+        await fs.access(presetIniPath);
+        const destName = `${mapping.presetId}.ini`;
+        const dest = path.join(presetsDir, destName);
+        assertWithinRoot(dest, tenantRoot);
+        await fs.copyFile(presetIniPath, dest);
+        const stat = await fs.stat(dest);
+        const hash = await sha256File(dest);
+        manifestFiles.push({ type: "preset", filename: destName, sha256: hash, sizeBytes: stat.size });
       } catch {
-        // Preset not available — not critical
+        // Preset .ini not available — not critical
       }
     }
   }
 
-  // Write metadata files
-  const orderMeta = buildOrderMeta(orderData);
-  const fileManifest = buildFileManifest(manifestFiles);
-  const pricingSnapshot = buildPricingSnapshot(orderData);
-
-  await Promise.all([
-    fs.writeFile(path.join(metaDir, "order-meta.json"), JSON.stringify(orderMeta, null, 2), "utf8"),
-    fs.writeFile(path.join(metaDir, "file-manifest.json"), JSON.stringify(fileManifest, null, 2), "utf8"),
-    fs.writeFile(path.join(metaDir, "pricing-snapshot.json"), JSON.stringify(pricingSnapshot, null, 2), "utf8"),
-  ]);
-
-  // Add meta files to manifest list for the response
-  manifestFiles.push(
-    { type: "meta", filename: "order-meta.json", sha256: "", sizeBytes: 0 },
-    { type: "meta", filename: "file-manifest.json", sha256: "", sizeBytes: 0 },
-    { type: "meta", filename: "pricing-snapshot.json", sha256: "", sizeBytes: 0 }
-  );
+  // Meta folder writing removed (Task 4.3) — not useful for company downloads
 
   const timestamp = new Date().toISOString();
 
@@ -548,4 +533,128 @@ export async function browseTrash(storageRoot, tenantId) {
       isDirectory: entry.isDirectory(),
     };
   });
+}
+
+// ── Permanent delete (from trash) ─────────────────────────────────────────
+
+/**
+ * Permanently delete a single item from trash.
+ * @param {string} storageRoot
+ * @param {string} tenantId
+ * @param {string} trashName - Name in .trash/
+ * @returns {Promise<{deleted: string}>}
+ */
+export async function permanentDeleteTrashItem(storageRoot, tenantId, trashName) {
+  if (!trashName || typeof trashName !== "string") throw new Error("Missing trashName");
+  if (trashName.includes("..") || trashName.includes("/") || trashName.includes("\\")) {
+    throw Object.assign(new Error("Invalid trash path"), { code: "PATH_TRAVERSAL" });
+  }
+
+  const tenantRoot = path.resolve(storageRoot, tenantId);
+  const trashDir = path.join(tenantRoot, ".trash");
+  const trashPath = path.join(trashDir, trashName);
+  assertWithinRoot(trashPath, trashDir);
+
+  const stat = await fs.stat(trashPath);
+  if (stat.isDirectory()) {
+    await fs.rm(trashPath, { recursive: true, force: true });
+  } else {
+    await fs.unlink(trashPath);
+  }
+
+  return { deleted: trashName };
+}
+
+/**
+ * Permanently delete ALL items from trash.
+ * @param {string} storageRoot
+ * @param {string} tenantId
+ * @returns {Promise<{deletedCount: number}>}
+ */
+export async function emptyTrash(storageRoot, tenantId) {
+  const tenantRoot = path.resolve(storageRoot, tenantId);
+  const trashDir = path.join(tenantRoot, ".trash");
+
+  let entries;
+  try {
+    entries = await fs.readdir(trashDir, { withFileTypes: true });
+  } catch {
+    return { deletedCount: 0 };
+  }
+
+  let deletedCount = 0;
+  for (const entry of entries) {
+    const fullPath = path.join(trashDir, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        await fs.rm(fullPath, { recursive: true, force: true });
+      } else {
+        await fs.unlink(fullPath);
+      }
+      deletedCount++;
+    } catch {
+      // Skip items that can't be deleted
+    }
+  }
+
+  return { deletedCount };
+}
+
+/**
+ * Auto-cleanup: permanently delete trash items older than maxAgeDays.
+ * @param {string} storageRoot
+ * @param {string} tenantId
+ * @param {number} maxAgeDays - Max age in days (default 20)
+ * @returns {Promise<{deletedCount: number, deletedItems: string[]}>}
+ */
+export async function autoCleanupTrash(storageRoot, tenantId, maxAgeDays = 20) {
+  const tenantRoot = path.resolve(storageRoot, tenantId);
+  const trashDir = path.join(tenantRoot, ".trash");
+
+  let entries;
+  try {
+    entries = await fs.readdir(trashDir, { withFileTypes: true });
+  } catch {
+    return { deletedCount: 0, deletedItems: [] };
+  }
+
+  const now = Date.now();
+  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  const deletedItems = [];
+
+  for (const entry of entries) {
+    // Extract timestamp from trash name: <ISO-timestamp>___<encoded_path>
+    const parts = entry.name.split("___");
+    const timestampStr = parts[0] || "";
+    // Reconstruct ISO date from the encoded timestamp (dashes replaced colons/dots)
+    // Format: YYYY-MM-DDTHH-MM-SS-SSSZ → need to restore
+    let deletedAt;
+    try {
+      // The timestamp format is: 2026-03-24T14-30-00-000Z
+      // We need to restore colons: positions 13,16 and dots: position 19
+      const restored = timestampStr
+        .replace(/^(\d{4}-\d{2}-\d{2}T\d{2})-(\d{2})-(\d{2})-(\d{3})(.*)$/, "$1:$2:$3.$4$5");
+      deletedAt = new Date(restored).getTime();
+    } catch {
+      continue; // Skip items with unparseable timestamps
+    }
+
+    if (isNaN(deletedAt)) continue;
+
+    if (now - deletedAt > maxAgeMs) {
+      const fullPath = path.join(trashDir, entry.name);
+      try {
+        if (entry.isDirectory()) {
+          await fs.rm(fullPath, { recursive: true, force: true });
+        } else {
+          await fs.unlink(fullPath);
+        }
+        deletedItems.push(entry.name);
+      } catch {
+        // Skip items that can't be deleted
+      }
+    }
+  }
+
+  return { deletedCount: deletedItems.length, deletedItems };
 }

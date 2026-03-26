@@ -7,9 +7,9 @@
 
 ## Statistiky
 
-- **Celkem zaznamu:** 280 (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN + 215-232 GN/BK/AD/DC/AS + 233-236 WB + 237-238 WB + 239-241 WB + 242-243 WB + 244-246 WB + 247-248 WB + 249-252 WB + 253-255 WB + 256-258 CP + 260-261 CP + 262-263 FD/AP)
-- **Posledni zaznam:** 263-AP (UPRAVY 2026-03-23, Session S01 — AdminPricing Volume Discount Inputs Fix)
-- **Posledni aktualizace:** 2026-03-23 (Session S01, 2 zaznamu: 262-FD ForgeDialog Focus Bug Fix + 263-AP AdminPricing Volume Discount Inputs)
+- **Celkem zaznamu:** 286 (102-160 + 2x ID 101 + 161-200 + Wave 34-37 zaznamy + Wave 38-41 zaznam + Wave 42-45 zaznam + Wave 46-49 zaznam + Wave 50-52 zaznam + Wave 53-55 zaznam + Wave 56-58 zaznam + 180-185 AU + 205-210 AN/AT/BH/AO + 211-214 WK/GN + 215-232 GN/BK/AD/DC/AS + 233-236 WB + 237-238 WB + 239-241 WB + 242-243 WB + 244-246 WB + 247-248 WB + 249-252 WB + 253-255 WB + 256-258 CP + 260-261 CP + 262-263 FD/AP + 264-269 GN)
+- **Posledni zaznam:** 269-GN (UPRAVY 2026-03-24, Session S01 — Batch 6: 3D Model Preview + Finalni souhrn session)
+- **Posledni aktualizace:** 2026-03-24 (Session S01, 6 zaznamu: 264-269 GN Batch 1-6 Bug Fixes)
 
 ---
 
@@ -419,6 +419,7 @@
 | `Historie/2026-03-18/` | 4 zaznamy (S01: Widget Checkout Flow + Pricing Layout Fix ID 211-WK; S02: Widget P1 Code Review Fixes ID 212-WK; S03: Komplexni testovani ID 213-GN KONVERZACE + 214-GN UPRAVY) |
 | `Historie/2026-03-19/` | 8 zaznamu (S01: BETA infrastruktura — 215-GN KONVERZACE + 216-GN OTAZKY + 217-GN UPRAVY planovani + 218-BK UPRAVY backend infra + 219-GN UPRAVY Sentry + 220-GN UPRAVY Stripe + 221-GN UPRAVY Frontend API + 222-GN UPRAVY Doku+Stripe mount) |
 | `Historie/2026-03-23/` | 2 zaznamy (S01: Number Input Fix + ForgeDialog Focus Bug — 262-FD UPRAVY + 263-AP UPRAVY + DENNI-PREHLED) |
+| `Historie/2026-03-24/` | 6 zaznamu (S01: Batch 1-6 Bug Fixes — 264-GN + 265-GN + 266-GN + 267-GN + 268-GN + 269-GN UPRAVY + DENNI-PREHLED) |
 
 ### 2026-03-23 (S01)
 
@@ -426,3 +427,14 @@
 |----|---------|-----|-------|
 | **262** | **FD** | **UPRAVY** | **ForgeDialog Focus Bug Fix — handleKeyDown callback zaviselo na [onClose], zpusobovalo znovucyklus renderu a focus krutil se z inputu na X button. Oprava: useRef + useCallback([], []) + effect jen na [open]. Dopad: vsechny 11 admin stranky s modalama** |
 | **263** | **AP** | **UPRAVY** | **AdminPricing Volume Discount Inputs — min_qty + value zmena z type="number" na type="text" s inputMode="numeric"|"decimal" + parseDecimal/parseIntInput. Duvod: type="number" intern logika nedovoluje smazat nulu, zavisla focus na spinnerech** |
+
+### 2026-03-24 (S01)
+
+| ID | Zkratka | Typ | Popis |
+|----|---------|-----|-------|
+| **264** | **GN** | **UPRAVY** | **Batch 1 Bug Fixes (4 tasky z Error LOGu): Task 1.1 PDF Download Fix (html2pdf.js dynamicky import, fallback na window.print), Task 2.1 Z-Index Fix (sticky status card zIndex:10), Task 3.1 Remove Firma from Order Preview (AdminOrderDetail), Task 3.2 Remove Firma Input from Checkout (CheckoutForm.jsx). 3 soubory upraveny, build PASS** |
+| **265** | **GN** | **UPRAVY** | **Batch 2 Bug Fixes (3 tasky): Task 1.2 Invoice Fee Calculation Fix (invoiceGenerator.js — pridany order_fees, express_surcharge, markup, volume_discount, coupon_discount, rounding_delta, totals_snapshot.total), Task 2.2+2.3 Status Arrows + Unlock Transitions (AdminOrderDetail sipky ChevronLeft/Right, statusTransitions.js canTransition() vsechny validni pary, getNextStatuses() vsechny krome aktualniho). 3 soubory, build PASS** |
+| **266** | **GN** | **UPRAVY** | **Batch 3 Bug Fixes (4 tasky): Task 5.1+5.2 Preset Editing Simplification + Save/Load Fix (PresetInlineEditor 4 pole, presetsApi material_key FormData, backend presets.js material_key cteni), Task 6.1 Wizard Fees V3 Schema Fix (OnboardingWizard 5 oprav: amount→value, fixed→flat, enabled→active, display f.value, error resilience), Task 6.2 Wizard Modal Portal Fix (createPortal do document.body). 5 souboru, build PASS** |
+| **267** | **GN** | **UPRAVY** | **Batch 4 Bug Fixes (3 tasky): Task 5.3 INI File Viewer Modal (AdminPresets — FileText tlacitko, modal 70vh, syntax highlighting [section] teal bold + komentare italic, Escape+backdrop close), Task 5.4 INI Upload Styling (drop-zone UploadCloud, drag&drop, FileCheck zobrazeni), Task 4.3 Remove Meta Folder (storageService — zakomentovany meta importy, odstranen meta/ z createOrderFolder). 2 soubory, build PASS** |
+| **268** | **GN** | **UPRAVY** | **Batch 5 Bug Fixes (4 tasky + review): Task 4.1+4.2 Preset Storage+Display (storageService .ini cesta fix + Set deduplikace, CheckoutForm preset_snapshot, index.jsx preset props, AdminOrderDetail presety v headeru + per-model), Task 4.5 Trash Management (storageService 3 funkce + storageRouter 3 endpointy + storageApi + useStorageBrowser + AdminModelStorage + FileToolbar + FileListPanel — auto-cleanup 20 dni, vysypat kos, per-item delete), Task 4.6 Orders Delete Lock (AdminModelStorage + FileToolbar + FileListPanel + PreviewPanel — ShieldAlert "Mazani zakazano"), Review Batch 1-4 (0 P0, 1 P1 false alarm, 3 P2 minor). ~11 souboru, build PASS** |
+| **269** | **GN** | **UPRAVY** | **Batch 6: 3D Model Preview + Finalni souhrn session (Task 4.4) — NOVY StorageModelViewer.jsx (Three.js viewer STL/OBJ/3MF, orbit controls, auto-fit camera, teal material), PreviewPanel.jsx (React.lazy import, blob fetching). Finalni souhrn: 15 ukolu v 6 batchich, ~25 souboru zmeneno, 1 novy soubor, review 0 P0 / 0 P1 / 3 P2** |

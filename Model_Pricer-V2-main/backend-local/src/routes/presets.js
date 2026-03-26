@@ -355,6 +355,7 @@ export function createPresetsRouter({ workspaceRoot, getTenantIdFromReq }) {
         name: req.body?.name,
         order: req.body?.order,
         visibleInWidget: req.body?.visibleInWidget,
+        material_key: req.body?.material_key || null,
       };
 
       const created = await createPresetFromIni(workspaceRoot, tenantId, req.file.buffer, meta);

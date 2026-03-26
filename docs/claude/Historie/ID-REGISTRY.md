@@ -7,9 +7,9 @@
 
 ## Aktualni pocitadlo
 
-**Posledni pouzite ID:** 263
-**Dalsi ID k pouziti:** 264
-**Posledni aktualizace:** 2026-03-23 (Session S01 — ForgeDialog + AdminPricing Fixes, ID 262-FD + 263-AP)
+**Posledni pouzite ID:** 269
+**Dalsi ID k pouziti:** 270
+**Posledni aktualizace:** 2026-03-24 (Session S01 — Batch 6: 3D Model Preview + Finalni souhrn session, ID 269-GN)
 
 ---
 
@@ -329,8 +329,14 @@ S{NN}
 | 261 | CP | Customer-Portal | UPRAVY — A11y Fixes (WCAG 2.1 AA, 30 nalezu, skip-to-content, landmarks, keyboard, aria-label, Forge delegation) | 2026-03-22 |
 | 262 | FD | ForgeDialog | UPRAVY — Focus-stealing bug fix (useRef onClose + useCallback stabilizace + effect na [open] zavislosti) | 2026-03-23 |
 | 263 | AP | AdminPricing | UPRAVY — Volume discount inputs (min_qty + value type="number"→type="text" s parseDecimal/parseIntInput) | 2026-03-23 |
+| 264 | GN | General | UPRAVY — Batch 1 Bug Fixes (PDF download, z-index, Firma removal — 4 tasky, 3 soubory) | 2026-03-24 |
+| 265 | GN | General | UPRAVY — Batch 2 Bug Fixes (Invoice fee calc, status sipky + unlock transitions — 3 tasky, 3 soubory) | 2026-03-24 |
+| 266 | GN | General | UPRAVY — Batch 3 Bug Fixes (Preset editor + save/load, Wizard fees V3 + modal portal — 4 tasky, 5 souboru) | 2026-03-24 |
+| 267 | GN | General | UPRAVY — Batch 4 Bug Fixes (INI Viewer modal, INI Upload styling, Meta folder removal — 3 tasky, 2 soubory) | 2026-03-24 |
+| 268 | GN | General | UPRAVY — Batch 5 Bug Fixes (Preset storage/display, Trash management, Orders delete lock — 4 tasky + review, ~11 souboru) | 2026-03-24 |
+| 269 | GN | General | UPRAVY — Batch 6: 3D Model Preview (StorageModelViewer + PreviewPanel) + Finalni souhrn session | 2026-03-24 |
 
 ---
 
-**Posledni aktualizace:** 2026-03-23 (Session S01 — ForgeDialog Focus Bug + AdminPricing Volume Discount Inputs, ID 262-FD + 263-AP)
-**Posledni session:** S01 (2026-03-23) — Number Input Fix + ForgeDialog Focus Bug (2 zaznamy: UPRAVY, ID 262-263)
+**Posledni aktualizace:** 2026-03-24 (Session S01 — Batch 6 + finalni souhrn, ID 269-GN)
+**Posledni session:** S01 (2026-03-24) — Batch 1-6 Bug Fixes: 15 tasku, ~25 souboru, 1 novy (6 zaznamu: UPRAVY, IDs 264-269)

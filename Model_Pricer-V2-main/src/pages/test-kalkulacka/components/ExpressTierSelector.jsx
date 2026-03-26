@@ -39,7 +39,7 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
     <div style={cardStyle}>
       <h3 style={headingStyle}>
         <Icon name="Zap" size={18} style={{ color: 'var(--forge-accent-secondary)' }} />
-        {t('Rychlost doruceni', 'Delivery Speed')}
+        {t('Rychlost vyroby', 'Production Speed')}
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {activeTiers.map(tier => {
@@ -86,7 +86,7 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
                 <div style={{ fontSize: '11px', color: 'var(--forge-text-muted)', fontFamily: 'var(--forge-font-mono)', marginTop: '2px' }}>
                   {tier.delivery_days > 0
                     ? `${tier.delivery_days} ${t('pracovnich dni', 'business days')}`
-                    : t('Standardni doruceni', 'Standard delivery')}
+                    : t('Standardni vyroba', 'Standard production')}
                 </div>
               </div>
               <span style={{

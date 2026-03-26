@@ -261,6 +261,46 @@ export async function restoreFile(trashPath) {
 }
 
 /**
+ * Permanently delete a single item from trash.
+ * @param {string} trashPath - Trash item name
+ * @returns {Promise<{deleted}>}
+ */
+export async function permanentDeleteTrashItem(trashPath) {
+  const res = await fetch(`${BASE}/trash/item`, {
+    method: "DELETE",
+    headers: await authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ trashPath }),
+  });
+  return handleResponse(res);
+}
+
+/**
+ * Empty entire trash — permanently delete all trash items.
+ * @returns {Promise<{deletedCount}>}
+ */
+export async function emptyTrash() {
+  const res = await fetch(`${BASE}/trash/all`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+  return handleResponse(res);
+}
+
+/**
+ * Auto-cleanup: permanently delete trash items older than maxAgeDays.
+ * @param {number} maxAgeDays - Max age in days (default 20)
+ * @returns {Promise<{deletedCount, deletedItems}>}
+ */
+export async function autoCleanupTrash(maxAgeDays = 20) {
+  const res = await fetch(`${BASE}/trash/cleanup`, {
+    method: "POST",
+    headers: await authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ maxAgeDays }),
+  });
+  return handleResponse(res);
+}
+
+/**
  * Create a new folder.
  * @param {string} folderPath - Relative path
  * @returns {Promise<{path}>}

@@ -28,13 +28,15 @@ const OVERDUE_THRESHOLDS_HOURS = {
 };
 
 export function canTransition(fromStatus, toStatus) {
-  const allowed = ALLOWED_TRANSITIONS[fromStatus];
-  if (!allowed) return false;
-  return allowed.includes(toStatus);
+  // All transitions are unlocked — admin can move freely to any status
+  if (!fromStatus || !toStatus) return false;
+  if (fromStatus === toStatus) return false;
+  return STATUS_ORDER.includes(toStatus);
 }
 
 export function getNextStatuses(currentStatus) {
-  return ALLOWED_TRANSITIONS[currentStatus] || [];
+  // All statuses are reachable from any status (admin freedom)
+  return STATUS_ORDER.filter(s => s !== currentStatus);
 }
 
 export function getStatusColor(status) {

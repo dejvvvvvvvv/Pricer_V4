@@ -123,6 +123,9 @@ const TestKalkulacka = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [sliceAllProcessing, setSliceAllProcessing] = useState(false);
 
+  // Per-model auto-orient quaternions: { [fileId]: { x, y, z, w } }
+  const [orientQuaternions, setOrientQuaternions] = useState({});
+
   // Analytics session tracking
   const [analyticsSessionId] = useState(() => generateSessionId());
 
@@ -481,6 +484,12 @@ const TestKalkulacka = () => {
     setModelGeometry(geometry);
   }, []);
 
+  // Callback for auto-orient quaternion changes from ModelViewer (per-model)
+  const handleOrientChange = useCallback((quat) => {
+    if (!selectedFileId) return;
+    setOrientQuaternions(prev => ({ ...prev, [selectedFileId]: quat }));
+  }, [selectedFileId]);
+
   // Reset geometry when selected file changes.
   useEffect(() => {
     setModelGeometry(null);
@@ -503,14 +512,15 @@ const TestKalkulacka = () => {
       source: 'auto_recalc',
     });
 
+    const quaternion = orientQuaternions[fileId] || null;
     const trySliceWithFallback = async (pid) => {
       try {
-        return await sliceModelLocal(file.file, { presetId: pid });
+        return await sliceModelLocal(file.file, { presetId: pid, quaternion });
       } catch (e) {
         if (pid) {
           debug('[test-kalkulacka] Auto-recalc failed with presetId, retrying without:', pid, e);
           setSelectedPresetIds(prev => ({ ...prev, [fileId]: null }));
-          return await sliceModelLocal(file.file, { presetId: null });
+          return await sliceModelLocal(file.file, { presetId: null, quaternion });
         }
         throw e;
       }
@@ -548,7 +558,7 @@ const TestKalkulacka = () => {
           source: 'auto_recalc',
         });
       });
-  }, [uploadedFiles, selectedPresetIds, updateModelStatus, printConfigs, trackEvent]);
+  }, [uploadedFiles, selectedPresetIds, updateModelStatus, printConfigs, trackEvent, orientQuaternions]);
 
   const { trigger: triggerRecalc, triggerSlider: triggerRecalcSlider, cancel: cancelRecalc } = useDebouncedRecalculation(doRecalc);
 
@@ -752,15 +762,16 @@ const TestKalkulacka = () => {
 
       debug('[test-kalkulacka] Slicing (local) file:', selectedFile.name, 'config:', cfg);
 
+      const quaternion = orientQuaternions[selectedFile.id] || null;
       const trySliceWithFallback = async (pid) => {
         try {
-          return await sliceModelLocal(selectedFile.file, { presetId: pid });
+          return await sliceModelLocal(selectedFile.file, { presetId: pid, quaternion });
         } catch (e) {
           // Fallback: if preset-based slicing fails, drop presetId and retry once.
           if (pid) {
             debug('[test-kalkulacka] Slice failed with presetId, retrying without presetId:', pid, e);
             setSelectedPresetIds(prev => ({ ...prev, [selectedFile.id]: null }));
-            return await sliceModelLocal(selectedFile.file, { presetId: null });
+            return await sliceModelLocal(selectedFile.file, { presetId: null, quaternion });
           }
           throw e;
         }
@@ -815,7 +826,7 @@ const TestKalkulacka = () => {
       // Log error to admin notification storage
       addNotification({ type: 'error', title: `Slicovani selhalo: ${selectedFile.name}`, description: classified.userMessage });
     }
-  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, slicingToasts, trackEvent]);
+  }, [selectedFile, printConfigs, updateModelStatus, currentStep, selectedPresetIds, slicingToasts, trackEvent, orientQuaternions]);
 
   const runBatchSlice = useCallback(async (targets, mode) => {
     if (!Array.isArray(targets) || targets.length === 0) return;
@@ -853,15 +864,16 @@ const TestKalkulacka = () => {
           });
           debug('[test-kalkulacka] Batch slicing (local):', fileItem.name);
 
+          const batchQuaternion = orientQuaternions[fileItem.id] || null;
           const trySliceWithFallback = async (presetId) => {
             try {
-              return await sliceModelLocal(fileItem.file, { presetId });
+              return await sliceModelLocal(fileItem.file, { presetId, quaternion: batchQuaternion });
             } catch (e) {
               if (presetId) {
                 debug('[test-kalkulacka] Batch slice failed with presetId, retrying without presetId:', presetId, e);
                 effectivePresetId = null;
                 setSelectedPresetIds(prev => ({ ...prev, [fileItem.id]: null }));
-                return await sliceModelLocal(fileItem.file, { presetId: null });
+                return await sliceModelLocal(fileItem.file, { presetId: null, quaternion: batchQuaternion });
               }
               throw e;
             }
@@ -922,7 +934,7 @@ const TestKalkulacka = () => {
         title: `Davkove slicovani dokonceno ${resultLabel} (${targets.length} souboru)`,
       });
     }
-  }, [currentStep, selectedPresetIds, updateModelStatus, slicingToasts, trackEvent]);
+  }, [currentStep, selectedPresetIds, updateModelStatus, slicingToasts, trackEvent, orientQuaternions]);
 
   const handleSliceAll = useCallback(async () => {
     if (uploadedFiles.length === 0) return;
@@ -1085,7 +1097,8 @@ const TestKalkulacka = () => {
     if (!file?.file || file.status === 'processing') return;
     updateModelStatus(modelId, { status: 'processing', error: null, errorCategory: null, errorSeverity: null, errorRaw: null });
     const presetId = selectedPresetIds[modelId] ?? null;
-    sliceModelLocal(file.file, { presetId })
+    const retryQuaternion = orientQuaternions[modelId] || null;
+    sliceModelLocal(file.file, { presetId, quaternion: retryQuaternion })
       .then(res => {
         const ok = (res?.ok ?? res?.success ?? true);
         if (!ok) throw new Error(res?.error || res?.message || 'Slicovani selhalo');
@@ -1101,7 +1114,7 @@ const TestKalkulacka = () => {
           errorRaw: classified.raw,
         });
       });
-  }, [uploadedFiles, selectedPresetIds, updateModelStatus]);
+  }, [uploadedFiles, selectedPresetIds, updateModelStatus, orientQuaternions]);
 
   // --- Keyboard shortcuts ---
 
@@ -1533,6 +1546,8 @@ const TestKalkulacka = () => {
               selectedShippingMethodId={selectedShippingMethodId}
               couponsConfig={couponsConfig}
               appliedCouponCode={appliedCouponCode}
+              availablePresets={availablePresets}
+              selectedPresetIds={selectedPresetIds}
               onComplete={handleCheckoutComplete}
               onBack={() => setCurrentStep(3)}
             />
@@ -1710,6 +1725,7 @@ const TestKalkulacka = () => {
               onRemove={handleFileDelete}
               onSurfaceComputed={handleSurfaceComputed}
               onGeometryLoaded={handleGeometryLoaded}
+              onOrientChange={handleOrientChange}
             />
             </div>
               </ErrorBoundary>

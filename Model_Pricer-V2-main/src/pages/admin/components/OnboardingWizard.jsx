@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../../components/AppIcon';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson, getTenantId } from '../../../utils/adminTenantStorage';
@@ -238,7 +239,7 @@ export default function OnboardingWizard({ open, onClose }) {
   // Fees form
   const [feeName, setFeeName] = useState('');
   const [feeAmount, setFeeAmount] = useState('');
-  const [feeType, setFeeType] = useState('fixed');
+  const [feeType, setFeeType] = useState('flat');
   const [addedFees, setAddedFees] = useState([]);
 
   // Widget
@@ -320,26 +321,34 @@ export default function OnboardingWizard({ open, onClose }) {
   const handleAddFee = useCallback(() => {
     if (!feeName.trim() || !feeAmount) return;
 
-    const fees = loadFeesConfigV3();
-    const feesList = Array.isArray(fees?.fees) ? [...fees.fees] : [];
+    try {
+      const feesConfig = loadFeesConfigV3();
+      const feesList = Array.isArray(feesConfig?.fees) ? [...feesConfig.fees] : [];
 
-    const newFee = {
-      id: generateId(),
-      name: feeName.trim(),
-      amount: Number(feeAmount) || 0,
-      type: feeType,
-      enabled: true,
-      created_at: new Date().toISOString(),
-    };
+      const newFee = {
+        id: generateId('fee'),
+        name: feeName.trim(),
+        value: Number(feeAmount) || 0,
+        type: feeType,
+        active: true,
+        scope: 'MODEL',
+        charge_basis: 'PER_FILE',
+        selectable: true,
+        selected_by_default: false,
+        required: false,
+      };
 
-    feesList.push(newFee);
-    saveFeesConfigV3({ ...fees, fees: feesList });
+      feesList.push(newFee);
+      saveFeesConfigV3({ ...feesConfig, fees: feesList });
 
-    setAddedFees(prev => [...prev, newFee]);
-    setFeeName('');
-    setFeeAmount('');
-    refreshCompletion();
-    showFeedback(t.feesSaved);
+      setAddedFees(prev => [...prev, newFee]);
+      setFeeName('');
+      setFeeAmount('');
+      refreshCompletion();
+      showFeedback(t.feesSaved);
+    } catch (err) {
+      console.error('[OnboardingWizard] handleAddFee error:', err);
+    }
   }, [feeName, feeAmount, feeType, refreshCompletion, showFeedback, t]);
 
   const handleMarkWidgetDone = useCallback(() => {
@@ -380,9 +389,13 @@ export default function OnboardingWizard({ open, onClose }) {
   /* ── Navigation ─────────────────────────────────────────────────────── */
 
   const goNext = () => {
-    // Auto-save on step exit
-    if (currentStep === 1) handleSaveBranding();
-    if (currentStep === 2) handleSavePricing();
+    // Auto-save on step exit — wrapped in try/catch so navigation always proceeds
+    try {
+      if (currentStep === 1) handleSaveBranding();
+      if (currentStep === 2) handleSavePricing();
+    } catch (err) {
+      console.warn('[OnboardingWizard] Auto-save failed on step exit:', err);
+    }
     setCurrentStep(s => Math.min(s + 1, STEPS.length - 1));
   };
 
@@ -510,8 +523,13 @@ export default function OnboardingWizard({ open, onClose }) {
   }
 
   function renderFees() {
-    const fees = loadFeesConfigV3();
-    const existingFees = Array.isArray(fees?.fees) ? fees.fees : [];
+    let existingFees = [];
+    try {
+      const feesConfig = loadFeesConfigV3();
+      existingFees = Array.isArray(feesConfig?.fees) ? feesConfig.fees : [];
+    } catch (err) {
+      console.warn('[OnboardingWizard] Failed to load fees:', err);
+    }
 
     return (
       <div className="owz-step-content">
@@ -524,7 +542,7 @@ export default function OnboardingWizard({ open, onClose }) {
               <div key={f.id} className="owz-fee-item">
                 <span>{f.name}</span>
                 <span className="owz-fee-amount">
-                  {f.amount} {f.type === 'percent' ? '%' : 'Kc'}
+                  {f.value} {f.type === 'percent' ? '%' : 'Kc'}
                 </span>
               </div>
             ))}
@@ -564,7 +582,7 @@ export default function OnboardingWizard({ open, onClose }) {
                 value={feeType}
                 onChange={e => setFeeType(e.target.value)}
               >
-                <option value="fixed">{t.feeTypeFixed}</option>
+                <option value="flat">{t.feeTypeFixed}</option>
                 <option value="percent">{t.feeTypePercent}</option>
               </select>
             </div>
@@ -604,7 +622,7 @@ export default function OnboardingWizard({ open, onClose }) {
 
   /* ── Render ─────────────────────────────────────────────────────────── */
 
-  return (
+  return createPortal(
     <div className="owz-overlay" onClick={e => { if (e.target === e.currentTarget) onClose?.(); }}>
       <div className="owz-modal">
         {/* Close button */}
@@ -694,7 +712,8 @@ export default function OnboardingWizard({ open, onClose }) {
       </div>
 
       <style>{wizardStyles}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
 

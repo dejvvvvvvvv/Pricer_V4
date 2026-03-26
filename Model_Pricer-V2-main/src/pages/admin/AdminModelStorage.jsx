@@ -36,6 +36,9 @@ export default function AdminModelStorage() {
     setViewMode,
     doDelete,
     doRestore,
+    doPermanentDelete,
+    doEmptyTrash,
+    doAutoCleanup,
     doCreateFolder,
     doRename,
     doUpload,
@@ -98,6 +101,9 @@ export default function AdminModelStorage() {
     setContextMenu(null);
   }, []);
 
+  const isTrash = currentPath === '.trash' || currentPath === 'Trash';
+  const isOrders = currentPath === 'Orders' || currentPath?.startsWith('Orders/');
+
   const handleDownload = useCallback(async (filePath) => {
     try {
       const blobUrl = await downloadFile(filePath);
@@ -115,6 +121,7 @@ export default function AdminModelStorage() {
   }, []);
 
   const handleDeleteSelected = useCallback(async () => {
+    if (isOrders) return; // Block deletion in Orders folder
     const count = selection.size ?? selection.length ?? 0;
     const ok = await confirm({
       title: 'Smazat soubory',
@@ -127,7 +134,7 @@ export default function AdminModelStorage() {
       await doDelete(path);
     }
     setSelectedItem(null);
-  }, [selection, doDelete, confirm]);
+  }, [selection, doDelete, confirm, isOrders]);
 
   const handleDownloadSelected = useCallback(async () => {
     const paths = Array.from(selection);
@@ -142,7 +149,38 @@ export default function AdminModelStorage() {
     }
   }, [selection, handleDownload]);
 
-  const isTrash = currentPath === '.trash' || currentPath === 'Trash';
+  // Auto-cleanup trash items older than 20 days on mount
+  const cleanupDone = useRef(false);
+  useEffect(() => {
+    if (!cleanupDone.current) {
+      cleanupDone.current = true;
+      doAutoCleanup(20);
+    }
+  }, [doAutoCleanup]);
+
+  // Handle empty trash with confirmation
+  const handleEmptyTrash = useCallback(async () => {
+    const ok = await confirm({
+      title: 'Vysypat kos',
+      message: 'Opravdu trvale smazat VSECHNY soubory v kosi? Tato akce je nevratna.',
+      confirmLabel: 'Vysypat kos',
+      destructive: true,
+    });
+    if (!ok) return;
+    await doEmptyTrash();
+  }, [doEmptyTrash, confirm]);
+
+  // Handle permanent delete of single trash item
+  const handlePermanentDelete = useCallback(async (trashName) => {
+    const ok = await confirm({
+      title: 'Trvale smazat',
+      message: `Opravdu trvale smazat tento soubor? Tato akce je nevratna.`,
+      confirmLabel: 'Trvale smazat',
+      destructive: true,
+    });
+    if (!ok) return;
+    await doPermanentDelete(trashName);
+  }, [doPermanentDelete, confirm]);
 
   // Close context menu on click elsewhere
   useEffect(() => {
@@ -237,6 +275,10 @@ export default function AdminModelStorage() {
               onDownloadSelected={handleDownloadSelected}
               viewMode={viewMode}
               onViewModeChange={handleViewModeChange}
+              isTrash={isTrash}
+              isOrders={isOrders}
+              onEmptyTrash={handleEmptyTrash}
+              trashItemCount={isTrash ? items.length : 0}
             />
           </div>
 
@@ -253,6 +295,8 @@ export default function AdminModelStorage() {
             onDownload={handleDownload}
             onDelete={doDelete}
             isTrash={isTrash}
+            isOrders={isOrders}
+            onPermanentDelete={handlePermanentDelete}
             viewMode={viewMode}
           />
         </div>
@@ -264,6 +308,7 @@ export default function AdminModelStorage() {
             onClose={() => setSelectedItem(null)}
             onDelete={doDelete}
             onDownload={handleDownload}
+            isOrders={isOrders}
           />
         )}
       </div>
@@ -306,19 +351,30 @@ export default function AdminModelStorage() {
             />
           )}
           {isTrash && (
-            <ContextMenuItem
-              icon="RotateCcw"
-              label="Restore"
-              onClick={() => {
-                doRestore(contextMenu.item.name);
-                handleCloseContextMenu();
-              }}
-            />
+            <>
+              <ContextMenuItem
+                icon="RotateCcw"
+                label="Obnovit"
+                onClick={() => {
+                  doRestore(contextMenu.item.name);
+                  handleCloseContextMenu();
+                }}
+              />
+              <ContextMenuItem
+                icon="Trash2"
+                label="Trvale smazat"
+                danger
+                onClick={() => {
+                  handleCloseContextMenu();
+                  handlePermanentDelete(contextMenu.item.name);
+                }}
+              />
+            </>
           )}
-          {!isTrash && (
+          {!isTrash && !isOrders && (
             <ContextMenuItem
               icon="Trash2"
-              label="Delete"
+              label="Smazat"
               danger
               onClick={async () => {
                 const itemName = contextMenu.item.name || contextMenu.item.path;
@@ -335,6 +391,14 @@ export default function AdminModelStorage() {
               }}
             />
           )}
+          {!isTrash && isOrders && (
+            <ContextMenuItem
+              icon="ShieldAlert"
+              label="Mazani zakazano"
+              disabled
+              onClick={() => handleCloseContextMenu()}
+            />
+          )}
         </div>,
         document.body
       )}
@@ -342,14 +406,16 @@ export default function AdminModelStorage() {
   );
 }
 
-function ContextMenuItem({ icon, label, onClick, danger = false }) {
+function ContextMenuItem({ icon, label, onClick, danger = false, disabled = false }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      disabled={disabled}
+      title={disabled ? 'Soubory v objednavkach nelze mazat' : undefined}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -357,12 +423,13 @@ function ContextMenuItem({ icon, label, onClick, danger = false }) {
         width: '100%',
         padding: '8px 14px',
         border: 'none',
-        background: hovered ? 'var(--forge-bg-elevated)' : 'transparent',
-        color: danger ? 'var(--forge-error)' : 'var(--forge-text-primary)',
-        cursor: 'pointer',
+        background: hovered && !disabled ? 'var(--forge-bg-elevated)' : 'transparent',
+        color: disabled ? 'var(--forge-text-muted)' : danger ? 'var(--forge-error)' : 'var(--forge-text-primary)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         fontSize: '13px',
         fontFamily: 'var(--forge-font-body)',
         textAlign: 'left',
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <Icon name={icon} size={14} />

@@ -30,7 +30,7 @@ const CONFIG_NAMESPACES = [
   { key: 'pricing:v3',          label: 'Cenova konfigurace',    icon: 'Calculator',      color: '#8B5CF6', type: 'tenant',  group: 'pricing' },
   { key: 'fees:v3',             label: 'Poplatky',              icon: 'Receipt',         color: '#F59E0B', type: 'tenant',  group: 'pricing' },
   { key: 'shipping:v1',         label: 'Doprava',               icon: 'Truck',           color: '#14B8A6', type: 'tenant',  group: 'pricing' },
-  { key: 'express:v1',          label: 'Expresni doruceni',     icon: 'Zap',             color: '#F97316', type: 'tenant',  group: 'pricing' },
+  { key: 'express:v1',          label: 'Express výroba',     icon: 'Zap',             color: '#F97316', type: 'tenant',  group: 'pricing' },
   { key: 'coupons:v1',          label: 'Kupony a akce',         icon: 'Tag',             color: '#A855F7', type: 'tenant',  group: 'pricing' },
   { key: 'email:v1',            label: 'Email konfigurace',     icon: 'Mail',            color: '#0EA5E9', type: 'tenant',  group: 'communication' },
   { key: 'email-templates:v1',  label: 'Email sablony',         icon: 'FileText',        color: '#0EA5E9', type: 'tenant',  group: 'communication' },

@@ -156,6 +156,7 @@ export async function uploadPreset(file, meta = {}) {
   if (meta?.name != null) form.append('name', String(meta.name));
   if (meta?.order != null) form.append('order', String(meta.order));
   if (meta?.visibleInWidget != null) form.append('visibleInWidget', meta.visibleInWidget ? 'true' : 'false');
+  if (meta?.material_key != null) form.append('material_key', String(meta.material_key));
 
   return apiFetch('/api/presets', { method: 'POST', body: form });
 }

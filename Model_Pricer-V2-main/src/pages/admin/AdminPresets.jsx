@@ -6,7 +6,7 @@ import { SkeletonTable } from '../../components/ui/forge/ForgeSkeleton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { readTenantJson, writeTenantJson } from '../../utils/adminTenantStorage';
 import { loadPricingConfigV3 } from '../../utils/adminPricingStorage';
-import { deletePreset, fetchPresetContent, listPresets, patchPreset, setDefaultPreset, uploadPreset, validatePresetConfig, duplicatePreset } from '../../services/presetsApi';
+import { deletePreset, listPresets, patchPreset, setDefaultPreset, uploadPreset, duplicatePreset, fetchPresetContent } from '../../services/presetsApi';
 import { calculateOrderQuote } from '../../lib/pricing/pricingEngineV3';
 import { downloadFile } from '../../utils/exportData';
 import { safeJsonParse } from '../../utils/sanitizeJson';
@@ -295,6 +295,12 @@ export default function AdminPresets() {
     clearSelection: t('admin.presets.clearSelection', 'Clear'),
     bulkDeleteConfirm: t('admin.presets.bulkDeleteConfirm', 'Delete selected presets?'),
     bulkDeleteBody: t('admin.presets.bulkDeleteBody', 'This action cannot be undone.'),
+    viewIni: t('admin.presets.viewIni', 'View INI'),
+    iniModalTitle: t('admin.presets.iniModalTitle', 'INI File Content'),
+    iniLoading: t('admin.presets.iniLoading', 'Loading INI content...'),
+    iniEmpty: t('admin.presets.iniEmpty', 'No INI content available for this preset.'),
+    iniLoadError: t('admin.presets.iniLoadError', 'Failed to load INI content.'),
+    iniClose: t('admin.presets.iniClose', 'Close'),
   }), [t]);
 
   const [search, setSearch] = useState('');
@@ -322,6 +328,13 @@ export default function AdminPresets() {
   const [deleteModal, setDeleteModal] = useState({ open: false, presetId: null });
   const deleteOverlayRef = useRef(null);
 
+  // INI viewer modal
+  const [iniModal, setIniModal] = useState({ open: false, presetId: null, presetName: '' });
+  const [iniContent, setIniContent] = useState('');
+  const [iniLoading, setIniLoading] = useState(false);
+  const [iniError, setIniError] = useState(null);
+  const iniOverlayRef = useRef(null);
+
   const [showComparison, setShowComparison] = useState(false);
   const [compareIds, setCompareIds] = useState([]);
 
@@ -340,9 +353,6 @@ export default function AdminPresets() {
 
   const [editingPresetId, setEditingPresetId] = useState(null);
   const [presetDraft, setPresetDraft] = useState(null);
-  const [dialogTab, setDialogTab] = useState('settings');
-  const [iniContent, setIniContent] = useState(null);
-  const [iniLoading, setIniLoading] = useState(false);
 
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importText, setImportText] = useState('');
@@ -352,6 +362,7 @@ export default function AdminPresets() {
   const [previewPresetId, setPreviewPresetId] = useState(null);
 
   const fileInputRef = useRef(null);
+  const iniInputRef = useRef(null);
   const toastTimer = useRef(null);
   const [toast, setToast] = useState(null);
 
@@ -441,6 +452,40 @@ export default function AdminPresets() {
     document.addEventListener('keydown', h);
     return () => { document.removeEventListener('keydown', h); document.body.style.overflow = ''; };
   }, [deleteModal.open]);
+
+  // INI modal: body scroll lock + Escape close
+  useEffect(() => {
+    if (!iniModal.open) return;
+    document.body.style.overflow = 'hidden';
+    const h = (e) => { if (e.key === 'Escape') { setIniModal({ open: false, presetId: null, presetName: '' }); setIniContent(''); setIniError(null); } };
+    document.addEventListener('keydown', h);
+    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = ''; };
+  }, [iniModal.open]);
+
+  const openIniModal = useCallback(async (presetId, presetName) => {
+    setIniModal({ open: true, presetId, presetName: presetName || presetId });
+    setIniContent('');
+    setIniError(null);
+    setIniLoading(true);
+    try {
+      const res = await fetchPresetContent(presetId);
+      if (res.ok) {
+        const content = typeof res.data === 'string' ? res.data : (res.data?.content || res.data?.ini || JSON.stringify(res.data, null, 2));
+        setIniContent(content || '');
+      } else {
+        setIniError(res.message || 'Failed to load INI content.');
+      }
+    } catch (e) {
+      setIniError(String(e?.message || 'Network error'));
+    }
+    setIniLoading(false);
+  }, []);
+
+  const closeIniModal = useCallback(() => {
+    setIniModal({ open: false, presetId: null, presetName: '' });
+    setIniContent('');
+    setIniError(null);
+  }, []);
 
   const actionsDisabled = loading;
 
@@ -561,20 +606,9 @@ export default function AdminPresets() {
     const p = presets.find(x => x.id === presetId);
     if (!p) return;
     setPresetDraft({ name: p.name, order: p.order, visibleInWidget: p.visibleInWidget, material_key: p.material_key, print_overrides: p.print_overrides ? { ...p.print_overrides } : {} });
-    setEditingPresetId(presetId); setDialogTab('settings'); setIniContent(null);
+    setEditingPresetId(presetId);
   };
-  const closePresetDialog = () => { setEditingPresetId(null); setPresetDraft(null); setDialogTab('settings'); setIniContent(null); };
-
-  const switchToIniTab = async () => {
-    setDialogTab('ini');
-    if (iniContent !== null) return;
-    setIniLoading(true);
-    const res = await fetchPresetContent(editingPresetId);
-    if (res.ok && res.data?.content) setIniContent(res.data.content);
-    else if (res.ok) setIniContent(null);
-    else setIniContent('ERR:' + (res.message || 'Failed'));
-    setIniLoading(false);
-  };
+  const closePresetDialog = () => { setEditingPresetId(null); setPresetDraft(null); };
 
   const savePresetDialog = async () => {
     if (!editingPresetId || !presetDraft) return;
@@ -585,15 +619,6 @@ export default function AdminPresets() {
   };
 
   const updatePresetDraft = (f, v) => setPresetDraft(prev => prev ? { ...prev, [f]: v } : prev);
-  const updatePresetOverride = (key, value) => {
-    setPresetDraft(prev => {
-      if (!prev) return prev;
-      const o = { ...(prev.print_overrides || {}) };
-      if (value === '' || value === null || value === undefined) delete o[key];
-      else o[key] = value;
-      return { ...prev, print_overrides: o };
-    });
-  };
 
   // Template create
   const onCreateFromTemplate = async (template) => {
@@ -928,6 +953,7 @@ export default function AdminPresets() {
               <Icon name="Calculator" size={14} />
             </button>
             <div style={{ flex: 1 }} />
+            <button onClick={() => openIniModal(p.id, p.name)} style={cs.actBtn} title={str.viewIni}><Icon name="FileText" size={14} />{str.viewIni}</button>
             <button onClick={() => exportPresetAsJson(p)} style={cs.actBtn} title="Export"><Icon name="Download" size={14} /></button>
             <button onClick={() => onSharePreset(p.id)} style={cs.actBtn} title={str.share}><Icon name="Share2" size={14} /></button>
             <button onClick={() => onDelete(p.id)} disabled={actionsDisabled || deleting || saving} style={cs.actBtnDanger} title={str.delete}>
@@ -987,7 +1013,63 @@ export default function AdminPresets() {
       {showUploadForm && (
         <div className="ap-card ap-pad" style={{ marginTop: 8 }}>
           <div className="ap-upGrid">
-            <div className="ap-field"><div className="ap-label">{str.fileLabel}</div><input className="ap-input" type="file" accept=".ini" disabled={actionsDisabled || uploading} onChange={(e) => { const f = e.target.files?.[0] || null; setUploadFile(f); if (f && !uploadName) setUploadName(String(f.name || '').replace(/\.ini$/i, '')); }} /><div className="ap-hint">{str.hintMax5mb}</div></div>
+            <div className="ap-field">
+              <div className="ap-label">{str.fileLabel}</div>
+              <input
+                ref={iniInputRef}
+                type="file"
+                accept=".ini"
+                disabled={actionsDisabled || uploading}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setUploadFile(f);
+                  if (f && !uploadName) setUploadName(String(f.name || '').replace(/\.ini$/i, ''));
+                }}
+              />
+              <div
+                className={`ap-dropzone${uploadFile ? ' has-file' : ''}`}
+                onClick={() => { if (!actionsDisabled && !uploading && iniInputRef.current) iniInputRef.current.click(); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('drag-over'); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('drag-over'); }}
+                onDrop={(e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  e.currentTarget.classList.remove('drag-over');
+                  const f = e.dataTransfer.files?.[0] || null;
+                  if (f && f.name.toLowerCase().endsWith('.ini')) {
+                    setUploadFile(f);
+                    if (!uploadName) setUploadName(String(f.name || '').replace(/\.ini$/i, ''));
+                  }
+                }}
+                style={{ cursor: actionsDisabled || uploading ? 'not-allowed' : 'pointer', opacity: actionsDisabled || uploading ? 0.5 : 1 }}
+              >
+                {uploadFile ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Icon name="FileCheck" size={20} style={{ color: 'var(--forge-accent-primary)' }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--forge-text-primary)' }}>{uploadFile.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--forge-text-muted)' }}>{(uploadFile.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="ap-iconBtn"
+                      style={{ width: 24, height: 24, marginLeft: 'auto', flexShrink: 0 }}
+                      onClick={(e) => { e.stopPropagation(); setUploadFile(null); if (iniInputRef.current) iniInputRef.current.value = ''; }}
+                      title="Remove"
+                    >
+                      <Icon name="X" size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <Icon name="UploadCloud" size={28} style={{ color: 'var(--forge-text-muted)' }} />
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--forge-text-secondary)' }}>{pickLang(language, 'Nahrat .INI soubor', 'Upload .INI file')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--forge-text-muted)' }}>{pickLang(language, 'Klikni nebo pretahni sem', 'Click or drag & drop')}</div>
+                  </div>
+                )}
+              </div>
+              <div className="ap-hint">{str.hintMax5mb}</div>
+            </div>
             <div className="ap-field"><div className="ap-label">{str.colName}</div><input className="ap-input" type="text" placeholder={str.namePlaceholder} value={uploadName} disabled={actionsDisabled || uploading} onChange={(e) => setUploadName(e.target.value)} /></div>
             <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="text" inputMode="numeric" value={uploadOrder ?? ''} disabled={actionsDisabled || uploading} onChange={(e) => setUploadOrder(parseIntInput(e.target.value))} onBlur={() => setUploadOrder(finalizeDecimal(uploadOrder, 0))} /></div>
             <div className="ap-field"><div className="ap-label">{str.materialLabel}</div><select className="ap-input" value={uploadMaterialKey || ''} disabled={actionsDisabled || uploading} onChange={(e) => setUploadMaterialKey(e.target.value || null)}><option value="">{str.allMaterials}</option>{availableMaterials.map(m => <option key={m.key} value={m.key}>{m.name} ({m.key})</option>)}</select></div>
@@ -1083,6 +1165,46 @@ export default function AdminPresets() {
         </div>
       )}
 
+      {/* INI viewer modal */}
+      {iniModal.open && (
+        <div className="ap-overlay" role="dialog" aria-modal="true" ref={iniOverlayRef} onClick={(e) => { if (e.target === iniOverlayRef.current) closeIniModal(); }}>
+          <div className="ap-modal ap-ini-modal">
+            <div className="ap-mHdr">
+              <div className="ap-mTitle"><Icon name="FileText" size={14} style={{ marginRight: 6 }} />{iniModal.presetName} — {str.iniModalTitle}</div>
+              <button className="ap-iconBtn" onClick={closeIniModal} aria-label={str.iniClose}><Icon name="X" size={16} /></button>
+            </div>
+            <div className="ap-mBody ap-ini-body">
+              {iniLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 20, justifyContent: 'center', color: 'var(--forge-text-muted)' }}>
+                  <Icon name="Loader2" size={18} className="spin" />{str.iniLoading}
+                </div>
+              )}
+              {iniError && !iniLoading && (
+                <div style={{ padding: 20, color: 'var(--forge-error)', textAlign: 'center' }}>
+                  <Icon name="AlertTriangle" size={18} style={{ marginRight: 6 }} />{str.iniLoadError} {iniError}
+                </div>
+              )}
+              {!iniLoading && !iniError && !iniContent && (
+                <div style={{ padding: 20, color: 'var(--forge-text-muted)', textAlign: 'center' }}>{str.iniEmpty}</div>
+              )}
+              {!iniLoading && !iniError && iniContent && (
+                <pre className="ap-ini-content">{iniContent.split('\n').map((line, i) => {
+                  const trimmed = line.trim();
+                  const isSectionHeader = /^\[.+\]$/.test(trimmed);
+                  const isComment = trimmed.startsWith('#') || trimmed.startsWith(';');
+                  if (isSectionHeader) return <div key={i} className="ap-ini-section">{line}</div>;
+                  if (isComment) return <div key={i} className="ap-ini-comment">{line}</div>;
+                  return <div key={i}>{line}</div>;
+                })}</pre>
+              )}
+            </div>
+            <div className="ap-mFoot">
+              <button className="ap-btn" onClick={closeIniModal}>{str.iniClose}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import dialog */}
       <ForgeDialog open={showImportDialog} onClose={() => { setShowImportDialog(false); setImportText(''); }} title={str.importPresets} maxWidth="520px"
         footer={<><button className="ap-btn" onClick={() => { setShowImportDialog(false); setImportText(''); }}>{str.confirmCancel}</button><button className="ap-btn primary" onClick={onImportFromClipboard} disabled={!importText.trim()}><Icon name="Download" size={16} />{str.importPresets}</button></>}>
@@ -1096,53 +1218,20 @@ export default function AdminPresets() {
         </div>
       </ForgeDialog>
 
-      {/* Edit dialog */}
-      <ForgeDialog open={!!editingPresetId} onClose={closePresetDialog} title={presetDraft?.name || str.dialogTitle} maxWidth="50vw"
-        footer={dialogTab === 'settings' ? <><button className="ap-btn" onClick={closePresetDialog}>{str.dialogCancel}</button><button className="ap-btn primary" onClick={savePresetDialog}><Icon name="Save" size={16} />{str.dialogSave}</button></> : <button className="ap-btn" onClick={closePresetDialog}>{t('admin.presets.dialogClose', 'Close')}</button>}>
+      {/* Edit dialog — simplified to 4 editable fields only */}
+      <ForgeDialog open={!!editingPresetId} onClose={closePresetDialog} title={presetDraft?.name || str.dialogTitle} maxWidth="480px"
+        footer={<><button className="ap-btn" onClick={closePresetDialog}>{str.dialogCancel}</button><button className="ap-btn primary" onClick={savePresetDialog}><Icon name="Save" size={16} />{str.dialogSave}</button></>}>
         {presetDraft && (
           <div>
-            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--forge-border-default)', marginBottom: 16 }}>
-              {['settings', 'ini'].map(tab => (
-                <button key={tab} onClick={tab === 'ini' ? switchToIniTab : () => setDialogTab('settings')} style={{ padding: '10px 20px', border: 'none', borderBottom: dialogTab === tab ? '2px solid var(--forge-accent-primary)' : '2px solid transparent', background: 'transparent', color: dialogTab === tab ? 'var(--forge-accent-primary)' : 'var(--forge-text-secondary)', fontWeight: dialogTab === tab ? 700 : 500, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--forge-font-heading)', transition: 'all 0.15s' }}>
-                  <Icon name={tab === 'settings' ? 'Settings' : 'FileText'} size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
-                  {tab === 'settings' ? t('admin.presets.dialogTabSettings', 'Settings') : t('admin.presets.dialogTabIni', 'INI Content')}
-                </button>
-              ))}
+            <div style={{ marginBottom: 16 }}>
+              <div className="ap-sectionLabel">{str.sectionMeta}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="ap-field"><div className="ap-label">{str.colName}</div><input className="ap-input" value={presetDraft.name} onChange={e => updatePresetDraft('name', e.target.value)} /></div>
+                <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="text" inputMode="numeric" value={presetDraft.order ?? ''} onChange={e => updatePresetDraft('order', parseIntInput(e.target.value))} onBlur={() => updatePresetDraft('order', finalizeDecimal(presetDraft.order, 0))} /></div>
+                <div className="ap-field"><div className="ap-label">{str.materialLabel}</div><select className="ap-input" value={presetDraft.material_key || ''} onChange={e => updatePresetDraft('material_key', e.target.value || null)}><option value="">{str.allMaterials}</option>{availableMaterials.map(m => <option key={m.key} value={m.key}>{m.name} ({m.key})</option>)}</select></div>
+                <div className="ap-field" style={{ display: 'flex', alignItems: 'flex-end' }}><ForgeCheckbox checked={!!presetDraft.visibleInWidget} onChange={e => updatePresetDraft('visibleInWidget', e.target.checked)} label={str.visibleInWidget} /></div>
+              </div>
             </div>
-            {dialogTab === 'settings' && (
-              <div>
-                <div style={{ marginBottom: 16 }}>
-                  <div className="ap-sectionLabel">{str.sectionMeta}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="ap-field"><div className="ap-label">{str.colName}</div><input className="ap-input" value={presetDraft.name} onChange={e => updatePresetDraft('name', e.target.value)} /></div>
-                    <div className="ap-field"><div className="ap-label">{str.orderLabel}</div><input className="ap-input" type="text" inputMode="numeric" value={presetDraft.order ?? ''} onChange={e => updatePresetDraft('order', parseIntInput(e.target.value))} onBlur={() => updatePresetDraft('order', finalizeDecimal(presetDraft.order, 0))} /></div>
-                    <div className="ap-field"><div className="ap-label">{str.materialLabel}</div><select className="ap-input" value={presetDraft.material_key || ''} onChange={e => updatePresetDraft('material_key', e.target.value || null)}><option value="">{str.allMaterials}</option>{availableMaterials.map(m => <option key={m.key} value={m.key}>{m.name} ({m.key})</option>)}</select></div>
-                    <div className="ap-field" style={{ display: 'flex', alignItems: 'flex-end' }}><ForgeCheckbox checked={!!presetDraft.visibleInWidget} onChange={e => updatePresetDraft('visibleInWidget', e.target.checked)} label={str.visibleInWidget} /></div>
-                  </div>
-                </div>
-                <div style={{ borderTop: '1px solid var(--forge-border-default)', margin: '16px 0' }} />
-                <div>
-                  <div className="ap-sectionLabel">{str.sectionOverrides}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    {PRINT_OVERRIDE_FIELDS.map(field => {
-                      const cv = presetDraft.print_overrides?.[field.key];
-                      const hv = cv !== undefined && cv !== null && cv !== '';
-                      const lbl = pickLang(language, field.label_cs, field.label_en);
-                      if (field.type === 'boolean') return <div className="ap-field" key={field.key}><div className="ap-label">{lbl}</div><select className="ap-input" value={hv ? (cv ? 'true' : 'false') : ''} onChange={e => { const v = e.target.value; updatePresetOverride(field.key, v === '' ? null : v === 'true'); }}><option value="">{str.overrideHint}</option><option value="true">{str.overrideYes}</option><option value="false">{str.overrideNo}</option></select></div>;
-                      if (field.type === 'select') return <div className="ap-field" key={field.key}><div className="ap-label">{lbl}</div><select className="ap-input" value={hv ? cv : ''} onChange={e => updatePresetOverride(field.key, e.target.value || null)}><option value="">{str.overrideHint}</option>{field.options.map(o => <option key={o} value={o}>{o}</option>)}</select></div>;
-                      return <div className="ap-field" key={field.key}><div className="ap-label">{lbl}</div><input className="ap-input" type="number" step={field.step || 1} placeholder={str.overrideHint} value={hv ? cv : ''} onChange={e => { const v = e.target.value; updatePresetOverride(field.key, v === '' ? null : Number(v)); }} /></div>;
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-            {dialogTab === 'ini' && (
-              <div style={{ minHeight: '40vh' }}>
-                {iniLoading ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: 'var(--forge-text-muted)' }}><Icon name="Loader" size={18} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />{t('admin.presets.iniLoading', 'Loading...')}</div>
-                  : iniContent && !iniContent.startsWith('ERR:') ? <pre style={{ margin: 0, padding: 16, background: 'var(--forge-bg-elevated)', border: '1px solid var(--forge-border-default)', borderRadius: 'var(--forge-radius-md)', fontFamily: 'var(--forge-font-tech)', fontSize: 13, lineHeight: 1.6, color: 'var(--forge-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowY: 'auto', maxHeight: '55vh' }}>{iniContent}</pre>
-                    : <div style={{ padding: 24, background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 'var(--forge-radius-md)', display: 'flex', flexDirection: 'column', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--forge-error)', fontWeight: 700, fontSize: 14 }}><Icon name="AlertTriangle" size={18} />{t('admin.presets.iniNotAvailable', 'INI not available')}</div><div style={{ color: 'var(--forge-text-secondary)', fontSize: 13 }}>{iniContent ? iniContent.replace('ERR:', '') : t('admin.presets.iniNotFound', 'INI file not found.')}</div></div>}
-              </div>
-            )}
           </div>
         )}
       </ForgeDialog>
@@ -1225,6 +1314,11 @@ const presetsCSS = `
   .ap-input:focus { border-color: var(--forge-accent-primary); box-shadow: 0 0 0 2px rgba(0,212,170,0.15); outline: none; }
   .ap-input:disabled { background: var(--forge-bg-void); cursor: not-allowed; opacity: 0.5; }
 
+  .ap-dropzone { border: 2px dashed var(--forge-border-default); border-radius: var(--forge-radius-md); padding: 20px 16px; text-align: center; transition: border-color 0.2s, background 0.2s; background: var(--forge-bg-elevated); }
+  .ap-dropzone:hover { border-color: var(--forge-accent-primary); background: rgba(0,212,170,0.04); }
+  .ap-dropzone.drag-over { border-color: var(--forge-accent-primary); background: rgba(0,212,170,0.08); }
+  .ap-dropzone.has-file { border-style: solid; border-color: rgba(0,212,170,0.35); background: rgba(0,212,170,0.04); padding: 12px 16px; text-align: left; }
+
   .spin { animation: ap-spin 1s linear infinite; }
   @keyframes ap-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -1243,4 +1337,14 @@ const presetsCSS = `
   .ap-iconBtn:hover { border-color: var(--forge-accent-primary); }
   .ap-mBody { padding: 14px 16px; }
   .ap-mFoot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--forge-border-default); background: var(--forge-bg-elevated); }
+
+  /* INI viewer modal */
+  .ap-ini-modal { width: min(780px, 100%); max-height: 85vh; display: flex; flex-direction: column; }
+  .ap-ini-modal .ap-mHdr { flex-shrink: 0; }
+  .ap-ini-modal .ap-mFoot { flex-shrink: 0; }
+  .ap-ini-body { overflow-y: auto; max-height: 70vh; padding: 0 !important; }
+  .ap-ini-content { margin: 0; padding: 16px 20px; font-family: var(--forge-font-tech, 'JetBrains Mono', 'Fira Code', monospace); font-size: 12px; line-height: 1.6; color: var(--forge-text-secondary); white-space: pre-wrap; word-break: break-all; background: var(--forge-bg-void, #181825); border: none; }
+  .ap-ini-section { font-weight: 800; color: var(--forge-accent-primary, #00d4aa); font-size: 13px; margin-top: 12px; margin-bottom: 2px; padding: 2px 0; border-bottom: 1px solid rgba(0,212,170,0.15); }
+  .ap-ini-section:first-child { margin-top: 0; }
+  .ap-ini-comment { color: var(--forge-text-muted, #7A8291); font-style: italic; }
 `;

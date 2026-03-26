@@ -68,16 +68,16 @@ export default function AdminExpress() {
   }, [config, selectedTierId]);
 
   const ui = useMemo(() => ({
-    title: cs ? 'Express doruceni' : 'Express Delivery',
+    title: cs ? 'Express Výroba' : 'Express Production',
     subtitle: cs
-      ? 'Spravuj urovne doruceni (Standard/Express/Rush), priradzky a upsell nastaveni.'
-      : 'Manage delivery tiers (Standard/Express/Rush), surcharges and upsell settings.',
+      ? 'Spravuj urovne vyroby (Standard/Express/Rush), priradzky a upsell nastaveni.'
+      : 'Manage production tiers (Standard/Express/Rush), surcharges and upsell settings.',
     newTier: cs ? 'Nova uroven' : 'New tier',
     save: cs ? 'Ulozit' : 'Save',
     saving: cs ? 'Ukladam...' : 'Saving...',
     saved: cs ? 'Ulozeno' : 'Saved',
     unsaved: cs ? 'Neulozene zmeny' : 'Unsaved changes',
-    noTiers: cs ? 'Zadne urovne doruceni' : 'No delivery tiers',
+    noTiers: cs ? 'Zadne urovne vyroby' : 'No production tiers',
     noTiersHint: cs ? 'Klikni na "Nova uroven".' : 'Click "New tier".',
     editorTitle: cs ? 'Editor urovne' : 'Tier editor',
     emptyEditor: cs ? 'Vyber uroven vlevo.' : 'Select a tier on the left.',
@@ -283,13 +283,13 @@ export default function AdminExpress() {
         <div className="express-panel">
           <div className="panel-header">
             <div className="panel-title">
-              <h2>{cs ? 'Urovne doruceni' : 'Delivery tiers'}</h2>
+              <h2>{cs ? 'Urovne vyroby' : 'Production tiers'}</h2>
               <span className="muted">{tiers.length}</span>
             </div>
             <ForgeCheckbox
               checked={config?.enabled !== false}
               onChange={(e) => updateConfig({ enabled: e.target.checked })}
-              label={cs ? 'Express doruceni zapnuto' : 'Express delivery enabled'}
+              label={cs ? 'Express výroba zapnuta' : 'Express production enabled'}
               style={{ marginTop: 8 }}
             />
           </div>
@@ -376,7 +376,7 @@ export default function AdminExpress() {
                 <div className="card-header">
                   <div>
                     <h2>{cs ? 'Nastaveni urovne' : 'Tier settings'}</h2>
-                    <p className="card-description">{cs ? 'Nazev, prirazka, doba doruceni a aktivace.' : 'Name, surcharge, delivery time and activation.'}</p>
+                    <p className="card-description">{cs ? 'Nazev, prirazka, doba vyroby a aktivace.' : 'Name, surcharge, production time and activation.'}</p>
                   </div>
                 </div>
                 <div className="card-body">
@@ -392,7 +392,7 @@ export default function AdminExpress() {
                       {nameErrorForSelected && <div className="help" style={{ color: 'var(--forge-error, #FF4757)' }}>{nameErrorForSelected}</div>}
                     </div>
                     <div className="field">
-                      <label>{cs ? 'Doba doruceni (dny)' : 'Delivery days'} <ForgeHelpIcon text={getHelpText('express_delivery_days', language)} size={14} /></label>
+                      <label>{cs ? 'Doba vyroby (dny)' : 'Production days'} <ForgeHelpIcon text={getHelpText('express_delivery_days', language)} size={14} /></label>
                       <input
                         className="input"
                         type="text"

@@ -6,7 +6,7 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
 
   return (
     <div className="mp-widget-express">
-      <h4 className="mp-widget-section-title">Delivery Speed</h4>
+      <h4 className="mp-widget-section-title">Production Speed</h4>
       <div className="mp-widget-express-list">
         {activeTiers.map(tier => {
           const isSelected = tier.id === selectedTierId;
@@ -25,7 +25,7 @@ export default function ExpressTierSelector({ tiers = [], selectedTierId, onSele
               </div>
               <div className="mp-widget-express-info">
                 <div className="mp-widget-express-name">{tier.name}</div>
-                <div className="mp-widget-express-days">{tier.delivery_days > 0 ? `${tier.delivery_days} business days` : 'Standard'}</div>
+                <div className="mp-widget-express-days">{tier.delivery_days > 0 ? `${tier.delivery_days} business days` : 'Standard production'}</div>
               </div>
               <span className="mp-widget-express-price" style={{ color: tier.surcharge_value > 0 ? '#d97706' : '#16a34a' }}>{surchargeLabel}</span>
             </button>

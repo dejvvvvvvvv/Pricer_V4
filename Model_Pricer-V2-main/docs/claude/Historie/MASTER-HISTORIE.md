@@ -246,6 +246,16 @@
 
 ---
 
+## 2026-03-25
+
+### S01: Auto-Orient STL Pipeline
+
+| ID | Datum | Typ | Zkratka | Nazev | Soubory | Pozn. |
+|----|-------|-----|---------|-------|---------|-------|
+| **270-3D** | 2026-03-25 | UPRAVY | 3D | Auto-Orient STL Pipeline — quaternion rotace STL pred slicovanim, novy stlTransform.js, backend+frontend integrace | 5 | Novy: stlTransform.js (zero-dep, ~200ms/200MB); Upraveny: index.js (slicer pipeline), ModelViewer.jsx (onOrientChange), slicerApi.js (quaternion FormData), test-kalkulacka/index.jsx (per-model quaternion state); Fallback pri selhani transformace |
+
+---
+
 ## 2026-03-22
 
 ### S01: Customer Portal Phase 2 — Bug-Fix Implementation

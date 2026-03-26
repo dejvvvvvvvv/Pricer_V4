@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { browseFolder, searchFiles, deleteFile, restoreFile, createFolder as apiFolderCreate, renameItem as apiRename, uploadFiles as apiUpload } from '../services/storageApi';
+import { browseFolder, searchFiles, deleteFile, restoreFile, permanentDeleteTrashItem as apiPermanentDelete, emptyTrash as apiEmptyTrash, autoCleanupTrash as apiAutoCleanup, createFolder as apiFolderCreate, renameItem as apiRename, uploadFiles as apiUpload } from '../services/storageApi';
 
 /**
  * Hook for managing Model Storage browser state.
@@ -106,6 +106,35 @@ export default function useStorageBrowser(initialPath = '') {
     }
   }, [refresh]);
 
+  const doPermanentDelete = useCallback(async (trashName) => {
+    try {
+      await apiPermanentDelete(trashName);
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [refresh]);
+
+  const doEmptyTrash = useCallback(async () => {
+    try {
+      await apiEmptyTrash();
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [refresh]);
+
+  const doAutoCleanup = useCallback(async (maxAgeDays = 20) => {
+    try {
+      const result = await apiAutoCleanup(maxAgeDays);
+      if (result.deletedCount > 0) refresh();
+      return result;
+    } catch (e) {
+      // Auto-cleanup is silent — don't show errors to users
+      return { deletedCount: 0 };
+    }
+  }, [refresh]);
+
   const doCreateFolder = useCallback(async (folderName) => {
     const newPath = currentPath ? `${currentPath}/${folderName}` : folderName;
     try {
@@ -155,6 +184,9 @@ export default function useStorageBrowser(initialPath = '') {
     setViewMode,
     doDelete,
     doRestore,
+    doPermanentDelete,
+    doEmptyTrash,
+    doAutoCleanup,
     doCreateFolder,
     doRename,
     doUpload,
